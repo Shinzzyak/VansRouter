@@ -10,6 +10,7 @@ import {
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
+import { isModelAllowed } from "../services/allowedModels.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { handleComboChat } from "open-sse/services/combo.js";
@@ -147,6 +148,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 
   const { provider, model } = modelInfo;
+
+  // Validate model is in the allowed (assigned) models list
+  // Check both original modelStr (alias format) and resolved provider/model format
+  const resolvedModelStr = `${provider}/${model}`;
+  const isAllowed = (modelStr === resolvedModelStr)
+    ? await isModelAllowed(resolvedModelStr)
+    : (await isModelAllowed(modelStr) || await isModelAllowed(resolvedModelStr));
+  if (!isAllowed) {
+    log.warn("CHAT", `Model not in available models list`, { model: resolvedModelStr });
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);
+  }
 
   // Log model routing (alias → actual model)
   if (modelStr !== `${provider}/${model}`) {

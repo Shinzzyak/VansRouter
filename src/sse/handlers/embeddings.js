@@ -7,6 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
+import { isModelAllowed } from "../services/allowedModels.js";
 import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -72,6 +73,15 @@ export async function handleEmbeddings(request) {
   }
 
   const { provider, model } = modelInfo;
+
+  const resolvedModelStr = `${provider}/${model}`;
+  const isAllowed = (modelStr === resolvedModelStr)
+    ? await isModelAllowed(resolvedModelStr)
+    : (await isModelAllowed(modelStr) || await isModelAllowed(resolvedModelStr));
+  if (!isAllowed) {
+    log.warn("EMBEDDINGS", `Model not in available models list`, { model: resolvedModelStr });
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);
+  }
 
   if (modelStr !== `${provider}/${model}`) {
     log.info("ROUTING", `${modelStr} → ${provider}/${model}`);

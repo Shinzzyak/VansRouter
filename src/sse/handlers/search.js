@@ -7,6 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
+import { isModelAllowed } from "../services/allowedModels.js";
 import { handleSearchCore } from "open-sse/handlers/search/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -106,6 +107,13 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
   if (!supportsSearch) {
     log.warn("SEARCH", "Provider does not support web search", { provider: providerId });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} does not support web search`);
+  }
+
+  const alias = AI_PROVIDERS[providerId]?.alias || providerId;
+  const searchModelId = `${alias}/search`;
+  if (!(await isModelAllowed(searchModelId))) {
+    log.warn("SEARCH", `Search model not in available models list`, { model: searchModelId });
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${searchModelId}" is not available. Only models listed in /v1/models can be used.`);
   }
 
   if (providerInput !== providerId) {

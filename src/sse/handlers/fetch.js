@@ -7,6 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
+import { isModelAllowed } from "../services/allowedModels.js";
 import { handleFetchCore } from "open-sse/handlers/fetch/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -116,6 +117,13 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
   if (!providerConfig) {
     log.warn("FETCH", "Provider does not support web fetch", { provider: providerId });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} does not support web fetch`);
+  }
+
+  const alias = resolvedProvider.alias || providerId;
+  const fetchModelId = `${alias}/fetch`;
+  if (!(await isModelAllowed(fetchModelId))) {
+    log.warn("FETCH", `Fetch model not in available models list`, { model: fetchModelId });
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${fetchModelId}" is not available. Only models listed in /v1/models can be used.`);
   }
 
   if (providerInput !== providerId) {

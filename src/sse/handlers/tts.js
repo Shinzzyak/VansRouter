@@ -4,6 +4,7 @@ import {
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
+import { isModelAllowed } from "../services/allowedModels.js";
 import { handleTtsCore } from "open-sse/handlers/ttsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -69,6 +70,15 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language) {
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
+
+  const resolvedModelStr = `${provider}/${model}`;
+  const isAllowed = (modelStr === resolvedModelStr)
+    ? await isModelAllowed(resolvedModelStr)
+    : (await isModelAllowed(modelStr) || await isModelAllowed(resolvedModelStr));
+  if (!isAllowed) {
+    return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);
+  }
+
   log.info("ROUTING", `Provider: ${provider}, Voice: ${model}`);
 
   // noAuth providers — no credential needed
