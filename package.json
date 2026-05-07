@@ -1,15 +1,15 @@
 {
-  "name": "9router-app",
+  "name": "vansai-app",
   "version": "0.4.20",
-  "description": "9Router web dashboard",
+  "description": "VansAI web dashboard",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack --port 20128",
+    "dev": "next dev --webpack --port 3003",
     "build": "NODE_ENV=production next build --webpack",
-    "start": "NODE_ENV=production next start",
-    "dev:bun": "bun --bun next dev --webpack --port 20128",
+    "start": "NODE_ENV=production next start --port 3003",
+    "dev:bun": "bun --bun next dev --webpack --port 3003",
     "build:bun": "NODE_ENV=production bun --bun next build --webpack",
-    "start:bun": "NODE_ENV=production bun ./.next/standalone/server.js"
+    "start:bun": "NODE_ENV=production PORT=3003 bun ./.next/standalone/server.js"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

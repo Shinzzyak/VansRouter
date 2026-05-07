@@ -135,8 +135,13 @@ export default function Sidebar({ onClose }) {
         {/* Logo */}
         <div className="px-6 py-4 flex flex-col gap-2">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)]">
-              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
+            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] shadow-[var(--shadow-warm)]">
+              <svg viewBox="0 0 32 32" className="w-5 h-5" fill="none">
+                <path d="M16 5L22 14L16 27L10 14L16 5Z" fill="white" opacity="0.9"/>
+                <path d="M10 14L16 27L10 20L6 14H10Z" fill="white" opacity="0.6"/>
+                <path d="M22 14L16 27L22 20L26 14H22Z" fill="white" opacity="0.6"/>
+                <circle cx="16" cy="9" r="2" fill="white"/>
+              </svg>
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold tracking-tight text-text-main">
@@ -363,8 +368,8 @@ export default function Sidebar({ onClose }) {
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
         onConfirm={handleUpdate}
-        title="Update 9Router"
-        message={`This will close 9Router and install v${updateInfo?.latestVersion || ""} in a separate window. Continue?`}
+        title="Update VansAI"
+        message={`This will close VansAI and install v${updateInfo?.latestVersion || ""} in a separate window. Continue?`}
         confirmText="Update"
         cancelText="Cancel"
         variant="primary"
@@ -414,7 +419,7 @@ function UpdateProgress({ status, latestVersion, installCmd, copied, onCopy }) {
   const errorMsg = status?.error;
 
   const steps = [
-    { key: "stopped", label: "Stopped 9Router server", state: "done" },
+    { key: "stopped", label: "Stopped VansAI server", state: "done" },
     {
       key: "launched",
       label: "Launched background installer",
@@ -456,7 +461,7 @@ function UpdateProgress({ status, latestVersion, installCmd, copied, onCopy }) {
         </div>
         <div>
           <h2 className="text-lg font-semibold">
-            {done && success ? "Update Completed" : done && !success ? "Update Failed" : "Updating 9Router"}
+            {done && success ? "Update Completed" : done && !success ? "Update Failed" : "Updating VansAI"}
           </h2>
           <p className="text-xs text-white/60">
             {done && success

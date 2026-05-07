@@ -22,19 +22,19 @@ async function hasValidCliToken(request) {
   return token === await getCliToken();
 }
 
-// Always require JWT token regardless of requireLogin setting
 const ALWAYS_PROTECTED = [
   "/api/shutdown",
   "/api/settings/database",
 ];
 
-// Require auth, but allow through if requireLogin is disabled
 const PROTECTED_API_PATHS = [
   "/api/settings",
   "/api/keys",
   "/api/providers/client",
   "/api/provider-nodes/validate",
 ];
+
+const V1_API_PREFIXES = ["/v1", "/api/v1", "/codex"];
 
 async function hasValidToken(request) {
   const token = request.cookies.get("auth_token")?.value;
@@ -47,7 +47,6 @@ async function hasValidToken(request) {
   }
 }
 
-// Read settings directly from DB to avoid self-fetch deadlock in proxy
 async function loadSettings() {
   try {
     return await getSettings();
@@ -63,22 +62,112 @@ async function isAuthenticated(request) {
   return false;
 }
 
+function isBrowserRequest(request) {
+  const accept = (request.headers.get("accept") || "").toLowerCase();
+  return accept.includes("text/html");
+}
+
+function extractApiKey(request) {
+  const authHeader = request.headers.get("authorization") || "";
+  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7).trim();
+  return request.headers.get("x-api-key") || request.nextUrl.searchParams.get("key") || "";
+}
+
+async function isValidApiKey(key) {
+  if (!key) return false;
+  try {
+    const { getApiKeys } = await import("@/lib/localDb");
+    const { keys } = await getApiKeys();
+    return keys.some((k) => k.key === key && k.isActive !== false);
+  } catch {
+    return false;
+  }
+}
+
+const AUTH_ERROR_JSON = JSON.stringify({
+  error: {
+    message: "Missing bearer authentication in header",
+    type: "invalid_request_error",
+    param: null,
+    code: null,
+  },
+});
+
+function authErrorResponse() {
+  return new NextResponse(AUTH_ERROR_JSON, {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
-  // Always protected - require valid JWT or local CLI token (machineId-based)
   if (ALWAYS_PROTECTED.some((p) => pathname.startsWith(p))) {
     if (await hasValidCliToken(request) || await hasValidToken(request))
       return NextResponse.next();
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Protect sensitive API endpoints (allow CLI token, JWT, or requireLogin=false)
   if (PROTECTED_API_PATHS.some((p) => pathname.startsWith(p))) {
     if (pathname === "/api/settings/require-login") return NextResponse.next();
     if (await hasValidCliToken(request) || await isAuthenticated(request))
       return NextResponse.next();
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // /v1/* and /api/v1/* - block browser
+  if (V1_API_PREFIXES.some((p) => pathname.startsWith(p))) {
+    if (isBrowserRequest(request)) {
+      return new NextResponse(null, { status: 404 });
+    }
+
+    const settings = await loadSettings();
+    if (settings?.requireApiKey) {
+      const apiKey = extractApiKey(request);
+      if (!apiKey) return authErrorResponse();
+      const valid = await isValidApiKey(apiKey);
+      if (!valid) return authErrorResponse();
+    }
+
+    return NextResponse.next();
+  }
+
+  // /masuk - redirect to dashboard if already authenticated
+  if (pathname === "/masuk" || pathname === "/masuk/") {
+    if (await isAuthenticated(request)) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // /login - always redirect to /masuk
+  if (pathname === "/login" || pathname === "/login/") {
+    return NextResponse.redirect(new URL("/masuk", request.url));
+  }
+
+  // / - redirect to dashboard if authenticated, otherwise return JSON welcome
+  if (pathname === "/") {
+    if (await isAuthenticated(request)) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    const host = request.headers.get("host") || "api.bevansatria.my.id";
+    const protocol = request.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = `${protocol}://${host}`;
+
+    return new NextResponse(
+      JSON.stringify({
+        message: `Welcome to VansAI! Use ${baseUrl}/v1 as your API endpoint.`,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
   }
 
   // Protect all dashboard routes
@@ -92,45 +181,35 @@ export async function proxy(request) {
         requireLogin = settings.requireLogin !== false;
         tunnelDashboardAccess = settings.tunnelDashboardAccess === true;
 
-        // Block tunnel/tailscale access if disabled (redirect to login)
         if (!tunnelDashboardAccess) {
           const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
           const tunnelHost = settings.tunnelUrl ? new URL(settings.tunnelUrl).hostname.toLowerCase() : "";
           const tailscaleHost = settings.tailscaleUrl ? new URL(settings.tailscaleUrl).hostname.toLowerCase() : "";
           if ((tunnelHost && host === tunnelHost) || (tailscaleHost && host === tailscaleHost)) {
-            return NextResponse.redirect(new URL("/login", request.url));
+            return NextResponse.redirect(new URL("/masuk", request.url));
           }
         }
       }
-    } catch {
-      // On error, keep defaults (require login, block tunnel)
-    }
+    } catch {}
 
-    // If login not required, allow through
     if (!requireLogin) return NextResponse.next();
 
-    // Verify JWT token
     const token = request.cookies.get("auth_token")?.value;
     if (token) {
       try {
         await jwtVerify(token, SECRET);
         return NextResponse.next();
       } catch {
-        return NextResponse.redirect(new URL("/login", request.url));
+        return NextResponse.redirect(new URL("/masuk", request.url));
       }
     }
 
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  // Redirect / to /dashboard if logged in, or /dashboard if it's the root
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/masuk", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*"],
+  matcher: ["/", "/masuk", "/login", "/dashboard/:path*", "/v1/:path*", "/v1", "/api/v1/:path*", "/api/v1", "/codex/:path*"],
 };

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["api.bevansatria.my.id"],
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
   images: {

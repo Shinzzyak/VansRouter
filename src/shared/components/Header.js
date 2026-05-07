@@ -106,7 +106,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/mitm"))
     return {
       title: "MITM Proxy",
-      description: "Intercept CLI tool traffic and route through 9Router",
+      description: "Intercept CLI tool traffic and route through VansAI",
       icon: "security",
       breadcrumbs: [],
     };
@@ -127,7 +127,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/skills"))
     return {
       title: "Agent Skills",
-      description: "Copy a link and paste to your AI to use 9Router — no install needed",
+      description: "Copy a link and paste to your AI to use VansAI — no install needed",
       icon: "extension",
       breadcrumbs: [],
     };
@@ -181,7 +181,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
     try {
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (res.ok) {
-        router.push("/login");
+        router.push("/masuk");
         router.refresh();
       }
     } catch (err) {
