@@ -1,6 +1,7 @@
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import {
   AI_PROVIDERS,
+  FREE_PROVIDERS,
   getProviderAlias,
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
@@ -354,6 +355,76 @@ export async function buildModelsList(kindFilter) {
           kind: "webFetch",
           owned_by: outputAlias,
         });
+      }
+    }
+
+    // Add free providers (noAuth) that have no connection entry
+    // Same data flow as connected providers: PROVIDER_MODELS + customModels + modelAliases
+    // Suggested models from modelsFetcher are UI-only (not assigned until user clicks +)
+    for (const [providerId, providerInfo] of Object.entries(FREE_PROVIDERS)) {
+      if (activeConnectionByProvider.has(providerId)) continue;
+      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+
+      const outputAlias = getProviderAlias(providerId) || providerInfo.alias || providerId;
+      const staticModelKindById = new Map(
+        (PROVIDER_MODELS[outputAlias] || []).map((m) => [m.id, modelKind(m)])
+      );
+
+      const modelIds = (PROVIDER_MODELS[outputAlias] || []).map((m) => m.id);
+      const customModelIds = customModels
+        .filter((m) => {
+          if (!m?.id || (m.type && m.type !== "llm")) return false;
+          const alias = m.providerAlias;
+          return alias === outputAlias || alias === providerId;
+        })
+        .map((m) => String(m.id).trim())
+        .filter((id) => id !== "");
+      const aliasModelIds = Object.values(modelAliases || {})
+        .filter((fullModel) => {
+          if (typeof fullModel !== "string" || !fullModel.includes("/")) return false;
+          return fullModel.startsWith(`${outputAlias}/`) || fullModel.startsWith(`${providerId}/`);
+        })
+        .map((fullModel) => {
+          if (fullModel.startsWith(`${outputAlias}/`)) return fullModel.slice(outputAlias.length + 1);
+          if (fullModel.startsWith(`${providerId}/`)) return fullModel.slice(providerId.length + 1);
+          return fullModel;
+        })
+        .filter((id) => typeof id === "string" && id.trim() !== "");
+
+      const mergedModelIds = Array.from(new Set([...modelIds, ...customModelIds, ...aliasModelIds]));
+      for (const modelId of mergedModelIds) {
+        const kind = staticModelKindById.get(modelId) || inferKindFromUnknownModelId(modelId);
+        if (!kindFilter.includes(kind)) continue;
+        if (isDisabled(outputAlias, modelId)) continue;
+        models.push({
+          id: `${outputAlias}/${modelId}`,
+          object: "model",
+          owned_by: outputAlias,
+        });
+      }
+
+      // Sub-config models (TTS/embedding) from AI_PROVIDERS
+      if (kindFilter.includes("tts") && Array.isArray(providerInfo?.ttsConfig?.models)) {
+        for (const m of providerInfo.ttsConfig.models) {
+          if (m?.id && !isDisabled(outputAlias, m.id)) {
+            models.push({ id: `${outputAlias}/${m.id}`, object: "model", owned_by: outputAlias });
+          }
+        }
+      }
+      if (kindFilter.includes("embedding") && Array.isArray(providerInfo?.embeddingConfig?.models)) {
+        for (const m of providerInfo.embeddingConfig.models) {
+          if (m?.id && !isDisabled(outputAlias, m.id)) {
+            models.push({ id: `${outputAlias}/${m.id}`, object: "model", owned_by: outputAlias });
+          }
+        }
+      }
+
+      // Web search/fetch
+      if (kindFilter.includes("webSearch") && providerInfo?.searchConfig) {
+        models.push({ id: `${outputAlias}/search`, object: "model", kind: "webSearch", owned_by: outputAlias });
+      }
+      if (kindFilter.includes("webFetch") && providerInfo?.fetchConfig) {
+        models.push({ id: `${outputAlias}/fetch`, object: "model", kind: "webFetch", owned_by: outputAlias });
       }
     }
   }
