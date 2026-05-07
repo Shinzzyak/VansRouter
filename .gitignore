@@ -70,3 +70,10 @@ ecosystem.config.*
 
 scripts/agSniffer/*
 gitbooks/*
+
+# junk files
+nohup.out
+*.log
+nul
+scratch.js
+test_fetch.js

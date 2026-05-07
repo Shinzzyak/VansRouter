@@ -1,9 +1,0 @@
-
-> vansai-app@0.4.20 start
-> NODE_ENV=production next start --port 3003
-
-▲ Next.js 16.2.4
-- Local:         http://localhost:3003
-- Network:       http://38.242.205.93:3003
-✓ Ready in 117ms
-⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
