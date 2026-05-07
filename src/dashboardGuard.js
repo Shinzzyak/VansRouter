@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getSettings } from "@/lib/localDb";
+import { getSettings, validateApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const SECRET = new TextEncoder().encode(
@@ -69,17 +69,20 @@ function isBrowserRequest(request) {
 
 function extractApiKey(request) {
   const authHeader = request.headers.get("authorization") || "";
-  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7).trim();
-  return request.headers.get("x-api-key") || request.nextUrl.searchParams.get("key") || "";
+  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7).trim() || null;
+  const xApiKey = request.headers.get("x-api-key");
+  if (xApiKey) return xApiKey;
+  const queryKey = request.nextUrl.searchParams.get("key");
+  if (queryKey) return queryKey;
+  return null;
 }
 
 async function isValidApiKey(key) {
   if (!key) return false;
   try {
-    const { getApiKeys } = await import("@/lib/localDb");
-    const { keys } = await getApiKeys();
-    return keys.some((k) => k.key === key && k.isActive !== false);
-  } catch {
+    return await validateApiKey(key);
+  } catch (e) {
+    console.error("dashboardGuard isValidApiKey error:", e.message);
     return false;
   }
 }
