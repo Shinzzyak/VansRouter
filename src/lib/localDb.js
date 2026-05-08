@@ -674,7 +674,8 @@ export async function updateApiKey(id, data) {
 export async function validateApiKey(key) {
   const db = await getDb();
   const found = db.data.apiKeys.find(k => k.key === key);
-  return found && found.isActive !== false;
+  if (!found || found.isActive === false) return null;
+  return found;
 }
 
 export async function cleanupProviderConnections() {

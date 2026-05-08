@@ -64,6 +64,7 @@ export default function APIPageClient({ machineId }) {
 
   // API key visibility toggle state
   const [visibleKeys, setVisibleKeys] = useState(new Set());
+  const [editingProviders, setEditingProviders] = useState(null);
 
   const { copied, copy } = useCopyToClipboard();
 
@@ -627,6 +628,46 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleUpdateProviders = async (id, allowedProviders) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedProviders }),
+      });
+      if (res.ok) {
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, allowedProviders } : k));
+      }
+    } catch (error) {
+      console.log("Error updating providers:", error);
+    }
+  };
+
+  const PROVIDER_LIST = [
+    { alias: "oc", name: "OpenCode Free", color: "#E87040" },
+    { alias: "gh", name: "GitHub Copilot", color: "#333333" },
+    { alias: "cc", name: "Claude Code", color: "#D97757" },
+    { alias: "cx", name: "OpenAI Codex", color: "#3B82F6" },
+    { alias: "cu", name: "Cursor IDE", color: "#00D4AA" },
+    { alias: "kc", name: "Kilo Code", color: "#FF6B35" },
+    { alias: "cl", name: "Cline", color: "#5B9BD5" },
+    { alias: "kr", name: "Kiro AI", color: "#FF6B35" },
+    { alias: "qw", name: "Qwen Code", color: "#10B981" },
+    { alias: "if", name: "iFlow AI", color: "#6366F1" },
+    { alias: "gc", name: "Gemini CLI", color: "#4285F4" },
+    { alias: "gemini", name: "Gemini", color: "#4285F4" },
+    { alias: "openai", name: "OpenAI", color: "#10A37F" },
+    { alias: "anthropic", name: "Anthropic", color: "#D97757" },
+    { alias: "deepseek", name: "DeepSeek", color: "#4D6BFE" },
+    { alias: "groq", name: "Groq", color: "#F55036" },
+    { alias: "xai", name: "xAI (Grok)", color: "#1DA1F2" },
+    { alias: "openrouter", name: "OpenRouter", color: "#F97316" },
+    { alias: "searxng", name: "SearXNG", color: "#3B82F6" },
+    { alias: "kimi", name: "Kimi", color: "#1E3A8A" },
+    { alias: "minimax", name: "Minimax", color: "#7C3AED" },
+    { alias: "glm", name: "GLM Coding", color: "#2563EB" },
+  ];
+
   const maskKey = (fullKey) => {
     if (!fullKey) return "";
     return fullKey.length > 8 ? fullKey.slice(0, 8) + "..." : fullKey;
@@ -997,6 +1038,70 @@ export default function APIPageClient({ machineId }) {
                   </p>
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
+                  )}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {(!key.allowedProviders || key.allowedProviders.length === 0) ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                        All Providers
+                      </span>
+                    ) : (
+                      key.allowedProviders.map((alias) => {
+                        const p = PROVIDER_LIST.find(x => x.alias === alias);
+                        return (
+                          <span
+                            key={alias}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full text-white"
+                            style={{ backgroundColor: p?.color || "#6B7280" }}
+                          >
+                            {p?.name || alias}
+                          </span>
+                        );
+                      })
+                    )}
+                    <button
+                      onClick={() => setEditingProviders(editingProviders === key.id ? null : key.id)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-text-muted hover:text-primary transition-colors"
+                    >
+                      {editingProviders === key.id ? "Done" : "Edit"}
+                    </button>
+                  </div>
+                  {editingProviders === key.id && (
+                    <div className="mt-2 p-2 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+                      <p className="text-[10px] text-text-muted mb-1.5">Select allowed providers (none = all):</p>
+                      <div className="flex flex-wrap gap-1">
+                        {PROVIDER_LIST.map((p) => {
+                          const current = key.allowedProviders || [];
+                          const isSelected = current.includes(p.alias);
+                          return (
+                            <button
+                              key={p.alias}
+                              onClick={() => {
+                                const next = isSelected
+                                  ? current.filter(a => a !== p.alias)
+                                  : [...current, p.alias];
+                                handleUpdateProviders(key.id, next);
+                              }}
+                              className={`text-[10px] px-2 py-1 rounded-full border transition-all ${
+                                isSelected
+                                  ? "text-white border-transparent"
+                                  : "bg-transparent border-black/10 dark:border-white/10 text-text-muted hover:border-primary hover:text-primary"
+                              }`}
+                              style={isSelected ? { backgroundColor: p.color } : {}}
+                            >
+                              {p.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(key.allowedProviders || []).length > 0 && (
+                        <button
+                          onClick={() => handleUpdateProviders(key.id, [])}
+                          className="mt-2 text-[10px] text-primary hover:underline"
+                        >
+                          Allow all providers
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

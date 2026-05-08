@@ -125,6 +125,8 @@ async function flushToDatabase() {
         provider: item.provider || null,
         model: item.model || null,
         connectionId: item.connectionId || null,
+        apiKey: item.apiKey || null,
+        apiKeyName: item.apiKeyName || null,
         timestamp: item.timestamp,
         status: item.status || null,
         latency: item.latency || {},

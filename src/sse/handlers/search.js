@@ -4,6 +4,7 @@ import {
   clearAccountError,
   extractApiKey,
   isValidApiKey,
+  isProviderAllowed,
 } from "../services/auth.js";
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
@@ -47,13 +48,14 @@ export async function handleSearch(request) {
 
   // Enforce API key if enabled in settings
   const settings = await getSettings();
+  let apiKeyInfo = null;
   if (settings.requireApiKey) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     }
-    const valid = await isValidApiKey(apiKey);
-    if (!valid) {
+    apiKeyInfo = await isValidApiKey(apiKey);
+    if (!apiKeyInfo) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
@@ -80,7 +82,7 @@ export async function handleSearch(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleProviderSearch(b, m, request, apiKey, settings),
+      handleSingleModel: (b, m) => handleSingleProviderSearch(b, m, request, apiKey, settings, apiKeyInfo),
       log,
       comboName: providerInput,
       comboStrategy,
@@ -88,10 +90,10 @@ export async function handleSearch(request) {
     });
   }
 
-  return handleSingleProviderSearch(body, providerInput, request, apiKey, settings);
+  return handleSingleProviderSearch(body, providerInput, request, apiKey, settings, apiKeyInfo);
 }
 
-async function handleSingleProviderSearch(body, providerInput, request, apiKey, settings) {
+async function handleSingleProviderSearch(body, providerInput, request, apiKey, settings, apiKeyInfo = null) {
   const query = body.query;
   const providerId = resolveProviderId(providerInput);
   const resolvedProvider = AI_PROVIDERS[providerId];
@@ -107,6 +109,11 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
   if (!supportsSearch) {
     log.warn("SEARCH", "Provider does not support web search", { provider: providerId });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} does not support web search`);
+  }
+
+  if (!isProviderAllowed(apiKeyInfo, providerId)) {
+    log.warn("AUTH", `Provider "${providerId}" not allowed for API key`, { provider: providerId });
+    return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${providerId}" is not allowed for this API key`);
   }
 
   const alias = AI_PROVIDERS[providerId]?.alias || providerId;

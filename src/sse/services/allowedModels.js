@@ -78,13 +78,6 @@ async function fetchModelsFetcherIds(providerId, providerInfo) {
     let ids;
     if (fetcher.type === "opencode-free") {
       ids = rawModels
-        .filter((m) => {
-          const pricing = m?.pricing;
-          if (!pricing) return false;
-          const promptPrice = parseFloat(pricing.prompt || "1");
-          const completionPrice = parseFloat(pricing.completion || "1");
-          return promptPrice === 0 && completionPrice === 0;
-        })
         .map((m) => m?.id || m?.name || m?.model)
         .filter((id) => typeof id === "string" && id.trim() !== "" && id.endsWith("-free"));
     } else {

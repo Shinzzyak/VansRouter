@@ -1,6 +1,7 @@
 import { buildModelsList } from "@/sse/services/allowedModels.js";
+import { isValidApiKey, extractApiKey, isProviderAllowed } from "@/sse/services/auth.js";
+import { getSettings } from "@/lib/localDb";
 
-// URL slug → service kind(s). `web` covers both webSearch and webFetch.
 const KIND_SLUG_MAP = {
   "image": ["image"],
   "tts": ["tts"],
@@ -20,11 +21,7 @@ export async function OPTIONS() {
   });
 }
 
-/**
- * GET /v1/models/{kind} - OpenAI-compatible models list filtered by capability.
- * Supported kinds: image, tts, stt, embedding, image-to-text, web.
- */
-export async function GET(_request, { params }) {
+export async function GET(request, { params }) {
   try {
     const { kind } = await params;
     const kindFilter = KIND_SLUG_MAP[kind];
@@ -41,7 +38,35 @@ export async function GET(_request, { params }) {
       );
     }
 
-    const data = await buildModelsList(kindFilter);
+    const settings = await getSettings();
+    let apiKeyInfo = null;
+
+    if (settings.requireApiKey) {
+      const apiKey = extractApiKey(request);
+      if (!apiKey) {
+        return Response.json(
+          { error: { message: "Missing API key", type: "authentication_error" } },
+          { status: 401, headers: { "Access-Control-Allow-Origin": "*" } }
+        );
+      }
+      apiKeyInfo = await isValidApiKey(apiKey);
+      if (!apiKeyInfo) {
+        return Response.json(
+          { error: { message: "Invalid API key", type: "authentication_error" } },
+          { status: 401, headers: { "Access-Control-Allow-Origin": "*" } }
+        );
+      }
+    }
+
+    let data = await buildModelsList(kindFilter);
+
+    if (apiKeyInfo && Array.isArray(apiKeyInfo.allowedProviders) && apiKeyInfo.allowedProviders.length > 0) {
+      data = data.filter((model) => {
+        const providerAlias = model.id.includes("/") ? model.id.split("/")[0] : model.owned_by;
+        return isProviderAllowed(apiKeyInfo, providerAlias);
+      });
+    }
+
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });

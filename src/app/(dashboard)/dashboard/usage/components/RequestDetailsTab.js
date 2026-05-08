@@ -88,6 +88,11 @@ function getInputTokens(tokens) {
   return prompt < cache ? cache : prompt;
 }
 
+function maskKey(fullKey) {
+  if (!fullKey) return "";
+  return fullKey.length > 8 ? `${fullKey.slice(0, 8)}...` : fullKey;
+}
+
 export default function RequestDetailsTab() {
   const [details, setDetails] = useState([]);
   const [pagination, setPagination] = useState({
@@ -347,6 +352,18 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
                 <span className="text-text-main font-mono">{selectedDetail.model}</span>
+              </div>
+              <div>
+                <span className="text-text-muted">API Key Name:</span>{" "}
+                <span className="text-text-main">
+                  {selectedDetail.apiKey ? (selectedDetail.apiKeyName || "-") : "-"}
+                </span>
+              </div>
+              <div>
+                <span className="text-text-muted">API Key:</span>{" "}
+                <span className="text-text-main font-mono">
+                  {selectedDetail.apiKey ? maskKey(selectedDetail.apiKey) : "-"}
+                </span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}
