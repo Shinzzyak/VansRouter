@@ -128,7 +128,7 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
 
   const alias = resolvedProvider.alias || providerId;
   const fetchModelId = `${alias}/fetch`;
-  if (!(await isModelAllowed(fetchModelId))) {
+  if (!(await isModelAllowed(fetchModelId, apiKeyInfo))) {
     log.warn("FETCH", `Fetch model not in available models list`, { model: fetchModelId });
     return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${fetchModelId}" is not available. Only models listed in /v1/models can be used.`);
   }

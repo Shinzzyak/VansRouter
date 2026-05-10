@@ -83,8 +83,8 @@ export async function handleEmbeddings(request) {
 
   const resolvedModelStr = `${provider}/${model}`;
   const isAllowed = (modelStr === resolvedModelStr)
-    ? await isModelAllowed(resolvedModelStr)
-    : (await isModelAllowed(modelStr) || await isModelAllowed(resolvedModelStr));
+    ? await isModelAllowed(resolvedModelStr, apiKeyInfo)
+    : (await isModelAllowed(modelStr, apiKeyInfo) || await isModelAllowed(resolvedModelStr, apiKeyInfo));
   if (!isAllowed) {
     log.warn("EMBEDDINGS", `Model not in available models list`, { model: resolvedModelStr });
     return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);

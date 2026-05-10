@@ -118,7 +118,7 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
 
   const alias = AI_PROVIDERS[providerId]?.alias || providerId;
   const searchModelId = `${alias}/search`;
-  if (!(await isModelAllowed(searchModelId))) {
+  if (!(await isModelAllowed(searchModelId, apiKeyInfo))) {
     log.warn("SEARCH", `Search model not in available models list`, { model: searchModelId });
     return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${searchModelId}" is not available. Only models listed in /v1/models can be used.`);
   }

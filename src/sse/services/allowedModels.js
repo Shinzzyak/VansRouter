@@ -449,7 +449,8 @@ export function invalidateAllowedModelsCache() {
   _allowedCacheExpiry = 0;
 }
 
-export async function isModelAllowed(modelStr) {
+export async function isModelAllowed(modelStr, apiKeyInfo = null) {
+  if (!apiKeyInfo) return true;
   const allowed = await getAllowedModelIds();
   return allowed.has(modelStr);
 }

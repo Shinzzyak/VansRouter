@@ -160,12 +160,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }
 
-  // Validate model is in the allowed (assigned) models list
+  // Validate model is in the allowed (assigned) models list (only when requireApiKey is ON)
   // Check both original modelStr (alias format) and resolved provider/model format
   const resolvedModelStr = `${provider}/${model}`;
   const isAllowed = (modelStr === resolvedModelStr)
-    ? await isModelAllowed(resolvedModelStr)
-    : (await isModelAllowed(modelStr) || await isModelAllowed(resolvedModelStr));
+    ? await isModelAllowed(resolvedModelStr, apiKeyInfo)
+    : (await isModelAllowed(modelStr, apiKeyInfo) || await isModelAllowed(resolvedModelStr, apiKeyInfo));
   if (!isAllowed) {
     log.warn("CHAT", `Model not in available models list`, { model: resolvedModelStr });
     return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);
