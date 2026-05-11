@@ -176,7 +176,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       if (provider === "codex") {
         redirectUri = "http://localhost:1455/auth/callback";
       } else {
-        redirectUri = `http://localhost:${appPort}/callback`;
+        redirectUri = `https://api.bevansatria.my.id/callback`;
       }
 
       // Build authorize URL first to get codeVerifier/state for codex server-side mode
