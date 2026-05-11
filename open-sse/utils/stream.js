@@ -80,10 +80,12 @@ export function createSSEStream(options = {}) {
           let injectedUsage = false;
 
           if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
-            try {
-              const parsed = JSON.parse(trimmed.slice(5).trim());
+            const rawData = trimmed.slice(5).trim();
+            if (rawData) {
+              try {
+                const parsed = JSON.parse(rawData);
 
-              const idFixed = fixInvalidId(parsed);
+                const idFixed = fixInvalidId(parsed);
 
               // Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
               let fieldsInjected = false;
@@ -143,10 +145,14 @@ export function createSSEStream(options = {}) {
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 injectedUsage = true;
               }
-            } catch { }
+            } catch (err) {
+              console.error("[Stream] Dropping malformed chunk:", rawData);
+              continue;
+            }
           }
+        }
 
-          if (!injectedUsage) {
+        if (!injectedUsage) {
             if (line.startsWith("data:") && !line.startsWith("data: ")) {
               output = "data: " + line.slice(5) + "\n";
             } else {
