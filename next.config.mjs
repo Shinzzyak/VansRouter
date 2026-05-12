@@ -1,8 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
-const monorepoRoot = resolve(projectRoot, "..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -11,7 +10,14 @@ const nextConfig = {
   turbopack: {
     root: projectRoot
   },
-  outputFileTracingRoot: monorepoRoot,
+  // Pin file tracing to the project root so `next build` always emits a flat
+  // standalone layout at `.next/standalone/server.js`. Previously this was set
+  // to the parent directory, which (a) made Next.js emit server.js nested
+  // under `.next/standalone/<repo-dir>/server.js` locally, breaking the
+  // documented `npm start` flow, and (b) disagreed with the Dockerfile which
+  // assumes the flat layout when it does `COPY .next/standalone ./` + `CMD
+  // node server.js`.
+  outputFileTracingRoot: projectRoot,
   outputFileTracingExcludes: {
     "*": ["./app/gitbook/**/*", "./gitbook/**/*"]
   },
