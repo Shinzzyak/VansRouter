@@ -21,7 +21,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, allowedProviders } = body;
+    const { isActive, allowedProviders, allowedCombos, allowedKinds } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -30,10 +30,18 @@ export async function PUT(request, { params }) {
 
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
-    if (allowedProviders !== undefined) updateData.allowedProviders = allowedProviders;
+    // null = all allowed, [] = none, [x] = specific. Only update if key present in body.
+    if ("allowedProviders" in body) {
+      updateData.allowedProviders = allowedProviders === null ? null : (Array.isArray(allowedProviders) ? allowedProviders : null);
+    }
+    if ("allowedCombos" in body) {
+      updateData.allowedCombos = allowedCombos === null ? null : (Array.isArray(allowedCombos) ? allowedCombos : null);
+    }
+    if ("allowedKinds" in body) {
+      updateData.allowedKinds = allowedKinds === null ? null : (Array.isArray(allowedKinds) ? allowedKinds : null);
+    }
 
     const updated = await updateApiKey(id, updateData);
-
     return NextResponse.json({ key: updated });
   } catch (error) {
     console.log("Error updating key:", error);

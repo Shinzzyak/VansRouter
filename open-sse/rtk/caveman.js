@@ -22,8 +22,15 @@ export function injectCaveman(body, format, level) {
       // Antigravity wraps Gemini shape in body.request → injectGeminiSystem handles it
       injectGeminiSystem(body, prompt);
       return;
+    case FORMATS.KIRO:
+      injectKiroSystem(body, prompt);
+      return;
+    case FORMATS.CURSOR:
+    case FORMATS.COMMANDCODE:
+      // Cursor/CommandCode native formats don't support system injection — skip silently
+      return;
     default:
-      // OpenAI and OpenAI-shaped formats (responses/codex/cursor/kiro/ollama)
+      // OpenAI and OpenAI-shaped formats (responses/codex/ollama)
       injectMessagesSystem(body, prompt);
   }
 }
@@ -97,4 +104,13 @@ function injectGeminiSystem(body, prompt) {
     return;
   }
   target[key] = { parts: [{ text: prompt }] };
+}
+
+// Kiro shape: body.conversationState.currentMessage.userInputMessage.content
+function injectKiroSystem(body, prompt) {
+  const msg = body?.conversationState?.currentMessage?.userInputMessage;
+  if (!msg) return;
+  msg.content = typeof msg.content === "string" && msg.content
+    ? `${prompt}${SEP}${msg.content}`
+    : prompt;
 }

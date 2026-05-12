@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 import Drawer from "@/shared/components/Drawer";
@@ -95,83 +95,114 @@ function maskKey(fullKey) {
 
 export default function RequestDetailsTab() {
   const [details, setDetails] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    totalItems: 0,
-    totalPages: 0
-  });
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [providers, setProviders] = useState([]);
   const [providerNameCache, setProviderNameCache] = useState(null);
-  const [filters, setFilters] = useState({
-    provider: "",
-    startDate: "",
-    endDate: ""
-  });
+  // Filter input state (not applied until Search clicked)
+  const [filterProvider, setFilterProvider] = useState("");
+  const [filterStart, setFilterStart] = useState("");
+  const [filterEnd, setFilterEnd] = useState("");
+  // Applied filter state (triggers fetch)
+  const [appliedProvider, setAppliedProvider] = useState("");
+  const [appliedStart, setAppliedStart] = useState("");
+  const [appliedEnd, setAppliedEnd] = useState("");
+  // Guard: don't fetch until default filter is ready
+  const [isFilterReady, setIsFilterReady] = useState(false);
 
-  const fetchProviders = useCallback(async () => {
-    try {
-      const res = await fetch("/api/usage/providers");
-      const data = await res.json();
-      setProviders(data.providers || []);
-
-      const cache = await fetchProviderNames();
-      setProviderNameCache(cache.providerNameCache);
-    } catch (error) {
-      console.error("Failed to fetch providers:", error);
-    }
+  // Set default date range to last 7 days after mount (avoid SSR mismatch)
+  useEffect(() => {
+    // Small delay to let server warm up before first fetch
+    const t = setTimeout(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      const weekAgo = d.toISOString().slice(0, 16);
+      setFilterStart(weekAgo);
+      setAppliedStart(weekAgo);
+      setIsFilterReady(true);
+    }, 500);
+    return () => clearTimeout(t);
   }, []);
 
-  const fetchDetails = useCallback(async () => {
+  // Fetch providers once
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/usage/providers")
+      .then(r => r.json())
+      .then(async d => {
+        if (cancelled) return;
+        setProviders(d.providers || []);
+        const cache = await fetchProviderNames();
+        if (!cancelled) setProviderNameCache(cache.providerNameCache);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch details — guarded by isFilterReady to prevent unfiltered initial request
+  useEffect(() => {
+    if (!isFilterReady) return;
+    if (!appliedStart) return;
+
+    let cancelled = false;
     setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        pageSize: pagination.pageSize.toString()
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (appliedProvider) params.append("provider", appliedProvider);
+    params.append("startDate", appliedStart);
+    if (appliedEnd) params.append("endDate", appliedEnd);
+
+    fetch(`/api/usage/request-details?${params}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        setDetails(Array.isArray(data.details) ? data.details : []);
+        setTotalItems(data.pagination?.totalItems ?? 0);
+        setTotalPages(data.pagination?.totalPages ?? 0);
+      })
+      .catch(err => {
+        if (!cancelled) console.error("request-details fetch failed:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-      if (filters.provider) params.append("provider", filters.provider);
-      if (filters.startDate) params.append("startDate", filters.startDate);
-      if (filters.endDate) params.append("endDate", filters.endDate);
+    return () => { cancelled = true; };
+  }, [isFilterReady, page, pageSize, appliedProvider, appliedStart, appliedEnd]);
 
-      const res = await fetch(`/api/usage/request-details?${params}`);
-      const data = await res.json();
-
-      setDetails(data.details || []);
-      setPagination(prev => ({ ...prev, ...data.pagination }));
-    } catch (error) {
-      console.error("Failed to fetch request details:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.pageSize, filters]);
-
-  useEffect(() => {
-    fetchProviders();
-  }, [fetchProviders]);
-
-  useEffect(() => {
-    fetchDetails();
-  }, [fetchDetails]);
-
-  const handleViewDetail = (detail) => {
-    setSelectedDetail(detail);
-    setIsDrawerOpen(true);
-  };
-
-  const handlePageChange = (newPage) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
-  };
-
-  const handlePageSizeChange = (newPageSize) => {
-    setPagination(prev => ({ ...prev, pageSize: newPageSize, page: 1 }));
+  const handleApplyFilters = () => {
+    setPage(1);
+    setAppliedProvider(filterProvider);
+    setAppliedStart(filterStart);
+    setAppliedEnd(filterEnd);
   };
 
   const handleClearFilters = () => {
-    setFilters({ provider: "", startDate: "", endDate: "" });
+    const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 16); })();
+    setFilterProvider(""); setFilterStart(weekAgo); setFilterEnd("");
+    setPage(1);
+    setAppliedProvider(""); setAppliedStart(weekAgo); setAppliedEnd("");
   };
+
+  const handlePageChange = (newPage) => setPage(newPage);
+  const handlePageSizeChange = (newSize) => { setPageSize(newSize); setPage(1); };
+  const handleViewDetail = (detail) => {
+    setSelectedDetail(detail);
+    setIsDrawerOpen(true);
+    // Fetch full detail (list strips heavy request/response bodies)
+    fetch(`/api/usage/request-details/${encodeURIComponent(detail.id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.detail) setSelectedDetail(data.detail); })
+      .catch(() => {});
+  };
+
+  const pagination = { page, pageSize, totalItems, totalPages, hasNext: page < totalPages, hasPrev: page > 1 };
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -181,62 +212,39 @@ export default function RequestDetailsTab() {
             <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
             <select
               id="provider-filter"
-              value={filters.provider}
-              onChange={(e) => setFilters({ ...filters, provider: e.target.value })}
-              className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
-                "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
-                "w-full min-w-0 cursor-pointer"
-              )}
+              value={filterProvider}
+              onChange={(e) => setFilterProvider(e.target.value)}
+              className={cn("h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20 w-full min-w-0 cursor-pointer")}
               style={{ colorScheme: 'auto' }}
             >
               <option value="">All Providers</option>
               {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.name}
-                </option>
+                <option key={provider.id} value={provider.id}>{provider.name}</option>
               ))}
             </select>
           </div>
-          
           <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Start Date</label>
-            <input
-              id="start-date-filter"
-              type="datetime-local"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
-                "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
-              )}
+            <input id="start-date-filter" type="datetime-local" value={filterStart}
+              onChange={(e) => setFilterStart(e.target.value)}
+              className={cn("h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20")}
             />
           </div>
-
           <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">End Date</label>
-            <input
-              id="end-date-filter"
-              type="datetime-local"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className={cn(
-                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
-                "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
-              )}
+            <input id="end-date-filter" type="datetime-local" value={filterEnd}
+              onChange={(e) => setFilterEnd(e.target.value)}
+              className={cn("h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20")}
             />
           </div>
-          
           <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
-            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Clear</span>
-            <Button 
-              variant="ghost" 
-              onClick={handleClearFilters}
-              disabled={!filters.provider && !filters.startDate && !filters.endDate}
-              className="w-full"
-            >
-              Clear Filters
-            </Button>
+            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Actions</span>
+            <div className="flex gap-2">
+              <Button onClick={handleApplyFilters} className="flex-1">Search</Button>
+              <Button variant="ghost" onClick={handleClearFilters}
+                disabled={!filterProvider && !filterStart && !filterEnd}
+                className="flex-1">Clear</Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -256,7 +264,7 @@ export default function RequestDetailsTab() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading || !isFilterReady ? (
                 <tr>
                   <td colSpan="7" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">

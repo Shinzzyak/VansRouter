@@ -5,16 +5,18 @@ import {
   extractApiKey,
   isValidApiKey,
   isProviderAllowed,
+  isComboAllowed,
+  isKindAllowed,
 } from "../services/auth.js";
-import { getSettings, getCombos } from "@/lib/localDb";
-import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
-import { isModelAllowed } from "../services/allowedModels.js";
-import { handleFetchCore } from "open-sse/handlers/fetch/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
+import { getSettings, getCombos } from "@/lib/localDb";
+import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
+import { isModelAllowed } from "../services/allowedModels.js";
+import { handleFetchCore } from "open-sse/handlers/fetch/index.js";
 
 /**
  * Handle web fetch (URL extraction) request for the SSE/Next.js server.
@@ -68,6 +70,11 @@ export async function handleFetch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: provider (or model)");
   }
 
+  if (!isKindAllowed(apiKeyInfo, "web")) {
+    log.warn("AUTH", "Web fetch kind not allowed for API key");
+    return errorResponse(HTTP_STATUS.FORBIDDEN, "Web fetch requests are not allowed for this API key");
+  }
+
   if (!targetUrl || typeof targetUrl !== "string") {
     log.warn("FETCH", "Missing url");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: url");
@@ -85,11 +92,15 @@ export async function handleFetch(request) {
   const combos = await getCombos();
   const comboModels = getComboModelsFromData(providerInput, combos);
   if (comboModels) {
+    if (!isComboAllowed(apiKeyInfo, providerInput)) {
+      return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${providerInput}" is not allowed for this API key`);
+    }
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[providerInput]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("FETCH", `Combo "${providerInput}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
+
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleProviderFetch(b, m, request, apiKey, settings, apiKeyInfo),

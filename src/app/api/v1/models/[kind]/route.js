@@ -1,5 +1,6 @@
 import { buildModelsList } from "@/sse/services/allowedModels.js";
-import { isValidApiKey, extractApiKey, isProviderAllowed } from "@/sse/services/auth.js";
+import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed } from "@/sse/services/auth.js";
+
 import { getSettings } from "@/lib/localDb";
 
 const KIND_SLUG_MAP = {
@@ -60,12 +61,18 @@ export async function GET(request, { params }) {
 
     let data = await buildModelsList(kindFilter);
 
-    if (apiKeyInfo && Array.isArray(apiKeyInfo.allowedProviders) && apiKeyInfo.allowedProviders.length > 0) {
+    if (apiKeyInfo) {
       data = data.filter((model) => {
+        // Combo entries don't contain "/" — they use owned_by="combo"
+        const isCombo = !model.id.includes("/") && model.owned_by === "combo";
+        if (isCombo) {
+          return isComboAllowed(apiKeyInfo, model.id);
+        }
         const providerAlias = model.id.includes("/") ? model.id.split("/")[0] : model.owned_by;
         return isProviderAllowed(apiKeyInfo, providerAlias);
       });
     }
+
 
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },

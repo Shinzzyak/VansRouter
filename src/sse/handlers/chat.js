@@ -7,7 +7,10 @@ import {
   extractApiKey,
   isValidApiKey,
   isProviderAllowed,
+  isComboAllowed,
+  isKindAllowed,
 } from "../services/auth.js";
+
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -90,6 +93,11 @@ export async function handleChat(request, clientRawRequest = null) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   }
 
+  if (!isKindAllowed(apiKeyInfo, "llm")) {
+    log.warn("AUTH", "LLM kind not allowed for API key");
+    return errorResponse(HTTP_STATUS.FORBIDDEN, "LLM chat requests are not allowed for this API key");
+  }
+
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
@@ -98,6 +106,12 @@ export async function handleChat(request, clientRawRequest = null) {
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
+    // Enforce per-API-key combo allow-list
+    if (!isComboAllowed(apiKeyInfo, modelStr)) {
+      log.warn("AUTH", `Combo "${modelStr}" not allowed for API key`);
+      return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
+    }
+
     // Check for combo-specific strategy first, fallback to global
     const comboStrategies = settings.comboStrategies || {};
     const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
@@ -106,9 +120,10 @@ export async function handleChat(request, clientRawRequest = null) {
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
+
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo),
+      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, true),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -123,13 +138,19 @@ export async function handleChat(request, clientRawRequest = null) {
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, skipProviderCheck = false) {
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
   if (!modelInfo.provider) {
     const comboModels = await getComboModels(modelStr);
     if (comboModels) {
+      // Enforce per-API-key combo allow-list
+      if (!isComboAllowed(apiKeyInfo, modelStr)) {
+        log.warn("AUTH", `Combo "${modelStr}" not allowed for API key`);
+        return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
+      }
+
       const chatSettings = await getSettings();
       // Check for combo-specific strategy first, fallback to global
       const comboStrategies = chatSettings.comboStrategies || {};
@@ -139,9 +160,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
+
         body,
         models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo),
+        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, true),
         log,
         comboName: modelStr,
         comboStrategy,
@@ -154,8 +176,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   const { provider, model } = modelInfo;
 
-  // Check API key provider permissions
-  if (!isProviderAllowed(apiKeyInfo, provider)) {
+  // Check API key provider permissions (skip if called from an authorized combo)
+  if (!skipProviderCheck && !isProviderAllowed(apiKeyInfo, provider)) {
     log.warn("AUTH", `Provider "${provider}" not allowed for API key`, { provider });
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }

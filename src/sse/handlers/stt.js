@@ -1,7 +1,7 @@
 import {
   extractApiKey, isValidApiKey,
   getProviderCredentials, markAccountUnavailable,
-  isProviderAllowed,
+  isProviderAllowed, isKindAllowed,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -40,6 +40,7 @@ export async function handleStt(request) {
   }
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  if (!isKindAllowed(apiKeyInfo, "stt")) return errorResponse(HTTP_STATUS.FORBIDDEN, "STT requests are not allowed for this API key");
   if (!formData.get("file")) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: file");
 
   const modelInfo = await getModelInfo(modelStr);

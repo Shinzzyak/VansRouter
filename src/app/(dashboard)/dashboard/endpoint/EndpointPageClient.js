@@ -100,6 +100,10 @@ export default function APIPageClient({ machineId }) {
   // API key visibility toggle state
   const [visibleKeys, setVisibleKeys] = useState(new Set());
   const [editingProviders, setEditingProviders] = useState(null);
+  const [editingCombos, setEditingCombos] = useState(null);
+  const [editingKinds, setEditingKinds] = useState(null);
+  const [availableCombos, setAvailableCombos] = useState([]);
+
 
   const { copied, copy } = useCopyToClipboard();
 
@@ -287,10 +291,17 @@ export default function APIPageClient({ machineId }) {
 
   const fetchData = async () => {
     try {
-      const keysRes = await fetch("/api/keys");
+      const [keysRes, combosRes] = await Promise.all([
+        fetch("/api/keys"),
+        fetch("/api/combos"),
+      ]);
       const keysData = await keysRes.json();
       if (keysRes.ok) {
         setKeys(keysData.keys || []);
+      }
+      const combosData = await combosRes.json();
+      if (combosRes.ok) {
+        setAvailableCombos(combosData.combos || []);
       }
     } catch (error) {
       console.log("Error fetching data:", error);
@@ -708,6 +719,37 @@ export default function APIPageClient({ machineId }) {
       console.log("Error updating providers:", error);
     }
   };
+
+  const handleUpdateCombos = async (id, allowedCombos) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedCombos }),
+      });
+      if (res.ok) {
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, allowedCombos } : k));
+      }
+    } catch (error) {
+      console.log("Error updating combos:", error);
+    }
+  };
+
+  const handleUpdateKinds = async (id, allowedKinds) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedKinds }),
+      });
+      if (res.ok) {
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, allowedKinds } : k));
+      }
+    } catch (error) {
+      console.log("Error updating kinds:", error);
+    }
+  };
+
 
   const PROVIDER_LIST = [
     { alias: "oc", name: "OpenCode Free", color: "#E87040" },
@@ -1143,19 +1185,15 @@ export default function APIPageClient({ machineId }) {
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
                   )}
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {(!key.allowedProviders || key.allowedProviders.length === 0) ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                        All Providers
-                      </span>
+                    {key.allowedProviders === null || key.allowedProviders === undefined ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">All Providers</span>
+                    ) : key.allowedProviders.length === 0 ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500">No Providers</span>
                     ) : (
                       key.allowedProviders.map((alias) => {
                         const p = PROVIDER_LIST.find(x => x.alias === alias);
                         return (
-                          <span
-                            key={alias}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full text-white"
-                            style={{ backgroundColor: p?.color || "#6B7280" }}
-                          >
+                          <span key={alias} className="text-[10px] px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: p?.color || "#6B7280" }}>
                             {p?.name || alias}
                           </span>
                         );
@@ -1170,25 +1208,20 @@ export default function APIPageClient({ machineId }) {
                   </div>
                   {editingProviders === key.id && (
                     <div className="mt-2 p-2 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
-                      <p className="text-[10px] text-text-muted mb-1.5">Select allowed providers (none = all):</p>
+                      <p className="text-[10px] text-text-muted mb-1.5">Select allowed providers — <b>null</b>=all, <b>none selected</b>=block all:</p>
                       <div className="flex flex-wrap gap-1">
                         {PROVIDER_LIST.map((p) => {
                           const current = key.allowedProviders || [];
-                          const isSelected = current.includes(p.alias);
+                          const isSelected = Array.isArray(key.allowedProviders) && current.includes(p.alias);
                           return (
                             <button
                               key={p.alias}
                               onClick={() => {
-                                const next = isSelected
-                                  ? current.filter(a => a !== p.alias)
-                                  : [...current, p.alias];
+                                const base = Array.isArray(key.allowedProviders) ? key.allowedProviders : [];
+                                const next = isSelected ? base.filter(a => a !== p.alias) : [...base, p.alias];
                                 handleUpdateProviders(key.id, next);
                               }}
-                              className={`text-[10px] px-2 py-1 rounded-full border transition-all ${
-                                isSelected
-                                  ? "text-white border-transparent"
-                                  : "bg-transparent border-black/10 dark:border-white/10 text-text-muted hover:border-primary hover:text-primary"
-                              }`}
+                              className={`text-[10px] px-2 py-1 rounded-full border transition-all ${isSelected ? "text-white border-transparent" : "bg-transparent border-black/10 dark:border-white/10 text-text-muted hover:border-primary hover:text-primary"}`}
                               style={isSelected ? { backgroundColor: p.color } : {}}
                             >
                               {p.name}
@@ -1196,16 +1229,134 @@ export default function APIPageClient({ machineId }) {
                           );
                         })}
                       </div>
-                      {(key.allowedProviders || []).length > 0 && (
-                        <button
-                          onClick={() => handleUpdateProviders(key.id, [])}
-                          className="mt-2 text-[10px] text-primary hover:underline"
-                        >
-                          Allow all providers
-                        </button>
-                      )}
+                      <div className="flex gap-2 mt-2">
+                        {key.allowedProviders !== null && (
+                          <button onClick={() => handleUpdateProviders(key.id, null)} className="text-[10px] text-primary hover:underline">Allow all</button>
+                        )}
+                        {(key.allowedProviders === null || (Array.isArray(key.allowedProviders) && key.allowedProviders.length > 0)) && (
+                          <button onClick={() => handleUpdateProviders(key.id, [])} className="text-[10px] text-red-500 hover:underline">Block all (NONE)</button>
+                        )}
+                      </div>
                     </div>
                   )}
+                  {/* Allowed Combos */}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {key.allowedCombos === null || key.allowedCombos === undefined ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-500">All Combos</span>
+                    ) : key.allowedCombos.length === 0 ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500">No Combos</span>
+                    ) : (
+                      key.allowedCombos.map((name) => (
+                        <span key={name} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400">{name}</span>
+                      ))
+                    )}
+                    <button
+                      onClick={() => setEditingCombos(editingCombos === key.id ? null : key.id)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-text-muted hover:text-primary transition-colors"
+                    >
+                      {editingCombos === key.id ? "Done" : "Edit Combos"}
+                    </button>
+                  </div>
+                  {editingCombos === key.id && (
+                    <div className="mt-2 p-2 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+                      <p className="text-[10px] text-text-muted mb-1.5">Select allowed combos — <b>null</b>=all, <b>none selected</b>=block all:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {availableCombos.map((combo) => {
+                          const current = Array.isArray(key.allowedCombos) ? key.allowedCombos : [];
+                          const isSelected = Array.isArray(key.allowedCombos) && current.includes(combo.name);
+                          return (
+                            <button
+                              key={combo.name}
+                              onClick={() => {
+                                const base = Array.isArray(key.allowedCombos) ? key.allowedCombos : [];
+                                const next = isSelected ? base.filter(n => n !== combo.name) : [...base, combo.name];
+                                handleUpdateCombos(key.id, next);
+                              }}
+                              className={`text-[10px] px-2 py-1 rounded-full border transition-all ${isSelected ? "bg-purple-500 text-white border-transparent" : "bg-transparent border-black/10 dark:border-white/10 text-text-muted hover:border-purple-500 hover:text-purple-500"}`}
+                            >
+                              {combo.name}
+                            </button>
+                          );
+                        })}
+                        {availableCombos.length === 0 && <p className="text-[10px] text-text-muted">No combos created yet.</p>}
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {key.allowedCombos !== null && (
+                          <button onClick={() => handleUpdateCombos(key.id, null)} className="text-[10px] text-primary hover:underline">Allow all</button>
+                        )}
+                        {(key.allowedCombos === null || (Array.isArray(key.allowedCombos) && key.allowedCombos.length > 0)) && (
+                          <button onClick={() => handleUpdateCombos(key.id, [])} className="text-[10px] text-red-500 hover:underline">Block all (NONE)</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Allowed Kinds */}
+                  {(() => {
+                    const KINDS = [
+                      { id: "llm", label: "LLM Chat", icon: "chat" },
+                      { id: "embedding", label: "Embedding", icon: "data_array" },
+                      { id: "image", label: "Text to Image", icon: "brush" },
+                      { id: "tts", label: "Text to Speech", icon: "record_voice_over" },
+                      { id: "stt", label: "Speech to Text", icon: "mic" },
+                      { id: "web", label: "Web Fetch & Search", icon: "travel_explore" },
+                    ];
+                    const kinds = key.allowedKinds;
+                    return (
+                      <>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {kinds === null || kinds === undefined ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">All Kinds</span>
+                          ) : kinds.length === 0 ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500">No Kinds</span>
+                          ) : (
+                            kinds.map((k) => {
+                              const kd = KINDS.find(x => x.id === k);
+                              return <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300">{kd?.label || k}</span>;
+                            })
+                          )}
+                          <button
+                            onClick={() => setEditingKinds(editingKinds === key.id ? null : key.id)}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-text-muted hover:text-primary transition-colors"
+                          >
+                            {editingKinds === key.id ? "Done" : "Edit Kinds"}
+                          </button>
+                        </div>
+                        {editingKinds === key.id && (
+                          <div className="mt-2 p-2 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/5 dark:border-white/5">
+                            <p className="text-[10px] text-text-muted mb-1.5">Select allowed request types — <b>null</b>=all, <b>none selected</b>=block all:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {KINDS.map((kd) => {
+                                const current = Array.isArray(kinds) ? kinds : [];
+                                const isSelected = Array.isArray(kinds) && current.includes(kd.id);
+                                return (
+                                  <button
+                                    key={kd.id}
+                                    onClick={() => {
+                                      const base = Array.isArray(kinds) ? kinds : [];
+                                      const next = isSelected ? base.filter(x => x !== kd.id) : [...base, kd.id];
+                                      handleUpdateKinds(key.id, next);
+                                    }}
+                                    className={`text-[10px] px-2 py-1 rounded-full border transition-all flex items-center gap-1 ${isSelected ? "bg-green-600 text-white border-transparent" : "bg-transparent border-black/10 dark:border-white/10 text-text-muted hover:border-green-600 hover:text-green-600"}`}
+                                  >
+                                    <span className="material-symbols-outlined text-[11px]">{kd.icon}</span>
+                                    {kd.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              {kinds !== null && (
+                                <button onClick={() => handleUpdateKinds(key.id, null)} className="text-[10px] text-primary hover:underline">Allow all</button>
+                              )}
+                              {(kinds === null || (Array.isArray(kinds) && kinds.length > 0)) && (
+                                <button onClick={() => handleUpdateKinds(key.id, [])} className="text-[10px] text-red-500 hover:underline">Block all (NONE)</button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <Toggle

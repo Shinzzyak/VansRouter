@@ -79,6 +79,9 @@ export const TABLES = {
       machineId: "TEXT",
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
+      allowedProviders: "TEXT",
+      allowedCombos: "TEXT",
+      allowedKinds: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
@@ -139,6 +142,7 @@ export const TABLES = {
       model: "TEXT",
       connectionId: "TEXT",
       status: "TEXT",
+      meta: "TEXT",
       data: "TEXT NOT NULL",
     },
     indexes: [

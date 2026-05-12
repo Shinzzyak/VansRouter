@@ -309,15 +309,13 @@ export async function isValidApiKey(apiKey) {
 
 /**
  * Check if a provider is allowed for a given API key info object.
- * Returns true if:
- * - No API key info (requireApiKey is OFF) → all providers allowed
- * - allowedProviders is empty/undefined → all providers allowed
- * - provider matches one of allowedProviders (by id or alias)
+ * null = all allowed (default). [] = none allowed. [x] = only x.
  */
 export function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
   if (!apiKeyInfo) return true;
   const allowed = apiKeyInfo.allowedProviders;
-  if (!Array.isArray(allowed) || allowed.length === 0) return true;
+  if (allowed === null || allowed === undefined) return true; // null = all
+  if (!Array.isArray(allowed) || allowed.length === 0) return false; // [] = none
   if (allowed.includes(providerIdOrAlias)) return true;
   const alias = getProviderAlias(providerIdOrAlias);
   if (alias !== providerIdOrAlias && allowed.includes(alias)) return true;
@@ -325,3 +323,29 @@ export function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
   if (resolvedId !== providerIdOrAlias && allowed.includes(resolvedId)) return true;
   return false;
 }
+
+/**
+ * Check if a combo name is allowed for a given API key.
+ * null = all allowed (default). [] = none allowed. [x] = only x.
+ */
+export function isComboAllowed(apiKeyInfo, comboName) {
+  if (!apiKeyInfo) return true;
+  const allowed = apiKeyInfo.allowedCombos;
+  if (allowed === null || allowed === undefined) return true; // null = all
+  if (!Array.isArray(allowed) || allowed.length === 0) return false; // [] = none
+  return allowed.includes(comboName);
+}
+
+/**
+ * Check if a request kind is allowed for a given API key.
+ * Kinds: "llm", "embedding", "image", "tts", "stt", "web"
+ * null = all allowed (default). [] = none allowed. [x] = only x.
+ */
+export function isKindAllowed(apiKeyInfo, kind) {
+  if (!apiKeyInfo) return true;
+  const allowed = apiKeyInfo.allowedKinds;
+  if (allowed === null || allowed === undefined) return true; // null = all
+  if (!Array.isArray(allowed) || allowed.length === 0) return false; // [] = none
+  return allowed.includes(kind);
+}
+

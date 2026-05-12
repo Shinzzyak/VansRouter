@@ -5,6 +5,7 @@ import {
   extractApiKey,
   isValidApiKey,
   isProviderAllowed,
+  isKindAllowed,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -61,6 +62,11 @@ export async function handleEmbeddings(request) {
   if (!modelStr) {
     log.warn("EMBEDDINGS", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  }
+
+  if (!isKindAllowed(apiKeyInfo, "embedding")) {
+    log.warn("AUTH", "Embedding kind not allowed for API key");
+    return errorResponse(HTTP_STATUS.FORBIDDEN, "Embedding requests are not allowed for this API key");
   }
 
   if (!body.input) {

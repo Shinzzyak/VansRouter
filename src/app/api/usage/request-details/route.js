@@ -15,8 +15,27 @@ export async function GET(request) {
     const model = searchParams.get("model");
     const connectionId = searchParams.get("connectionId");
     const status = searchParams.get("status");
-    const startDate = searchParams.get("startDate");
+    let startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+
+    // Safety: default startDate to 7 days ago if not provided
+    if (!startDate) {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      startDate = d.toISOString();
+    }
+
+    // Safety: clamp max range to 30 days
+    const effectiveEnd = endDate ? new Date(endDate) : new Date();
+    const effectiveStart = new Date(startDate);
+    const rangeMs = effectiveEnd - effectiveStart;
+    const maxRangeMs = 30 * 24 * 60 * 60 * 1000;
+    if (rangeMs > maxRangeMs) {
+      return NextResponse.json(
+        { error: "Date range must not exceed 30 days" },
+        { status: 400 }
+      );
+    }
     
     if (page < 1) {
       return NextResponse.json(

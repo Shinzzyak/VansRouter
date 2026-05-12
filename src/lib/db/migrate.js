@@ -114,8 +114,15 @@ function importLegacyMain(adapter, data) {
   }
   for (const k of data.apiKeys || []) {
     adapter.run(
-      `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-      [k.id, k.key, k.name || null, k.machineId || null, k.isActive === false ? 0 : 1, k.createdAt || new Date().toISOString()]
+      `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt, allowedProviders, allowedCombos, allowedKinds) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        k.id, k.key, k.name || null, k.machineId || null,
+        k.isActive === false ? 0 : 1,
+        k.createdAt || new Date().toISOString(),
+        k.allowedProviders != null ? JSON.stringify(k.allowedProviders) : null,
+        k.allowedCombos != null ? JSON.stringify(k.allowedCombos) : null,
+        k.allowedKinds != null ? JSON.stringify(k.allowedKinds) : null,
+      ]
     );
   }
   for (const c of data.combos || []) {

@@ -8,6 +8,12 @@ import { safeApply } from "./applyFilter.js";
 export function compressMessages(body, enabled) {
   if (!enabled) return null;
   if (!body) return null;
+
+  // Kiro shape: conversationState.history[].userInputMessage.userInputMessageContext.toolResults[].content[].text
+  if (body.conversationState) {
+    return compressKiroMessages(body);
+  }
+
   // Support both OpenAI/Claude "messages" and OpenAI Responses "input"
   const items = Array.isArray(body.messages) ? body.messages
     : Array.isArray(body.input) ? body.input
@@ -76,6 +82,31 @@ export function compressMessages(body, enabled) {
     }
   } catch (e) {
     console.warn("[RTK] compressMessages error:", e.message);
+    return null;
+  }
+  return stats;
+}
+
+// Kiro shape: compress toolResults[].content[].text in history
+function compressKiroMessages(body) {
+  const history = body.conversationState?.history;
+  if (!Array.isArray(history)) return null;
+  const stats = { bytesBefore: 0, bytesAfter: 0, hits: [] };
+  try {
+    for (const item of history) {
+      const toolResults = item?.userInputMessage?.userInputMessageContext?.toolResults;
+      if (!Array.isArray(toolResults)) continue;
+      for (const tr of toolResults) {
+        if (!Array.isArray(tr?.content)) continue;
+        for (const part of tr.content) {
+          if (part && typeof part.text === "string") {
+            part.text = compressText(part.text, stats, "kiro-tool-result");
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[RTK] compressKiroMessages error:", e.message);
     return null;
   }
   return stats;

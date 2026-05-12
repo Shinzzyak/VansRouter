@@ -1,8 +1,9 @@
 import {
   extractApiKey, isValidApiKey,
   getProviderCredentials, markAccountUnavailable,
-  isProviderAllowed,
+  isProviderAllowed, isComboAllowed, isKindAllowed,
 } from "../services/auth.js";
+
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
@@ -44,16 +45,21 @@ export async function handleTts(request) {
   }
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  if (!isKindAllowed(apiKeyInfo, "tts")) return errorResponse(HTTP_STATUS.FORBIDDEN, "TTS requests are not allowed for this API key");
   if (!body.input) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
 
   // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
+    if (!isComboAllowed(apiKeyInfo, modelStr)) {
+      return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
+    }
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[modelStr]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("TTS", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
+
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, apiKeyInfo),

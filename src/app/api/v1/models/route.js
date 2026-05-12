@@ -1,7 +1,8 @@
 import { buildModelsList } from "@/sse/services/allowedModels.js";
-import { isValidApiKey, extractApiKey, isProviderAllowed } from "@/sse/services/auth.js";
+import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed } from "@/sse/services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { resolveProviderId, getProviderAlias } from "@/shared/constants/providers.js";
+
 
 const LLM_KIND = "llm";
 
@@ -39,12 +40,18 @@ export async function GET(request) {
 
     let data = await buildModelsList([LLM_KIND]);
 
-    if (apiKeyInfo && Array.isArray(apiKeyInfo.allowedProviders) && apiKeyInfo.allowedProviders.length > 0) {
+    if (apiKeyInfo) {
       data = data.filter((model) => {
+        // Combo entries don't contain "/" — they use owned_by="combo"
+        const isCombo = !model.id.includes("/") && model.owned_by === "combo";
+        if (isCombo) {
+          return isComboAllowed(apiKeyInfo, model.id);
+        }
         const providerAlias = model.id.includes("/") ? model.id.split("/")[0] : model.owned_by;
         return isProviderAllowed(apiKeyInfo, providerAlias);
       });
     }
+
 
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
