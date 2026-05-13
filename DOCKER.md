@@ -76,38 +76,29 @@ docker rm -f 9router
 
 # 🛠 For Developers
 
-## Build image locally
+## Build image locally (test)
 
-```bash
-# from repo root
-npm run docker:build
-```
-
-Or directly:
 ```bash
 cd app && docker build -t 9router .
-```
 
-Run local build:
-```bash
 docker run --rm -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
   9router
 ```
 
-## Publish to Docker Hub (multi-platform)
+## Publish (automatic via CI)
 
-Triggered automatically by `npm run cli:publish`. Manual:
+Push a git tag `v*` → GitHub Actions builds multi-platform (amd64+arm64) and pushes to:
+- `ghcr.io/decolua/9router:v{version}` + `:latest`
+- `decolua/9router:v{version}` + `:latest`
 
 ```bash
-# 1. Login once
-docker login
+# Use scripts/release.js (recommended)
+node scripts/release.js "Release title" "Notes"
 
-# 2. Build amd64 + arm64 + push (tag from app/cli/package.json version)
-npm run docker:publish
+# Or manually
+git tag v0.4.x && git push origin v0.4.x
 ```
 
-Tags pushed:
-- `decolua/9router:v{version}`
-- `decolua/9router:latest`
+Workflow: `app/.github/workflows/docker-publish.yml`
