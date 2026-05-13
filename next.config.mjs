@@ -1,8 +1,10 @@
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join } from "node:path";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
-const monorepoRoot = resolve(projectRoot, "..");
+// Workspace root (one level up from app/) — where npm hoists deps.
+// Next.js tracing must scan from here to find "next", "react", etc.
+const workspaceRoot = join(projectRoot, "..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -10,11 +12,11 @@ const nextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite"],
   turbopack: {
-    root: projectRoot
+    root: workspaceRoot
   },
-  outputFileTracingRoot: monorepoRoot,
+  outputFileTracingRoot: workspaceRoot,
   outputFileTracingExcludes: {
-    "*": ["./app/gitbook/**/*", "./gitbook/**/*"]
+    "*": ["./gitbook/**/*"]
   },
   images: {
     unoptimized: true
@@ -30,7 +32,7 @@ const nextConfig = {
       };
     }
     // Exclude logs, .next, gitbook subapp from watcher
-    config.watchOptions = { ...config.watchOptions, ignored: /[\\/](logs|\.next|gitbook)[\\/]/ };
+    config.watchOptions = { ...config.watchOptions, ignored: /[\\/](logs|\.next|gitbook|cli)[\\/]/ };
     return config;
   },
   async rewrites() {
