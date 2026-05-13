@@ -1,7 +1,7 @@
 # v0.4.37 (2026-05-13)
 
 ## Improvements
-- Stability improvements
+- Security hardening — upgrade recommended
 
 # v0.4.36 (2026-05-13)
 
