@@ -303,7 +303,15 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
     }
 
     // Add toolConfig for Antigravity
-    if (geminiCLI.tools?.length > 0) {
+    // Strip built-in tools (google_search etc.) — v1internal rejects mixing them with functionDeclarations
+    if (envelope.request.tools?.length > 0) {
+      const GEMINI_BUILTIN_TOOLS = new Set(["google_search", "web_search", "search_web", "googleSearch"]);
+      const allDecls = envelope.request.tools.flatMap(t => t.functionDeclarations || []);
+      const customDecls = allDecls.filter(fn => !GEMINI_BUILTIN_TOOLS.has(fn.name));
+      envelope.request.tools = customDecls.length > 0 ? [{ functionDeclarations: customDecls }] : undefined;
+    }
+    const hasCustomTools = envelope.request.tools?.some(t => t.functionDeclarations?.length > 0);
+    if (hasCustomTools) {
       envelope.request.toolConfig = {
         functionCallingConfig: { mode: "VALIDATED" }
       };
@@ -400,9 +408,11 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
 
   // Convert Claude tools to Gemini functionDeclarations
   if (claudeRequest.tools && Array.isArray(claudeRequest.tools)) {
+    const GEMINI_BUILTIN_TOOLS = new Set(["google_search", "web_search", "search_web", "googleSearch"]);
     const functionDeclarations = [];
     for (const tool of claudeRequest.tools) {
       if (tool.name && tool.input_schema) {
+        if (GEMINI_BUILTIN_TOOLS.has(tool.name)) continue; // v1internal rejects mixing built-in with functionDeclarations
         const cleanedSchema = cleanJSONSchemaForAntigravity(tool.input_schema);
         functionDeclarations.push({
           name: sanitizeGeminiFunctionName(tool.name),
