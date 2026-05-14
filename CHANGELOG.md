@@ -11,6 +11,8 @@
 - fix(autostart): work on nvm + npm 9/10, actually register with launchctl (#1104, fixes #1082)
 - Fix Ollama usage not tracked/shown in UI (#1102)
 - fix(opencode): preserve DeepSeek reasoning content (#1099, fixes #1093)
+- Fix TUI input lag (replace enquirer with native readline, persistent raw mode)
+- fix(ui): show API key row actions on mobile (#1112)
 
 ## Improvements
 - Sync DeepSeek TUI card style with other CLI tools (badges, layout, manual config modal)
