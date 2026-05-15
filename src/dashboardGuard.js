@@ -33,12 +33,14 @@ const PROTECTED_API_PATHS = [
   "/api/cli-tools",
   "/api/mcp",
   "/api/translator",
+  "/api/tunnel",
 ];
 
 // Routes that spawn child processes — restrict to localhost regardless of auth.
 const LOCAL_ONLY_PATHS = [
   "/api/cli-tools/cowork-settings",
   "/api/mcp/",
+  "/api/tunnel/tailscale-install",
 ];
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);

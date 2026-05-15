@@ -13,5 +13,6 @@ export const config = {
     "/api/cli-tools/:path*",
     "/api/mcp/:path*",
     "/api/translator/:path*",
+    "/api/tunnel/:path*",
   ],
 };
