@@ -698,6 +698,9 @@ function startServer(latestVersion) {
           // old NSStatusItem released before a new tray process can register;
           // otherwise the bgProcess tray silently fails ("works sometimes").
           try { await require("./src/cli/tray/tray").killTray(); } catch (e) { }
+          // Extra delay so macOS NSStatusBar fully removes the old icon before
+          // bgProcess spawns a new one. Without this, two icons appear briefly.
+          await new Promise((r) => setTimeout(r, 400));
 
           // Enable auto startup on OS boot
           try {
@@ -731,8 +734,10 @@ function startServer(latestVersion) {
           console.log(`   • Open Dashboard`);
           console.log(`   • Quit\n`);
 
-          // Exit current process - background process takes over
-          cleanup();
+          // Exit current process - background process takes over.
+          // Don't call cleanup() here: tray already killed above, and cleanup()
+          // would kill the server which bgProcess relies on staying alive.
+          isShuttingDown = true;
           process.exit(0);
         } else if (choice === "exit") {
           isShuttingDown = true;

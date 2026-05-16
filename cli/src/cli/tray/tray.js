@@ -260,16 +260,20 @@ function killTray() {
     return Promise.resolve();
   }
 
-  // Unix: get the Go tray child process handle, SIGKILL it, await "exit"
+  // Unix: get the Go tray child process handle.
   let proc = null;
   try {
     proc = instance._process || (typeof instance.process === "function" ? instance.process() : null);
   } catch (e) {}
 
-  // Always close IPC (best-effort, may throw if pipe already broken)
+  // Graceful shutdown: send {type:"exit"} via IPC so the Go binary can call
+  // systray.Quit() and release NSStatusItem. SIGKILL leaves a ghost icon on
+  // the macOS menubar until logout, causing duplicate icons after re-spawn.
+  const gracefulQuit = () => { try { instance.kill(true); } catch (e) {} };
   const closeIpc = () => { try { instance.kill(false); } catch (e) {} };
 
   if (!proc || !proc.pid) {
+    gracefulQuit();
     closeIpc();
     return Promise.resolve();
   }
@@ -279,7 +283,11 @@ function killTray() {
     const finish = () => { if (done) return; done = true; closeIpc(); resolve(); };
 
     proc.once("exit", finish);
-    try { proc.kill("SIGKILL"); } catch (e) {}
+    gracefulQuit();
+
+    // Escalate: SIGTERM after 800ms, SIGKILL after 1600ms if still alive.
+    setTimeout(() => { try { process.kill(proc.pid, 0); proc.kill("SIGTERM"); } catch (e) {} }, 800);
+    setTimeout(() => { try { process.kill(proc.pid, 0); proc.kill("SIGKILL"); } catch (e) {} }, 1600);
 
     // Fallback poll in case "exit" never fires (detached child, pipe closed)
     const deadline = Date.now() + 3000;
