@@ -7,6 +7,7 @@ import {
 } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 
 const parseOpenAIStyleModels = (data) => {
   if (Array.isArray(data)) return data;
