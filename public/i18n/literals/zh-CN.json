@@ -762,5 +762,6 @@
   "Get API Key →": "获取 API 密钥 →",
   "OAuth": "OAuth",
   "Click to add, click again to remove. Changes are saved automatically.": "点击添加，再次点击删除。更改将自动保存。",
-  "Close": "关闭"
+  "Close": "关闭",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ 风险提示：此提供商使用的订阅/OAuth 会话未获官方授权用于代理/路由器使用。账户可能被限制或封禁。使用风险自负。"
 }

@@ -188,5 +188,6 @@
   "Sudo Password Required": "Sudo Parolası Gerekli",
   "Enter your sudo password to start/stop MITM server": "MITM sunucusunu başlatmak/durdurmak için sudo parolanızı girin",
   "Sudo Password": "Sudo Parolası",
-  "Click to add, click again to remove. Changes are saved automatically.": "Eklemek için tıklayın, kaldırmak için tekrar tıklayın. Değişiklikler otomatik olarak kaydedilir."
+  "Click to add, click again to remove. Changes are saved automatically.": "Eklemek için tıklayın, kaldırmak için tekrar tıklayın. Değişiklikler otomatik olarak kaydedilir.",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Risk Bildirimi: Bu sağlayıcı, proxy/yönlendirici kullanımı için resmi olarak lisanslı olmayan bir abonelik/OAuth oturumu kullanır. Hesap kısıtlanabilir veya yasaklanabilir. Kendi sorumluluğunuzda kullanın."
 }

@@ -188,5 +188,6 @@
   "Sudo Password Required": "كلمة مرور Sudo مطلوبة",
   "Enter your sudo password to start/stop MITM server": "أدخل كلمة مرور sudo للبدء/الإيقاف من خادم MITM",
   "Sudo Password": "كلمة مرور Sudo",
-  "Click to add, click again to remove. Changes are saved automatically.": "انقر للإضافة، انقر مرة أخرى للإزالة. يتم حفظ التغييرات تلقائيًا."
+  "Click to add, click again to remove. Changes are saved automatically.": "انقر للإضافة، انقر مرة أخرى للإزالة. يتم حفظ التغييرات تلقائيًا.",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ تنبيه مخاطر: يستخدم هذا الموفر اشتراكًا/جلسة OAuth غير مرخصة رسميًا للاستخدام عبر البروكسي/الراوتر. قد يتم تقييد الحساب أو حظره. الاستخدام على مسؤوليتك الخاصة."
 }

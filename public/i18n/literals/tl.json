@@ -188,5 +188,6 @@
   "Sudo Password Required": "Kailangan ng Sudo Password",
   "Enter your sudo password to start/stop MITM server": "Ipasok ang iyong sudo password upang simulan/ihinto ang MITM server",
   "Sudo Password": "Sudo Password",
-  "Click to add, click again to remove. Changes are saved automatically.": "I-click para idagdag, i-click muli para alisin. Ang mga pagbabago ay awtomatikong nase-save."
+  "Click to add, click again to remove. Changes are saved automatically.": "I-click para idagdag, i-click muli para alisin. Ang mga pagbabago ay awtomatikong nase-save.",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Babala sa Panganib: Ang provider na ito ay gumagamit ng subscription/OAuth session na hindi opisyal na lisensyado para sa proxy/router na paggamit. Maaaring marestrikta o ma-ban ang account. Gamitin sa sarili mong panganib."
 }

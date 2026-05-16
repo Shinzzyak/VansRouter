@@ -188,5 +188,6 @@
   "Sudo Password Required": "Sudo پاس ورڈ درکار ہے",
   "Enter your sudo password to start/stop MITM server": "MITM سرور شروع/بند کرنے کے لیے اپنا sudo پاس ورڈ داخل کریں",
   "Sudo Password": "Sudo پاس ورڈ",
-  "Click to add, click again to remove. Changes are saved automatically.": "شامل کرنے کے لیے کلک کریں، ہٹانے کے لیے دوبارہ کلک کریں۔ تبدیلیاں خودکار طور پر محفوظ ہو جاتی ہیں۔"
+  "Click to add, click again to remove. Changes are saved automatically.": "شامل کرنے کے لیے کلک کریں، ہٹانے کے لیے دوبارہ کلک کریں۔ تبدیلیاں خودکار طور پر محفوظ ہو جاتی ہیں۔",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ خطرے کا نوٹس: یہ فراہم کنندہ ایک سبسکرپشن/OAuth سیشن استعمال کرتا ہے جو پراکسی/راؤٹر استعمال کے لیے سرکاری طور پر لائسنس یافتہ نہیں ہے۔ اکاؤنٹ محدود یا پابند ہو سکتا ہے۔ اپنے خطرے پر استعمال کریں۔"
 }

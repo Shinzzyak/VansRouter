@@ -188,5 +188,6 @@
   "Sudo Password Required": "Требуется пароль Sudo",
   "Enter your sudo password to start/stop MITM server": "Введите пароль sudo для запуска/остановки сервера MITM",
   "Sudo Password": "Пароль sudo",
-  "Click to add, click again to remove. Changes are saved automatically.": "Нажмите, чтобы добавить, нажмите ещё раз, чтобы удалить. Изменения сохраняются автоматически."
+  "Click to add, click again to remove. Changes are saved automatically.": "Нажмите, чтобы добавить, нажмите ещё раз, чтобы удалить. Изменения сохраняются автоматически.",
+  "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Уведомление о риске: Этот провайдер использует сессию подписки/OAuth, не имеющую официальной лицензии для использования через прокси/маршрутизатор. Аккаунт может быть ограничен или заблокирован. Используйте на свой страх и риск."
 }
