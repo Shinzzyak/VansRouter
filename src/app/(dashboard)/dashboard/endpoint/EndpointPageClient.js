@@ -105,6 +105,12 @@ export default function APIPageClient({ machineId }) {
 
   const { copied, copy } = useCopyToClipboard();
 
+  // Security gate: block remote exposure while dashboard uses default password or login is off.
+  const isLoginUnsafe = !requireLogin || !hasPassword;
+  const unsafeReason = !requireLogin
+    ? "Enable \"Require login\" and set a custom password before activating the tunnel."
+    : "Change the default dashboard password before activating the tunnel.";
+
   // Auto-scroll install log
   useEffect(() => {
     if (tsLogRef.current) tsLogRef.current.scrollTop = tsLogRef.current.scrollHeight;
@@ -846,6 +852,10 @@ export default function APIPageClient({ machineId }) {
                 size="sm"
                 icon="cloud_upload"
                 onClick={() => {
+                  if (isLoginUnsafe) {
+                    setTunnelStatus({ type: "error", message: `Security required: ${unsafeReason}` });
+                    return;
+                  }
                   if (!requireApiKey) {
                     setTunnelStatus({ type: "error", message: "Security required: Enable \"Require API key\" before activating the tunnel." });
                     return;
@@ -928,7 +938,13 @@ export default function APIPageClient({ machineId }) {
               <Button
                 size="sm"
                 icon="vpn_lock"
-                onClick={handleOpenTsModal}
+                onClick={() => {
+                  if (isLoginUnsafe) {
+                    setTsStatus({ type: "error", message: `Security required: ${unsafeReason}` });
+                    return;
+                  }
+                  handleOpenTsModal();
+                }}
                 className="bg-linear-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white!"
               >
                 Enable
@@ -936,6 +952,16 @@ export default function APIPageClient({ machineId }) {
             )}
           </div>
         </div>
+
+        {/* Pre-enable security gate banner */}
+        {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
+          <div className="mt-4">
+            <SecurityWarning
+              message={unsafeReason}
+              action={{ label: "Open settings", href: "/dashboard/profile" }}
+            />
+          </div>
+        )}
 
         {/* Security warnings when tunnel or tailscale is active */}
         {(tunnelEnabled || tsEnabled) && (
