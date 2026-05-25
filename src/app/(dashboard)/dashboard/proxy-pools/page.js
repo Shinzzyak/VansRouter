@@ -577,9 +577,6 @@ export default function ProxyPoolsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold sm:text-2xl">Proxy Pools</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Manage reusable per-connection proxies and bind them to provider connections.
-          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
