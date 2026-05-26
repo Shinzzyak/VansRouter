@@ -19,7 +19,7 @@ function rewriteAntigravityUserAgent(userAgent, version) {
   return userAgent.replace(/antigravity\/[^\s]+/, `antigravity/${version}`);
 }
 
-function applyAntigravityIdeVersionOverride(bodyBuffer, headers, log = () => {}) {
+function applyAntigravityIdeVersionOverride(bodyBuffer, headers) {
   if (!ANTIGRAVITY_IDE_VERSION_OVERRIDE_ENABLED) {
     return { bodyBuffer, headers, applied: false, version: ANTIGRAVITY_IDE_VERSION };
   }
@@ -32,22 +32,13 @@ function applyAntigravityIdeVersionOverride(bodyBuffer, headers, log = () => {})
   try {
     const parsed = JSON.parse(bodyBuffer.toString());
     if (!shouldRewriteMetadata(parsed?.metadata)) {
-      if (userAgentChanged) log(`🛰️ [antigravity] user-agent version override → ${ANTIGRAVITY_IDE_VERSION}`);
       return { bodyBuffer, headers: nextHeaders, applied: userAgentChanged, version: ANTIGRAVITY_IDE_VERSION };
     }
-
-    const previousVersion = parsed.metadata.ideVersion;
     parsed.metadata.ideVersion = ANTIGRAVITY_IDE_VERSION;
     const nextBodyBuffer = Buffer.from(JSON.stringify(parsed));
-    log(`🛰️ [antigravity] IDE version override: ${previousVersion || "unknown"} → ${ANTIGRAVITY_IDE_VERSION}`);
     return { bodyBuffer: nextBodyBuffer, headers: nextHeaders, applied: true, version: ANTIGRAVITY_IDE_VERSION };
-  } catch (e) {
-    if (userAgentChanged) {
-      log(`🛰️ [antigravity] user-agent version override → ${ANTIGRAVITY_IDE_VERSION}`);
-      return { bodyBuffer, headers: nextHeaders, applied: true, version: ANTIGRAVITY_IDE_VERSION };
-    }
-    log(`🛰️ [antigravity] IDE version override skipped: ${e.message}`);
-    return { bodyBuffer, headers: nextHeaders, applied: false, version: ANTIGRAVITY_IDE_VERSION };
+  } catch {
+    return { bodyBuffer, headers: nextHeaders, applied: userAgentChanged, version: ANTIGRAVITY_IDE_VERSION };
   }
 }
 

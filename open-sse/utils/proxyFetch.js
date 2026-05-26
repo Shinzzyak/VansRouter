@@ -1,4 +1,4 @@
-import { Readable } from "stream";
+// import { Readable } from "stream"; // unused — re-enable with got-scraping block below
 import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { dbg } from "./debugLog.js";
 
@@ -6,8 +6,9 @@ const originalFetch = globalThis.fetch;
 const proxyDispatchers = new Map();
 
 // ─── TLS fingerprinting via got-scraping (browser-like JA3) ───────────────
-// Lazy-loaded once; if import fails (missing optional native deps in some
-// envs) we silently fall back to native fetch — no behavioral change.
+// Disabled: not in use. Kept commented for future re-enable.
+// Restore the original block to re-enable per-host JA3 spoofing.
+/*
 let _gotScraping = null;
 let _gotScrapingChecked = false;
 const _gotScrapingLoggedHosts = new Set();
@@ -26,7 +27,6 @@ async function getGotScraping() {
   return _gotScraping;
 }
 
-// Run a request through got-scraping streaming, return a fetch-compatible Response
 async function gotScrapingFetch(url, options) {
   const gs = await getGotScraping();
   if (!gs) return null;
@@ -46,13 +46,13 @@ async function gotScrapingFetch(url, options) {
       body: method === "GET" || method === "HEAD" ? undefined : options.body,
       throwHttpErrors: false,
       retry: { limit: 0 },
-      timeout: { request: undefined }, // streaming → no overall timeout
+      timeout: { request: undefined },
       followRedirect: false,
       decompress: true,
     });
 
     if (options.signal) {
-      const onAbort = () => { try { stream.destroy(new Error("aborted")); } catch { /* noop */ } };
+      const onAbort = () => { try { stream.destroy(new Error("aborted")); } catch { } };
       if (options.signal.aborted) onAbort();
       else options.signal.addEventListener("abort", onAbort, { once: true });
     }
@@ -87,7 +87,7 @@ async function tryGotScrapingFetch(url, options) {
           _gotScrapingLoggedHosts.add(host);
           dbg("TLS", `using got-scraping for ${host}`);
         }
-      } catch { /* noop */ }
+      } catch { }
     }
     return res;
   } catch (e) {
@@ -95,6 +95,7 @@ async function tryGotScrapingFetch(url, options) {
     return null;
   }
 }
+*/
 
 // DNS cache — use Map to avoid prototype pollution via malformed hostnames
 const DNS_CACHE = new Map();
