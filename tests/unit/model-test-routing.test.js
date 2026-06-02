@@ -72,6 +72,67 @@ describe("model test route kind routing", () => {
     );
   });
 
+  it("routes embedding model tests to /api/v1/embeddings", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [{ embedding: [0.1, 0.2] }],
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const { POST } = await import("../../src/app/api/models/test/route.js");
+
+    const req = new Request("http://localhost/api/models/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "voyage/voyage-3-large",
+        kind: "embedding",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(body.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/embeddings"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          model: "voyage/voyage-3-large",
+          input: "test",
+        }),
+      })
+    );
+  });
+
+  it("fails embedding model tests when provider returns no embedding data", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [{ embedding: null }],
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const { POST } = await import("../../src/app/api/models/test/route.js");
+
+    const req = new Request("http://localhost/api/models/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "voyage/voyage-3-large",
+        kind: "embedding",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("Provider returned no embedding data");
+  });
+
   it("routes stt model tests to /api/v1/audio/transcriptions", async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       text: "test",
@@ -102,5 +163,32 @@ describe("model test route kind routing", () => {
         body: expect.any(FormData),
       })
     );
+  });
+
+  it("returns formatted HTTP errors for non-2xx embedding responses", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { message: "bad upstream" },
+    }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const { POST } = await import("../../src/app/api/models/test/route.js");
+
+    const req = new Request("http://localhost/api/models/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "voyage/voyage-3-large",
+        kind: "embedding",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.status).toBe(502);
+    expect(body.error).toBe("HTTP 502: bad upstream");
   });
 });

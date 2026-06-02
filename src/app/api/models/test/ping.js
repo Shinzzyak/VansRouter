@@ -34,7 +34,7 @@ function createSilentWavFile() {
   writeAscii(36, "data");
   view.setUint32(40, dataSize, true);
 
-  return new File([buffer], "test.wav", { type: "audio/wav" });
+  return new Blob([buffer], { type: "audio/wav" });
 }
 
 async function getInternalHeaders() {
@@ -104,7 +104,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   if (kind === "stt") {
     const form = new FormData();
     const sampleAudio = createSilentWavFile();
-    form.append("file", sampleAudio);
+    form.append("file", sampleAudio, "test.wav");
     form.append("model", model);
 
     const res = await fetch(`${baseUrl}/api/v1/audio/transcriptions`, {
