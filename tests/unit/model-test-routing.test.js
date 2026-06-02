@@ -71,4 +71,36 @@ describe("model test route kind routing", () => {
       })
     );
   });
+
+  it("routes stt model tests to /api/v1/audio/transcriptions", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      text: "test",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const { POST } = await import("../../src/app/api/models/test/route.js");
+
+    const req = new Request("http://localhost/api/models/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "hf/openai/whisper-small",
+        kind: "stt",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(body.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/audio/transcriptions"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+      })
+    );
+  });
 });

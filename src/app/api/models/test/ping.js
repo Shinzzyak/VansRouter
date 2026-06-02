@@ -68,6 +68,35 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
+  if (kind === "stt") {
+    const form = new FormData();
+    const sampleAudio = new File([new Uint8Array([82, 73, 70, 70, 36, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0, 1, 0, 64, 31, 0, 0, 128, 62, 0, 0, 2, 0, 16, 0, 100, 97, 116, 97, 0, 0, 0, 0])], "test.wav", { type: "audio/wav" });
+    form.append("file", sampleAudio);
+    form.append("model", model);
+
+    const res = await fetch(`${baseUrl}/api/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
+      body: form,
+      signal: AbortSignal.timeout(15000),
+    });
+    const latencyMs = Date.now() - start;
+    const rawText = await res.text().catch(() => "");
+    let parsed = null;
+    try { parsed = rawText ? JSON.parse(rawText) : null; } catch {}
+
+    if (!res.ok) {
+      const detail = parsed?.error?.message || parsed?.msg || parsed?.message || parsed?.error || rawText;
+      return { ok: false, latencyMs, error: `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`, status: res.status };
+    }
+
+    const text = typeof parsed?.text === "string" ? parsed.text : "";
+    if (!text.trim()) {
+      return { ok: false, latencyMs, status: res.status, error: "Provider returned no transcription text for this model" };
+    }
+    return { ok: true, latencyMs, error: null, status: res.status };
+  }
+
   const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
