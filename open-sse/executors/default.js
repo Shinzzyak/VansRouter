@@ -321,11 +321,12 @@ export class DefaultExecutor extends BaseExecutor {
     // Check if it's Kimi 2.6 and we are translating on an OpenAI-compatible endpoint
     const isKimiModel = typeof model === "string" && model.includes("kimi-k2.6");
     const isClaudeFormat = this.provider === "claude" || this.provider === "kimi" || this.provider === "kimi-coding" || this.provider === "minimax" || this.provider === "minimax-cn" || this.provider === "glm";
+    const expectsToolCalls = requestExpectsToolCalls(body);
 
     if (isKimiModel && !isClaudeFormat) {
       const response = result.response;
       if (stream) {
-        const transformedStream = transformKimiStream(response.body);
+        const transformedStream = transformKimiStream(response.body, { expectsToolCalls });
         result.response = new Response(transformedStream, {
           status: response.status,
           statusText: response.statusText,
@@ -333,12 +334,17 @@ export class DefaultExecutor extends BaseExecutor {
         });
       } else {
         const text = await response.text();
-        let parsed;
         try {
-          parsed = JSON.parse(text);
+          const parsed = JSON.parse(text);
           const choice = parsed.choices?.[0];
+          const stopReason = choice?.stop_reason || choice?.finish_reason || parsed?.stop_reason || "";
+          const content = typeof choice?.message?.content === "string" ? choice.message.content : "";
+
+          if (isKimiToolFailure({ stopReason, content, expectsToolCalls })) {
+            throw new Error(`Kimi tool-call failure: ${stopReason || "invalid tool output"}`);
+          }
+
           if (choice?.message?.content) {
-            const content = choice.message.content;
             const toolCalls = parseKimiToolCalls(content);
             if (toolCalls.length > 0) {
               choice.message.tool_calls = toolCalls;
@@ -352,6 +358,9 @@ export class DefaultExecutor extends BaseExecutor {
             headers: response.headers
           });
         } catch (e) {
+          if (e instanceof Error && e.message.startsWith("Kimi tool-call failure:")) {
+            throw e;
+          }
           result.response = new Response(text, {
             status: response.status,
             statusText: response.statusText,
@@ -362,6 +371,28 @@ export class DefaultExecutor extends BaseExecutor {
     }
     return result;
   }
+}
+
+function requestExpectsToolCalls(body) {
+  return Array.isArray(body?.tools) && body.tools.length > 0 && body?.tool_choice !== "none";
+}
+
+function isKimiToolFailure({ stopReason = "", content = "", expectsToolCalls = false }) {
+  if (!expectsToolCalls) return false;
+  const normalizedStopReason = String(stopReason || "").toLowerCase();
+  if (normalizedStopReason === "repetition" || normalizedStopReason === "repetition_detected") {
+    return true;
+  }
+
+  const toolCalls = parseKimiToolCalls(content);
+  if (toolCalls.length > 0) return false;
+
+  const trimmed = cleanKimiContent(String(content || ""));
+  if (!trimmed) return false;
+
+  // If the model was explicitly asked to call a tool but returned a long plain-text answer
+  // without any structured tool call markers, treat it as an upstream tool-call failure.
+  return trimmed.length > 200;
 }
 
 // Helpers to parse and sanitize Kimi 2.6 tool calls
@@ -422,16 +453,18 @@ function cleanKimiContent(content) {
   return cleaned.trim();
 }
 
-function transformKimiStream(responseStream) {
+function transformKimiStream(responseStream, options = {}) {
   const reader = responseStream.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = "";
+  const expectsToolCalls = options.expectsToolCalls === true;
 
   let accumulatedText = "";
   let sseId = null;
   let sseModel = null;
   let lastChunkObj = null;
+  let latestStopReason = "";
 
   const transformStream = new ReadableStream({
     async start(controller) {
@@ -495,6 +528,7 @@ function transformKimiStream(responseStream) {
     lastChunkObj = parsed;
 
     const choice = parsed.choices?.[0];
+    if (choice?.stop_reason || choice?.finish_reason) latestStopReason = choice.stop_reason || choice.finish_reason;
     const delta = choice?.delta;
     const content = delta?.content || "";
 
@@ -504,6 +538,9 @@ function transformKimiStream(responseStream) {
         if (toolCalls.length > 0) {
           const tcChunk = createToolCallChunk(sseId, sseModel, toolCalls, lastChunkObj);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(tcChunk)}\n\n`));
+        } else if (isKimiToolFailure({ stopReason: latestStopReason, content: accumulatedText, expectsToolCalls })) {
+          controller.error(new Error(`Kimi tool-call failure: ${latestStopReason || "invalid tool output"}`));
+          return;
         } else {
           const textChunk = createTextChunk(sseId, sseModel, accumulatedText, lastChunkObj);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(textChunk)}\n\n`));
@@ -580,5 +617,12 @@ function transformKimiStream(responseStream) {
     return chunk;
   }
 }
+
+export const __testing = {
+  requestExpectsToolCalls,
+  isKimiToolFailure,
+  parseKimiToolCalls,
+  cleanKimiContent,
+};
 
 export default DefaultExecutor;
