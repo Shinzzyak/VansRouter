@@ -51,7 +51,7 @@ let _modelsFetcherCache = {};
 let _modelsFetcherCacheExpiry = {};
 const MODELS_FETCHER_CACHE_TTL_MS = 300000;
 
-async function fetchModelsFetcherIds(providerId, providerInfo) {
+export async function fetchModelsFetcherIds(providerId, providerInfo) {
   const fetcher = providerInfo?.modelsFetcher;
   if (!fetcher?.url) return [];
 
