@@ -78,3 +78,6 @@ nohup.out
 nul
 scratch.js
 test_fetch.js
+
+# Kiro steering secrets
+.kiro/steering/secrets.md

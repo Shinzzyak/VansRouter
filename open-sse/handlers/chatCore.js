@@ -19,6 +19,7 @@ import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.j
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
+import { logGatewayError, classifyError } from "../utils/errorLog.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -216,6 +217,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       streamController.handleError(error);
       return createErrorResult(499, "Request aborted");
     }
+    // Policy errors (e.g. unsupported model/mode) are client mistakes → 400
+    if (error.isPolicyError) {
+      log?.warn?.("POLICY", error.message);
+      logGatewayError({ class: "POLICY", provider, model, message: error.message, status: error.statusCode || 400, connectionId });
+      return createErrorResult(error.statusCode || HTTP_STATUS.BAD_REQUEST, error.message);
+    }
+    logGatewayError({ class: classifyError(error), provider, model, message: error.message, status: HTTP_STATUS.BAD_GATEWAY, connectionId });
     const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
@@ -261,6 +269,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
     reqLogger.logError(new Error(message), finalBody || translatedBody);
+    logGatewayError({ class: "PROVIDER", provider, model, message, status: statusCode, connectionId });
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 

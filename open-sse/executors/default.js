@@ -320,15 +320,17 @@ export class DefaultExecutor extends BaseExecutor {
     const isClaudeFormat = this.provider === "claude" || this.provider === "kimi" || this.provider === "kimi-coding" || this.provider === "minimax" || this.provider === "minimax-cn" || this.provider === "glm";
     const expectsToolCalls = requestExpectsToolCalls(body);
 
-    // Kimi K2.6 on NVIDIA NIM is usable for plain chat, but its OpenAI-compatible tool
-    // behavior is not reliable enough for agentic gateway flows. Fail closed instead of
-    // allowing planner/todo text to be mistaken for a successful tool turn.
+    // Kimi K2.6 on NVIDIA NIM supports tool calls only when tool_choice="required".
+    // With tool_choice="auto" it tends to ignore tools and output garbage text.
+    // Force tool_choice to "required" so the model reliably emits OpenAI-native tool_calls.
+    let effectiveBody = body;
     if (isKimiModel && !isClaudeFormat && expectsToolCalls) {
-      throw new Error("NVIDIA Kimi K2.6 tool mode is not supported reliably through this gateway; use a different model for agentic/tool requests.");
+      effectiveBody = { ...body, tool_choice: "required" };
+      log?.debug?.("KIMI-NIM", `forced tool_choice=required for ${model}`);
     }
 
-    const result = await super.execute({ model, body, stream, credentials, signal, log, proxyOptions });
-    
+    const result = await super.execute({ model, body: effectiveBody, stream, credentials, signal, log, proxyOptions });
+
     if (isKimiModel && !isClaudeFormat) {
       const response = result.response;
       if (stream) {
@@ -346,11 +348,14 @@ export class DefaultExecutor extends BaseExecutor {
           const stopReason = choice?.stop_reason || choice?.finish_reason || parsed?.stop_reason || "";
           const content = typeof choice?.message?.content === "string" ? choice.message.content : "";
 
-          if (isKimiToolFailure({ stopReason, content, expectsToolCalls })) {
+          // If NVIDIA already returned native tool_calls (tool_choice=required path), skip XML parsing.
+          const hasNativeToolCalls = Array.isArray(choice?.message?.tool_calls) && choice.message.tool_calls.length > 0;
+
+          if (!hasNativeToolCalls && isKimiToolFailure({ stopReason, content, expectsToolCalls })) {
             throw new Error(`Kimi tool-call failure: ${stopReason || "invalid tool output"}`);
           }
 
-          if (choice?.message?.content) {
+          if (!hasNativeToolCalls && choice?.message?.content) {
             const toolCalls = parseKimiToolCalls(content);
             if (toolCalls.length > 0) {
               choice.message.tool_calls = toolCalls;
@@ -479,20 +484,22 @@ function transformKimiStream(responseStream, options = {}) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-          if (buffer) {
-            processLine(buffer, controller);
-          }
-          if (accumulatedText) {
-            if (isKimiToolFailure({ stopReason: latestStopReason, content: accumulatedText, expectsToolCalls }) && !emittedStructuredToolCall) {
-              controller.error(new Error(`Kimi tool-call failure: ${latestStopReason || "invalid tool output"}`));
-              return;
+            // Flush any remaining line in buffer
+            if (buffer) {
+              processLine(buffer, controller);
             }
-            const flushChunk = createTextChunk(sseId, sseModel, accumulatedText, lastChunkObj);
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(flushChunk)}\n\n`));
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-          break;
+            // Flush any remaining accumulated text
+            if (accumulatedText) {
+              if (isKimiToolFailure({ stopReason: latestStopReason, content: accumulatedText, expectsToolCalls }) && !emittedStructuredToolCall) {
+                controller.error(new Error(`Kimi tool-call failure: ${latestStopReason || "invalid tool output"}`));
+                return;
+              }
+              const flushChunk = createTextChunk(sseId, sseModel, accumulatedText, lastChunkObj);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(flushChunk)}\n\n`));
+            }
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            break;
           }
 
           buffer += decoder.decode(value, { stream: true });
@@ -539,7 +546,12 @@ function transformKimiStream(responseStream, options = {}) {
     lastChunkObj = parsed;
 
     const choice = parsed.choices?.[0];
-    if (choice?.stop_reason || choice?.finish_reason) latestStopReason = choice.stop_reason || choice.finish_reason;
+    // NIM sends integer stop_reason (e.g. 163586) alongside string finish_reason.
+    // Normalize: prefer string finish_reason; only store stop_reason if it's a string.
+    const rawStopReason = choice?.stop_reason;
+    const rawFinishReason = choice?.finish_reason;
+    if (rawFinishReason) latestStopReason = String(rawFinishReason);
+    else if (rawStopReason && typeof rawStopReason === "string") latestStopReason = rawStopReason;
     const delta = choice?.delta;
     const content = delta?.content || "";
 
@@ -569,9 +581,10 @@ function transformKimiStream(responseStream, options = {}) {
     const hasFormat2Start = accumulatedText.includes("<invoke");
 
     if (!hasFormat1Start && !hasFormat2Start) {
-      // Keep buffering plain-text chunks so tool markers split across chunks are still
-      // detectable later. In tool mode we fail closed at finish if the model never emits
-      // a structured call and only returns planning/todo text.
+      // In plain chat mode (no tools expected): always forward chunks immediately.
+      // In tool mode: buffer until stream end so cross-chunk tool markers can be assembled.
+      // NOTE: NIM sends integer stop_reason (e.g. 163586) rather than string "stop".
+      // We must flush on finish_reason regardless of stop_reason type.
       if (!expectsToolCalls) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
         accumulatedText = "";
