@@ -55,20 +55,12 @@ describe("Kimi NVIDIA hardening", () => {
     })).toBe(false);
   });
 
-  it("throws on non-stream repetition_detected tool failure", async () => {
+  it("rejects Kimi tool mode through NVIDIA gateway before dispatch", async () => {
     const { DefaultExecutor } = await import("../../open-sse/executors/default.js");
     const { BaseExecutor } = await import("../../open-sse/executors/base.js");
     const executor = new DefaultExecutor("nvidia");
-    const responsePayload = {
-      choices: [{
-        message: { role: "assistant", content: "x".repeat(260) },
-        finish_reason: "repetition",
-        stop_reason: "repetition_detected",
-      }],
-    };
-
-    vi.spyOn(BaseExecutor.prototype, "execute").mockResolvedValue({
-      response: new Response(JSON.stringify(responsePayload), {
+    const baseSpy = vi.spyOn(BaseExecutor.prototype, "execute").mockResolvedValue({
+      response: new Response("{}", {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
@@ -89,6 +81,35 @@ describe("Kimi NVIDIA hardening", () => {
       signal: undefined,
       log: undefined,
       proxyOptions: null,
-    })).rejects.toThrow(/Kimi tool-call failure/i);
+    })).rejects.toThrow(/not supported reliably through this gateway/i);
+
+    expect(baseSpy).not.toHaveBeenCalled();
+  });
+
+  it("still allows plain Kimi chat requests", async () => {
+    const { DefaultExecutor } = await import("../../open-sse/executors/default.js");
+    const { BaseExecutor } = await import("../../open-sse/executors/base.js");
+    const executor = new DefaultExecutor("nvidia");
+    const baseSpy = vi.spyOn(BaseExecutor.prototype, "execute").mockResolvedValue({
+      response: new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: "ok" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      url: "https://example.test",
+      headers: {},
+      transformedBody: {},
+    });
+
+    await expect(executor.execute({
+      model: "nvidia/moonshotai/kimi-k2.6",
+      body: { messages: [{ role: "user", content: "hello" }] },
+      stream: false,
+      credentials: { apiKey: "k" },
+      signal: undefined,
+      log: undefined,
+      proxyOptions: null,
+    })).resolves.toMatchObject({ url: "https://example.test" });
+
+    expect(baseSpy).toHaveBeenCalledOnce();
   });
 });

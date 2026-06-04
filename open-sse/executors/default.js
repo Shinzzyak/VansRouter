@@ -316,13 +316,19 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
-    const result = await super.execute({ model, body, stream, credentials, signal, log, proxyOptions });
-    
-    // Check if it's Kimi 2.6 and we are translating on an OpenAI-compatible endpoint
     const isKimiModel = typeof model === "string" && model.includes("kimi-k2.6");
     const isClaudeFormat = this.provider === "claude" || this.provider === "kimi" || this.provider === "kimi-coding" || this.provider === "minimax" || this.provider === "minimax-cn" || this.provider === "glm";
     const expectsToolCalls = requestExpectsToolCalls(body);
 
+    // Kimi K2.6 on NVIDIA NIM is usable for plain chat, but its OpenAI-compatible tool
+    // behavior is not reliable enough for agentic gateway flows. Fail closed instead of
+    // allowing planner/todo text to be mistaken for a successful tool turn.
+    if (isKimiModel && !isClaudeFormat && expectsToolCalls) {
+      throw new Error("NVIDIA Kimi K2.6 tool mode is not supported reliably through this gateway; use a different model for agentic/tool requests.");
+    }
+
+    const result = await super.execute({ model, body, stream, credentials, signal, log, proxyOptions });
+    
     if (isKimiModel && !isClaudeFormat) {
       const response = result.response;
       if (stream) {
@@ -465,6 +471,7 @@ function transformKimiStream(responseStream, options = {}) {
   let sseModel = null;
   let lastChunkObj = null;
   let latestStopReason = "";
+  let emittedStructuredToolCall = false;
 
   const transformStream = new ReadableStream({
     async start(controller) {
@@ -472,16 +479,20 @@ function transformKimiStream(responseStream, options = {}) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-            if (buffer) {
-              processLine(buffer, controller);
+          if (buffer) {
+            processLine(buffer, controller);
+          }
+          if (accumulatedText) {
+            if (isKimiToolFailure({ stopReason: latestStopReason, content: accumulatedText, expectsToolCalls }) && !emittedStructuredToolCall) {
+              controller.error(new Error(`Kimi tool-call failure: ${latestStopReason || "invalid tool output"}`));
+              return;
             }
-            if (accumulatedText) {
-              const flushChunk = createTextChunk(sseId, sseModel, accumulatedText, lastChunkObj);
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(flushChunk)}\n\n`));
-            }
-            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            controller.close();
-            break;
+            const flushChunk = createTextChunk(sseId, sseModel, accumulatedText, lastChunkObj);
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(flushChunk)}\n\n`));
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          break;
           }
 
           buffer += decoder.decode(value, { stream: true });
@@ -536,6 +547,7 @@ function transformKimiStream(responseStream, options = {}) {
       if (choice?.finish_reason && accumulatedText) {
         const toolCalls = parseKimiToolCalls(accumulatedText);
         if (toolCalls.length > 0) {
+          emittedStructuredToolCall = true;
           const tcChunk = createToolCallChunk(sseId, sseModel, toolCalls, lastChunkObj);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(tcChunk)}\n\n`));
         } else if (isKimiToolFailure({ stopReason: latestStopReason, content: accumulatedText, expectsToolCalls })) {
@@ -557,8 +569,13 @@ function transformKimiStream(responseStream, options = {}) {
     const hasFormat2Start = accumulatedText.includes("<invoke");
 
     if (!hasFormat1Start && !hasFormat2Start) {
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
-      accumulatedText = "";
+      // Keep buffering plain-text chunks so tool markers split across chunks are still
+      // detectable later. In tool mode we fail closed at finish if the model never emits
+      // a structured call and only returns planning/todo text.
+      if (!expectsToolCalls) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
+        accumulatedText = "";
+      }
       return;
     }
 
@@ -580,6 +597,7 @@ function transformKimiStream(responseStream, options = {}) {
 
       const toolCalls = parseKimiToolCalls(fullToolCallBlock);
       if (toolCalls.length > 0) {
+        emittedStructuredToolCall = true;
         const tcChunk = createToolCallChunk(sseId, sseModel, toolCalls, parsed);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(tcChunk)}\n\n`));
       } else {
