@@ -906,3 +906,36 @@ export function getModelStrip(alias, modelId) {
   const entry = PROVIDER_MODELS[alias]?.find(m => m.id === modelId);
   return entry?.strip || [];
 }
+
+// Per-model agentic config flags
+// Validation Gate (per plan.md §3b):
+//   Layer 0+1 (regex + max_tokens + no forced required) are ALWAYS active for kimi-k2 via executor.
+//   Layer 2 (terminationPrompt) and Layer 3 (loopGuard) start DISABLED.
+//   Enable them only after confirming Layer 0+1 alone do not stop the loop (Gate A).
+//   Set injectTerminationPrompt/loopGuard to true once Gate A is proven insufficient.
+const AGENTIC_CONFIG = {
+  nvidia: {
+    "kimi-k2": {
+      // Root cause (empirical): a large max_tokens (≥~32k) makes NVIDIA NIM kimi-k2.6
+      // degenerate/loop. Clamp to a safe ceiling (honor smaller client values). This is
+      // the ONLY interference — no forced tool_choice, no block, no prompt injection.
+      maxTokensCeiling: 8192,
+      injectTerminationPrompt: false, // Layer 2: last-resort prompt (disabled)
+      loopGuard: false                // Layer 3: repetition safety-net (disabled)
+    }
+  }
+};
+
+/**
+ * Returns agentic config flags for a given provider/model.
+ * Uses partial model-id matching (normalized, prefix-stripped).
+ */
+export function getModelAgenticConfig(alias, modelId) {
+  const providerConfig = AGENTIC_CONFIG[alias];
+  if (!providerConfig || !modelId) return {};
+  const normalizedId = (modelId || "").replace(/^.*\//, "");
+  for (const [key, flags] of Object.entries(providerConfig)) {
+    if (normalizedId.toLowerCase().includes(key.toLowerCase())) return flags;
+  }
+  return {};
+}

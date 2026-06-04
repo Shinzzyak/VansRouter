@@ -279,6 +279,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     if (result.success) return result.response;
 
+    // Policy errors (e.g. model capability blocked) are not provider failures —
+    // do NOT lock the model/account (would poison unrelated requests). Return as-is.
+    if (result.policyError) return result.response;
+
     // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs);
 

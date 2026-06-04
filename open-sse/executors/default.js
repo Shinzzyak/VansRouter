@@ -5,6 +5,7 @@ import { buildClineHeaders } from "../../src/shared/utils/clineAuth.js";
 import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
+import { getModelAgenticConfig } from "../config/providerModels.js";
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -320,13 +321,16 @@ export class DefaultExecutor extends BaseExecutor {
     const isClaudeFormat = this.provider === "claude" || this.provider === "kimi" || this.provider === "kimi-coding" || this.provider === "minimax" || this.provider === "minimax-cn" || this.provider === "glm";
     const expectsToolCalls = requestExpectsToolCalls(body);
 
-    // Kimi K2.6 on NVIDIA NIM supports tool calls only when tool_choice="required".
-    // With tool_choice="auto" it tends to ignore tools and output garbage text.
-    // Force tool_choice to "required" so the model reliably emits OpenAI-native tool_calls.
+    // Honor client params (no forced tool_choice, no injected default). The ONLY
+    // interference: clamp max_tokens to a safe ceiling — empirically a large max_tokens
+    // (≥~32k) makes NVIDIA NIM kimi-k2.6 degenerate/loop. Smaller client values pass through.
     let effectiveBody = body;
-    if (isKimiModel && !isClaudeFormat && expectsToolCalls) {
-      effectiveBody = { ...body, tool_choice: "required" };
-      log?.debug?.("KIMI-NIM", `forced tool_choice=required for ${model}`);
+    if (isKimiModel && !isClaudeFormat) {
+      const { maxTokensCeiling } = getModelAgenticConfig(this.provider, model);
+      if (maxTokensCeiling && typeof body.max_tokens === "number" && body.max_tokens > maxTokensCeiling) {
+        effectiveBody = { ...body, max_tokens: maxTokensCeiling };
+        log?.debug?.("KIMI-NIM", `clamped max_tokens ${body.max_tokens}→${maxTokensCeiling} for ${model}`);
+      }
     }
 
     const result = await super.execute({ model, body: effectiveBody, stream, credentials, signal, log, proxyOptions });

@@ -11,7 +11,7 @@ const PROVIDER_RULES = {
 
 // Model-level rules: matched by predicate against model id
 const MODEL_RULES = [
-  { match: m => /^kimi-/i.test(m || ""), scope: "toolCalls" },
+  { match: m => /^kimi-k2/i.test((m || "").replace(/^.*\//, "")), scope: "toolCalls" },
   { match: m => /deepseek/i.test(m || ""), scope: "all" }
 ];
 

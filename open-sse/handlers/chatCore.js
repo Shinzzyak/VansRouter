@@ -5,7 +5,7 @@ import { COLORS } from "../utils/stream.js";
 import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
-import { getModelTargetFormat, getModelStrip, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
+import { getModelTargetFormat, getModelStrip, getModelAgenticConfig, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
@@ -18,8 +18,10 @@ import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/strea
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { injectCaveman } from "../rtk/caveman.js";
+import { injectTerminationPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { logGatewayError, classifyError } from "../utils/errorLog.js";
+import { detectLoop } from "../utils/loopGuard.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -142,6 +144,36 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     log?.debug?.("CAVEMAN", `${cavemanLevel} | ${finalFormat}`);
   }
 
+  // Layer 2: Termination-contract prompt for agentic models prone to looping
+  const agenticConfig = getModelAgenticConfig(alias, model);
+  if (agenticConfig.injectTerminationPrompt && Array.isArray(translatedBody.tools) && translatedBody.tools.length > 0) {
+    injectTerminationPrompt(translatedBody, finalFormat);
+    log?.debug?.("TERMINATION", `injected for ${provider}/${model}`);
+  }
+
+  // Layer 3: Loop guard - detect repeated tool call patterns in history
+  // Gate: only active when agenticConfig.loopGuard = true (disabled by default, see AGENTIC_CONFIG)
+  if (agenticConfig.loopGuard) {
+    const loopCheck = detectLoop(translatedBody);
+    if (loopCheck.detected) {
+      injectTerminationPrompt(translatedBody, finalFormat); // ensure termination prompt present
+      // Inject anti-loop hint into last user message or as new system note
+      const msgs = translatedBody.messages;
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === "user" || msgs[i].role === "tool") {
+            const hint = `\n\n[ROUTER NOTE: ${loopCheck.hint}]`;
+            if (typeof msgs[i].content === "string") {
+              msgs[i] = { ...msgs[i], content: msgs[i].content + hint };
+            }
+            break;
+          }
+        }
+      }
+      log?.warn?.("LOOPGUARD", `loop detected for ${provider}/${model}`);
+    }
+  }
+
   const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
@@ -221,7 +253,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (error.isPolicyError) {
       log?.warn?.("POLICY", error.message);
       logGatewayError({ class: "POLICY", provider, model, message: error.message, status: error.statusCode || 400, connectionId });
-      return createErrorResult(error.statusCode || HTTP_STATUS.BAD_REQUEST, error.message);
+      return createErrorResult(error.statusCode || HTTP_STATUS.BAD_REQUEST, error.message, undefined, true);
     }
     logGatewayError({ class: classifyError(error), provider, model, message: error.message, status: HTTP_STATUS.BAD_GATEWAY, connectionId });
     const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);

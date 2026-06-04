@@ -95,12 +95,13 @@ export async function parseUpstreamError(response, executor = null) {
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs) {
+export function createErrorResult(statusCode, message, resetsAtMs, policyError = false) {
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
+    policyError,
     response: errorResponse(statusCode, message)
   };
 }
