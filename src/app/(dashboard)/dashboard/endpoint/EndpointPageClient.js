@@ -53,6 +53,9 @@ const CAVEMAN_LEVELS = [
   { id: "lite", label: "Lite", desc: "Drop filler, keep grammar" },
   { id: "full", label: "Full", desc: "Drop articles, fragments OK" },
   { id: "ultra", label: "Ultra", desc: "Telegraphic, max compression" },
+  { id: "wenyan-lite", label: "文 Lite", desc: "Classical Chinese, light compression" },
+  { id: "wenyan", label: "文 Full", desc: "Maximum 文言文, 80-90% reduction" },
+  { id: "wenyan-ultra", label: "文 Ultra", desc: "Extreme classical compression" },
 ];
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
@@ -116,6 +119,13 @@ export default function APIPageClient({ machineId }) {
 
   // API key visibility toggle state
   const [visibleKeys, setVisibleKeys] = useState(new Set());
+
+  // Client-side local/remote detection (UI hint only, not a security gate)
+  const [isRemoteHost, setIsRemoteHost] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined")
+      setIsRemoteHost(!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
+  }, []);
 
   const { copied, copy } = useCopyToClipboard();
 
@@ -1117,6 +1127,12 @@ export default function APIPageClient({ machineId }) {
             onChange={() => handleRequireApiKey(!requireApiKey)}
           />
         </div>
+
+        {isRemoteHost && !requireApiKey && (
+          <div className="mb-4 -mt-2">
+            <SecurityWarning message="Endpoint is exposed without an API key." />
+          </div>
+        )}
 
         {keys.length === 0 ? (
           <div className="text-center py-12">
