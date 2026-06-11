@@ -117,7 +117,17 @@ async function hasValidApiKey(request) {
 async function canAccessPublicLlmApi(request) {
   if (isLocalRequest(request)) return true;
   if (await hasValidCliToken(request)) return true;
-  return await hasValidApiKey(request);
+  if (await hasValidApiKey(request)) return true;
+  // Explicit opt-in: allow anonymous (no API key) remote access ONLY when the
+  // operator both disabled API-key enforcement AND turned on open remote access.
+  // If requireApiKey is on, the downstream handler would reject a keyless request
+  // anyway, so we keep this gated on requireApiKey !== true to avoid a misleading
+  // "allowed by middleware, rejected by handler" state.
+  const settings = await loadSettings();
+  if (settings && settings.requireApiKey !== true && settings.allowRemoteNoApiKey === true) {
+    return true;
+  }
+  return false;
 }
 
 async function canAccessLocalOnlyRoute(request) {
