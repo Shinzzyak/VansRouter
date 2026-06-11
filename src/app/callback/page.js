@@ -71,15 +71,17 @@ function CallbackContent() {
     }
 
     if (!(code || error)) {
-      setTimeout(() => setStatus("manual"), 0);
-      return;
+      const t = setTimeout(() => setStatus("manual"), 0);
+      return () => clearTimeout(t);
     }
 
     setStatus("success");
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       window.close();
-      setTimeout(() => setStatus("done"), 500);
+      const t2 = setTimeout(() => setStatus("done"), 500);
+      return () => clearTimeout(t2);
     }, 1500);
+    return () => clearTimeout(t1);
   }, [searchParams]);
 
   return (

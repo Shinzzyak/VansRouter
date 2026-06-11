@@ -23,19 +23,22 @@ export default function MasukPage() {
   }, [retryAfter]);
 
   useEffect(() => {
-    async function checkAuth() {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    let mounted = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
+    async function checkAuth() {
       try {
         const res = await fetch(`${baseUrl}/api/auth/status`, {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+        if (!mounted) return;
 
         if (res.ok) {
           const data = await res.json();
+          if (!mounted) return;
           if (data.requireLogin === false) {
             router.push("/dashboard");
             router.refresh();
@@ -46,14 +49,19 @@ export default function MasukPage() {
           setOidcConfigured(data.oidcConfigured === true);
           setOidcLoginLabel(data.oidcLoginLabel || "Masuk dengan OIDC");
         } else {
-          setHasPassword(true);
+          if (mounted) setHasPassword(true);
         }
       } catch (err) {
         clearTimeout(timeoutId);
-        setHasPassword(true);
+        if (mounted) setHasPassword(true);
       }
     }
     checkAuth();
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [router]);
 
   const handleLogin = async (e) => {
