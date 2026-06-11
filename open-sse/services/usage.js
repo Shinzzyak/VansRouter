@@ -467,7 +467,12 @@ async function getAntigravityProjectId(accessToken) {
  */
 async function getAntigravitySubscriptionInfo(accessToken, proxyOptions = null) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  const timeoutMs = Number(process.env.ANTIGRAVITY_TIMEOUT_MS) || 15000;
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     const response = await proxyAwareFetch(ANTIGRAVITY_CONFIG.loadProjectApiUrl, {
       method: "POST",
@@ -481,10 +486,18 @@ async function getAntigravitySubscriptionInfo(accessToken, proxyOptions = null) 
       signal: controller.signal,
     }, proxyOptions);
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`[Antigravity Subscription] Skipped: HTTP ${response.status} ${response.statusText}`);
+      return null;
+    }
     return await response.json();
   } catch (error) {
-    console.error("[Antigravity Subscription] Error:", error.message);
+    // Non-fatal: subscription/quota info is optional, request routing is unaffected.
+    if (timedOut || error.name === "AbortError") {
+      console.warn(`[Antigravity Subscription] Skipped: quota fetch timed out after ${timeoutMs}ms (network slow/unreachable). Set ANTIGRAVITY_TIMEOUT_MS to adjust.`);
+    } else {
+      console.warn(`[Antigravity Subscription] Skipped: ${error.message}`);
+    }
     return null;
   } finally {
     clearTimeout(timeoutId);
