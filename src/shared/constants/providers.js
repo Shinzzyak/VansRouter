@@ -262,6 +262,20 @@ export function getProvidersByKind(kind) {
     .sort((a, b) => (a.mediaPriority ?? 100) - (b.mediaPriority ?? 100));
 }
 
+// Provider list for API-key ACL pickers: complete (derived from AI_PROVIDERS),
+// deduped by alias, excludes hidden (media-only) providers, sorted by name.
+// Returns minimal { alias, name, color } shape used by the dashboard chips.
+export function getAclProviderList() {
+  const byAlias = new Map();
+  for (const p of Object.values(AI_PROVIDERS)) {
+    if (!p?.alias || p.hidden) continue;
+    if (!byAlias.has(p.alias)) {
+      byAlias.set(p.alias, { alias: p.alias, name: p.name || p.alias, color: p.color || "#6B7280" });
+    }
+  }
+  return Array.from(byAlias.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // Providers that support usage/quota API
 export const USAGE_SUPPORTED_PROVIDERS = [
   "claude",

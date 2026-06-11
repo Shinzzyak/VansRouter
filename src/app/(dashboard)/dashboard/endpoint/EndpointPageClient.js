@@ -5,6 +5,12 @@ import PropTypes from "prop-types";
 import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
+import { getAclProviderList } from "@/shared/constants/providers";
+
+// Canonical, always-complete provider list for API-key ACL pickers.
+// Derived from AI_PROVIDERS via getAclProviderList() so new providers appear
+// automatically. Computed once at module load.
+const PROVIDER_LIST = getAclProviderList();
 
 // Locales that unlock wenyan (classical Chinese) caveman levels
 const WENYAN_LOCALES = ["zh-CN", "zh-TW"];
@@ -845,31 +851,6 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-
-  const PROVIDER_LIST = [
-    { alias: "oc", name: "OpenCode Free", color: "#E87040" },
-    { alias: "gh", name: "GitHub Copilot", color: "#333333" },
-    { alias: "cc", name: "Claude Code", color: "#D97757" },
-    { alias: "cx", name: "OpenAI Codex", color: "#3B82F6" },
-    { alias: "cu", name: "Cursor IDE", color: "#00D4AA" },
-    { alias: "kc", name: "Kilo Code", color: "#FF6B35" },
-    { alias: "cl", name: "Cline", color: "#5B9BD5" },
-    { alias: "kr", name: "Kiro AI", color: "#FF6B35" },
-    { alias: "qw", name: "Qwen Code", color: "#10B981" },
-    { alias: "if", name: "iFlow AI", color: "#6366F1" },
-    { alias: "gc", name: "Gemini CLI", color: "#4285F4" },
-    { alias: "gemini", name: "Gemini", color: "#4285F4" },
-    { alias: "openai", name: "OpenAI", color: "#10A37F" },
-    { alias: "anthropic", name: "Anthropic", color: "#D97757" },
-    { alias: "deepseek", name: "DeepSeek", color: "#4D6BFE" },
-    { alias: "groq", name: "Groq", color: "#F55036" },
-    { alias: "xai", name: "xAI (Grok)", color: "#1DA1F2" },
-    { alias: "openrouter", name: "OpenRouter", color: "#F97316" },
-    { alias: "searxng", name: "SearXNG", color: "#3B82F6" },
-    { alias: "kimi", name: "Kimi", color: "#1E3A8A" },
-    { alias: "minimax", name: "Minimax", color: "#7C3AED" },
-    { alias: "glm", name: "GLM Coding", color: "#2563EB" },
-  ];
 
   const maskKey = (fullKey) => {
     if (!fullKey) return "";
