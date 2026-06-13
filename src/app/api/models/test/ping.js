@@ -4,6 +4,13 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
+// Timeout for a single model-test ping. Configurable for slow paths
+// (e.g. proxy pools / Vercel relays / cold upstreams). Default 30s.
+const TEST_TIMEOUT_MS = (() => {
+  const n = Number(process.env.MODEL_TEST_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : 30000;
+})();
+
 function createSilentWavFile() {
   const sampleRate = 16000;
   const channels = 1;
@@ -50,7 +57,7 @@ async function getInternalHeaders() {
   return headers;
 }
 
-export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
+async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
   const headers = await getInternalHeaders();
   const start = Date.now();
 
@@ -59,7 +66,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({ model, input: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -82,7 +89,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({ model, prompt: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -111,7 +118,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -139,7 +146,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
   });
   const latencyMs = Date.now() - start;
 
@@ -188,4 +195,30 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   return { ok: true, latencyMs, error: null, status: res.status };
+}
+
+/**
+ * Ping a model and normalize transport failures into clear, user-facing errors.
+ * Wraps pingModelByKindImpl so an aborted/timed-out fetch (slow proxy/relay or a
+ * non-existent model that never responds) yields an actionable message instead
+ * of the cryptic "The operation was aborted due to timeout".
+ */
+export async function pingModelByKind(model, kind, baseUrl) {
+  const start = Date.now();
+  try {
+    return await pingModelByKindImpl(model, kind, baseUrl);
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const name = err?.name || "";
+    const msg = err?.message || "";
+    if (name === "TimeoutError" || /abort|timed?\s*out/i.test(msg)) {
+      const secs = Math.round(TEST_TIMEOUT_MS / 1000);
+      return {
+        ok: false,
+        latencyMs,
+        error: `Test timed out after ${secs}s — provider too slow or unreachable. The model may not exist on this provider, or the route (proxy pool / relay) is slow. Increase MODEL_TEST_TIMEOUT_MS to allow more time.`,
+      };
+    }
+    return { ok: false, latencyMs, error: msg || "Test failed" };
+  }
 }
