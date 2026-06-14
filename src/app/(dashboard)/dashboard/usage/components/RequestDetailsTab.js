@@ -143,7 +143,6 @@ function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFil
 
 function RequestRow({ detail, index, setSelectedRequest }) {
   return (
-    <tr
                   <tr
                     key={`${detail.id}-${index}`}
                     className="border-b border-black/5 dark:border-white/5 last:border-b-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
@@ -180,6 +179,7 @@ function RequestRow({ detail, index, setSelectedRequest }) {
                         Detail
                       </Button>
                     </td>
+                  </tr>
   );
 }
 

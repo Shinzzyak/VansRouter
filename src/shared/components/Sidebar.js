@@ -38,7 +38,7 @@ const systemItems = [
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
 
-function SidebarMediaSection({ mediaOpen, setMediaOpen, pathname, mediaKinds }) {
+function SidebarMediaSection({ mediaOpen, setMediaOpen, pathname, onClose, isActive }) {
   return (
     <>
             {/* Media Providers accordion */}
@@ -282,7 +282,7 @@ export default function Sidebar({ onClose }) {
               System
             </p>
 
-            <SidebarMediaSection mediaOpen={mediaOpen} setMediaOpen={setMediaOpen} pathname={pathname} mediaKinds={mediaKinds} />
+            <SidebarMediaSection mediaOpen={mediaOpen} setMediaOpen={setMediaOpen} pathname={pathname} onClose={onClose} isActive={isActive} />
             {/* Debug items (inside System section, before Settings) */}
             {debugItems.map((item) => {
               const show = item.href !== "/dashboard/translator" || enableTranslator;

@@ -4,12 +4,13 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { marked } from "marked";
-import DOMPurify from "isomorphic-dompurify";
 import { GITHUB_CONFIG } from "@/shared/constants/config";
 
 marked.setOptions({ gfm: true, breaks: true });
 
 function sanitizeHtml(html) {
+  if (typeof window === "undefined") return "";
+  const DOMPurify = require("dompurify");
   return DOMPurify.sanitize(html, { FORBID_TAGS: ["script", "iframe", "object", "embed", "form"], FORBID_ATTR: ["onerror", "onload", "onclick"] });
 }
 

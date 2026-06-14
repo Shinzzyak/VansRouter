@@ -215,6 +215,7 @@ function computeGroupedModels({ filteredActiveProviders, kindFilter, providerNod
       if (group.models.length === 0) delete groups[providerId];
     });
 
+    return groups;
 }
 
 

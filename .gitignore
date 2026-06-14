@@ -84,3 +84,4 @@ test_fetch.js
 
 # Windows build workaround (empty HOME to avoid junction-point EPERM glob)
 .fakehome/
+chrome/

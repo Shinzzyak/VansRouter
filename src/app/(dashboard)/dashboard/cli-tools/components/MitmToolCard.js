@@ -251,7 +251,7 @@ export default function MitmToolCard({
   return (
     <>
       <Card padding="xs" className="overflow-hidden">
-        <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={expanded} aria-label="Toggle section">
+        <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={onToggle} aria-expanded={isExpanded} aria-label="Toggle section">
           <div className="flex min-w-0 items-center gap-3">
             <div className="size-8 flex items-center justify-center shrink-0">
               <Image

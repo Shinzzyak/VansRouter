@@ -314,7 +314,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             {validationResult === "success" ? "Valid" : "Invalid"}
           </Badge>
         )}
-        {error &&  <p className="text-xs text-red-500 break-words">{error}</p>)}
+        {error && <p className="text-xs text-red-500 break-words">{error}</p>}
         {isCompatible && (
           <p className="text-xs text-text-muted">
             Enter the model ID exactly as your compatible endpoint expects it. This model will be saved as the connection default.
