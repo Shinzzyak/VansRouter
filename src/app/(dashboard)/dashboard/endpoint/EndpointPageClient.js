@@ -84,6 +84,11 @@ const CAVEMAN_LEVELS = [
   { id: "wenyan", label: "文 Full", desc: "Maximum 文言文, 80-90% reduction", wenyan: true },
   { id: "wenyan-ultra", label: "文 Ultra", desc: "Extreme classical compression", wenyan: true },
 ];
+const PONYTAIL_LEVELS = [
+  { id: "lite", label: "Lite", desc: "Build it, name the lazier option" },
+  { id: "full", label: "Full", desc: "YAGNI ladder enforced, shortest diff" },
+  { id: "ultra", label: "Ultra", desc: "YAGNI extremist, deletion first" },
+];
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [customProviders, setCustomProviders] = useState([]);
@@ -101,6 +106,8 @@ export default function APIPageClient({ machineId }) {
   const [rtkEnabled, setRtkEnabledState] = useState(true);
   const [cavemanEnabled, setCavemanEnabled] = useState(false);
   const [cavemanLevel, setCavemanLevel] = useState("full");
+  const [ponytailEnabled, setPonytailEnabled] = useState(false);
+  const [ponytailLevel, setPonytailLevel] = useState("full");
   const [locale, setLocale] = useState(() => getCurrentLocale());
 
   // Cloudflare Tunnel state
@@ -313,6 +320,8 @@ export default function APIPageClient({ machineId }) {
         setRtkEnabledState(data.rtkEnabled !== false);
         setCavemanEnabled(!!data.cavemanEnabled);
         setCavemanLevel(data.cavemanLevel || "full");
+        setPonytailEnabled(!!data.ponytailEnabled);
+        setPonytailLevel(data.ponytailLevel || "full");
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -398,6 +407,16 @@ export default function APIPageClient({ machineId }) {
   const handleCavemanLevel = (level) => {
     setCavemanLevel(level);
     patchSetting({ cavemanLevel: level });
+  };
+
+  const handlePonytailEnabled = (value) => {
+    setPonytailEnabled(value);
+    patchSetting({ ponytailEnabled: value });
+  };
+
+  const handlePonytailLevel = (level) => {
+    setPonytailLevel(level);
+    patchSetting({ ponytailLevel: level });
   };
 
   const fetchData = useCallback(async () => {
@@ -1230,6 +1249,71 @@ export default function APIPageClient({ machineId }) {
             />
           </div>
         </div>
+
+        {/* Ponytail — code minimalism (orthogonal to caveman) */}
+        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Write less code{" "}
+              <a
+                href="https://github.com/DietrichGebert/ponytail"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-normal text-primary underline hover:opacity-80"
+              >
+                (Ponytail)
+              </a>
+            </p>
+            <p className="text-sm text-text-muted">
+              Lazy-senior-dev system prompt → YAGNI, stdlib-first, fewer lines
+            </p>
+            <p className="text-xs text-text-muted mt-0.5">
+              Governs <b>what</b> the model builds — pairs with Caveman, which governs <b>how</b> it talks.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {ponytailEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  {PONYTAIL_LEVELS.map((lvl) => (
+                    <button type="button"
+                      key={lvl.id}
+                      onClick={() => handlePonytailLevel(lvl.id)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        ponytailLevel === lvl.id
+                          ? "bg-primary text-white border-primary"
+                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                      }`}
+                      title={lvl.desc}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-primary">
+                  {PONYTAIL_LEVELS.find((lvl) => lvl.id === ponytailLevel)?.desc}
+                </p>
+              </div>
+            )}
+            <Toggle
+              checked={ponytailEnabled}
+              onChange={() => handlePonytailEnabled(!ponytailEnabled)}
+            />
+          </div>
+        </div>
+
+        {/* Warning: output-token savers need a system-prompt surface, which
+            Cursor and CommandCode native formats don't expose. */}
+        {(cavemanEnabled || ponytailEnabled) && (
+          <div className="flex items-start gap-2 mt-4 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <span className="material-symbols-outlined text-amber-500 shrink-0" style={{ fontSize: "16px" }}>info</span>
+            <p className="text-xs text-text-muted">
+              Caveman/Ponytail inject a system prompt, so they have no effect when the
+              target provider is <b>Cursor</b> or <b>CommandCode</b> (their native formats
+              expose no system-prompt field). RTK (input compression) still works for all providers.
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* API Keys */}

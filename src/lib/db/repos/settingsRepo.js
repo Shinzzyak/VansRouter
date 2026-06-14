@@ -37,6 +37,8 @@ const DEFAULT_SETTINGS = {
   rtkEnabled: true,
   cavemanEnabled: false,
   cavemanLevel: "full",
+  ponytailEnabled: false,
+  ponytailLevel: "full",
 };
 
 async function readRaw() {

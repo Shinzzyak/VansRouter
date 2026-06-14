@@ -19,6 +19,7 @@ import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/strea
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { injectCaveman } from "../rtk/caveman.js";
+import { injectPonytail } from "../rtk/ponytail.js";
 import { injectTerminationPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { logGatewayError, classifyError } from "../utils/errorLog.js";
@@ -31,7 +32,7 @@ import { detectLoop } from "../utils/loopGuard.js";
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, sourceFormatOverride, providerThinking }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, sourceFormatOverride, providerThinking }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   const isCompactRequest = body?._compact === true;
@@ -152,6 +153,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (cavemanEnabled && cavemanLevel) {
     injectCaveman(translatedBody, finalFormat, cavemanLevel);
     log?.debug?.("CAVEMAN", `${cavemanLevel} | ${finalFormat}`);
+  }
+
+  // Ponytail: inject lazy-senior-dev (code-minimalism) system prompt.
+  // Orthogonal to caveman (build-less vs talk-terse) — both may be active.
+  if (ponytailEnabled && ponytailLevel) {
+    injectPonytail(translatedBody, finalFormat, ponytailLevel);
+    log?.debug?.("PONYTAIL", `${ponytailLevel} | ${finalFormat}`);
   }
 
   // Layer 2: Termination-contract prompt for agentic models prone to looping

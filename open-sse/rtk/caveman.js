@@ -10,30 +10,45 @@ const SEP = "\n\n";
 export function injectCaveman(body, format, level) {
   const prompt = CAVEMAN_PROMPTS[level];
   if (!body || !prompt) return;
+  injectSystemPrompt(body, format, prompt);
+}
+
+// Inject an arbitrary instruction into the system prompt of the final request
+// body, dispatching by format so it works for both translated and native
+// passthrough flows. Returns true if injected, false if the format has no
+// system-prompt surface (Cursor/CommandCode native shapes).
+export function injectSystemPrompt(body, format, prompt) {
+  if (!body || !prompt) return false;
 
   switch (format) {
     case FORMATS.CLAUDE:
       injectClaudeSystem(body, prompt);
-      return;
+      return true;
     case FORMATS.GEMINI:
     case FORMATS.GEMINI_CLI:
     case FORMATS.VERTEX:
     case FORMATS.ANTIGRAVITY:
       // Antigravity wraps Gemini shape in body.request → injectGeminiSystem handles it
       injectGeminiSystem(body, prompt);
-      return;
+      return true;
     case FORMATS.KIRO:
       injectKiroSystem(body, prompt);
-      return;
+      return true;
     case FORMATS.CURSOR:
     case FORMATS.COMMANDCODE:
-      // Cursor/CommandCode native formats don't support system injection — skip silently
-      return;
+      // Cursor/CommandCode native formats don't support system injection — skip
+      return false;
     default:
       // OpenAI and OpenAI-shaped formats (responses/codex/ollama)
       injectMessagesSystem(body, prompt);
+      return true;
   }
 }
+
+// Formats that have no system-prompt injection surface (native passthrough
+// shapes). Output-token savers (Caveman/Ponytail) are no-ops for these — the
+// UI surfaces a warning so users aren't misled into expecting savings.
+export const SYSTEM_INJECTION_UNSUPPORTED_FORMATS = [FORMATS.CURSOR, FORMATS.COMMANDCODE];
 
 // OpenAI-shaped: messages[] (chat) or input[] (responses) or instructions (responses string)
 function injectMessagesSystem(body, prompt) {

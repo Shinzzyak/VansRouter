@@ -437,6 +437,7 @@ Default URLs:
 |---------|--------------|----------------|
 | 🚀 **RTK Token Saver** ([RTK](https://github.com/rtk-ai/rtk) ⭐40K) | Compress tool outputs (`git diff`, `grep`, `ls`, `tree`...) before sending to LLM | Save **20-40% input tokens** per request |
 | 🪨 **Caveman Mode** ([Caveman](https://github.com/JuliusBrussee/caveman) ⭐52K) | Inject caveman-speak prompt → LLM replies terse, technical substance preserved | Save **up to 65% output tokens** |
+| 🧑‍💻 **Ponytail Mode** ([Ponytail](https://github.com/DietrichGebert/ponytail) ⭐3.6K) | Inject lazy-senior-dev prompt → LLM writes minimal code (YAGNI, stdlib-first) | **80-94% less code** (author benchmark) — pairs with Caveman |
 | 🎯 **Smart 3-Tier Fallback** | Auto-route: Subscription → Cheap → Free | Never stop coding, zero downtime |
 | 📊 **Real-Time Quota Tracking** | Live token count + reset countdown | Maximize subscription value |
 | 🔄 **Format Translation** | OpenAI ↔ Claude ↔ Gemini ↔ Cursor ↔ Kiro ↔ Vertex | Works with any CLI tool |
@@ -458,7 +459,7 @@ Tool outputs (`git diff`, `grep`, `find`, `ls`, `tree`, log dumps...) often eat 
 - **Filters:** `git-diff`, `git-status`, `grep`, `find`, `ls`, `tree`, `dedup-log`, `smart-truncate`, `read-numbered`, `search-list`
 - **Auto-detect:** No config needed — RTK peeks the first 1KB of each `tool_result` and picks the right filter.
 - **Safe by design:** If a filter fails, throws, or makes output bigger, RTK silently keeps the original text. Errors never break your request.
-- **Universal:** Works across all formats (OpenAI, Claude, Gemini, Cursor, Kiro, OpenAI Responses) because it runs **before** any format translation.
+- **Universal:** Works across all formats (OpenAI, Claude, Gemini, Cursor, Kiro, OpenAI Responses) because it runs on the final request body just before dispatch — after format translation — and recognizes every translated tool-result shape.
 - **Default ON:** Toggle anytime in Dashboard → Endpoint settings.
 
 ```
