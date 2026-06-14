@@ -73,6 +73,13 @@ function inferKindFromUnknownModelId(modelId) {
   return LLM_KIND;
 }
 
+// Normalize an OpenAI-style /models response into a raw model array.
+// Handles the common shapes: bare array, { data }, { models }, { results }.
+const parseOpenAIStyleModels = (data) => {
+  if (Array.isArray(data)) return data;
+  return data?.data || data?.models || data?.results || [];
+};
+
 async function fetchCompatibleModelIds(connection) {
   if (!connection?.apiKey) return [];
 

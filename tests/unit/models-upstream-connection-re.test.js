@@ -33,4 +33,22 @@ describe("v1/models route — UPSTREAM_CONNECTION_RE regression", () => {
     expect(RE.test("kilo")).toBe(false);                       // plain provider → passthrough
     expect(RE.test("openai")).toBe(false);
   });
+
+  it("defines parseOpenAIStyleModels before use (no ReferenceError in fetchCompatibleModelIds)", () => {
+    // Second instance of the same bug class: helper used in v1/models/route.js
+    // but originally only defined (un-exported) in providers/[id]/models/route.js.
+    const defIdx = src.indexOf("const parseOpenAIStyleModels");
+    const useIdx = src.indexOf("parseOpenAIStyleModels(data)");
+    expect(defIdx).toBeGreaterThanOrEqual(0);
+    expect(useIdx).toBeGreaterThan(defIdx);
+  });
+});
+
+describe("eslint guard — no-undef enabled for server-side scopes", () => {
+  it("eslint.config.mjs enables no-undef for api/open-sse/lib/sse (catches ReferenceError class)", () => {
+    const cfg = readFileSync(resolve(__dirname, "../../eslint.config.mjs"), "utf8");
+    expect(cfg).toContain('"no-undef": "error"');
+    expect(cfg).toContain("src/app/api/**/*.js");
+    expect(cfg).toContain("open-sse/**/*.js");
+  });
 });

@@ -11,9 +11,10 @@ onlyBuiltDependencies:
 pnpm:
   requiredScripts:
     - build
-  auditConfig:
-    minimumReleaseAge: '10080m'
-    trustPolicy: 'no-downgrade'
 
-minimumReleaseAge: '10080m'
-trustPolicy: 'no-downgrade'
+# Supply-chain hardening (see react-doctor require-pnpm-hardening):
+# minimumReleaseAge delays installs of freshly-published versions (minutes; 10080 = 7 days)
+# so malware caught & unpublished within hours never gets installed.
+# trustPolicy: no-downgrade rejects packages whose provenance/signature weakens between updates.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
