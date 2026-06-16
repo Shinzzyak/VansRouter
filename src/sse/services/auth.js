@@ -1,8 +1,8 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings } from "@/lib/localDb";
+import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProviderNodeById } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
-import { resolveProviderId, FREE_PROVIDERS, AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers.js";
+import { resolveProviderId, FREE_PROVIDERS, AI_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers.js";
 import * as log from "../utils/logger.js";
 
 // Re-export the internal-trust gate so handlers can import it alongside the
@@ -320,8 +320,28 @@ export async function isValidApiKey(apiKey) {
 /**
  * Check if a provider is allowed for a given API key info object.
  * null = all allowed (default). [] = none allowed. [x] = only x.
+ *
+ * For openai-compatible / anthropic-compatible / custom-embedding providers
+ * (whose ids embed a UUID suffix), the connection's node prefix is also
+ * accepted as a match — the UUID-suffixed id is not user-meaningful and
+ * /v1/models lists these under their prefix alias.
  */
-export function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
+const _nodePrefixCache = new Map(); // id -> { prefix, expires }
+const NODE_PREFIX_CACHE_TTL_MS = 30000;
+async function getNodePrefix(providerId) {
+  const cached = _nodePrefixCache.get(providerId);
+  if (cached && cached.expires > Date.now()) return cached.prefix;
+  try {
+    const node = await getProviderNodeById(providerId);
+    const prefix = node?.prefix || null;
+    _nodePrefixCache.set(providerId, { prefix, expires: Date.now() + NODE_PREFIX_CACHE_TTL_MS });
+    return prefix;
+  } catch {
+    _nodePrefixCache.set(providerId, { prefix: null, expires: Date.now() + NODE_PREFIX_CACHE_TTL_MS });
+    return null;
+  }
+}
+export async function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
   if (!apiKeyInfo) return true;
   const allowed = apiKeyInfo.allowedProviders;
   if (allowed === null || allowed === undefined) return true; // null = all
@@ -331,6 +351,10 @@ export function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
   if (alias !== providerIdOrAlias && allowed.includes(alias)) return true;
   const resolvedId = resolveProviderId(providerIdOrAlias);
   if (resolvedId !== providerIdOrAlias && allowed.includes(resolvedId)) return true;
+  if (isOpenAICompatibleProvider(providerIdOrAlias) || isAnthropicCompatibleProvider(providerIdOrAlias) || isCustomEmbeddingProvider(providerIdOrAlias)) {
+    const prefix = await getNodePrefix(providerIdOrAlias);
+    if (prefix && allowed.includes(prefix)) return true;
+  }
   return false;
 }
 

@@ -126,7 +126,7 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} does not support web search`);
   }
 
-  if (!isProviderAllowed(apiKeyInfo, providerId)) {
+  if (!(await isProviderAllowed(apiKeyInfo, providerId))) {
     log.warn("AUTH", `Provider "${providerId}" not allowed for API key`, { provider: providerId });
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${providerId}" is not allowed for this API key`);
   }

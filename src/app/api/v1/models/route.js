@@ -615,15 +615,18 @@ export async function GET(request) {
     let data = await buildModelsList([LLM_KIND]);
 
     if (apiKeyInfo) {
-      data = data.filter((model) => {
-        const isCombo = model.owned_by === "combo";
-        if (isCombo) {
-          const comboName = stripComboPrefix(model.id);
-          return isComboAllowed(apiKeyInfo, comboName);
-        }
-        const providerAlias = model.id.includes("/") ? model.id.split("/")[0] : model.owned_by;
-        return isProviderAllowed(apiKeyInfo, providerAlias);
-      });
+      const allowedChecks = await Promise.all(
+        data.map(async (model) => {
+          const isCombo = model.owned_by === "combo";
+          if (isCombo) {
+            const comboName = stripComboPrefix(model.id);
+            return isComboAllowed(apiKeyInfo, comboName);
+          }
+          const providerAlias = model.id.includes("/") ? model.id.split("/")[0] : model.owned_by;
+          return await isProviderAllowed(apiKeyInfo, providerAlias);
+        })
+      );
+      data = data.filter((_, i) => allowedChecks[i]);
     }
 
 

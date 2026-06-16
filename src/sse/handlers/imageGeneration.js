@@ -88,7 +88,7 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
   const { provider, model } = modelInfo;
 
-  if (!isProviderAllowed(apiKeyInfo, provider)) {
+  if (!(await isProviderAllowed(apiKeyInfo, provider))) {
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }
 

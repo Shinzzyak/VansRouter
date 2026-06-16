@@ -186,7 +186,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   const { provider, model } = modelInfo;
 
   // Check API key provider permissions (skip if called from an authorized combo)
-  if (!skipProviderCheck && !isProviderAllowed(apiKeyInfo, provider)) {
+  if (!skipProviderCheck && !(await isProviderAllowed(apiKeyInfo, provider))) {
     log.warn("AUTH", `Provider "${provider}" not allowed for API key`, { provider });
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }

@@ -142,7 +142,7 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} does not support web fetch`);
   }
 
-  if (!isProviderAllowed(apiKeyInfo, providerId)) {
+  if (!(await isProviderAllowed(apiKeyInfo, providerId))) {
     log.warn("AUTH", `Provider "${providerId}" not allowed for API key`, { provider: providerId });
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${providerId}" is not allowed for this API key`);
   }

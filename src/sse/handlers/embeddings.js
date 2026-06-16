@@ -85,7 +85,7 @@ export async function handleEmbeddings(request) {
 
   const { provider, model } = modelInfo;
 
-  if (!isProviderAllowed(apiKeyInfo, provider)) {
+  if (!(await isProviderAllowed(apiKeyInfo, provider))) {
     log.warn("AUTH", `Provider "${provider}" not allowed for API key`, { provider });
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }
