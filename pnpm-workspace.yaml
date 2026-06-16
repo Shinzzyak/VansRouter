@@ -17,4 +17,13 @@ pnpm:
 # so malware caught & unpublished within hours never gets installed.
 # trustPolicy: no-downgrade rejects packages whose provenance/signature weakens between updates.
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - next
+  - "@next/*"
+  - dompurify
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  - react-redux
+  - reselect
+  - semver
+  - eslint-import-resolver-typescript

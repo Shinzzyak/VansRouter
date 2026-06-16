@@ -45,7 +45,7 @@ function getListingHref(kind) {
   return `/dashboard/media-providers/${kind}`;
 }
 
-function ComboProvidersCard(props) {
+function ComboProvidersCard({ providers, onAdd, onMove, onRemove }) {
   return (
     <>
       {/* Providers Card */}
@@ -55,7 +55,7 @@ function ComboProvidersCard(props) {
             <h2 className="text-lg font-semibold">Providers</h2>
             <p className="text-xs text-text-muted">Tried in order (top-down) or rotated when round-robin is on.</p>
           </div>
-          <Button size="sm" icon="add" onClick={() => setShowPicker(true)}>Add Provider</Button>
+          <Button size="sm" icon="add" onClick={onAdd}>Add Provider</Button>
         </div>
         {providers.length === 0 ? (
           <div className="text-center py-6 border border-dashed border-border rounded-lg text-text-muted text-sm">
@@ -82,15 +82,15 @@ function ComboProvidersCard(props) {
                     {model && <code className="text-[10px] text-text-muted font-mono truncate block">{model}</code>}
                   </div>
                   <div className="flex items-center gap-0.5">
-                    <button type="button" onClick={() => handleMove(idx, -1)} disabled={idx === 0} className={`p-1 rounded ${idx === 0 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move up">
-                      <span className="material-symbols-outlined text-[16px]">arrow_upward</span>
-                    </button>
-                    <button type="button" onClick={() => handleMove(idx, 1)} disabled={idx === providers.length - 1} className={`p-1 rounded ${idx === providers.length - 1 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move down">
-                      <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
-                    </button>
-                    <button type="button" onClick={() => handleRemoveProvider(idx)} className="p-1 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10" title="Remove">
-                      <span className="material-symbols-outlined text-[16px]">close</span>
-                    </button>
+                  <button type="button" onClick={() => onMove(idx, -1)} disabled={idx === 0} className={`p-1 rounded ${idx === 0 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move up">
+                    <span className="material-symbols-outlined text-[16px]">arrow_upward</span>
+                  </button>
+                  <button type="button" onClick={() => onMove(idx, 1)} disabled={idx === providers.length - 1} className={`p-1 rounded ${idx === providers.length - 1 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move down">
+                    <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
+                  </button>
+                  <button type="button" onClick={() => onRemove(idx)} className="p-1 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10" title="Remove">
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
                   </div>
                 </div>
               );
@@ -325,7 +325,12 @@ export default function ComboDetailPage() {
           </div>
         </div>
       </Card>
-      <ComboProvidersCard {...{ providers }} />
+      <ComboProvidersCard
+        providers={providers}
+        onAdd={() => setShowPicker(true)}
+        onMove={handleMove}
+        onRemove={handleRemoveProvider}
+      />
       {/* Test Example Card */}
       {combo.kind && examplePath && (
         <Card>
