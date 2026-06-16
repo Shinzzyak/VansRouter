@@ -295,7 +295,7 @@ export default function ProviderTopology({ providers = EMPTY_PROVIDERS, activeRe
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={fitOpts}
+          fitViewOptions={FIT_VIEW_OPTS}
           minZoom={0.1}
           maxZoom={2}
           onInit={onInit}

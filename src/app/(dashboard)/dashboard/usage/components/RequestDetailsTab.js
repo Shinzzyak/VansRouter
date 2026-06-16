@@ -297,7 +297,7 @@ export default function RequestDetailsTab() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <RequestFilters filterProvider={filterProvider} setFilterProvider={setFilterProvider} filterStart={filterStart} setFilterStart={setFilterStart} filterEnd={filterEnd} setFilterEnd={setFilterEnd} providers={providers} cn={cn} handleClear={handleClear} />
+      <RequestFilters filterProvider={filterProvider} setFilterProvider={setFilterProvider} filterStart={filterStart} setFilterStart={setFilterStart} filterEnd={filterEnd} setFilterEnd={setFilterEnd} providers={providers} cn={cn} handleClear={handleClearFilters} />
 
       <Card padding="none">
         <div className="overflow-x-auto">
