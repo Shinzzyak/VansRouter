@@ -1,7 +1,7 @@
 import { resolveDns } from "../shared/dnsResolver.js";
 import { HEALTH_CHECK } from "./config.js";
 
-async function probeUrlAlive(url) {
+export async function probeUrlAlive(url) {
   if (!url) return false;
   let hostname;
   try { hostname = new URL(url).hostname; } catch { return false; }
