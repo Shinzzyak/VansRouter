@@ -152,19 +152,43 @@ export default function CombosPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm text-text-muted mt-1">
-            Group models under one name, then pick a strategy per combo:
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-text-muted">
+            Group models under one name, then pick a strategy per combo.
           </p>
-          <ul className="text-sm text-text-muted mt-2 flex flex-col gap-1">
-            <li><span className="font-medium text-text-main">Fallback</span> — tries models in order (next on failure)</li>
-            <li><span className="font-medium text-text-main">Round Robin</span> — rotates models across requests to spread load</li>
-            <li><span className="font-medium text-text-main">Fusion</span> — queries all models in parallel, then a judge synthesizes one answer. Best quality, but costs the most: every request bills all panel models + the judge (N+1 calls)</li>
-            <li><span className="font-medium text-text-main">Capacity auto-switch</span> — sends image/PDF/audio requests to a model that supports them first</li>
-          </ul>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
+              <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">arrow_downward</span>
+              <div>
+                <span className="text-xs font-medium text-text-main">Fallback</span>
+                <p className="text-xs text-text-muted">Tries models in order, next on failure</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
+              <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">sync</span>
+              <div>
+                <span className="text-xs font-medium text-text-main">Round Robin</span>
+                <p className="text-xs text-text-muted">Rotates across requests to spread load</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
+              <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">hub</span>
+              <div>
+                <span className="text-xs font-medium text-text-main">Fusion</span>
+                <p className="text-xs text-text-muted">Parallel query + judge synthesis (N+1 calls)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
+              <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">auto_awesome</span>
+              <div>
+                <span className="text-xs font-medium text-text-main">Capacity auto-switch</span>
+                <p className="text-xs text-text-muted">Routes image/PDF/audio to capable models</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto whitespace-nowrap">
+        <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto whitespace-nowrap shrink-0">
           Create Combo
         </Button>
       </div>
