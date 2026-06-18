@@ -36,6 +36,9 @@ const SHARED_RULES = [
 // Hard boundaries — never simplified away. Mirrors caveman's safety stance.
 const SHARED_BOUNDARIES = "Never simplify away: input validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything explicitly requested. If the user insists on the full version, build it without re-arguing.";
 
+// Skeptical verification — no false claims, no assumptions.
+const SHARED_SKEPTICAL = "Be skeptical: never claim 'fixed', 'working', or 'correct' without concrete proof (test output, diff, reproducible verification). If a test passes, verify it tests what you think it tests. Check for side effects. Never fabricate reports ('all tests pass' without running them). Distinguish pre-existing bugs from ones you caused — run tests BEFORE and AFTER, diff the results. Report honestly: if broken and can't fix, say so. If skipped, explain why. If caveats, state them. Verify before declaring done — run relevant tests AFTER changes, show actual output.";
+
 const SHARED_OUTPUT = "Code first. Then at most three short lines: what was skipped and when to add it. Pattern: [code] then skipped: [X], add when [Y]. If the explanation is longer than the code, delete the explanation.";
 
 const SHARED_PERSISTENCE = "ACTIVE EVERY RESPONSE. No drift back to over-building. Still active if unsure.";
@@ -47,6 +50,7 @@ export const PONYTAIL_PROMPTS = {
     SHARED_RULES,
     SHARED_OUTPUT,
     SHARED_BOUNDARIES,
+    SHARED_SKEPTICAL,
     SHARED_PERSISTENCE,
   ].join(" "),
 
@@ -56,6 +60,7 @@ export const PONYTAIL_PROMPTS = {
     SHARED_RULES,
     SHARED_OUTPUT,
     SHARED_BOUNDARIES,
+    SHARED_SKEPTICAL,
     SHARED_PERSISTENCE,
   ].join(" "),
 
@@ -65,6 +70,7 @@ export const PONYTAIL_PROMPTS = {
     SHARED_RULES,
     SHARED_OUTPUT,
     SHARED_BOUNDARIES,
+    SHARED_SKEPTICAL,
     SHARED_PERSISTENCE,
   ].join(" "),
 };
