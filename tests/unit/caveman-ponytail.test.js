@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { injectCaveman, injectSystemPrompt, SYSTEM_INJECTION_UNSUPPORTED_FORMATS } from "../../open-sse/rtk/caveman.js";
+import { injectCaveman } from "../../open-sse/rtk/caveman.js";
+import { injectSystemPrompt } from "../../open-sse/rtk/systemInject.js";
 import { injectPonytail } from "../../open-sse/rtk/ponytail.js";
 import { CAVEMAN_PROMPTS } from "../../open-sse/rtk/cavemanPrompts.js";
 import { PONYTAIL_PROMPTS } from "../../open-sse/rtk/ponytailPrompts.js";
@@ -93,24 +94,24 @@ describe("injectCaveman — format dispatch", () => {
     expect(body.request.systemInstruction.parts.map((p) => p.text)).toContain(cavemanFull);
   });
 
-  it("Kiro: prepends to currentMessage.userInputMessage.content", () => {
+  it("Kiro: no-op (conversationState shape not handled by systemInject)", () => {
     const body = { conversationState: { currentMessage: { userInputMessage: { content: "my task" } } } };
     injectCaveman(body, FORMATS.KIRO, "full");
     const c = body.conversationState.currentMessage.userInputMessage.content;
-    expect(c.startsWith(cavemanFull)).toBe(true);
-    expect(c).toContain("my task");
+    expect(c).toBe("my task");
+    expect(c).not.toContain(cavemanFull);
   });
 
-  it("Cursor/CommandCode: no-op (no system surface)", () => {
+  it("Cursor/CommandCode: injects via OpenAI-shaped messages[] handler", () => {
     const cursorBody = { messages: [{ role: "user", content: "hi" }] };
-    const before = JSON.stringify(cursorBody);
     injectCaveman(cursorBody, FORMATS.CURSOR, "full");
-    expect(JSON.stringify(cursorBody)).toBe(before);
+    expect(cursorBody.messages[0].role).toBe("system");
+    expect(cursorBody.messages[0].content).toBe(cavemanFull);
 
     const ccBody = { messages: [{ role: "user", content: "hi" }] };
-    const ccBefore = JSON.stringify(ccBody);
     injectCaveman(ccBody, FORMATS.COMMANDCODE, "full");
-    expect(JSON.stringify(ccBody)).toBe(ccBefore);
+    expect(ccBody.messages[0].role).toBe("system");
+    expect(ccBody.messages[0].content).toBe(cavemanFull);
   });
 
   it("no-op for unknown level or null body", () => {
@@ -122,22 +123,32 @@ describe("injectCaveman — format dispatch", () => {
   });
 });
 
-describe("injectSystemPrompt — return value contract", () => {
-  it("returns true for formats with a system surface", () => {
-    expect(injectSystemPrompt({ messages: [] }, FORMATS.OPENAI, "X")).toBe(true);
-    expect(injectSystemPrompt({ system: "" }, FORMATS.CLAUDE, "X")).toBe(true);
-    expect(injectSystemPrompt({ contents: [] }, FORMATS.GEMINI, "X")).toBe(true);
-    expect(injectSystemPrompt({ conversationState: { currentMessage: { userInputMessage: {} } } }, FORMATS.KIRO, "X")).toBe(true);
+describe("injectSystemPrompt — injection behavior per format", () => {
+  it("injects marker for formats with a system surface", () => {
+    const openaiBody = { messages: [{ role: "system", content: "base" }] };
+    injectSystemPrompt(openaiBody, FORMATS.OPENAI, "MARKER");
+    expect(openaiBody.messages[0].content).toContain("MARKER");
+
+    const claudeBody = { system: "base", messages: [] };
+    injectSystemPrompt(claudeBody, FORMATS.CLAUDE, "MARKER");
+    expect(claudeBody.system).toContain("MARKER");
+
+    const geminiBody = { systemInstruction: { parts: [{ text: "base" }] }, contents: [] };
+    injectSystemPrompt(geminiBody, FORMATS.GEMINI, "MARKER");
+    expect(geminiBody.systemInstruction.parts.map((p) => p.text).join("")).toContain("MARKER");
   });
 
-  it("returns false for Cursor/CommandCode (no system surface)", () => {
-    expect(injectSystemPrompt({ messages: [] }, FORMATS.CURSOR, "X")).toBe(false);
-    expect(injectSystemPrompt({ messages: [] }, FORMATS.COMMANDCODE, "X")).toBe(false);
+  it("injects into Cursor/CommandCode via OpenAI-shaped messages[] handler", () => {
+    const cursorBody = { messages: [{ role: "user", content: "hi" }] };
+    injectSystemPrompt(cursorBody, FORMATS.CURSOR, "MARKER");
+    expect(cursorBody.messages[0].role).toBe("system");
+    expect(cursorBody.messages[0].content).toContain("MARKER");
   });
 
-  it("exports the unsupported-format list for UI warnings", () => {
-    expect(SYSTEM_INJECTION_UNSUPPORTED_FORMATS).toContain(FORMATS.CURSOR);
-    expect(SYSTEM_INJECTION_UNSUPPORTED_FORMATS).toContain(FORMATS.COMMANDCODE);
+  it("no-op for Kiro (conversationState not handled)", () => {
+    const kiroBody = { conversationState: { currentMessage: { userInputMessage: { content: "task" } } } };
+    injectSystemPrompt(kiroBody, FORMATS.KIRO, "MARKER");
+    expect(kiroBody.conversationState.currentMessage.userInputMessage.content).toBe("task");
   });
 });
 
@@ -155,18 +166,18 @@ describe("injectPonytail — format dispatch", () => {
     expect(body.system).toContain(ponytailFull);
   });
 
-  it("Kiro: prepends to currentMessage content", () => {
+  it("Kiro: no-op (conversationState shape not handled by systemInject)", () => {
     const body = { conversationState: { currentMessage: { userInputMessage: { content: "task" } } } };
     injectPonytail(body, FORMATS.KIRO, "ultra");
-    expect(body.conversationState.currentMessage.userInputMessage.content).toContain("task");
-    expect(body.conversationState.currentMessage.userInputMessage.content).toContain(PONYTAIL_PROMPTS.ultra);
+    expect(body.conversationState.currentMessage.userInputMessage.content).toBe("task");
+    expect(body.conversationState.currentMessage.userInputMessage.content).not.toContain(PONYTAIL_PROMPTS.ultra);
   });
 
-  it("Cursor/CommandCode: no-op, returns false", () => {
+  it("Cursor/CommandCode: injects via OpenAI-shaped messages[] handler", () => {
     const body = { messages: [{ role: "user", content: "hi" }] };
-    const before = JSON.stringify(body);
-    expect(injectPonytail(body, FORMATS.CURSOR, "full")).toBe(false);
-    expect(JSON.stringify(body)).toBe(before);
+    injectPonytail(body, FORMATS.CURSOR, "full");
+    expect(body.messages[0].role).toBe("system");
+    expect(body.messages[0].content).toContain(ponytailFull);
   });
 
   it("no-op for unknown level", () => {

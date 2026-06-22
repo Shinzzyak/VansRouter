@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useReducer } from "react";
+import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,13 +12,13 @@ import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 
-// const VISIBLE_MEDIA_KINDS = new Set(["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"]);
-const VISIBLE_MEDIA_KINDS = new Set(["embedding", "image", "tts", "stt"]);
+// const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
+const VISIBLE_MEDIA_KINDS = ["embedding", "image", "tts", "stt"];
 // Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
 const navItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint", icon: "api" },
+  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
   { href: "/dashboard/providers", label: "Providers", icon: "dns" },
   // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
   { href: "/dashboard/combos", label: "Combos", icon: "layers" },
@@ -38,120 +38,33 @@ const systemItems = [
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
 
-function SidebarMediaSection({ mediaOpen, setMediaOpen, pathname, onClose, isActive }) {
-  return (
-    <>
-            {/* Media Providers accordion */}
-            <button type="button"
-              onClick={() => setMediaOpen((v) => !v)}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-            >
-              <span className="material-symbols-outlined text-[18px]">perm_media</span>
-              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
-              <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                expand_more
-              </span>
-            </button>
-            {mediaOpen && (
-              <div className="pl-4">
-                {MEDIA_PROVIDER_KINDS.flatMap((kind) => !VISIBLE_MEDIA_KINDS.has(kind.id) ? [] : [(
-                  <Link
-                    key={kind.id}
-                    href={`/dashboard/media-providers/${kind.id}`}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                      pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
-                    <span className="text-sm">{kind.label}</span>
-                  </Link>
-                )])}
-                <Link
-                  key={COMBINED_WEB_ITEM.id}
-                  href={COMBINED_WEB_ITEM.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                    pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
-                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
-                </Link>
-              </div>
-            )}
-
-            {systemItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                  isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                )}
-              >
-                <span
-                  className={cn(
-                    "material-symbols-outlined text-[18px]",
-                    isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
-                  )}
-                >
-                  {item.icon}
-                </span>
-                <span className="text-[13px] font-medium">{item.label}</span>
-              </Link>
-            ))}
-
-    </>
-  );
-}
-
-
 export default function Sidebar({ onClose }) {
   const pathname = usePathname();
   const [mediaOpen, setMediaOpen] = useState(false);
   const [showRemoteModal, setShowRemoteModal] = useState(false);
-  const [update, dispatchUpdate] = useReducer(
-    (state, action) => ({ ...state, ...action }),
-    { info: null, showModal: false, updating: false, status: null, disconnected: false }
-  );
+  const [isDisconnected, setIsDisconnected] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [shutdownCountdown, setShutdownCountdown] = useState(0);
   const [enableTranslator, setEnableTranslator] = useState(false);
   const { copied, copy } = useCopyToClipboard(2000);
 
-  const INSTALL_CMD = UPDATER_CONFIG.installCmd;
-  const STATUS_URL = `http://127.0.0.1:${UPDATER_CONFIG.statusPort}/update/status`;
+  const INSTALL_CMD = UPDATER_CONFIG.installCmdLatest;
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/settings", { signal: controller.signal })
+    fetch("/api/settings")
       .then(res => res.json())
-      .then(data => { if (!controller.signal.aborted && data.enableTranslator) setEnableTranslator(true); })
+      .then(data => { if (data.enableTranslator) setEnableTranslator(true); })
       .catch(() => {});
-    return () => controller.abort();
   }, []);
 
   // Lazy check for new npm version on mount
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/version", { signal: controller.signal })
+    fetch("/api/version")
       .then(res => res.json())
-      .then(data => { if (!controller.signal.aborted && data.hasUpdate) dispatchUpdate({ info: data }); })
+      .then(data => { if (data.hasUpdate) setUpdateInfo(data); })
       .catch(() => {});
-    return () => controller.abort();
   }, []);
 
   const isActive = (href) => {
@@ -161,40 +74,37 @@ export default function Sidebar({ onClose }) {
     return pathname.startsWith(href);
   };
 
-  const handleUpdate = async () => {
-    dispatchUpdate({ updating: true });
-    dispatchUpdate({ showModal: false });
-    try {
-      const res = await fetch("/api/version/update", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || "Update failed. Please run the install command manually.");
-        dispatchUpdate({ updating: false });
-        return;
-      }
-      dispatchUpdate({ disconnected: true });
-    } catch (e) {
-      dispatchUpdate({ disconnected: true });
-    }
+  // Open manual update panel (no countdown yet — user must click Copy to trigger shutdown)
+  const handleUpdate = () => {
+    setShowUpdateModal(false);
+    setIsUpdating(true);
   };
 
-  // Poll updater status server while updating (Next server is dead, updater.js is alive)
-  useEffect(() => {
-    if (!update.updating || !update.disconnected) return;
-    const controller = new AbortController();
-    const tick = async () => {
-      try {
-        const res = await fetch(STATUS_URL, { cache: "no-store", signal: controller.signal });
-        if (res.ok) {
-          const data = await res.json();
-          if (!controller.signal.aborted) dispatchUpdate({ status: data });
-        }
-      } catch { /* updater not ready yet or finished */ }
-    };
-    tick();
-    const id = setInterval(tick, UPDATER_CONFIG.statusPollIntervalMs);
-    return () => { controller.abort(); clearInterval(id); };
-  }, [update.updating, update.disconnected, STATUS_URL]);
+  // Triggered by Copy button inside ManualUpdatePanel: copy + countdown + shutdown
+  const handleCopyAndShutdown = async () => {
+    try { await navigator.clipboard.writeText(INSTALL_CMD); } catch { /* clipboard blocked */ }
+    copy(INSTALL_CMD);
+    let remaining = UPDATER_CONFIG.shutdownCountdownSec;
+    setShutdownCountdown(remaining);
+    const timer = setInterval(() => {
+      remaining -= 1;
+      setShutdownCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        fetch("/api/version/shutdown", { method: "POST" }).catch(() => {});
+        setIsDisconnected(true);
+      }
+    }, 1000);
+  };
+
+  const handleCancelUpdate = () => {
+    setIsUpdating(false);
+    setShutdownCountdown(0);
+  };
+
+  // Note: legacy updater poll removed. New flow: copy install cmd + shutdown server,
+  // user runs the command manually in another terminal.
+
 
   return (
     <>
@@ -209,13 +119,8 @@ export default function Sidebar({ onClose }) {
         {/* Logo */}
         <div className="px-6 py-4 flex flex-col gap-2">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] shadow-[var(--shadow-warm)]">
-              <svg viewBox="0 0 32 32" className="w-5 h-5" fill="none">
-                <path d="M16 5L22 14L16 27L10 14L16 5Z" fill="white" opacity="0.9"/>
-                <path d="M10 14L16 27L10 20L6 14H10Z" fill="white" opacity="0.6"/>
-                <path d="M22 14L16 27L22 20L26 14H22Z" fill="white" opacity="0.6"/>
-                <circle cx="16" cy="9" r="2" fill="white"/>
-              </svg>
+            <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)]">
+              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold tracking-tight text-text-main">
@@ -224,19 +129,19 @@ export default function Sidebar({ onClose }) {
               <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
             </div>
           </Link>
-          {update.info && (
+          {updateInfo && (
             <div className="flex flex-col gap-1.5 rounded p-1 -m-1">
               <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
-                ↑ New version available: v{update.info?.latestVersion}
+                ↑ New version available: v{updateInfo.latestVersion}
               </span>
               <div className="flex items-center gap-2">
-                <button type="button"
-                  onClick={() => dispatchUpdate({ showModal: true })}
+                <button
+                  onClick={() => setShowUpdateModal(true)}
                   className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
                   Update now
                 </button>
-                <button type="button"
+                <button
                   onClick={() => copy(INSTALL_CMD)}
                   title="Copy install command"
                   className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
@@ -282,7 +187,81 @@ export default function Sidebar({ onClose }) {
               System
             </p>
 
-            <SidebarMediaSection mediaOpen={mediaOpen} setMediaOpen={setMediaOpen} pathname={pathname} onClose={onClose} isActive={isActive} />
+            {/* Media Providers accordion */}
+            <button
+              onClick={() => setMediaOpen((v) => !v)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                pathname.startsWith("/dashboard/media-providers")
+                  ? "bg-primary/10 text-primary"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+              )}
+            >
+              <span className="material-symbols-outlined text-[18px]">perm_media</span>
+              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
+              <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                expand_more
+              </span>
+            </button>
+            {mediaOpen && (
+              <div className="pl-4">
+                {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
+                  <Link
+                    key={kind.id}
+                    href={`/dashboard/media-providers/${kind.id}`}
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                      pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
+                        ? "bg-primary/10 text-primary"
+                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    )}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
+                    <span className="text-sm">{kind.label}</span>
+                  </Link>
+                ))}
+                <Link
+                  key={COMBINED_WEB_ITEM.id}
+                  href={COMBINED_WEB_ITEM.href}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
+                    pathname.startsWith(COMBINED_WEB_ITEM.href)
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  )}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
+                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
+                </Link>
+              </div>
+            )}
+
+            {systemItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                  isActive(item.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+                )}
+              >
+                <span
+                  className={cn(
+                    "material-symbols-outlined text-[18px]",
+                    isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                  )}
+                >
+                  {item.icon}
+                </span>
+                <span className="text-[13px] font-medium">{item.label}</span>
+              </Link>
+            ))}
+
             {/* Debug items (inside System section, before Settings) */}
             {debugItems.map((item) => {
               const show = item.href !== "/dashboard/translator" || enableTranslator;
@@ -312,7 +291,7 @@ export default function Sidebar({ onClose }) {
             })}
 
             {/* Remote */}
-            <button type="button"
+            <button
               onClick={() => setShowRemoteModal(true)}
               className={cn(
                 "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group w-full",
@@ -356,27 +335,28 @@ export default function Sidebar({ onClose }) {
 
       {/* Update Confirmation Modal */}
       <ConfirmModal
-        isOpen={update.showModal}
-        onClose={() => dispatchUpdate({ showModal: false })}
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
         onConfirm={handleUpdate}
-        title="Update VansAI"
-        message={`This will close VansAI and install v${update.info?.latestVersion || ""} in a separate window. Continue?`}
-        confirmText="Update"
+        title="Update 9Router"
+        message={`Show install command for v${updateInfo?.latestVersion || ""}? You can copy it and shutdown to install manually.`}
+        confirmText="Show Command"
         cancelText="Cancel"
         variant="primary"
-        loading={update.updating}
       />
 
-      {/* Disconnected Overlay */}
-      {update.disconnected && (
+      {/* Disconnected / Updating Overlay */}
+      {(isDisconnected || isUpdating) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6">
-          {update.updating ? (
-            <UpdateProgress
-              status={update.status}
-              latestVersion={update.info?.latestVersion}
+          {isUpdating ? (
+            <ManualUpdatePanel
+              latestVersion={updateInfo?.latestVersion}
               installCmd={INSTALL_CMD}
               copied={copied}
-              onCopy={() => copy(INSTALL_CMD)}
+              onCopyAndShutdown={handleCopyAndShutdown}
+              onCancel={handleCancelUpdate}
+              countdown={shutdownCountdown}
+              isDisconnected={isDisconnected}
             />
           ) : (
             <div className="text-center p-8">
@@ -400,136 +380,61 @@ Sidebar.propTypes = {
   onClose: PropTypes.func,
 };
 
-function UpdateProgress({ status, latestVersion, installCmd, copied, onCopy }) {
-  const phase = status?.phase || "connecting";
-  const done = status?.done === true;
-  const success = status?.success === true;
-  const attempt = status?.attempt || 0;
-  const maxRetries = status?.maxRetries || 0;
-  const logTail = status?.logTail || [];
-  const errorMsg = status?.error;
-
-  const steps = [
-    { key: "stopped", label: "Stopped VansAI server", state: "done" },
-    {
-      key: "launched",
-      label: "Launched background installer",
-      state: status ? "done" : "active",
-    },
-    {
-      key: "waiting",
-      label: "Waiting for app processes to exit",
-      state: phase === "waitingForExit" ? "active" :
-        (status && phase !== "starting" ? "done" : "pending"),
-    },
-    {
-      key: "installing",
-      label: attempt > 1 ? `Installing v${latestVersion || "latest"} (attempt ${attempt}/${maxRetries})` : `Installing v${latestVersion || "latest"}`,
-      state: done ? (success ? "done" : "error") : (phase === "installing" ? "active" : "pending"),
-    },
-    {
-      key: "finished",
-      label: done && success ? "Installed — ready to restart" : "Waiting to finish",
-      state: done && success ? "done" : (done && !success ? "error" : "pending"),
-    },
-  ];
-
+function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdown, onCancel, countdown, isDisconnected }) {
+  const isCountingDown = countdown > 0;
   return (
     <div className="w-full max-w-lg rounded-xl bg-neutral-900/95 border border-white/10 p-6 text-white">
       <div className="flex items-center gap-3 mb-4">
-        <div className={cn(
-          "flex items-center justify-center size-11 rounded-full",
-          done && success ? "bg-green-500/20 text-green-400" :
-          done && !success ? "bg-red-500/20 text-red-400" :
-          "bg-blue-500/20 text-blue-400"
-        )}>
-          <span className={cn(
-            "material-symbols-outlined text-[24px]",
-            !done && "animate-spin"
-          )}>
-            {done && success ? "check_circle" : done && !success ? "error" : "progress_activity"}
-          </span>
+        <div className="flex items-center justify-center size-11 rounded-full bg-amber-500/20 text-amber-400">
+          <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>
-          <h2 className="text-lg font-semibold">
-            {done && success ? "Update Completed" : done && !success ? "Update Failed" : "Updating VansAI"}
-          </h2>
+          <h2 className="text-lg font-semibold">Update 9Router{latestVersion ? ` to v${latestVersion}` : ""}</h2>
           <p className="text-xs text-white/60">
-            {done && success
-              ? `Installed v${latestVersion || "latest"} successfully`
-              : done && !success
-                ? (errorMsg || "Installation failed")
-                : `Installing v${latestVersion || "latest"} from npm...`}
+            {isDisconnected
+              ? "Server stopped. Paste the command into a terminal to install."
+              : isCountingDown
+                ? `Command copied. Server will stop in ${countdown}s...`
+                : "Click the button below to copy the install command and shutdown."}
           </p>
         </div>
       </div>
 
-      {/* Timeline */}
-      <ul className="space-y-2 mb-4">
-        {steps.map((s) => (
-          <li key={s.key} className="flex items-center gap-3 text-sm">
-            <span className={cn(
-              "material-symbols-outlined text-[18px] shrink-0",
-              s.state === "done" && "text-green-400",
-              s.state === "active" && "text-blue-400 animate-pulse",
-              s.state === "error" && "text-red-400",
-              s.state === "pending" && "text-white/30"
-            )}>
-              {s.state === "done" ? "check_circle" :
-                s.state === "error" ? "cancel" :
-                  s.state === "active" ? "radio_button_checked" : "radio_button_unchecked"}
-            </span>
-            <span className={cn(
-              s.state === "pending" ? "text-white/40" : "text-white/90"
-            )}>{s.label}</span>
-          </li>
-        ))}
-      </ul>
+      <p className="text-sm text-white/80 mb-2">Install command:</p>
+      <div className="w-full px-3 py-2 rounded bg-white/5 mb-4">
+        <code className="text-xs font-mono text-amber-400 break-all">{installCmd}</code>
+      </div>
 
-      {/* Log tail */}
-      {logTail.length > 0 && (
-        <div className="rounded-md bg-black/50 border border-white/5 p-3 mb-4 max-h-40 overflow-auto">
-          <pre className="text-[11px] font-mono text-white/70 whitespace-pre-wrap break-all">
-            {logTail.join("\n")}
-          </pre>
-        </div>
-      )}
+      <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
+        <li>Click <strong>Copy & Shutdown</strong> below.</li>
+        <li>Paste the command into your terminal and press Enter.</li>
+        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">9router</code> again after install.</li>
+      </ol>
 
-      {/* Actions */}
-      {done && success ? (
-        <div className="space-y-2">
-          <p className="text-sm text-white/80">
-            Run <code className="px-1.5 py-0.5 rounded bg-white/10 text-green-400">9router</code> in your terminal to start the new version.
-          </p>
-          <Button variant="secondary" fullWidth onClick={() => globalThis.location.reload()}>
-            Reload Page
+      {isDisconnected ? (
+        <Button variant="secondary" fullWidth onClick={() => globalThis.location.reload()}>
+          Reload Page
+        </Button>
+      ) : (
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onCancel} disabled={isCountingDown}>
+            Cancel
+          </Button>
+          <Button variant="primary" fullWidth onClick={onCopyAndShutdown} disabled={isCountingDown}>
+            {copied ? "✓ Copied — shutting down..." : isCountingDown ? `Shutting down in ${countdown}s` : "Copy & Shutdown"}
           </Button>
         </div>
-      ) : done && !success ? (
-        <div className="space-y-2">
-          <p className="text-sm text-white/80">Run the install command manually:</p>
-          <button type="button"
-            onClick={onCopy}
-            className="w-full text-left px-3 py-2 rounded bg-white/5 hover:bg-white/10 transition-colors"
-          >
-            <code className="text-xs font-mono text-amber-400">
-              {copied ? "✓ copied!" : installCmd}
-            </code>
-          </button>
-        </div>
-      ) : (
-        <p className="text-xs text-white/50 text-center">
-          This may take 30-60 seconds. Please don't close this window.
-        </p>
       )}
     </div>
   );
 }
 
-UpdateProgress.propTypes = {
-  status: PropTypes.object,
+ManualUpdatePanel.propTypes = {
   latestVersion: PropTypes.string,
   installCmd: PropTypes.string.isRequired,
   copied: PropTypes.bool,
-  onCopy: PropTypes.func.isRequired,
+  onCopyAndShutdown: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  countdown: PropTypes.number,
+  isDisconnected: PropTypes.bool,
 };

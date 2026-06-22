@@ -26,7 +26,7 @@ export const CAVEMAN_LEVELS = [
 ];
 
 export const PONYTAIL_LEVELS = [
-  { id: "lite", label: "Lite", desc: "Build it, name the lazier option" },
-  { id: "full", label: "Full", desc: "YAGNI ladder enforced, shortest diff" },
+  { id: "lite", label: "Lite", desc: "Build asked, name lazier option" },
+  { id: "full", label: "Full", desc: "Ladder enforced: stdlib/native first" },
   { id: "ultra", label: "Ultra", desc: "YAGNI extremist, deletion first" },
 ];

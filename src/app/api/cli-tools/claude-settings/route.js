@@ -41,12 +41,12 @@ const readSettings = async () => {
   try {
     const settingsPath = getClaudeSettingsPath();
     const content = await fs.readFile(settingsPath, "utf-8");
-    return JSON.parse(content);
+    // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
+    // rather than throwing a 500 that the UI misreads as "tool not installed".
+    const stripped = content.replace(/,(\s*[}\]])/g, "$1");
+    return JSON.parse(stripped);
   } catch (error) {
-    if (error.code === "ENOENT") {
-      return null;
-    }
-    throw error;
+    return null;
   }
 };
 
@@ -73,6 +73,7 @@ export async function GET() {
       settingsPath: getClaudeSettingsPath(),
     });
   } catch (error) {
+    console.log("Error checking claude settings:", error);
     return NextResponse.json(
       { error: "Failed to check claude settings" },
       { status: 500 }
@@ -99,7 +100,15 @@ export async function POST(request) {
     await fs.mkdir(claudeDir, { recursive: true });
 
     // Read current settings
-    const currentSettings = (await readSettings()) || {};
+    let currentSettings = {};
+    try {
+      const content = await fs.readFile(settingsPath, "utf-8");
+      currentSettings = JSON.parse(content);
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
 
     // Normalize ANTHROPIC_BASE_URL to ensure /v1 suffix
     if (env.ANTHROPIC_BASE_URL) {
@@ -126,6 +135,7 @@ export async function POST(request) {
       message: "Settings updated successfully",
     });
   } catch (error) {
+    console.log("Error updating claude settings:", error);
     return NextResponse.json(
       { error: "Failed to update claude settings" },
       { status: 500 }
@@ -149,12 +159,18 @@ export async function DELETE() {
     const settingsPath = getClaudeSettingsPath();
 
     // Read current settings
-    const currentSettings = await readSettings();
-    if (!currentSettings) {
-      return NextResponse.json({
-        success: true,
-        message: "No settings file to reset",
-      });
+    let currentSettings = {};
+    try {
+      const content = await fs.readFile(settingsPath, "utf-8");
+      currentSettings = JSON.parse(content);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return NextResponse.json({
+          success: true,
+          message: "No settings file to reset",
+        });
+      }
+      throw error;
     }
 
     // Remove specified env fields
@@ -177,6 +193,7 @@ export async function DELETE() {
       message: "Settings reset successfully",
     });
   } catch (error) {
+    console.log("Error resetting claude settings:", error);
     return NextResponse.json(
       { error: "Failed to reset claude settings" },
       { status: 500 }

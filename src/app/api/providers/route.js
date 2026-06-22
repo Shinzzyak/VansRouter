@@ -102,8 +102,12 @@ export async function POST(request) {
 
     // Validation
     const isWebCookieProvider = !!WEB_COOKIE_PROVIDERS[provider];
+    // Dual-auth providers (e.g. codebuddy-cn, xai) live under category "oauth" but also
+    // accept an API key via authModes — they aren't in APIKEY_PROVIDERS, so allow them here.
+    const supportsApiKeyMode = !!AI_PROVIDERS[provider]?.authModes?.includes("apikey");
     const isValidProvider = APIKEY_PROVIDERS[provider] ||
       FREE_TIER_PROVIDERS[provider] ||
+      supportsApiKeyMode ||
       isWebCookieProvider ||
       isOpenAICompatibleProvider(provider) ||
       isAnthropicCompatibleProvider(provider) ||
@@ -122,19 +126,42 @@ export async function POST(request) {
 
     let providerSpecificData = normalizeProviderSpecificData(provider, body, body.providerSpecificData);
 
-    // Compatible/embedding nodes may have multiple connections (each with its own
-    // API key) so round-robin/sticky strategies can rotate across accounts.
-    // providerSpecificData is enriched below so each connection inherits the
-    // node's prefix/baseUrl/apiType/nodeName.
-    if (isOpenAICompatibleProvider(provider) || isAnthropicCompatibleProvider(provider) || isCustomEmbeddingProvider(provider)) {
+    // Compatible/embedding nodes: allow multiple connections per node for
+    // round-robin/sticky routing across accounts (multi-key load balancing).
+    if (isOpenAICompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: `${isOpenAICompatibleProvider(provider) ? "OpenAI" : isAnthropicCompatibleProvider(provider) ? "Anthropic" : "Custom Embedding"} Compatible node not found` }, { status: 404 });
+        return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
       }
-      const nodeSpecific = isOpenAICompatibleProvider(provider)
-        ? { prefix: node.prefix, apiType: node.apiType, baseUrl: node.baseUrl, nodeName: node.name }
-        : { prefix: node.prefix, baseUrl: node.baseUrl, nodeName: node.name };
-      providerSpecificData = { ...(providerSpecificData || {}), ...nodeSpecific };
+      providerSpecificData = {
+        ...(providerSpecificData || {}),
+        prefix: node.prefix,
+        apiType: node.apiType,
+        baseUrl: node.baseUrl,
+        nodeName: node.name,
+      };
+    } else if (isAnthropicCompatibleProvider(provider)) {
+      const node = await getProviderNodeById(provider);
+      if (!node) {
+        return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
+      }
+      providerSpecificData = {
+        ...(providerSpecificData || {}),
+        prefix: node.prefix,
+        baseUrl: node.baseUrl,
+        nodeName: node.name,
+      };
+    } else if (isCustomEmbeddingProvider(provider)) {
+      const node = await getProviderNodeById(provider);
+      if (!node) {
+        return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
+      }
+      providerSpecificData = {
+        ...(providerSpecificData || {}),
+        prefix: node.prefix,
+        baseUrl: node.baseUrl,
+        nodeName: node.name,
+      };
     }
 
     const mergedProviderSpecificData = {

@@ -3,11 +3,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
-
-function generateDefaultAlias(modelId) {
-  const parts = modelId.split("/");
-  return parts[parts.length - 1];
-}
+import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
@@ -34,7 +30,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
         <div className="flex items-center gap-1 mt-1">
           <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
           <div className="relative group/btn">
-            <button type="button"
+            <button
               onClick={() => onCopy(fullModel, `model-${modelId}`)}
               className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary"
             >
@@ -48,7 +44,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
           </div>
           {onTest && (
             <div className="relative group/btn">
-              <button type="button"
+              <button
                 onClick={onTest}
                 disabled={isTesting}
                 className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors"
@@ -64,7 +60,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
           )}
         </div>
       </div>
-      <button type="button"
+      <button
         onClick={onDeleteAlias}
         className="p-1 hover:bg-red-50 rounded text-red-500"
         title="Remove model"
@@ -75,7 +71,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, copied, onCopy, onSetAlias, onDeleteAlias, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -100,39 +96,24 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     }
   };
 
-  const providerAliases = Object.entries(modelAliases).filter(
-    ([, model]) => model.startsWith(`${providerStorageAlias}/`)
-  );
-
-  const allModels = providerAliases.map(([alias, fullModel]) => ({
-    modelId: fullModel.replace(`${providerStorageAlias}/`, ""),
-    fullModel,
-    alias,
-  }));
-
-  const resolveAlias = (modelId) => {
-    const fullModel = `${providerStorageAlias}/${modelId}`;
-    // Skip if this exact model already has an alias
-    if (Object.values(modelAliases).includes(fullModel)) return null;
-    const baseAlias = generateDefaultAlias(modelId);
-    if (!modelAliases[baseAlias]) return baseAlias;
-    const prefixedAlias = `${providerDisplayAlias}-${baseAlias}`;
-    if (!modelAliases[prefixedAlias]) return prefixedAlias;
-    return null;
-  };
+  const allModels = getProviderCustomModelRows({
+    customModels,
+    modelAliases,
+    providerAlias: providerStorageAlias,
+    type: "llm",
+  });
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
     const modelId = newModel.trim();
-    const resolvedAlias = resolveAlias(modelId);
-    if (!resolvedAlias) {
-      alert("All suggested aliases already exist. Please choose a different model or remove conflicting aliases.");
+    if (allModels.some((model) => model.id === modelId)) {
+      alert("Model already exists for this provider.");
       return;
     }
 
     setAdding(true);
     try {
-      await onSetAlias(modelId, resolvedAlias, providerStorageAlias);
+      await onAddCustomModel(modelId);
       setNewModel("");
     } catch (error) {
       console.log("Error adding model:", error);
@@ -159,13 +140,14 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         alert("No models returned from /models.");
         return;
       }
-      const toImport = models.reduce((acc, model) => {
+      let importedCount = 0;
+      for (const model of models) {
         const modelId = model.id || model.name || model.model;
-        if (modelId && resolveAlias(modelId)) acc.push({ modelId });
-        return acc;
-      }, []);
-      await Promise.all(toImport.map(({ modelId }) => onSetAlias(modelId, resolveAlias(modelId), providerStorageAlias)));
-      const importedCount = toImport.length;
+        if (!modelId) continue;
+        if (allModels.some((entry) => entry.id === modelId)) continue;
+        await onAddCustomModel(modelId);
+        importedCount += 1;
+      }
       if (importedCount === 0) {
         alert("No new models were added.");
       }
@@ -213,17 +195,17 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
 
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
-          {allModels.map(({ modelId, fullModel, alias }) => (
+          {allModels.map(({ id, alias, source }) => (
             <CompatibleModelRow
-              key={fullModel}
-              modelId={modelId}
-              fullModel={`${providerDisplayAlias}/${modelId}`}
+              key={`${source}-${providerStorageAlias}/${id}`}
+              modelId={id}
+              fullModel={`${providerDisplayAlias}/${id}`}
               copied={copied}
               onCopy={onCopy}
-              onDeleteAlias={() => onDeleteAlias(alias)}
-              onTest={connections.length > 0 ? () => handleTestModel(modelId) : undefined}
-              testStatus={modelTestResults[modelId]}
-              isTesting={testingModelId === modelId}
+              onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+              onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
+              testStatus={modelTestResults[id]}
+              isTesting={testingModelId === id}
             />
           ))}
         </div>
@@ -236,10 +218,12 @@ CompatibleModelsSection.propTypes = {
   providerStorageAlias: PropTypes.string.isRequired,
   providerDisplayAlias: PropTypes.string.isRequired,
   modelAliases: PropTypes.object.isRequired,
+  customModels: PropTypes.arrayOf(PropTypes.object),
   copied: PropTypes.string,
   onCopy: PropTypes.func.isRequired,
-  onSetAlias: PropTypes.func.isRequired,
   onDeleteAlias: PropTypes.func.isRequired,
+  onAddCustomModel: PropTypes.func.isRequired,
+  onDeleteCustomModel: PropTypes.func.isRequired,
   connections: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.string,
     isActive: PropTypes.bool,

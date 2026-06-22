@@ -11,7 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import { compressMessages } from "../../open-sse/rtk/index.js";
-import { injectCaveman, injectSystemPrompt } from "../../open-sse/rtk/caveman.js";
+import { injectCaveman } from "../../open-sse/rtk/caveman.js";
+import { injectSystemPrompt } from "../../open-sse/rtk/systemInject.js";
 import { injectPonytail } from "../../open-sse/rtk/ponytail.js";
 import { CAVEMAN_PROMPTS } from "../../open-sse/rtk/cavemanPrompts.js";
 import { PONYTAIL_PROMPTS } from "../../open-sse/rtk/ponytailPrompts.js";
@@ -52,7 +53,9 @@ const PROVIDER_FORMAT = {
 };
 
 // Formats whose native shape has NO system-prompt surface — caveman/ponytail no-op
-const NO_SYSTEM_SURFACE = new Set([FORMATS.CURSOR, FORMATS.COMMANDCODE]);
+// cursor/commandcode are OpenAI-shaped (messages[]) and DO get injected via default handler.
+// kiro uses conversationState shape which systemInject doesn't handle.
+const NO_SYSTEM_SURFACE = new Set([FORMATS.KIRO]);
 
 // A long, compressible git-diff tool output (>500 bytes → above MIN_COMPRESS_SIZE)
 function bigDiff() {
@@ -306,14 +309,20 @@ describe("disabled-flag scenarios per format", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 6. injectSystemPrompt contract — return value per format (for UI warnings)
+// 6. injectSystemPrompt contract — injection works per format (upstream refactor
+//    removed the return value; verify by checking the marker appears in the body)
 // ─────────────────────────────────────────────────────────────────────────
-describe("injectSystemPrompt return contract per format", () => {
+describe("injectSystemPrompt injection per format", () => {
   for (const format of ALL_FORMATS) {
-    it(`format=${format}: returns ${NO_SYSTEM_SURFACE.has(format) ? "false" : "true"}`, () => {
+    it(`format=${format}: ${NO_SYSTEM_SURFACE.has(format) ? "no-op" : "injects marker"}`, () => {
       const body = buildBodyForFormat(format);
-      const result = injectSystemPrompt(body, format, "MARKER-XYZ");
-      expect(result).toBe(!NO_SYSTEM_SURFACE.has(format));
+      injectSystemPrompt(body, format, "MARKER-XYZ");
+      const sysText = readSystemText(body, format);
+      if (NO_SYSTEM_SURFACE.has(format)) {
+        expect(sysText).not.toContain("MARKER-XYZ");
+      } else {
+        expect(sysText).toContain("MARKER-XYZ");
+      }
     });
   }
 });

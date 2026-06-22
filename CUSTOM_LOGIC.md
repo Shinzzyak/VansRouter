@@ -104,8 +104,9 @@ Every POST /v1/chat/completions
 ```
 
 ### Files
-- `open-sse/rtk/ponytail.js` — Injector (delegates to `injectSystemPrompt` from caveman.js)
+- `open-sse/rtk/ponytail.js` — Injector (delegates to `injectSystemPrompt` from `systemInject.js`)
 - `open-sse/rtk/ponytailPrompts.js` — Prompt text for all 3 levels
+- `open-sse/rtk/systemInject.js` — Shared format-dispatched system prompt injector (used by caveman + ponytail)
 - `open-sse/handlers/chatCore.js` (line ~159) — Injection point
 
 ### Intensity Levels

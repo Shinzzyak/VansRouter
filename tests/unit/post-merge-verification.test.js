@@ -200,6 +200,6 @@ describe("Post-merge: allowRemoteNoApiKey feature intact", () => {
 
   it("UI shows toggle when requireApiKey is off", () => {
     expect(ui).toContain("!requireApiKey");
-    expect(ui).toContain("Allow remote access without API key");
+    expect(ui).toContain("Allow Remote Access Without API Key");
   });
 });
