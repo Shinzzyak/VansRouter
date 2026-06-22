@@ -40,6 +40,7 @@ export default function APIPageClient({ machineId }) {
   const [editCombosAll, setEditCombosAll] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
   const [providerList, setProviderList] = useState([]);
+  const [aliasMap, setAliasMap] = useState({}); // alias → provider ID
   const [comboList, setComboList] = useState([]);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
@@ -434,8 +435,8 @@ export default function APIPageClient({ machineId }) {
   const buildProviderList = (connections, nodes) => {
     const nodeMap = {};
     for (const n of (nodes || [])) {
-      const data = typeof n.data === "string" ? JSON.parse(n.data || "{}") : (n.data || {});
-      nodeMap[n.id] = { name: n.name, prefix: data.prefix, type: n.type };
+      // API returns prefix/apiType/baseUrl as top-level fields (parsed from data JSON)
+      nodeMap[n.id] = { name: n.name, prefix: n.prefix || null, type: n.type };
     }
     // Group connections by provider
     const byProvider = {};
@@ -547,6 +548,7 @@ export default function APIPageClient({ machineId }) {
       if (providersRes.ok) {
         const pData = await providersRes.json();
         connections = pData.connections || [];
+        if (pData.aliasMap) setAliasMap(pData.aliasMap);
       }
       if (nodesRes.ok) {
         const nData = await nodesRes.json();
@@ -1258,176 +1260,7 @@ export default function APIPageClient({ machineId }) {
         )}
       </Card>
 
-      {/* API Keys */}
-      <Card id="require-api-key">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">vpn_key</span>
-            API Keys
-          </h2>
-          <Button icon="add" onClick={() => setShowAddModal(true)}>
-            Create Key
-          </Button>
-        </div>
-
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
-          <div>
-            <p className="font-medium">Require API key</p>
-            <p className="text-sm text-text-muted">
-              Requests without a valid key will be rejected
-            </p>
-          </div>
-          <Toggle
-            checked={requireApiKey}
-            onChange={() => handleRequireApiKey(!requireApiKey)}
-          />
-        </div>
-
-        {isRemoteHost && !requireApiKey && (
-          <div className="mb-4 -mt-2">
-            <SecurityWarning message="Endpoint is exposed without an API key." />
-          </div>
-        )}
-
-        {!requireApiKey && isRemoteHost && (
-          <div className="flex items-center justify-between p-4 rounded-xl bg-surface/50 border border-border/30 mb-4">
-            <div>
-              <p className="text-sm font-medium text-text-main">
-                Allow Remote Access Without API Key
-              </p>
-              <p className="text-sm text-text-muted">
-                Let non-loopback requests reach /v1/* without a key (use with caution)
-              </p>
-            </div>
-            <Toggle
-              checked={allowRemoteNoApiKey}
-              onChange={() => handleAllowRemoteNoApiKey(!allowRemoteNoApiKey)}
-            />
-          </div>
-        )}
-
-        {!requireApiKey && allowRemoteNoApiKey && (
-          <div className="mb-4 -mt-2">
-            <SecurityWarning message="Remote access without an API key is enabled — anyone who can reach this endpoint can use your providers." />
-          </div>
-        )}
-
-        {keys.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-              <span className="material-symbols-outlined text-[32px]">vpn_key</span>
-            </div>
-            <p className="text-text-main font-medium mb-1">No API keys yet</p>
-            <p className="text-sm text-text-muted mb-4">Create your first API key to get started</p>
-            <Button icon="add" onClick={() => setShowAddModal(true)}>
-              Create Key
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {keys.map((key) => (
-              <div
-                key={key.id}
-                className={`group flex items-center justify-between py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{key.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="text-xs text-text-muted font-mono">
-                      {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
-                    </code>
-                    <button
-                      onClick={() => toggleKeyVisibility(key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                      title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
-                    >
-                      <span className="material-symbols-outlined text-[14px]">
-                        {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => copy(key.key, key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">
-                        {copied === key.id ? "check" : "content_copy"}
-                      </span>
-                    </button>
-                  </div>
-                  <p className="text-xs text-text-muted mt-1">
-                    Created {new Date(key.createdAt).toLocaleDateString()}
-                  </p>
-                   {key.isActive === false && (
-                    <p className="text-xs text-orange-500 mt-1">Paused</p>
-                  )}
-                   {/* ACL badges */}
-                  {(key.allowedProviders || key.allowedCombos || key.allowedKinds) && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {key.allowedProviders && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 dark:bg-blue-500/20" title={key.allowedProviders.join(", ")}>
-                          {key.allowedProviders.length === 0
-                            ? "No providers"
-                            : key.allowedProviders.map((stored) => {
-                                const p = providerList.find((pp) => pp.id === stored || pp.alias === stored || pp.prefix === stored);
-                                return p ? p.displayName : stored;
-                              }).join(", ")}
-                        </span>
-                      )}
-                      {key.allowedCombos && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500 dark:bg-purple-500/20">
-                          {key.allowedCombos.length === 0 ? "No combos" : key.allowedCombos.join(", ")}
-                        </span>
-                      )}
-                      {key.allowedKinds && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-500 dark:bg-green-500/20">
-                          {key.allowedKinds.length === 0 ? "No kinds" : key.allowedKinds.join(", ")}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Edit ACL button */}
-                  <button
-                    onClick={() => handleOpenEditKey(key)}
-                    className="p-2 hover:bg-primary/10 rounded text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                    title="Edit access control"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">tune</span>
-                  </button>
-                  <Toggle
-                    size="sm"
-                    checked={key.isActive ?? true}
-                    onChange={(checked) => {
-                      if (key.isActive && !checked) {
-                        setConfirmState({
-                          title: "Pause API Key",
-                          message: `Pause API key "${key.name}"?\n\nThis key will stop working immediately but can be resumed later.`,
-                          onConfirm: async () => {
-                            setConfirmState(null);
-                            handleToggleKey(key.id, checked);
-                          }
-                        });
-                      } else {
-                        handleToggleKey(key.id, checked);
-                      }
-                    }}
-                    title={key.isActive ? "Pause key" : "Resume key"}
-                  />
-                  <button
-                    onClick={() => handleDeleteKey(key.id)}
-                    className="p-2 hover:bg-red-500/10 rounded text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Token Saver (RTK + Caveman) */}
+      {/* Token Saver (RTK + Caveman + Ponytail + Headroom) */}
       <Card id="rtk">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -1586,6 +1419,180 @@ export default function APIPageClient({ machineId }) {
             />
           </div>
         </div>
+      </Card>
+
+      {/* API Keys */}
+      <Card id="require-api-key">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">vpn_key</span>
+            API Keys
+          </h2>
+          <Button icon="add" onClick={() => setShowAddModal(true)}>
+            Create Key
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+          <div>
+            <p className="font-medium">Require API key</p>
+            <p className="text-sm text-text-muted">
+              Requests without a valid key will be rejected
+            </p>
+          </div>
+          <Toggle
+            checked={requireApiKey}
+            onChange={() => handleRequireApiKey(!requireApiKey)}
+          />
+        </div>
+
+        {isRemoteHost && !requireApiKey && (
+          <div className="mb-4 -mt-2">
+            <SecurityWarning message="Endpoint is exposed without an API key." />
+          </div>
+        )}
+
+        {!requireApiKey && isRemoteHost && (
+          <div className="flex items-center justify-between p-4 rounded-xl bg-surface/50 border border-border/30 mb-4">
+            <div>
+              <p className="text-sm font-medium text-text-main">
+                Allow Remote Access Without API Key
+              </p>
+              <p className="text-sm text-text-muted">
+                Let non-loopback requests reach /v1/* without a key (use with caution)
+              </p>
+            </div>
+            <Toggle
+              checked={allowRemoteNoApiKey}
+              onChange={() => handleAllowRemoteNoApiKey(!allowRemoteNoApiKey)}
+            />
+          </div>
+        )}
+
+        {!requireApiKey && allowRemoteNoApiKey && (
+          <div className="mb-4 -mt-2">
+            <SecurityWarning message="Remote access without an API key is enabled — anyone who can reach this endpoint can use your providers." />
+          </div>
+        )}
+
+        {keys.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
+              <span className="material-symbols-outlined text-[32px]">vpn_key</span>
+            </div>
+            <p className="text-text-main font-medium mb-1">No API keys yet</p>
+            <p className="text-sm text-text-muted mb-4">Create your first API key to get started</p>
+            <Button icon="add" onClick={() => setShowAddModal(true)}>
+              Create Key
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {keys.map((key) => (
+              <div
+                key={key.id}
+                className={`group flex items-center justify-between py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{key.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="text-xs text-text-muted font-mono">
+                      {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
+                    </code>
+                    <button
+                      onClick={() => toggleKeyVisibility(key.id)}
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                      title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">
+                        {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => copy(key.key, key.id)}
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">
+                        {copied === key.id ? "check" : "content_copy"}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-xs text-text-muted mt-1">
+                    Created {new Date(key.createdAt).toLocaleDateString()}
+                  </p>
+                   {key.isActive === false && (
+                    <p className="text-xs text-orange-500 mt-1">Paused</p>
+                  )}
+                   {/* ACL badges */}
+                  {(key.allowedProviders || key.allowedCombos || key.allowedKinds) && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {key.allowedProviders && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 dark:bg-blue-500/20" title={key.allowedProviders.join(", ")}>
+                          {key.allowedProviders.length === 0
+                            ? "No providers"
+                            : key.allowedProviders.map((stored) => {
+                                // Try providerList first (has connections)
+                                const p = providerList.find((pp) => pp.id === stored || pp.alias === stored || pp.prefix === stored);
+                                if (p) return p.displayName;
+                                // Try aliasMap for providers without connections
+                                const resolved = aliasMap[stored];
+                                if (resolved) return resolved;
+                                return stored;
+                              }).join(", ")}
+                        </span>
+                      )}
+                      {key.allowedCombos && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500 dark:bg-purple-500/20">
+                          {key.allowedCombos.length === 0 ? "No combos" : key.allowedCombos.join(", ")}
+                        </span>
+                      )}
+                      {key.allowedKinds && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-500 dark:bg-green-500/20">
+                          {key.allowedKinds.length === 0 ? "No kinds" : key.allowedKinds.join(", ")}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Edit ACL button */}
+                  <button
+                    onClick={() => handleOpenEditKey(key)}
+                    className="p-2 hover:bg-primary/10 rounded text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    title="Edit access control"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">tune</span>
+                  </button>
+                  <Toggle
+                    size="sm"
+                    checked={key.isActive ?? true}
+                    onChange={(checked) => {
+                      if (key.isActive && !checked) {
+                        setConfirmState({
+                          title: "Pause API Key",
+                          message: `Pause API key "${key.name}"?\n\nThis key will stop working immediately but can be resumed later.`,
+                          onConfirm: async () => {
+                            setConfirmState(null);
+                            handleToggleKey(key.id, checked);
+                          }
+                        });
+                      } else {
+                        handleToggleKey(key.id, checked);
+                      }
+                    }}
+                    title={key.isActive ? "Pause key" : "Resume key"}
+                  />
+                  <button
+                    onClick={() => handleDeleteKey(key.id)}
+                    className="p-2 hover:bg-red-500/10 rounded text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Add Key Modal */}
@@ -1748,7 +1755,7 @@ export default function APIPageClient({ machineId }) {
                       <label key={name} className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer transition-colors ${checked ? "bg-primary/10 text-primary" : "hover:bg-surface-2"}`}>
                         <input type="checkbox" checked={checked} onChange={() => toggleEditCombo(name)} className="rounded" />
                         <span>{name}</span>
-                        <span className="text-text-muted ml-auto text-[10px]">{combo.strategy || "fallback"}</span>
+                        <span className="text-text-muted ml-auto text-[10px]">{Array.isArray(combo.models) ? combo.models.length : 0} models</span>
                       </label>
                     );
                   })

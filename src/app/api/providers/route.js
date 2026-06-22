@@ -78,7 +78,13 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ connections: safeConnections });
+    // Build alias → provider ID map for frontend ACL resolution
+    const aliasMap = {};
+    for (const [id, def] of Object.entries(AI_PROVIDERS)) {
+      if (def.alias && def.alias !== id) aliasMap[def.alias] = id;
+    }
+
+    return NextResponse.json({ connections: safeConnections, aliasMap });
   } catch (error) {
     console.log("Error fetching providers:", error);
     return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });
