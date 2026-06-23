@@ -20,6 +20,13 @@ export default {
     validateUrl: "https://integrate.api.nvidia.com/v1/models",
   },
   models: [
+    { id: "moonshotai/kimi-k2.7", name: "Kimi K2.7" },
+    { id: "moonshotai/kimi-k2.7(low)", name: "Kimi K2.7 (Low Thinking)", upstreamModelId: "moonshotai/kimi-k2.7" },
+    { id: "moonshotai/kimi-k2.6", name: "Kimi K2.6" },
+    { id: "moonshotai/kimi-k2.6(none)", name: "Kimi K2.6 (No/Minimal Thinking)", upstreamModelId: "moonshotai/kimi-k2.6" },
+    { id: "moonshotai/kimi-k2.6(low)", name: "Kimi K2.6 (Low Thinking)", upstreamModelId: "moonshotai/kimi-k2.6" },
+    { id: "moonshotai/kimi-k2.6(medium)", name: "Kimi K2.6 (Medium Thinking)", upstreamModelId: "moonshotai/kimi-k2.6" },
+    { id: "moonshotai/kimi-k2.6(high)", name: "Kimi K2.6 (High Thinking)", upstreamModelId: "moonshotai/kimi-k2.6" },
     { id: "minimaxai/minimax-m2.7", name: "Minimax M2.7" },
     { id: "z-ai/glm4.7", name: "GLM 4.7" },
     { id: "nvidia/nv-embedqa-e5-v5", name: "NV EmbedQA E5 v5", kind: "embedding" },

@@ -21,11 +21,21 @@ import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.j
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
+import { injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog } from "../rtk/headroom.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
+
+const TOOL_PROTOCOL_PROMPT_PROVIDERS = new Set(["kimchi", "nvidia"]);
+
+function extractToolNames(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools
+    .map((tool) => tool?.function?.name || tool?.name)
+    .filter((name) => typeof name === "string" && name.trim());
+}
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -176,6 +186,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (ponytailEnabled && ponytailLevel) {
     injectPonytail(translatedBody, finalFormat, ponytailLevel);
     log?.debug?.("PONYTAIL", `${ponytailLevel} | ${finalFormat}`);
+  }
+
+  if (TOOL_PROTOCOL_PROMPT_PROVIDERS.has(provider) && Array.isArray(translatedBody.tools) && translatedBody.tools.length > 0) {
+    injectToolProtocolPrompt(translatedBody, finalFormat, extractToolNames(translatedBody.tools));
+    log?.debug?.("TOOLPROTO", `${provider}/${model} | ${finalFormat}`);
   }
 
   const executor = getExecutor(provider);
