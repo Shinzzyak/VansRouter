@@ -369,6 +369,7 @@ export async function POST(request) {
         case "chutes":
         case "xiaomi-mimo":
         case "xiaomi-tokenplan":
+        case "kimchi":
         case "nvidia": {
           const endpoints = {
             ...Object.fromEntries(
@@ -377,6 +378,7 @@ export async function POST(request) {
             // dynamic URLs (depend on providerSpecificData) — kept inline
             "ollama-local": `${resolveOllamaLocalHost({ providerSpecificData })}/api/tags`,
             "xiaomi-tokenplan": `${resolveXiaomiTokenplanBaseUrl({ providerSpecificData })}/models`,
+            "kimchi": "https://llm.kimchi.dev/openai/v1/models",
           };
           const headers = {};
           if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;

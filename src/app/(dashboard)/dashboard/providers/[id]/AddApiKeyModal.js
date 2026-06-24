@@ -187,6 +187,11 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider, apiKey, name, priority: 1, testStatus: "unknown" }),
         });
+        const data = await res.json();
+        // Trigger validation test right after bulk adding to determine active / error status
+        if (res.ok && data.connection?.id) {
+          fetch(`/api/providers/${data.connection.id}/test`, { method: "POST" }).catch(() => {});
+        }
         return res.ok ? "ok" : "fail";
       } catch {
         return "fail";
