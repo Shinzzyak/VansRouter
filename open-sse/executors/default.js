@@ -77,9 +77,76 @@ const REFRESH_GRANTS = Object.fromEntries(
     })
 );
 
+const TRANSIENT_BODY_PATTERNS = [/Hosted_vllmException/i, /Server disconnected/i, /exhausted/i];
+const TRANSIENT_BODY_MAX_ATTEMPTS = 5;
+const TRANSIENT_BODY_DELAY_MS = 1500;
+
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
     super(provider, PROVIDERS[provider] || PROVIDERS.openai);
+  }
+
+  async execute(args) {
+    let attempt = 0;
+    while (true) {
+      const result = await super.execute(args);
+      attempt++;
+      if (attempt >= TRANSIENT_BODY_MAX_ATTEMPTS) return result;
+      if (!result.response?.ok || result.response.status >= 500) return result;
+      const peek = await this._peekTransientBodyError(result.response);
+      if (!peek.matched) {
+        if (peek.replacementBody) {
+          result.response = new Response(peek.replacementBody, {
+            status: result.response.status,
+            statusText: result.response.statusText,
+            headers: result.response.headers,
+          });
+        }
+        return result;
+      }
+      args.log?.warn?.("RETRY", `${this.provider.toUpperCase()} | transient body error "${peek.matched.slice(0, 60)}" — retry ${attempt}/${TRANSIENT_BODY_MAX_ATTEMPTS}`);
+      try { await result.response.body?.cancel?.(); } catch {}
+      await new Promise(r => setTimeout(r, TRANSIENT_BODY_DELAY_MS));
+    }
+  }
+
+  async _peekTransientBodyError(response) {
+    if (!response?.body) return { matched: null, replacementBody: null };
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const chunks = [];
+    let text = "";
+    let matched = null;
+    try {
+      while (text.length < 8192) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        text += decoder.decode(value, { stream: true });
+        const hit = TRANSIENT_BODY_PATTERNS.find(p => p.test(text));
+        if (hit) { matched = text.slice(text.search(hit), text.search(hit) + 80); break; }
+      }
+    } catch {}
+    reader.releaseLock();
+    const upstream = response.body;
+    let upstreamReader = null;
+    const replacementBody = new ReadableStream({
+      start(controller) {
+        for (const c of chunks) controller.enqueue(c);
+        upstreamReader = upstream.getReader();
+      },
+      async pull(controller) {
+        try {
+          const { done, value } = await upstreamReader.read();
+          if (done) { controller.close(); return; }
+          controller.enqueue(value);
+        } catch (e) { controller.error(e); }
+      },
+      cancel(reason) {
+        try { upstreamReader?.cancel(reason); } catch {}
+      },
+    });
+    return { matched, replacementBody };
   }
 
   transformRequest(model, body) {

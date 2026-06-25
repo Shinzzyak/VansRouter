@@ -646,6 +646,27 @@ export default function ProviderDetailPage() {
     });
   };
 
+  const handleBatchDelete = async () => {
+    if (selectedConnectionIds.length === 0) return;
+    setConfirmState({
+      title: `Delete ${selectedConnectionIds.length} Connection${selectedConnectionIds.length > 1 ? "s" : ""}`,
+      message: `Permanently delete ${selectedConnectionIds.length} selected connection${selectedConnectionIds.length > 1 ? "s" : ""}?`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        let failed = 0;
+        for (const id of selectedConnectionIds) {
+          try {
+            const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
+            if (!res.ok) failed++;
+          } catch { failed++; }
+        }
+        if (failed > 0) alert(`${failed} deletion(s) failed.`);
+        setSelectedConnectionIds([]);
+        await fetchConnections();
+      }
+    });
+  };
+
   const handleOAuthSuccess = () => {
     fetchConnections();
     setShowOAuthModal(false);
@@ -841,9 +862,30 @@ export default function ProviderDetailPage() {
 
   const connectionsList = (
     <div className="flex min-w-0 flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
+      {connections.length > 1 && (
+        <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-text-muted">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleSelectAllConnections}
+            className="h-3.5 w-3.5 rounded border-border accent-primary"
+          />
+          <span>{selectedConnectionIds.length > 0 ? `${selectedConnectionIds.length} selected` : "Select all"}</span>
+        </div>
+      )}
       {connections
         .map((conn, index) => (
           <div key={conn.id} className="flex min-w-0 items-stretch">
+            {connections.length > 1 && (
+              <div className="flex items-center pl-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected(conn.id)}
+                  onChange={() => toggleSelectConnection(conn.id)}
+                  className="h-3.5 w-3.5 rounded border-border accent-primary"
+                />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <ConnectionRow
                 connection={conn}
@@ -1315,6 +1357,17 @@ export default function ProviderDetailPage() {
                   onClick={() => setShowBulkProxyModal(true)}
                 >
                   Apply Proxy
+                </Button>
+              )}
+              {connections.length > 1 && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  icon="delete_sweep"
+                  onClick={handleBatchDelete}
+                  disabled={selectedConnectionIds.length === 0}
+                >
+                  Delete{selectedConnectionIds.length > 0 ? ` (${selectedConnectionIds.length})` : ""}
                 </Button>
               )}
               {connections.length > 0 && (
