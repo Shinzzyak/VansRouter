@@ -1,31 +1,125 @@
 <div align="center">
+  <img src="./images/9router.png?1" alt="VansRoute Dashboard" width="800"/>
 
   # ⚡ VansRoute
 
   ### Universal AI Gateway — One Endpoint, Every Provider
 
-  **Circuit breaker resilience · Kimchi CLI-native · RTK token compression · 40+ providers**
+  **Circuit breaker resilience · Kimchi CLI-native · RTK token compression · 40+ providers · 214 tests**
 
   [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
   [![Tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)](#-testing)
   [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](./package.json)
   [![Next.js](https://img.shields.io/badge/Next.js-16-black)](./package.json)
 
-  [🚀 Quick Start](#-quick-start) • [💡 Features](#-features) • [🔄 Architecture](#-architecture) • [📊 Comparison](#-how-vansroute-compares) • [📖 Docs](#-setup-guide) • [🙏 Credits](#-credits--references)
+  [🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [🔄 Architecture](#-how-it-works) • [📊 Comparison](#-comparison-vansroute-vs-9router-vs-omniroute) • [🧭 Beginner Guide](#-beginner-setup-guide) • [🙏 Credits](#-credits--references)
+
+  [🇮🇩 Bahasa Indonesia](./README.md) • [🇻🇳 Tiếng Việt](./i18n/README.vi.md) • [🇨🇳 中文](./i18n/README.zh-CN.md) • [🇯🇵 日本語](./i18n/README.ja-JP.md) • [🇷🇺 Русский](./i18n/README.ru.md)
 </div>
 
 ---
 
-## ❓ Why VansRoute?
+## 🤔 Why VansRoute?
 
-You connect Claude Code, Codex, Cursor, Cline, or any OpenAI-compatible CLI to one endpoint. VansRoute handles the rest:
+**Stop wasting money, tokens and hitting limits:**
 
-- **Circuit breaker** — if a provider dies, VansRoute trips the breaker and routes to the next one. No more "1 error → all error" cascade.
-- **Account semaphore** — per-account concurrency limiter prevents hammering one account with 10 simultaneous requests.
-- **Kimchi CLI-native** — VansRoute's Kimchi provider mimics the official Kimchi CLI exactly: same 5 models, same capabilities, same temperature rules, same structured output flags.
-- **Quota auto-reactivation** — when Kimchi credits run out, the account is parked until the 1st of next month, then auto-reactivated. No manual babysitting.
-- **RTK + Caveman + Ponytail** — stacked token compression saves 15-95% on tool outputs.
-- **Per-API-key ACL** — hand out keys that can only touch specific providers, combos, or model kinds.
+- ❌ Subscription quota expires unused every month
+- ❌ Rate limits stop you mid-coding
+- ❌ Tool outputs (git diff, grep, ls...) burn tokens fast
+- ❌ 1 provider error → all accounts blocked
+- ❌ Manual reactivation after quota reset
+
+**VansRoute solves this:**
+
+- ✅ **RTK Token Saver** — Auto-compress tool_result content, save 20-40% tokens
+- ✅ **Circuit Breaker** — If a provider dies, trip the breaker and route to the next one. No cascade.
+- ✅ **Account Semaphore** — Per-account concurrency limiter prevents hammering one account
+- ✅ **Kimchi CLI-native** — VansRoute's Kimchi provider mimics the official Kimchi CLI exactly
+- ✅ **Quota Auto-Reactivation** — Kimchi credits run out → auto-parked until next month → auto-reactivated
+- ✅ **Proxy-Aware Resilience** — One dead proxy doesn't block accounts on other proxies
+- ✅ **Per-API-key ACL** — Hand out keys that can only touch specific providers/combos/kinds
+- ✅ **40+ Providers** — Kimchi, GitHub Copilot, Codex, Gemini, OpenCode, Kilo, NVIDIA, AgentRouter, + more
+
+---
+
+## 📊 Comparison: VansRoute vs 9Router vs OmniRoute
+
+### Logic & Backend — what each has
+
+| Feature | 9Router | OmniRoute | **VansRoute** |
+|---------|---------|-----------|---------------|
+| **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) |
+| **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware |
+| **Provider-level failure tracking** | ❌ | ✅ with 5s dedup | ✅ ported, with dedup bound 10K |
+| **Provider exhaustion detection** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ ported + tightened regex |
+| **429 excluded from breaker** | ❌ N/A | ❌ (429 counts) | ✅ Only 5xx/timeout counts |
+| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore |
+| **Kimchi CLI alignment** | ❌ | ❌ | ✅ 5 models, per-model caps from models.dev |
+| **Kimchi quota auto-reactivation** | ❌ | ❌ | ✅ monthly auto-reset via instrumentation hook |
+| **AgentRouter provider** | ❌ | ✅ | ✅ |
+| **Model lockout** | ✅ DB flat field | ✅ in-memory Map | ✅ DB flat field (inherited) |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ inherited |
+| **NVIDIA Kimi stream coercion** | ✅ | ✅ | ✅ inherited |
+| **Per-API-key ACL** | ✅ fork-only | ❌ | ✅ inherited |
+| **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ inherited |
+| **Kimi native tool parser** | ✅ | ✅ | ✅ inherited + hardened |
+| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 17 | 4 (inherited) |
+| **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache |
+| **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation |
+| **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
+| **Provider count** | 40+ | 231+ | 40+ + AgentRouter |
+
+### What VansRoute has that neither 9Router nor OmniRoute has
+
+1. **Kimchi CLI alignment** — 9router's Kimchi provider masquerades as the official Kimchi CLI, with exactly the same 5 models, capabilities, and temperature rules
+2. **Kimchi quota auto-reactivation** — accounts deactivated due to quota exhaustion automatically reactivate at the 1st of each month
+3. **In-memory circuit breaker without DB** — simpler than OmniRoute's DB-backed version, no `domainState.js` dependency
+4. **Proxy-aware resilience** — circuit breaker and semaphore keyed per `provider:proxyHash` so one dead proxy doesn't block others
+5. **TPS optimization** — cached settings + cached connections + per-provider mutex = fewer sync DB reads per request
+
+### What VansRoute does NOT have (yet)
+
+- OmniRoute's 17 combo strategies (VansRoute has 4)
+- OmniRoute's `sessionPool` with fingerprint rotation
+- OmniRoute's `autoCombo` with complexity routing and task fitness scoring
+- OmniRoute's 231 providers (VansRoute has 40+)
+
+---
+
+## 🔄 How It Works
+
+```
+┌─────────────┐
+│  Your CLI   │  (Claude Code, Codex, Cursor, Cline, OpenCode...)
+│   Tool      │
+└──────┬──────┘
+       │ POST http://localhost:20127/v1/chat/completions
+       ↓
+┌──────────────────────────────────────────────────────────┐
+│                     VansRoute Engine                      │
+│                                                           │
+│  1. Auth & ACL check (cached API key validation)          │
+│  2. Circuit Breaker check (skip dead proxy buckets)      │
+│  3. Account Semaphore (queue if at concurrency cap)      │
+│  4. RTK / Caveman / Ponytail token compression           │
+│  5. Format translation (OpenAI ↔ Claude ↔ Gemini ↔ Kiro) │
+│  6. Kimchi CLI-aligned param stripping                    │
+│  7. Executor → upstream provider (via proxy if configured) │
+│  8. Response translation back to client format            │
+│                                                           │
+│  On success: clearProviderFailure() + clearAccountError  │
+│  On error:  recordProviderFailure() → breaker counts      │
+│             markAccountUnavailable() → try next account   │
+│             Kimchi quota? → deactivate until month end   │
+└──────────────────────────────────────────────────────────┘
+       │
+       ├─→ Kimchi (5 CLI models, quota auto-reactivation)
+       ├─→ AgentRouter ($200 free credits, passthrough)
+       ├─→ GitHub Copilot / Codex (subscription tier)
+       ├─→ Gemini CLI / OpenCode (free tier)
+       ├─→ OpenRouter / NVIDIA / others
+       └─→ Combo (fallback / round-robin / fusion / capacity)
+```
 
 ---
 
@@ -41,146 +135,375 @@ cp -r .next/static .next/standalone/.next/static
 PORT=20127 node .next/standalone/server.js
 ```
 
-Open `http://localhost:20127/dashboard`, add your provider API keys, generate a VansRoute API key, and point your CLI tool to:
+Open `http://localhost:20127/dashboard`, add provider connections, generate a VansRoute API key, and point your CLI to `http://localhost:20127/v1`.
 
+### PM2 (production)
+
+```bash
+npm install -g pm2
+PORT=3003 pm2 start .next/standalone/server.js --name vansroute
+pm2 save
 ```
-http://localhost:20127/v1
+
+### Docker
+
+```bash
+docker run -d \
+  -p 20127:20127 \
+  -v vansroute-data:/home/node/.vansroute \
+  --name vansroute \
+  ghcr.io/vanszs/vansroute:latest
 ```
 
 ---
 
-## 💡 Features
+## 🧭 Beginner Setup Guide
+
+<details>
+<summary><b>🪟 Windows (from zero)</b></summary>
+
+### Step 1 — Install Node.js
+
+1. Go to https://nodejs.org → download **LTS** (e.g. `node-v22.x.x-x64.msi`)
+2. Run installer, check "Add to PATH"
+3. Verify: `node --version` and `npm --version`
+
+### Step 2 — Install pnpm
+
+```cmd
+npm install -g pnpm
+pnpm --version
+```
+
+### Step 3 — Install Git
+
+Download from https://git-scm.com/download/win, install with defaults.
+
+### Step 4 — Clone and install
+
+```cmd
+git clone https://github.com/Vanszs/VansRouter.git
+cd VansRouter
+copy .env.example .env
+pnpm install
+```
+
+### Step 5 — Configure `.env`
+
+```
+JWT_SECRET=ganti-dengan-string-acak-panjang
+INITIAL_PASSWORD=passwordmu
+DATA_DIR=C:\Users\NamaKamu\.vansroute
+PORT=20127
+NODE_ENV=production
+NEXT_PUBLIC_BASE_URL=http://localhost:20127
+```
+
+### Step 6 — Build
+
+```cmd
+pnpm run build
+```
+
+### Step 7 — Run
+
+```cmd
+set PORT=20127
+node .next\standalone\server.js
+```
+
+Open: http://localhost:20127
+
+### Windows PM2 (auto-start)
+
+```cmd
+npm install -g pm2 pm2-windows-startup
+pm2 start .next\standalone\server.js --name vansroute
+pm2-startup install
+pm2 save
+```
+
+</details>
+
+<details>
+<summary><b>🐧 Linux / WSL (from zero)</b></summary>
+
+```bash
+# Install Node.js 20+
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install pnpm
+npm install -g pnpm
+
+# Clone
+git clone https://github.com/Vanszs/VansRouter.git
+cd VansRouter
+cp .env.example .env
+pnpm install
+
+# Configure
+nano .env  # set JWT_SECRET, INITIAL_PASSWORD, PORT
+
+# Build & run
+pnpm run build
+cp -r public .next/standalone/public
+cp -r .next/static .next/standalone/.next/static
+PORT=20127 node .next/standalone/server.js
+```
+
+### PM2 (production)
+
+```bash
+npm install -g pm2
+PORT=20127 pm2 start .next/standalone/server.js --name vansroute
+pm2 startup
+pm2 save
+```
+
+</details>
+
+<details>
+<summary><b>🐳 Docker</b></summary>
+
+```bash
+docker run -d \
+  -p 20127:20127 \
+  -v vansroute-data:/home/node/.vansroute \
+  --name vansroute \
+  ghcr.io/vanszs/vansroute:latest
+```
+
+Or with docker-compose:
+
+```bash
+docker-compose up -d
+```
+
+</details>
+
+---
+
+## 🛠️ Supported CLI Tools
+
+| Tool | Status | Config Path |
+|------|--------|-------------|
+| **Claude Code** | ✅ Full support | `~/.claude/settings.json` |
+| **Codex** | ✅ Full support | `~/.codex/config.json` |
+| **Cursor** | ✅ Full support | Settings → Models → OpenAI API |
+| **Cline** | ✅ Full support | VS Code extension settings |
+| **OpenCode** | ✅ Full support | `opencode.json` |
+| **OpenClaw** | ✅ Full support | CLI config |
+| **GitHub Copilot** | ✅ Full support | `hub.github.com` |
+| **Gemini CLI** | ✅ Full support | `~/.gemini/config.json` |
+| **Antigravity** | ✅ Full support | Antigravity settings |
+| **Copilot** | ✅ Full support | VS Code extension |
+| **Kilo** | ✅ Full support | Kilo settings |
+| **Cline** | ✅ Full support | Cline settings |
+| **DeepSeek TUI** | ✅ Full support | DeepSeek config |
+| **Jcode** | ✅ Full support | Jcode settings |
+| **Droid** | ✅ Full support | Droid config |
+| **Hermes** | ✅ Full support | Hermes config |
+
+---
+
+## 🌐 Supported Providers
+
+### Free Tier Providers
+
+| Provider | Free Quota | Models |
+|----------|-----------|-------|
+| **Kimchi** (CLI-aligned) | ~1.6B tokens/month | kimi-k2.7, minimax-m3, kimi-k2.6, nemotron-3-ultra-fp4, glm-5.2-fp8 |
+| **AgentRouter** | $200 free credits | Passthrough (any model) |
+| **Kilo** | Free tier | Various |
+| **OpenCode** | Free tier | Various |
+| **Gemini CLI** | Free tier | Gemini models |
+
+### Subscription Providers
+
+| Provider | Auth | Models |
+|----------|------|-------|
+| **GitHub Copilot** | OAuth | Claude, GPT, Gemini |
+| **Codex** | OAuth | GPT models |
+| **Antigravity** | OAuth | Various |
+| **Gemini CLI** | OAuth | Gemini models |
+
+### API Key Providers
+
+| Provider | Type | Notable Models |
+|----------|------|----------------|
+| **OpenRouter** | Passthrough | 100+ models |
+| **NVIDIA NIM** | Per-model | Kimi K2.6, Llama, GLM |
+| **SiliconFlow** | Per-model | GLM, DeepSeek, Qwen |
+| **Z.AI** | Per-model | GLM series |
+| + 30+ more | Various | Various |
+
+---
+
+## 💡 Key Features
 
 ### Resilience Engine
 
 | Feature | What it does |
 |---------|-------------|
-| **Circuit Breaker** | Per-provider state machine: CLOSED → DEGRADED → OPEN → HALF_OPEN. After 5 failures, provider is skipped entirely until probe succeeds. Adaptive backoff escalates on repeated failures. |
-| **Account Semaphore** | Per `provider:connectionId` concurrency limiter with FIFO queue and 30s timeout. Prevents rate-limit cascades from concurrent requests to the same account. |
-| **Provider Failure Tracking** | `recordProviderFailure()` with 5s dedup per connection. Only failure-eligible status codes (408, 429, 500, 502, 503, 504) count toward the breaker. |
-| **Provider Exhaustion Detection** | `isProviderExhaustedReason()` lets the combo router skip all remaining targets from an exhausted provider. |
-| **Quota Auto-Reactivation** | Kimchi accounts deactivated due to credit exhaustion are automatically reactivated on the 1st of each month via a Next.js instrumentation hook + hourly timer. |
+| **Circuit Breaker** | Per-proxy-bucket state machine: CLOSED → DEGRADED → OPEN → HALF_OPEN. After 5 failures (5xx/timeout only, not 429), provider is skipped until probe succeeds. |
+| **Account Semaphore** | Per `provider:account:proxyHash` FIFO queue with 30s timeout. Default maxConcurrency = 3. |
+| **Provider Failure Tracking** | `recordProviderFailure()` with 5s dedup per connection, bounded to 10K entries. |
+| **Proxy-Aware** | Breaker and semaphore keyed by `provider:proxyHash`. One dead proxy doesn't block others. |
+| **Quota Auto-Reactivation** | Kimchi accounts auto-deactivated on credit exhaustion, auto-reactivated on the 1st of each month. |
 
 ### Kimchi CLI Alignment
 
-VansRoute's `kimchi` provider is configured to be indistinguishable from the official Kimchi CLI:
-
-- Exactly **5 models** from the Kimchi CLI catalog
-- Capabilities copied field-for-field from `https://models.dev/api.json`
-- Per-model `temperature`, `structuredOutput`, `thinkingCanDisable`, `vision`, `videoInput`
-- Param stripping matches CLI `temperature:false` flags
-
 | Model | Reasoning | Vision | Temperature | Structured Output |
 |-------|-----------|--------|-------------|-------------------|
-| `kimi-k2.7` | ✅ toggle off | ✅ + video | ❌ | ✅ |
-| `kimi-k2.6` | ✅ toggle | ✅ + video | ✅ | ✅ |
-| `minimax-m3` | ✅ | ✅ | ✅ | — |
-| `nemotron-3-ultra-fp4` | ❌ | ❌ | ✅ | — |
-| `glm-5.2-fp8` | ✅ (OpenAI) | ❌ | ✅ | — |
+| `kimchi/kimi-k2.7` | ✅ toggle off | ✅ + video | ❌ (CLI: false) | ✅ |
+| `kimchi/kimi-k2.6` | ✅ toggle | ✅ + video | ✅ | ✅ |
+| `kimchi/minimax-m3` | ✅ | ✅ | ✅ | — |
+| `kimchi/nemotron-3-ultra-fp4` | ❌ | ❌ | ✅ | — |
+| `kimchi/glm-5.2-fp8` | ✅ (OpenAI) | ❌ | ✅ | — |
 
 ### Token Compression
 
-| Saver | What it does |
-|-------|-------------|
-| **RTK** | Compresses `tool_result` content before sending upstream |
-| **Caveman** | Instructs the model to respond in ultra-terse mode |
-| **Ponytail** | Forces the laziest (simplest) code output |
+| Saver | What it does | Savings |
+|-------|-------------|---------|
+| **RTK** | Compresses `tool_result` content before sending upstream | 20-40% |
+| **Caveman** | Instructs the model to respond in ultra-terse mode | 15-75% |
+| **Ponytail** | Forces the laziest (simplest) code output | 10-50% |
+| **Headroom** | External compression service (optional) | Variable |
 
-### Provider Support
+### Combo Strategies
 
-40+ providers including: Kimchi (CLI-aligned), AgentRouter ($200 free), GitHub Copilot, Codex, Gemini CLI, OpenCode, Kilo, NVIDIA NIM, OpenRouter, and more.
+| Strategy | Description |
+|----------|-------------|
+| **Fallback** | Try provider A → if fail → try B → if fail → try C |
+| **Round Robin** | Rotate across providers evenly |
+| **Fusion** | Send to multiple providers in parallel, judge picks best response |
+| **Capacity** | Auto-switch based on provider availability and load |
 
-### Format Translation
+### Other Features
 
-OpenAI ↔ Claude ↔ Gemini ↔ Kiro — transparent format conversion so any CLI tool works with any provider.
-
----
-
-## 🔄 Architecture
-
-```
-┌─────────────┐
-│  Your CLI   │  (Claude Code, Codex, Cursor, Cline, OpenCode...)
-└──────┬──────┘
-       │ POST http://localhost:20127/v1/chat/completions
-       ↓
-┌──────────────────────────────────────────────────────┐
-│                   VansRoute Engine                     │
-│                                                        │
-│  1. Circuit Breaker check (skip dead providers)        │
-│  2. Account Semaphore (queue if at concurrency cap)   │
-│  3. RTK / Caveman / Ponytail injection                │
-│  4. Format translation (OpenAI ↔ Claude ↔ Gemini)     │
-│  5. Kimchi CLI-aligned param stripping                 │
-│  6. Executor → upstream provider                       │
-│  7. Response translation back to client format         │
-│                                                        │
-│  On success: clearProviderFailure()                    │
-│  On error:  recordProviderFailure() → breaker counts   │
-│             markAccountUnavailable() → try next acct   │
-│             Kimchi quota? → deactivate until month end │
-└──────────────────────────────────────────────────────┘
-       │
-       ├─→ Kimchi (5 CLI models, quota auto-reactivation)
-       ├─→ AgentRouter ($200 free credits, passthrough)
-       ├─→ GitHub Copilot / Codex (subscription tier)
-       ├─→ Gemini CLI / OpenCode (free tier)
-       └─→ OpenRouter / NVIDIA / others
-```
+- **Per-API-key ACL** — scope each key to specific providers, combos, and model kinds
+- **Secured `/v1` by default** — safe to expose on a VPS
+- **Kiro format support** — with provider/combo/kind ACLs
+- **NVIDIA Kimi stream coercion** — forces `stream:false` upstream, translates back to SSE
+- **Kimi native tool parser** — handles leaked `functions.NAME:ID {JSON}` markup
+- **Compact request handling** — trims redundant context before dispatch
+- **Settings cache** — 5s TTL, eliminates sync DB reads per request
+- **Connections cache** — 2s TTL with invalidation on writes
 
 ---
 
-## 📊 How VansRoute Compares
+## 💰 Pricing at a Glance
 
-| Capability | VansRoute | Typical routers |
-|-----------|-----------|-----------------|
-| Circuit breaker (provider-level) | ✅ In-memory, no DB dependency | ❌ or DB-backed |
-| Account concurrency limiter | ✅ FIFO + timeout | ❌ |
-| Kimchi CLI-native config | ✅ 5 models, per-model caps | ❌ |
-| Quota auto-reactivation (monthly) | ✅ Kimchi-specific | ❌ |
-| RTK token compression | ✅ Stacked (RTK + Caveman + Ponytail) | Partial or none |
-| Per-API-key ACL | ✅ Providers + combos + kinds | ❌ |
-| NVIDIA Kimi stream coercion | ✅ `stream:false` upstream, SSE back | ❌ |
-| AgentRouter passthrough | ✅ $200 free credits | ❌ |
-| Format translation | ✅ OpenAI ↔ Claude ↔ Gemini ↔ Kiro | Partial |
+| Tier | Providers | Cost | Best For |
+|------|-----------|------|----------|
+| **Free** | Kimchi, AgentRouter, Kilo, OpenCode | $0 | Hobby / testing |
+| **Subscription** | GitHub Copilot, Codex, Antigravity | $10-20/mo | Professional coding |
+| **Pay-per-use** | OpenRouter, NVIDIA, SiliconFlow | $0.2-3/1M tokens | Production scale |
+| **Combo** | Mix of above | $0-20/mo | Best of all worlds |
+
+---
+
+## 🎯 Use Cases
+
+### Solo Developer
+- Connect Claude Code to Kimchi (free) + GitHub Copilot (subscription)
+- RTK saves 30% tokens on tool outputs
+- Circuit breaker prevents downtime when Kimchi rate-limits
+
+### Team Lead
+- Per-API-key ACL: dev keys can only use Kimchi (free), prod keys use Copilot
+- Combo: fallback from Copilot → Kimchi → AgentRouter
+- Usage dashboard tracks spend per key
+
+### VPS Deployment
+- PM2 + standalone build = production-grade
+- Proxy-aware resilience: if one proxy dies, others keep working
+- Kimchi quota auto-reactivation: no manual babysitting
+
+---
+
+## ❓ Frequently Asked Questions
+
+<details>
+<summary><b>Why is VansRoute faster than 9Router?</b></summary>
+
+VansRoute caches `getSettings()` (5s TTL) and `getProviderConnections()` (2s TTL), eliminating 4+ synchronous `better-sqlite3` reads per request. The per-provider mutex (replacing the global mutex) allows parallel credential selection across different providers.
+</details>
+
+<details>
+<summary><b>What happens when Kimchi credits run out?</b></summary>
+
+The account is automatically deactivated (`isActive: false`, `testStatus: "quota_exhausted"`, `rateLimitedUntil` set to the 1st of next month). On the 1st, `reactivateExpiredKimchiAccounts()` runs via the instrumentation hook and reactivates all exhausted accounts. No manual intervention needed.
+</details>
+
+<details>
+<summary><b>What happens when a proxy dies?</b></summary>
+
+The circuit breaker for that specific proxy bucket (`provider:proxyHash`) trips OPEN after 5 failures. Accounts using that proxy are skipped. Accounts on other proxies continue working normally. The breaker automatically enters HALF_OPEN after the reset timeout to probe recovery.
+</details>
+
+<details>
+<summary><b>Does 429 trip the circuit breaker?</b></summary>
+
+No. 429 (rate limit) is per-account, not per-provider. Only 408, 500, 502, 503, 504 count toward the circuit breaker. This prevents false trips when multiple accounts hit rate limits simultaneously.
+</details>
+
+<details>
+<summary><b>How do I add a new provider?</b></summary>
+
+1. Create `open-sse/providers/registry/{providerId}.js` following the `REGISTRY_TEMPLATE`
+2. Add models to the provider entry
+3. Add the provider ID to `src/shared/constants/providers.js`
+4. Regenerate the registry index if needed
+</details>
+
+<details>
+<summary><b>Is VansRoute compatible with 9Router configs?</b></summary>
+
+Yes. VansRoute retains full format compatibility with 9Router. The DB schema, API endpoints, and CLI tool configurations are identical. You can migrate by copying your `.vansroute/` data directory.
+</details>
 
 ---
 
 ## 📖 Setup Guide
 
-### 1. Install & Build
+### 1. Environment Variables
+
+```env
+# Required
+JWT_SECRET=your-random-secret-at-least-32-chars
+INITIAL_PASSWORD=your-dashboard-password
+PORT=20127
+
+# Optional
+DATA_DIR=~/.vansroute        # Default: ~/.vansroute
+NODE_ENV=production
+NEXT_PUBLIC_BASE_URL=http://localhost:20127
+ANTIGRAVITY_TIMEOUT_MS=15000 # Antigravity quota fetch timeout
+```
+
+### 2. Build & Run
 
 ```bash
-git clone https://github.com/Vanszs/VansRouter.git
-cd VansRouter
 pnpm install
 pnpm run build
 cp -r public .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
-```
-
-### 2. Start
-
-```bash
 PORT=20127 node .next/standalone/server.js
 ```
 
-Or with PM2:
-```bash
-PORT=3003 pm2 start .next/standalone/server.js --name vansroute
-pm2 save
-```
+### 3. Dashboard Configuration
 
-### 3. Configure
+1. Open `http://localhost:20127/masuk` (login)
+2. Go to **Providers** → add API keys / OAuth
+3. Go to **Settings** → generate VansRoute API key
+4. Go to **CLI Tools** → configure your tool (Claude Code, Codex, etc.)
+5. Point your CLI to `http://localhost:20127/v1`
 
-1. Open `http://localhost:20127/dashboard`
-2. Add provider connections (API keys)
-3. Generate a VansRoute API key
-4. Point your CLI to `http://localhost:20127/v1`
+### 4. Kimchi Setup
 
-### 4. Kimchi Models
-
-Use any of the 5 CLI-aligned models:
+VansRoute's Kimchi provider exposes exactly 5 models matching the Kimchi CLI:
 
 ```json
 {
@@ -190,17 +513,156 @@ Use any of the 5 CLI-aligned models:
 }
 ```
 
-When Kimchi credits run out, the account is auto-parked until the 1st of next month. No manual intervention needed.
+When credits run out, accounts are auto-parked until the 1st of next month.
+
+### 5. Combo Setup
+
+Create a combo in the dashboard to enable fallback:
+
+```
+combo/my-fallback:
+  1. kimchi/kimi-k2.6 (free)
+  2. openrouter/anthropic/claude-3.5-sonnet (paid)
+  3. nvidia/moonshotai/kimi-k2.6(high) (free)
+```
+
+---
+
+## 📊 Available Models
+
+### Kimchi (CLI-aligned, 5 models)
+
+| Model ID | Family | Context | Max Output | Reasoning |
+|----------|--------|---------|------------|-----------|
+| `kimchi/kimi-k2.7` | kimi-k2 | 262K | 262K | ✅ (toggle off) |
+| `kimchi/kimi-k2.6` | kimi-k2 | 262K | 262K | ✅ (toggle) |
+| `kimchi/minimax-m3` | minimax | 1M | 512K | ✅ |
+| `kimchi/nemotron-3-ultra-fp4` | nemotron | 128K | 8K | ❌ |
+| `kimchi/glm-5.2-fp8` | glm | 128K | 128K | ✅ (OpenAI) |
+
+### NVIDIA NIM (Kimi variants)
+
+| Model ID | Upstream ID | Max Tokens |
+|----------|-------------|------------|
+| `nvidia/moonshotai/kimi-k2.6(none)` | moonshotai/kimi-k2.6 | 16384 |
+| `nvidia/moonshotai/kimi-k2.6(low)` | moonshotai/kimi-k2.6 | 16384 |
+| `nvidia/moonshotai/kimi-k2.6(medium)` | moonshotai/kimi-k2.6 | 16384 |
+| `nvidia/moonshotai/kimi-k2.6(high)` | moonshotai/kimi-k2.6 | 16384 |
+
+### AgentRouter (passthrough)
+
+Any model ID works — AgentRouter routes to the upstream provider.
+
+---
+
+## 🐛 Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `EADDRINUSE` | Port already in use | Change `PORT=20128` or kill the process |
+| `EACCES` | Permission denied | Run as admin (Windows) or check folder permissions |
+| `Model not found` | Wrong model ID | Check `/v1/models` for available models |
+| `expanded is not defined` | — | ✅ Fixed in VansRoute |
+| `handleViewDetail is not defined` | — | ✅ Fixed in VansRoute |
+| Kimchi always 503 | All accounts rate-limited | Wait for cooldown or add more accounts |
+| Kimchi quota exhausted | Credits used up | Auto-reactivates on the 1st of next month |
+| Provider circuit breaker open | 5+ failures (5xx) | Wait 30s for HALF_OPEN probe |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 16 (standalone output) |
+| **Runtime** | Node.js 20+ |
+| **Database** | better-sqlite3 (synchronous, cached) |
+| **Process Manager** | PM2 |
+| **Container** | Docker / docker-compose |
+| **Testing** | Vitest (214 tests) |
+| **Language** | JavaScript ESM (.js) |
+| **Package Manager** | pnpm |
+
+---
+
+## 📝 API Reference
+
+### Chat Completions
+
+```http
+POST /v1/chat/completions
+Authorization: Bearer <your-vansroute-key>
+Content-Type: application/json
+
+{
+  "model": "kimchi/kimi-k2.6",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "stream": true
+}
+```
+
+### Models List
+
+```http
+GET /v1/models
+Authorization: Bearer <your-vansroute-key>
+```
+
+### Embeddings
+
+```http
+POST /v1/embeddings
+Authorization: Bearer <your-vansroute-key>
+Content-Type: application/json
+
+{
+  "model": "nvidia/nv-embedqa-e5-v5",
+  "input": "text to embed"
+}
+```
+
+### Image Generation
+
+```http
+POST /v1/images/generations
+Authorization: Bearer <your-vansroute-key>
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-image-1",
+  "prompt": "a cat"
+}
+```
+
+### Claude Messages (Anthropic format)
+
+```http
+POST /v1/messages
+Authorization: Bearer <your-vansroute-key>
+Content-Type: application/json
+
+{
+  "model": "kimchi/kimi-k2.6",
+  "max_tokens": 1024,
+  "messages": [{"role": "user", "content": "Hello"}]
+}
+```
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-pnpm test                          # All tests
-pnpm test tests/unit/              # Unit tests only
+# All tests
+pnpm test
 
-# Targeted resilience + Kimchi audit suite (149 tests)
+# Unit tests only
+pnpm test tests/unit/
+
+# Translator tests
+pnpm test tests/translator/
+
+# Targeted resilience + Kimchi audit suite (214 tests)
 npx vitest run --config tests/vitest.config.js --pool=forks \
   tests/unit/kimi-max-tokens.test.js \
   tests/unit/kimchi-cli-derived.test.js \
@@ -211,12 +673,15 @@ npx vitest run --config tests/vitest.config.js --pool=forks \
   tests/unit/termination-prompt.test.js \
   tests/unit/kimi-nvidia-hardening.test.js \
   tests/unit/kimi-native-tool-parser.test.js \
-  tests/translator/thinking-unified.test.js
+  tests/translator/thinking-unified.test.js \
+  tests/unit/circuit-breaker.test.js \
+  tests/unit/account-semaphore.test.js \
+  tests/unit/proxy-aware-resilience.test.js
 ```
 
 ---
 
-## 📁 Structure
+## 📁 Project Structure
 
 ```
 VansRouter/
@@ -227,24 +692,38 @@ VansRouter/
 │   │   ├── handlers/chat.js               # Retry loop with breaker + semaphore
 │   │   └── services/
 │   │       └── kimchiQuotaReactivation.js  # Monthly auto-reactivation
+│   ├── lib/
+│   │   ├── network/connectionProxy.js      # getProxyHash() for proxy-aware resilience
+│   │   └── db/repos/
+│   │       ├── settingsRepo.js             # Cached getSettings() (5s TTL)
+│   │       └── connectionsRepo.js         # Cached getProviderConnections() (2s TTL)
 │   ├── instrumentation.js                 # Next.js startup hook
 │   └── app/                               # Dashboard + API routes
 ├── open-sse/
 │   ├── services/
-│   │   ├── accountFallback.js             # + provider failure tracking
-│   │   └── accountSemaphore.js            # Per-account concurrency limiter
+│   │   ├── accountFallback.js             # + provider failure tracking (proxy-aware)
+│   │   └── accountSemaphore.js            # Per-account concurrency limiter (proxy-aware)
 │   ├── utils/
-│   │   └── circuitBreaker.js              # Copy for open-sse import path
+│   │   └── circuitBreaker.js              # Circuit breaker
 │   ├── providers/registry/
 │   │   ├── kimchi.js                      # 5 CLI-aligned models
 │   │   └── agentrouter.js                 # Passthrough ($200 free)
 │   └── handlers/chatCore.js               # Core SSE engine
 ├── tests/unit/
-│   ├── kimchi-cli-config.test.js          # CLI alignment tests
-│   ├── kimchi-quota-reactivation.test.js  # Auto-reactivation tests
+│   ├── circuit-breaker.test.js            # 16 tests
+│   ├── account-semaphore.test.js          # 17 tests
+│   ├── proxy-aware-resilience.test.js     # 16 tests
+│   ├── kimchi-cli-config.test.js          # 10 tests
+│   ├── kimchi-quota-reactivation.test.js  # 10 tests
 │   └── ...                                # Full audit suite
 └── .docs/audit/                           # Audit documentation
 ```
+
+---
+
+## 📧 Support
+
+- **GitHub Issues**: [Vanszs/VansRouter/issues](https://github.com/Vanszs/VansRouter/issues)
 
 ---
 
@@ -252,7 +731,7 @@ VansRouter/
 
 VansRoute builds on the work of two excellent open-source projects:
 
-- **[VansRoute](https://github.com/decolua/VansRoute)** by [@decolua](https://github.com/decolua) — the foundation: provider registry, RTK token saver, format translation, combo strategies, per-API-key ACL. VansRoute started as a hardened fork of VansRoute and retains full format compatibility.
+- **[9Router](https://github.com/decolua/9router)** by [@decolua](https://github.com/decolua) — the foundation: provider registry, RTK token saver, format translation, combo strategies, per-API-key ACL, Kimi native tool parser, NVIDIA stream coercion. VansRoute started as a hardened fork of 9Router and retains full format compatibility.
 
 - **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** by [@diegosouzapw](https://github.com/diegosouzapw) — the resilience inspiration: circuit breaker pattern, account semaphore, provider-level failure tracking, provider exhaustion detection. VansRoute ported these concepts from OmniRoute's TypeScript implementation to plain JavaScript ESM, simplified the persistence layer (in-memory instead of DB-backed), and added Kimchi-specific quota auto-reactivation.
 
