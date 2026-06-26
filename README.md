@@ -7,7 +7,7 @@
   **Circuit breaker resilience · Kimchi CLI-native · RTK token compression · 40+ providers**
 
   [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-  [![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)](#-testing)
+  [![Tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)](#-testing)
   [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](./package.json)
   [![Next.js](https://img.shields.io/badge/Next.js-16-black)](./package.json)
 
