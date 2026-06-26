@@ -273,6 +273,7 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
   const hasExplicitEnabledModels = Array.isArray(enabledModels) && enabledModels.length > 0;
   const isCompatibleProvider =
     isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+  const isPassthroughProvider = AI_PROVIDERS[providerId]?.passthroughModels === true;
 
   const staticModelKindById = new Map(providerModels.map((m) => [m.id, modelKind(m)]));
 
@@ -289,6 +290,16 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
   if (providerInfo?.noAuth && providerInfo?.modelsFetcher) {
     const fetcherIds = await fetchModelsFetcherIds(providerId, providerInfo);
     rawModelIds = Array.from(new Set([...rawModelIds, ...fetcherIds]));
+  }
+
+  // For passthrough providers with no static models, list the registry models
+  if (isPassthroughProvider && rawModelIds.length === 0) {
+    rawModelIds = providerModels.map((m) => m.id);
+  }
+
+  // For passthrough providers, always include the registry models even if user has enabledModels
+  if (isPassthroughProvider && !hasExplicitEnabledModels) {
+    rawModelIds = providerModels.map((m) => m.id);
   }
 
   const modelIds = rawModelIds.reduce((acc, modelId) => {

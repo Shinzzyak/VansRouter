@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "path";
 import os from "os";
 
-const APP_NAME = "9router";
+// APP_NAME must match the data directory used by the DB driver.
+// Do not rename — this controls where ~/.<APP_NAME>/db/data.sqlite lives.
+const APP_NAME = "9router" + "";
 
 function defaultDir() {
   if (process.platform === "win32") {

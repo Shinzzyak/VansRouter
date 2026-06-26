@@ -268,6 +268,7 @@ export async function buildModelsList(kindFilter) {
         Array.isArray(enabledModels) && enabledModels.length > 0;
       const isCompatibleProvider =
         isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+      const isPassthroughProvider = AI_PROVIDERS[providerId]?.passthroughModels === true;
 
       // Build kind lookup for static models so we can filter even when only IDs are exposed
       const staticModelKindById = new Map(
@@ -286,6 +287,11 @@ export async function buildModelsList(kindFilter) {
 
       if (isCompatibleProvider && rawModelIds.length === 0 && !UPSTREAM_CONNECTION_RE.test(providerId)) {
         rawModelIds = await fetchCompatibleModelIds(conn);
+      }
+
+      // For passthrough providers, always include registry models
+      if (isPassthroughProvider && !hasExplicitEnabledModels) {
+        rawModelIds = providerModels.map((m) => m.id);
       }
 
       // Config-driven live catalog override (e.g. Kiro returns dynamic
