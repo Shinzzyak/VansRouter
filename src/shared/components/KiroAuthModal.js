@@ -20,6 +20,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
   const [importing, setImporting] = useState(false);
   const [autoDetecting, setAutoDetecting] = useState(false);
   const [autoDetected, setAutoDetected] = useState(false);
+  const [idcCredentials, setIdcCredentials] = useState(null);
 
   // Auto-detect token when import method is selected
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
       setAutoDetecting(true);
       setError(null);
       setAutoDetected(false);
+      setIdcCredentials(null);
 
       try {
         const res = await fetch("/api/oauth/kiro/auto-import");
@@ -37,6 +39,16 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
         if (data.found) {
           setRefreshToken(data.refreshToken);
           setAutoDetected(true);
+          // Store IDC/organization credentials if present
+          if (data.clientId && data.clientSecret) {
+            setIdcCredentials({
+              clientId: data.clientId,
+              clientSecret: data.clientSecret,
+              region: data.region,
+              authMethod: data.authMethod,
+              profileArn: data.profileArn,
+            });
+          }
         } else {
           setError(data.error || "Could not auto-detect token");
         }
@@ -73,7 +85,10 @@ export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
       const res = await fetch("/api/oauth/kiro/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: refreshToken.trim() }),
+        body: JSON.stringify({
+          refreshToken: refreshToken.trim(),
+          ...(idcCredentials || {}),
+        }),
       });
 
       const data = await res.json();
