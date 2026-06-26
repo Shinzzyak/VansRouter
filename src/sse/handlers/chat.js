@@ -273,8 +273,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
     }
 
-    // Compute proxy bucket key for this account — groups accounts by shared proxy
-    const proxyHash = getProxyHash(refreshedCredentials?.providerSpecificData || credentials.providerSpecificData);
+    // Compute proxy bucket key for this account — groups accounts by shared proxy.
+    // Uses the original credentials: proxy config (connectionProxyUrl/proxyPoolId)
+    // is a connection-level field that does not change on token refresh, and
+    // refreshedCredentials is not assigned until after this circuit-breaker gate.
+    const proxyHash = getProxyHash(credentials.providerSpecificData);
 
     // Proxy-aware circuit breaker: skip THIS account if its proxy bucket is OPEN.
     // Accounts on other proxies are still tried.

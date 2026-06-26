@@ -188,6 +188,7 @@ export async function createProviderConnection(data) {
 export async function updateProviderConnection(id, data) {
   const db = await getAdapter();
   let result;
+  let cacheProvider;
   db.transaction(() => {
     const row = db.get(`SELECT * FROM providerConnections WHERE id = ?`, [id]);
     if (!row) { result = null; return; }
@@ -196,22 +197,25 @@ export async function updateProviderConnection(id, data) {
     upsert(db, merged);
     if (data.priority !== undefined) reorderInTx(db, existing.provider);
     result = merged;
+    cacheProvider = existing.provider;
   });
-  _invalidateConnCache(existing?.provider);
+  _invalidateConnCache(cacheProvider);
   return result;
 }
 
 export async function deleteProviderConnection(id) {
   const db = await getAdapter();
   let ok = false;
+  let cacheProvider;
   db.transaction(() => {
     const row = db.get(`SELECT provider FROM providerConnections WHERE id = ?`, [id]);
     if (!row) return;
     db.run(`DELETE FROM providerConnections WHERE id = ?`, [id]);
     reorderInTx(db, row.provider);
     ok = true;
+    cacheProvider = row.provider;
   });
-  _invalidateConnCache(row?.provider);
+  _invalidateConnCache(cacheProvider);
   return ok;
 }
 
