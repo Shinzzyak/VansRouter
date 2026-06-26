@@ -26,6 +26,8 @@ export default {
     timeoutMs: 25000,
   },
   transport: {
+    // Kimchi API key works with llm.kimchi.dev endpoint.
+    // api.moonshot.ai requires Moonshot API key (different auth).
     baseUrl: "https://llm.kimchi.dev/openai/v1/chat/completions",
     format: "openai",
     timeoutMs: 20000,

@@ -47,9 +47,10 @@ export default {
   },
   models: [
     { id: "claude-opus-4-6", name: "Claude 4.6 Opus" },
-    { id: "claude-haiku-4-5-20251001", name: "Claude 4.5 Haiku" },
-    { id: "glm-5.1", name: "GLM 5.1" },
-    { id: "deepseek-v3.2", name: "DeepSeek V3.2" },
+    { id: "claude-opus-4-7", name: "Claude 4.7 Opus" },
+    { id: "claude-opus-4-8", name: "Claude 4.8 Opus" },
+    { id: "glm-5.2", name: "GLM 5.2" },
+    { id: "gpt-5.5", name: "GPT 5.5" },
   ],
   passthroughModels: true,
 };

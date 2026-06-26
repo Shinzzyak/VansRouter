@@ -106,9 +106,10 @@ export const PROVIDER_CAPABILITIES = {
   // AgentRouter — multi-model gateway (Claude format).
   agentrouter: {
     "claude-opus-4-6":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
-    "claude-haiku-4-5-20251001": { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 200000, maxOutput: 64000 },
-    "glm-5.1":                 { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 128000, maxOutput: 128000 },
-    "deepseek-v3.2":           { reasoning: true, thinkingFormat: "deepseek", contextWindow: 128000, maxOutput: 64000 },
+    "claude-opus-4-7":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
+    "claude-opus-4-8":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
+    "glm-5.2":                 { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 128000, maxOutput: 128000 },
+    "gpt-5.5":                 { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 256000, maxOutput: 128000 },
   },
   // CodeBuddy.cn — authoritative per-model metadata from the gateway's model
   // config (contextWindow=maxInputTokens, maxOutput=maxOutputTokens, vision=
