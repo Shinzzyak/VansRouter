@@ -141,7 +141,7 @@ function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFil
 }
 
 
-function RequestRow({ detail, index, setSelectedRequest }) {
+function RequestRow({ detail, index, setSelectedRequest, handleViewDetail, providerNameCache }) {
   return (
                   <tr
                     key={`${detail.id}-${index}`}
@@ -331,7 +331,7 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : (
                 details.map((detail, index) => (
-                  <RequestRow key={index} detail={detail} index={index} setSelectedRequest={setSelectedRequest} />
+                  <RequestRow key={index} detail={detail} index={index} setSelectedRequest={setSelectedRequest} handleViewDetail={handleViewDetail} providerNameCache={providerNameCache} />
                 ))
               )}
             </tbody>

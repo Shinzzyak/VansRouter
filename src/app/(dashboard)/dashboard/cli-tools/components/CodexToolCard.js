@@ -274,10 +274,10 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const handleApplySettings = async () => {
     dispatch({ type: "APPLY_START" });
     try {
-      // Use sk_9router for localhost if no key, otherwise use selected key
+      // Use sk_VansRoute for localhost if no key, otherwise use selected key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : (!cloudEnabled ? "sk_VansRoute" : selectedApiKey);
 
       const res = await fetch("/api/cli-tools/codex-settings", {
         method: "POST",
@@ -331,15 +331,15 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_VansRoute" : "<API_KEY_FROM_DASHBOARD>");
 
     const effectiveSubagentModel = subagentModel || selectedModel;
 
     const configContent = `# VansAI Configuration for Codex CLI
 model = "${selectedModel}"
-model_provider = "9router"
+model_provider = "VansRoute"
 
-[model_providers.9router]
+[model_providers.VansRoute]
 name = "VansAI"
 base_url = "${getEffectiveBaseUrl()}"
 wire_api = "responses"
@@ -367,7 +367,7 @@ model = "${effectiveSubagentModel}"
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={expanded} aria-label="Toggle section">
+      <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image src="/providers/codex.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />

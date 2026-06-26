@@ -81,7 +81,7 @@ function AntigravityExpandedSection({ handleModelMappingChange, handleSaveMappin
                   </select>
                 ) : (
                   <span className="min-w-0 rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
-                    {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_9router (default)"}
+                    {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_VansRoute (default)"}
                   </span>
                 )}
               </div>
@@ -320,7 +320,7 @@ export default function AntigravityToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+        || (!cloudEnabled ? "sk_VansRoute" : null);
 
       const res = await fetch("/api/cli-tools/antigravity-mitm", {
         method: "POST",
@@ -434,7 +434,7 @@ export default function AntigravityToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={expanded} aria-label="Toggle section">
+      <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image

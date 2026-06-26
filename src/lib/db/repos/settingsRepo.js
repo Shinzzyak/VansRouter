@@ -70,9 +70,21 @@ function mergeWithDefaults(raw) {
   return merged;
 }
 
+// In-memory cache — eliminates sync DB read on every request.
+// Invalidated on updateSettings() and expires after TTL.
+let _settingsCache = null;
+let _settingsCacheTs = 0;
+const _settingsTTL = 5_000; // 5s
+
 export async function getSettings() {
+  const now = Date.now();
+  if (_settingsCache && now - _settingsCacheTs < _settingsTTL) {
+    return _settingsCache;
+  }
   const raw = await readRaw();
-  return mergeWithDefaults(raw);
+  _settingsCache = mergeWithDefaults(raw);
+  _settingsCacheTs = now;
+  return _settingsCache;
 }
 
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)
@@ -88,6 +100,8 @@ export async function updateSettings(updates) {
       [stringifyJson(next)]
     );
   });
+  // Invalidate cache so next getSettings() reads fresh data
+  _settingsCache = null;
   return mergeWithDefaults(next);
 }
 

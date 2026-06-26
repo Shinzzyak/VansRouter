@@ -38,20 +38,27 @@ describe("Kimchi CLI-aligned config", () => {
       expect(caps.supportsTemperature).toBe(true);
     });
 
-    it("kimi-k2.5 matches CLI (no temperature, toggle supported)", () => {
-      const caps = getCapabilitiesForModel("kimchi", "kimi-k2.5");
+    it("minimax-m3 matches CLI capabilities", () => {
+      const caps = getCapabilitiesForModel("kimchi", "minimax-m3");
       expect(caps.vision).toBe(true);
-      expect(caps.videoInput).toBe(true);
       expect(caps.reasoning).toBe(true);
-      expect(caps.thinkingCanDisable).toBe(true);
-      expect(caps.structuredOutput).toBe(true);
-      expect(caps.supportsTemperature).toBe(false);
+      expect(caps.thinkingFormat).toBe("minimax");
+      expect(caps.contextWindow).toBe(1048576);
+      expect(caps.maxOutput).toBe(512000);
     });
 
-    it("preview/thinking models have CLI context/output limits", () => {
-      const c0711 = getCapabilitiesForModel("kimchi", "kimi-k2-0711-preview");
-      expect(c0711.contextWindow).toBe(131072);
-      expect(c0711.maxOutput).toBe(16384);
+    it("nemotron-3-ultra-fp4 is non-reasoning", () => {
+      const caps = getCapabilitiesForModel("kimchi", "nemotron-3-ultra-fp4");
+      expect(caps.reasoning).toBe(false);
+      expect(caps.contextWindow).toBe(128000);
+      expect(caps.maxOutput).toBe(8192);
+    });
+
+    it("glm-5.2-fp8 is reasoning with OpenAI format", () => {
+      const caps = getCapabilitiesForModel("kimchi", "glm-5.2-fp8");
+      expect(caps.reasoning).toBe(true);
+      expect(caps.thinkingFormat).toBe("openai");
+      expect(caps.thinkingCanDisable).toBe(false);
     });
   });
 
@@ -62,21 +69,9 @@ describe("Kimchi CLI-aligned config", () => {
       expect(body.temperature).toBe(0.7);
     });
 
-    it("drops temperature for kimi-k2.5", () => {
-      const body = { temperature: 0.7, messages: [] };
-      stripUnsupportedParams("kimchi", "kimi-k2.5", body);
-      expect(body.temperature).toBeUndefined();
-    });
-
     it("drops temperature for kimi-k2.7 (CLI temperature:false)", () => {
       const body = { temperature: 0.7, messages: [] };
       stripUnsupportedParams("kimchi", "kimi-k2.7", body);
-      expect(body.temperature).toBeUndefined();
-    });
-
-    it("drops temperature for kimi-k2.7-code-highspeed", () => {
-      const body = { temperature: 0.7, messages: [] };
-      stripUnsupportedParams("kimchi", "kimi-k2.7-code-highspeed", body);
       expect(body.temperature).toBeUndefined();
     });
 

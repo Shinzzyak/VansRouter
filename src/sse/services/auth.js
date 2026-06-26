@@ -10,8 +10,16 @@ import * as log from "../utils/logger.js";
 // + independently unit-tested for exploit resistance).
 export { isTrustedInternalRequest } from "./internalTrust.js";
 
-// Mutex to prevent race conditions during account selection
-let selectionMutex = Promise.resolve();
+// Per-provider mutex — allows parallel credential selection across different providers
+// while preventing races within the same provider's account rotation.
+const _providerMutexes = new Map();
+
+function getProviderMutex(provider) {
+  if (!_providerMutexes.has(provider)) {
+    _providerMutexes.set(provider, Promise.resolve());
+  }
+  return _providerMutexes.get(provider);
+}
 
 /**
  * Get provider credentials from localDb
@@ -26,10 +34,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     ? excludeConnectionIds
     : (excludeConnectionIds ? new Set([excludeConnectionIds]) : new Set());
   const preferredConnectionId = options?.preferredConnectionId || null;
-  // Acquire mutex to prevent race conditions
-  const currentMutex = selectionMutex;
+  // Acquire per-provider mutex to prevent race conditions within same provider
+  const currentMutex = getProviderMutex(provider);
   let resolveMutex;
-  selectionMutex = new Promise(resolve => { resolveMutex = resolve; });
+  _providerMutexes.set(provider, new Promise(resolve => { resolveMutex = resolve; }));
 
   try {
     await currentMutex;

@@ -56,7 +56,37 @@ function upsert(db, c) {
   );
 }
 
+// In-memory cache — eliminates sync DB read on every credential selection.
+// Keyed by provider ID, invalidated on any write operation, expires after TTL.
+const _connCache = new Map(); // providerKey → { list, ts }
+const _connTTL = 2_000; // 2s
+
+function _connCacheKey(filter = {}) {
+  return `${filter.provider || ""}:${filter.isActive ?? ""}`;
+}
+
+function _invalidateConnCache(providerId) {
+  if (providerId) {
+    // Invalidate specific provider key and the "all" key
+    for (const key of _connCache.keys()) {
+      if (key.startsWith(`${providerId}:`) || key.startsWith(`:${providerId}`)) _connCache.delete(key);
+    }
+    // Also invalidate the "all providers" query (empty provider filter)
+    _connCache.delete(`:`);
+    _connCache.delete(`:true`);
+    _connCache.delete(`:false`);
+  } else {
+    _connCache.clear();
+  }
+}
+
 export async function getProviderConnections(filter = {}) {
+  const cacheKey = _connCacheKey(filter);
+  const now = Date.now();
+  const cached = _connCache.get(cacheKey);
+  if (cached && now - cached.ts < _connTTL) {
+    return cached.list;
+  }
   const db = await getAdapter();
   const where = [];
   const params = [];
@@ -66,6 +96,7 @@ export async function getProviderConnections(filter = {}) {
   const rows = db.all(sql, params);
   const list = rows.map(rowToConn);
   list.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  _connCache.set(cacheKey, { list, ts: now });
   return list;
 }
 
@@ -149,7 +180,7 @@ export async function createProviderConnection(data) {
     reorderInTx(db, data.provider);
     result = conn;
   });
-
+  _invalidateConnCache(data.provider);
   return result;
 }
 
@@ -166,6 +197,7 @@ export async function updateProviderConnection(id, data) {
     if (data.priority !== undefined) reorderInTx(db, existing.provider);
     result = merged;
   });
+  _invalidateConnCache(existing?.provider);
   return result;
 }
 
@@ -179,6 +211,7 @@ export async function deleteProviderConnection(id) {
     reorderInTx(db, row.provider);
     ok = true;
   });
+  _invalidateConnCache(row?.provider);
   return ok;
 }
 
