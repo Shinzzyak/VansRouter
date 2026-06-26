@@ -14,7 +14,11 @@ import {
 import {
   isKimchiQuotaExhausted,
   buildKimchiQuotaExhaustedUpdate,
+  detectDailyQuotaExhaustion,
+  buildDailyQuotaLockUpdate,
   isProviderInCooldown,
+  isProviderFullyBlocked,
+  getProviderShortestCooldownMs,
   recordProviderFailure,
   clearProviderFailure,
 } from "open-sse/services/accountFallback.js";
@@ -32,7 +36,7 @@ import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
-import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
+import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
 import { handleComboChat, handleFusionChat } from "open-sse/services/combo.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -40,6 +44,7 @@ import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
+import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/cooldownRetry.js";
 
 /**
  * Handle chat completion request
@@ -53,6 +58,16 @@ export async function handleChat(request, clientRawRequest = null) {
   } catch {
     log.warn("CHAT", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  }
+
+  // Accept header negotiation: curl/httpx send Accept: text/event-stream to
+  // indicate they want SSE. If the client did so WITHOUT an explicit
+  // stream:false in the body, treat it as stream=true. Do NOT override an
+  // explicit stream=false — the OpenAI Python SDK sends Accept:
+  // text/event-stream even for non-streaming calls.
+  const acceptHeader = request.headers.get("accept") || "";
+  if (acceptHeader.includes("text/event-stream") && body.stream === undefined) {
+    body.stream = true;
   }
 
   // Build clientRawRequest for logging (if not provided)
@@ -249,10 +264,33 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Extract userAgent from request
   const userAgent = request?.headers?.get("user-agent") || "";
 
+  // Pipeline gate: check circuit breaker state BEFORE credential lookup.
+  // If ALL proxy buckets for this provider are OPEN, short-circuit immediately
+  // — no point querying the DB when every bucket is blocked.
+  if (isProviderFullyBlocked(provider)) {
+    const cooldownMs = getProviderShortestCooldownMs(provider);
+    const retryAfterSec = Math.ceil(cooldownMs / 1000) || 30;
+    log.warn("GATE", `${provider} circuit breaker OPEN on all proxy buckets — short-circuiting before credential lookup`);
+    return unavailableResponse(
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
+      retryAfterSec,
+      `${retryAfterSec}s`
+    );
+  }
+
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
+  // Bug #3758: per-request counter bounding the early-close (STREAM_EARLY_EOF)
+  // re-attempt to exactly one for the whole request. Declared outside the
+  // credential retry loop so it can never reset and loop.
+  let streamEarlyEofRetries = 0;
+  // Cooldown-aware retry: when ALL accounts are rate-limited with a near-term
+  // retryAfter, wait briefly (<=30s) and retry the whole credential loop once
+  // instead of immediately returning 503. Bounded to 1 retry per request.
+  let cooldownRetries = 0;
 
   while (true) {
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
@@ -260,6 +298,27 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
+        // Cooldown-aware retry: if the earliest account comes off cooldown soon,
+        // wait for it (aborted on client disconnect) then retry once.
+        if (credentials.retryAfter && cooldownRetries < MAX_COOLDOWN_RETRIES) {
+          const waitDecision = await maybeWaitForCooldown({
+            retryAfter: credentials.retryAfter,
+            retriesSoFar: cooldownRetries,
+            signal: request?.signal,
+          });
+          if (waitDecision.shouldRetry) {
+            cooldownRetries++;
+            log.info("CHAT", `[${provider}/${model}] all accounts rate-limited — waited ${waitDecision.waitedMs}ms, retrying (attempt ${cooldownRetries})`);
+            // Re-enter the loop WITHOUT excluding accounts — they may be usable now.
+            continue;
+          }
+          if (waitDecision.reason === "client_disconnected") {
+            log.info("CHAT", `[${provider}/${model}] client disconnected during cooldown wait — aborting`);
+            // Return a minimal response; client is gone anyway.
+            return new Response(null, { status: 499 });
+          }
+          log.info("CHAT", `[${provider}/${model}] cooldown retry skipped: ${waitDecision.reason}`);
+        }
         const errorMsg = lastError || credentials.lastError || "Unavailable";
         const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
@@ -362,7 +421,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       semaphoreRelease();
     }
 
-    if (result.success) return result.response;
+    if (result.success) return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
+
+    // STREAM_EARLY_EOF: flaky upstream sent HTTP 200 then closed the SSE before
+    // any useful content frame. Transient upstream glitch — retry once on the
+    // SAME connection without marking it unavailable. The finally block above
+    // already released the semaphore slot; the loop will re-acquire on re-entry.
+    if (result.errorCode === "STREAM_EARLY_EOF" && streamEarlyEofRetries < 1) {
+      streamEarlyEofRetries++;
+      log.warn("STREAM", `${provider}/${model} closed stream before useful content — retrying once (attempt ${streamEarlyEofRetries})`);
+      continue;
+    }
 
     // Kimchi quota exhausted: deactivate the account until the 1st of next month.
     // Will be auto-reactivated by reactivateExpiredKimchiAccounts() on startup
@@ -376,6 +445,23 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         log.error("AUTH", `Failed to deactivate Kimchi account on quota exhausted: ${e.message}`);
       }
       // Fall through to fallback behavior — the next account or provider will be tried.
+    }
+
+    // Generalized daily quota detection (non-Kimchi): when a 429 error body
+    // mentions today's/daily quota being exhausted, lock just THIS model on
+    // the connection until tomorrow 00:00 UTC. The account stays active for
+    // other models. Kimchi keeps its existing next-month deactivation logic
+    // above and is excluded here so the two paths never interfere.
+    const dailyQuota = detectDailyQuotaExhaustion(provider, result.error);
+    if (dailyQuota && result.status === 429) {
+      try {
+        const lockUpdate = buildDailyQuotaLockUpdate(model);
+        await updateProviderConnection(credentials.connectionId, lockUpdate);
+        log.warn("AUTH", `Daily quota exhausted: locked model ${model} on ${credentials.connectionName || credentials.connectionId} until tomorrow 00:00 UTC`);
+      } catch (e) {
+        log.error("AUTH", `Failed to lock model on daily quota exhaustion: ${e.message}`);
+      }
+      // Fall through to fallback behavior — the next account will be tried.
     }
 
     // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
@@ -396,6 +482,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
-    return result.response;
+    return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
   }
 }

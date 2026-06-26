@@ -3,9 +3,9 @@ import {
   getCircuitBreaker,
   getAllCircuitBreakerStatuses,
   resetCircuitBreaker,
-  resetAllCircuitBreakers,
   PROVIDER_FAILURE_ERROR_CODES,
 } from "../utils/circuitBreaker.js";
+import { classify429 } from "../utils/classify429.js";
 
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
@@ -194,6 +194,61 @@ export function buildKimchiQuotaReactivatedUpdate() {
   };
 }
 
+/**
+ * Detect whether a NON-Kimchi 429 error indicates a DAILY quota exhaustion
+ * ("today's quota", "daily quota exhausted", "reset tomorrow", etc.).
+ *
+ * This generalizes beyond Kimchi's monthly quota (which keeps its own
+ * isKimchiQuotaExhausted / next-month deactivation logic untouched). When a
+ * daily quota is detected, the SPECIFIC model on that connection is locked
+ * until tomorrow 00:00 UTC via buildDailyQuotaLockUpdate().
+ *
+ * Returns the classified cooldown info, or null when the error is not a
+ * daily-quota 429 (e.g. it's a plain rate_limit or a Kimchi quota).
+ *
+ * @param {string} provider - provider id
+ * @param {string|object} errorText - raw error body or message
+ * @returns {{ kind: "daily_quota", cooldownMs: number } | null}
+ */
+export function detectDailyQuotaExhaustion(provider, errorText) {
+  if (!errorText || provider === "kimchi") return null;
+  const text = typeof errorText === "string"
+    ? errorText
+    : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();
+  // classify429 returns { kind, cooldownMs }. We only act on daily_quota here;
+  // quota_exhausted (monthly/billing) is handled separately and rate_limit
+  // is handled by the normal account cooldown/backoff path.
+  const classification = classify429({ status: 429, body: text });
+  if (classification.kind !== "daily_quota") return null;
+  return classification;
+}
+
+/**
+ * Build update payload that locks a SPECIFIC model on a connection until
+ * tomorrow 00:00 UTC. The account itself stays active for OTHER models —
+ * only the affected model is temporarily unusable.
+ *
+ * Uses the existing modelLock_${model} flat-field mechanism (same as transient
+ * model locks), so no schema changes are needed and isModelLockActive() picks
+ * it up automatically.
+ *
+ * @param {string} model - the model id (without provider prefix)
+ * @param {Date} [now=new Date()]
+ * @returns {Record<string, string>} partial update object with the model lock key set
+ */
+export function buildDailyQuotaLockUpdate(model, now = new Date()) {
+  if (!model) return {};
+  const resetMs = getMsUntilTomorrowMidnightUTC(now);
+  const key = getModelLockKey(model);
+  return { [key]: new Date(now.getTime() + resetMs).toISOString() };
+}
+
+/** Compute ms until next UTC midnight (tomorrow 00:00 UTC). */
+function getMsUntilTomorrowMidnightUTC(now = new Date()) {
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
+  return Math.max(tomorrow.getTime() - now.getTime(), 1000);
+}
+
 /** Prefix for model lock flat fields on connection record */
 export const MODEL_LOCK_PREFIX = "modelLock_";
 
@@ -350,6 +405,13 @@ const _lastProviderFailure = new Map();
 const _dedupMs = 5_000;
 const _dedupMaxSize = 10_000; // cap to prevent unbounded growth
 
+/**
+ * Clear the provider-failure dedup map. Used by tests and full resets.
+ */
+export function clearProviderFailureDedup() {
+  _lastProviderFailure.clear();
+}
+
 export function recordProviderFailure(provider, statusCode, errorText, log, connectionId, proxyHash = "direct") {
   if (!provider) return;
 
@@ -417,6 +479,49 @@ export function getProvidersInCooldown() {
       cooldownRemainingMs: s.retryAfterMs || null,
       lastFailureAt: s.lastFailureTime,
     }));
+}
+
+/**
+ * Pipeline gate: returns true if the circuit breaker is OPEN for ALL known proxy
+ * buckets of a provider. When true, the request should short-circuit BEFORE any
+ * credential lookup — no point querying the DB when every bucket is blocked.
+ * If even one proxy bucket can execute, returns false so the credential loop can
+ * try accounts on that bucket.
+ */
+export function isProviderFullyBlocked(provider) {
+  if (!provider) return false;
+  const all = getAllCircuitBreakerStatuses();
+  // Collect breaker names matching this provider: `${provider}:${proxyHash}`
+  const providerBreakers = all.filter((s) => {
+    const name = s.name || "";
+    return name === provider || name.startsWith(`${provider}:`);
+  });
+  if (providerBreakers.length === 0) return false; // no breakers registered → not blocked
+  // Blocked only if EVERY registered bucket is OPEN (canExecute=false)
+  return providerBreakers.every((s) => {
+    const breaker = getCircuitBreaker(s.name);
+    return Boolean(breaker && !breaker.canExecute());
+  });
+}
+
+/**
+ * Get the shortest remaining cooldown across all proxy buckets for a provider.
+ * Used to populate Retry-After when the pipeline gate blocks.
+ */
+export function getProviderShortestCooldownMs(provider) {
+  if (!provider) return 0;
+  const all = getAllCircuitBreakerStatuses();
+  let shortest = Infinity;
+  for (const s of all) {
+    const name = s.name || "";
+    if (name !== provider && !name.startsWith(`${provider}:`)) continue;
+    const breaker = getCircuitBreaker(s.name);
+    if (breaker && !breaker.canExecute()) {
+      const remaining = breaker.getRetryAfterMs();
+      if (remaining > 0 && remaining < shortest) shortest = remaining;
+    }
+  }
+  return shortest === Infinity ? 0 : shortest;
 }
 
 /**

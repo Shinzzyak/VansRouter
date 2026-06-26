@@ -117,6 +117,7 @@ vi.mock("open-sse/config/runtimeConfig.js", () => ({
 vi.mock("open-sse/utils/error.js", () => ({
   errorResponse: (status, message) => new Response(JSON.stringify({ error: { message } }), { status }),
   unavailableResponse: mocks.unavailableResponse,
+  withSelectedConnectionHeader: (response) => response,
 }));
 vi.mock("@/sse/utils/logger.js", () => ({ request: mocks.logRequest, info: mocks.logInfo, warn: mocks.logWarn, debug: mocks.logDebug, maskKey: vi.fn((k) => "***") }));
 vi.mock("../../src/sse/utils/logger.js", () => ({ request: mocks.logRequest, info: mocks.logInfo, warn: mocks.logWarn, debug: mocks.logDebug, maskKey: vi.fn((k) => "***") }));
