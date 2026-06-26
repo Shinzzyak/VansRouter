@@ -1,4 +1,6 @@
-// Guards the AgentRouter registry entry (passthrough OpenAI-compatible provider).
+// Guards the AgentRouter registry entry (Claude-format passthrough provider).
+// AgentRouter proxies to agentrouter.org/v1/messages using x-api-key auth and
+// full Claude CLI header spoofing (required by AgentRouter for client validation).
 import { describe, it, expect } from "vitest";
 import agentrouter from "../../open-sse/providers/registry/agentrouter.js";
 import { AI_PROVIDERS, FREE_TIER_PROVIDERS, getAclProviderList } from "@/shared/constants/providers";
@@ -17,24 +19,35 @@ describe("agentrouter registry entry", () => {
     expect(agentrouter.authModes).toEqual(["apikey"]);
     expect(agentrouter.serviceKinds).toEqual(["llm"]);
     expect(agentrouter.passthroughModels).toBe(true);
-    expect(agentrouter.models).toEqual([]);
   });
 
-  it("declares the OpenAI-compatible transport with bearer auth + retry policy", () => {
+  it("declares the Claude-format transport with x-api-key auth + retry policy", () => {
     const t = agentrouter.transport;
-    expect(t.baseUrl).toBe("https://api.agentrouter.org/v1/chat/completions");
-    expect(t.format).toBe("openai");
-    expect(t.timeoutMs).toBe(30000);
-    expect(t.headers).toEqual({});
+    expect(t.baseUrl).toBe("https://agentrouter.org/v1/messages");
+    expect(t.format).toBe("claude");
+    expect(t.timeoutMs).toBe(600000);
     expect(t.auth.apiKey).toMatchObject({
-      header: "Authorization",
-      scheme: "bearer",
+      header: "x-api-key",
     });
     expect(t.retry).toMatchObject({
       429: { attempts: 3, delayMs: 500 },
       502: { attempts: 3, delayMs: 500 },
       503: { attempts: 3, delayMs: 1000 },
     });
+  });
+
+  it("sends full Claude CLI spoofing headers for client validation", () => {
+    const headers = agentrouter.transport.headers || {};
+    // AgentRouter validates these to ensure the request comes from a Claude CLI client.
+    expect(headers["User-Agent"]).toBe("claude-cli/2.1.187 (external, cli)");
+    expect(headers["X-App"]).toBe("cli");
+    expect(headers["Anthropic-Dangerous-Direct-Browser-Access"]).toBe("true");
+    expect(headers["Anthropic-Beta"]).toContain("claude-code-20250219");
+    expect(headers["X-Stainless-Lang"]).toBeTruthy();
+  });
+
+  it("requires stream:true (forceStream) because AgentRouter rejects non-streaming", () => {
+    expect(agentrouter.transport.forceStream).toBe(true);
   });
 
   it("carries display + free-credit hint", () => {

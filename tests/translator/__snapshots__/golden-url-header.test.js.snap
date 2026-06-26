@@ -1,5 +1,47 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`GOLDEN buildHeaders (default executor providers) > agentrouter → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Anthropic-Beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24,structured-outputs-2025-12-15,fast-mode-2026-02-01,redact-thinking-2026-02-12,token-efficient-tools-2026-03-28,advisor-tool-2026-03-01,extended-cache-ttl-2025-04-11,cache-diagnosis-2026-04-07",
+    "Anthropic-Dangerous-Direct-Browser-Access": "true",
+    "Anthropic-Version": "2023-06-01",
+    "Content-Type": "application/json",
+    "User-Agent": "claude-cli/2.1.187 (external, cli)",
+    "X-App": "cli",
+    "X-Stainless-Arch": "x64",
+    "X-Stainless-Helper-Method": "stream",
+    "X-Stainless-Lang": "js",
+    "X-Stainless-Os": "Linux",
+    "X-Stainless-Package-Version": "0.94.0",
+    "X-Stainless-Retry-Count": "0",
+    "X-Stainless-Runtime": "node",
+    "X-Stainless-Runtime-Version": "v24.3.0",
+    "X-Stainless-Timeout": "600",
+    "x-api-key": "<CRED>",
+  },
+  "nonStream": {
+    "Anthropic-Beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24,structured-outputs-2025-12-15,fast-mode-2026-02-01,redact-thinking-2026-02-12,token-efficient-tools-2026-03-28,advisor-tool-2026-03-01,extended-cache-ttl-2025-04-11,cache-diagnosis-2026-04-07",
+    "Anthropic-Dangerous-Direct-Browser-Access": "true",
+    "Anthropic-Version": "2023-06-01",
+    "Content-Type": "application/json",
+    "User-Agent": "claude-cli/2.1.187 (external, cli)",
+    "X-App": "cli",
+    "X-Stainless-Arch": "x64",
+    "X-Stainless-Helper-Method": "stream",
+    "X-Stainless-Lang": "js",
+    "X-Stainless-Os": "Linux",
+    "X-Stainless-Package-Version": "0.94.0",
+    "X-Stainless-Retry-Count": "0",
+    "X-Stainless-Runtime": "node",
+    "X-Stainless-Runtime-Version": "v24.3.0",
+    "X-Stainless-Timeout": "600",
+    "x-api-key": "<CRED>",
+  },
+  "oauth": "THROW: Cannot read properties of undefined (reading 'header')",
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > alicode → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -229,8 +271,8 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
+    "User-Agent": "VansRoute/0.5.8",
+    "X-CLIENT-TYPE": "VansRoute",
     "X-CLIENT-VERSION": "0.5.8",
     "X-CORE-VERSION": "0.5.8",
     "X-IS-MULTIROOT": "false",
@@ -242,8 +284,8 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
+    "User-Agent": "VansRoute/0.5.8",
+    "X-CLIENT-TYPE": "VansRoute",
     "X-CLIENT-VERSION": "0.5.8",
     "X-CORE-VERSION": "0.5.8",
     "X-IS-MULTIROOT": "false",
@@ -256,8 +298,8 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.5.8",
-    "X-CLIENT-TYPE": "9router",
+    "User-Agent": "VansRoute/0.5.8",
+    "X-CLIENT-TYPE": "VansRoute",
     "X-CLIENT-VERSION": "0.5.8",
     "X-CORE-VERSION": "0.5.8",
     "X-IS-MULTIROOT": "false",
@@ -542,13 +584,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > kilocode → headers
 exports[`GOLDEN buildHeaders (default executor providers) > kimchi → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
-    "Accept": "application/json;q=1, text/event-stream;q=0",
+    "Accept": "text/event-stream,application/json",
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "kimchi/0.1.39",
   },
   "nonStream": {
-    "Accept": "application/json;q=1, text/event-stream;q=0",
+    "Accept": "text/event-stream,application/json",
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "kimchi/0.1.39",
@@ -591,7 +633,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi-coding → head
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "linux x64",
-    "X-Msh-Platform": "9router",
+    "X-Msh-Platform": "VansRoute",
     "X-Msh-Version": "2.1.2",
     "x-api-key": "<CRED>",
   },
@@ -601,7 +643,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi-coding → head
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "linux x64",
-    "X-Msh-Platform": "9router",
+    "X-Msh-Platform": "VansRoute",
     "X-Msh-Version": "2.1.2",
     "x-api-key": "<CRED>",
   },
@@ -612,7 +654,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi-coding → head
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "linux x64",
-    "X-Msh-Platform": "9router",
+    "X-Msh-Platform": "VansRoute",
     "X-Msh-Version": "2.1.2",
     "x-api-key": "<CRED>",
   },
@@ -982,6 +1024,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > zcode → headers (a
     "Content-Type": "application/json",
     "x-api-key": "<CRED>",
   },
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > agentrouter → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://agentrouter.org/v1/messages",
+  "stream": "https://agentrouter.org/v1/messages",
 }
 `;
 

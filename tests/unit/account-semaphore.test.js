@@ -13,12 +13,13 @@ import {
 
 describe("AccountSemaphore", () => {
   describe("buildAccountSemaphoreKey", () => {
-    it("builds a provider:accountKey string", () => {
-      expect(buildAccountSemaphoreKey({ provider: "kimchi", accountKey: "acc-1" })).toBe("kimchi:acc-1");
+    it("builds a provider:accountKey:proxyHash string", () => {
+      // Proxy-aware: key includes proxy hash suffix (:direct when no proxy)
+      expect(buildAccountSemaphoreKey({ provider: "kimchi", accountKey: "acc-1" })).toBe("kimchi:acc-1:direct");
     });
 
     it("stringifies non-string values", () => {
-      expect(buildAccountSemaphoreKey({ provider: 42, accountKey: null })).toBe("42:null");
+      expect(buildAccountSemaphoreKey({ provider: 42, accountKey: null })).toBe("42:null:direct");
     });
   });
 

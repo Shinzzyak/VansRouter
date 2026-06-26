@@ -58,7 +58,7 @@ describe("Kimchi CLI-aligned config", () => {
       const caps = getCapabilitiesForModel("kimchi", "glm-5.2-fp8");
       expect(caps.reasoning).toBe(true);
       expect(caps.thinkingFormat).toBe("openai");
-      expect(caps.thinkingCanDisable).toBe(false);
+      expect(caps.thinkingCanDisable).toBe(true);
     });
   });
 

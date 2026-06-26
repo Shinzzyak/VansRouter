@@ -86,7 +86,7 @@ export default {
         scheme: "raw",
       },
     },
-    forceStream: false,
+    forceStream: true,
     preserveAccept: true,
     retry: {
       429: { attempts: 3, delayMs: 500 },
