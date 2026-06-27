@@ -1,5 +1,4 @@
-import { getSettings } from "@/lib/localDb";
-import ProfileClient from "./ProfileClient";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Card, Button, Toggle, Input } from "@/shared/components";

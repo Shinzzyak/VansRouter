@@ -3,15 +3,6 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 
-onlyBuiltDependencies:
-  - better-sqlite3
-  - sharp
-  - unrs-resolver
-
-pnpm:
-  requiredScripts:
-    - build
-
 # Supply-chain hardening (see react-doctor require-pnpm-hardening):
 # minimumReleaseAge delays installs of freshly-published versions (minutes; 10080 = 7 days)
 # so malware caught & unpublished within hours never gets installed.
@@ -21,9 +12,20 @@ minimumReleaseAgeExclude:
   - next
   - "@next/*"
   - dompurify
+
+onlyBuiltDependencies:
+  - better-sqlite3
+  - sharp
+  - unrs-resolver
+
+pnpm:
+  requiredScripts:
+    - build
+storeDir: /tmp/pnpm-store
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - react-redux
   - reselect
   - semver
   - eslint-import-resolver-typescript
+  - nanoid

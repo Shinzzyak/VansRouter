@@ -30,6 +30,10 @@ const env = {
   USERPROFILE: fakeHome,
   APPDATA: path.join(fakeHome, "AppData", "Roaming"),
   LOCALAPPDATA: path.join(fakeHome, "AppData", "Local"),
+  // Windows: Next.js traces into TMP/TEMP too. Point them at .fakehome
+  // so Cookies / Application Data junctions are never scanned (#EPERM).
+  TMP: fakeHome,
+  TEMP: fakeHome,
 };
 
 // Resolve Next's CLI entry and run it via the current Node binary (avoids
