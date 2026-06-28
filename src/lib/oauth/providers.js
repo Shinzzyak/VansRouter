@@ -44,6 +44,7 @@ import {
   GITHUB_CONFIG,
   KIRO_CONFIG,
   assertValidAwsRegion,
+  getOAuthClientMetadata,
   CURSOR_CONFIG,
   KIMI_CODING_CONFIG,
   KILOCODE_CONFIG,
