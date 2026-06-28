@@ -17,6 +17,9 @@ export default defineConfig({
     maxConcurrency: 60,
     // Suppress noisy console output from handlers under test
     silent: false,
+    env: {
+      API_KEY_SECRET: "test-api-key-secret-for-ci-only",
+    },
   },
   resolve: {
     // Use array form so subpath aliases (e.g. "@/lib/db/index.js") resolve correctly.

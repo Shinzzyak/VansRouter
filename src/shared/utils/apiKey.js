@@ -1,6 +1,12 @@
 import crypto from "crypto";
 
-const API_KEY_SECRET = process.env.API_KEY_SECRET || "endpoint-proxy-api-key-secret";
+function getApiKeySecret() {
+  const secret = process.env.API_KEY_SECRET;
+  if (!secret) {
+    throw new Error("API_KEY_SECRET environment variable is required");
+  }
+  return secret;
+}
 
 /**
  * Generate 6-char random keyId
@@ -19,7 +25,7 @@ function generateKeyId() {
  */
 function generateCrc(machineId, keyId) {
   return crypto
-    .createHmac("sha256", API_KEY_SECRET)
+    .createHmac("sha256", getApiKeySecret())
     .update(machineId + keyId)
     .digest("hex")
     .slice(0, 8);

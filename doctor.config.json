@@ -1,12 +1,15 @@
 {
   "$schema": "https://react.doctor/schema/config.json",
 
-  "projects": ["vansai-app"],
+  "projects": ["9router-app"],
 
   "ignore": {
     "rules": [
       "react-doctor/unused-file",
-      "react-doctor/circular-dependency"
+      "react-doctor/circular-dependency",
+      "deslop/unused-export",
+      "deslop/unused-file",
+      "deslop/circular-dependency"
     ],
     "files": [
       "src/mitm/**",
@@ -22,7 +25,8 @@
       "src/lib/db/paths.js",
       "src/lib/db/version.js",
       "src/lib/db/helpers/metaStore.js",
-      "src/lib/db/schema.js"
+      "src/lib/db/schema.js",
+      "tests/helpers/server.js"
     ]
   },
 

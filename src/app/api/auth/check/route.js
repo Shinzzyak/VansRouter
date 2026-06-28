@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { getSettings } from "@/lib/localDb";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "9router-default-secret-change-me"
-);
+function getSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required");
+  }
+  return new TextEncoder().encode(secret);
+}
 
 export async function GET() {
   try {
@@ -23,7 +27,7 @@ export async function GET() {
     }
 
     try {
-      await jwtVerify(token, SECRET);
+      await jwtVerify(token, getSecret());
       return NextResponse.json({ authenticated: true });
     } catch {
       return NextResponse.json({ authenticated: false }, { status: 401 });
