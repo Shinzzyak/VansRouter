@@ -262,10 +262,17 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
     stripAll(body);
     return body;
   }
-  if (!cfg) return body;
+
+  // AgentRouter proxies GLM-5.x through a Claude-format transport, but the
+  // upstream GLM-5.x defaults thinking ON when no reasoning config is sent.
+  // If the client did not explicitly request reasoning, force-disable it so
+  // reasoning content does not leak into the OpenAI-format response.
+  // Scoped to agentrouter only — native glm/Z.ai should not be affected.
+  const effectiveCfg = cfg || (provider === "agentrouter" && /^glm-5/i.test(cleanModel) && caps.thinkingCanDisable !== false ? { mode: "none" } : null);
+  if (!effectiveCfg) return body;
 
   const fmt = resolveFormat(targetFormat, cleanModel, provider);
   stripAll(body);
-  applyFormat(fmt, body, cfg, caps);
+  applyFormat(fmt, body, effectiveCfg, caps);
   return body;
 }

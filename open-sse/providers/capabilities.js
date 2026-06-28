@@ -113,7 +113,7 @@ export const PROVIDER_CAPABILITIES = {
     "claude-opus-4-6":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
     "claude-opus-4-7":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
     "claude-opus-4-8":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },
-    "glm-5.2":                 { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 128000, maxOutput: 128000 },
+    "glm-5.2":                 { reasoning: true, thinkingFormat: "claude-budget", thinkingCanDisable: true, contextWindow: 128000, maxOutput: 128000 },
     "gpt-5.5":                 { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 256000, maxOutput: 128000 },
   },
   // CodeBuddy.cn — authoritative per-model metadata from the gateway's model
