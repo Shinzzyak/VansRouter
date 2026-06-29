@@ -241,6 +241,7 @@ export default function RequestDetailsTab() {
     if (!appliedStart) return;
 
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch with abort controller; setLoading(true) is intentional at the start of the request.
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (appliedProvider) params.append("provider", appliedProvider);
@@ -379,13 +380,13 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">API Key Name:</span>{" "}
                 <span className="text-text-main">
-                  {selectedDetail.apiKey ? (selectedDetail.apiKeyName || "-") : "-"}
+                  {selectedDetail.apiKeyName || "-"}
                 </span>
               </div>
               <div>
                 <span className="text-text-muted">API Key:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {selectedDetail.apiKey ? maskKey(selectedDetail.apiKey) : "-"}
+                  {selectedDetail.apiKeyName && selectedDetail.apiKey ? maskKey(selectedDetail.apiKey) : "-"}
                 </span>
               </div>
               <div>

@@ -7,6 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { fetchCached } from "@/shared/utils/fetchCache";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -23,6 +24,8 @@ export default function CombosPage() {
   const [confirmState, setConfirmState] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
+  /* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect --
+     One-time bootstrap fetch on mount; fetchData is declared below. */
   useEffect(() => {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -30,10 +33,10 @@ export default function CombosPage() {
   const fetchData = async () => {
     try {
       const [combosRes, providersRes, settingsRes, modelsRes] = await Promise.all([
-        fetch("/api/combos"),
-        fetch("/api/providers"),
-        fetch("/api/settings"),
-        fetch("/api/models"),
+        fetchCached("/api/combos"),
+        fetchCached("/api/providers"),
+        fetchCached("/api/settings"),
+        fetchCached("/api/models"),
       ]);
       const combosData = await combosRes.json();
       const providersData = await providersRes.json();
@@ -515,7 +518,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   };
 
   useEffect(() => {
-    if (isOpen) fetchModalData();
+    if (isOpen)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on open; fetchModalData is declared below the JSX section.
+      fetchModalData();
   }, [isOpen]);
 
   const validateName = (value) => {

@@ -24,7 +24,9 @@ export default function DonateModal({ isOpen, onClose }) {
   }, [isOpen]);
 
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     const handleClickOutside = (e) => {

@@ -19,7 +19,9 @@ const NINE_REMOTE_URL = "https://9remote.cc";
 
 export default function NineRemotePromoModal({ isOpen, onClose }) {
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return;

@@ -176,7 +176,6 @@ export default function OpenClawToolCard({
   const [modelAliases, setModelAliases] = useState({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
-  const hasInitializedModel = useRef(false);
 
   const getConfigStatus = () => {
     if (!openclawStatus?.installed) return null;
@@ -231,9 +230,9 @@ export default function OpenClawToolCard({
     onToggle();
   }, [isExpanded, initializeCard, onToggle]);
 
-  useEffect(() => { initializeCard(); }, [initializeCard]);
-  if (openclawStatus?.installed && !hasInitializedModel.current) {
-    hasInitializedModel.current = true;
+  const [hasInitializedModel, setHasInitializedModel] = useState(false);
+  if (openclawStatus?.installed && !hasInitializedModel) {
+    setHasInitializedModel(true);
     const provider = openclawStatus.settings?.models?.providers?.["VansRoute"];
     if (provider) {
       const primaryModel = openclawStatus.settings?.agents?.defaults?.model?.primary;

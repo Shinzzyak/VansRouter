@@ -404,6 +404,9 @@ export default function ProviderDetailPage() {
     saveAutoPing({ ...autoPing, connections: { ...autoPing.connections, [connectionId]: on } });
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect --
+     Initial bootstrap fetch on mount; the fetch* functions set state after
+     fetch resolves. Pattern is intentional. */
   useEffect(() => {
     fetchConnections();
     fetchAliases();
@@ -792,6 +795,7 @@ export default function ProviderDetailPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cleanup derived state: prune selection when underlying connections change.
     setSelectedConnectionIds((prev) => prev.filter((id) => connections.some((conn) => conn.id === id)));
   }, [connections]);
 

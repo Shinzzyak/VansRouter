@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useReducer, useRef } from "react";
+import { useState, useReducer } from "react";
 import { Button, Modal } from "@/shared/components";
 
 function modalReducer(state, action) {
@@ -18,14 +18,14 @@ function modalReducer(state, action) {
 export default function AddCustomModelModal({ isOpen, providerAlias, providerDisplayAlias, onSave, onClose }) {
   const [state, dispatch] = useReducer(modalReducer, { modelId: "", testStatus: null, testError: "", saving: false });
   const { modelId, testStatus, testError, saving } = state;
-  const prevIsOpenRef = useRef(false);
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
 
   // Reset state when modal opens (prev-prop pattern — no extra render cycle)
-  if (isOpen && !prevIsOpenRef.current) {
-    prevIsOpenRef.current = true;
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
     dispatch({ type: "RESET" });
-  } else if (!isOpen && prevIsOpenRef.current) {
-    prevIsOpenRef.current = false;
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
   }
 
   // Strip provider's own alias prefix (e.g. "cc/model" -> "model" for cc provider)

@@ -291,7 +291,8 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
     finally { setLoading(false); }
   }, [providerId]);
 
-  useEffect(() => { fetch_(); }, [fetch_]);
+  useEffect(() => { /* eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap fetch on mount and when providerId changes. */
+    fetch_(); }, [fetch_]);
 
   const saveStrategy = async (strategy, stickyLimit) => {
     try {

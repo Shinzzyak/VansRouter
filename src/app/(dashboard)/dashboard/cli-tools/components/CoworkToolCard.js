@@ -409,11 +409,9 @@ export default function CoworkToolCard({
     onToggle();
   }, [isExpanded, initializeCard, onToggle]);
 
-  useEffect(() => { initializeCard(); }, [initializeCard]);
-
-  const hasInitConfig = useRef(false);
-  if (status?.cowork && !hasInitConfig.current) {
-    hasInitConfig.current = true;
+  const [hasInitConfig, setHasInitConfig] = useState(false);
+  if (status?.cowork && !hasInitConfig) {
+    setHasInitConfig(true);
     if (status.cowork.models?.length && selectedModels.length === 0) {
       setSelectedModels(status.cowork.models);
     }

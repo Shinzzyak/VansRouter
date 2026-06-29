@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { fetchCached } from "@/shared/utils/fetchCache";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import {
   WENYAN_LOCALES,
@@ -39,7 +40,6 @@ export default function APIPageClient({ machineId }) {
   const [editCombosAll, setEditCombosAll] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
   const [providerList, setProviderList] = useState([]);
-  const [providerRegistry, setProviderRegistry] = useState([]);
   const [aliasMap, setAliasMap] = useState({}); // alias → provider ID
   const [comboList, setComboList] = useState([]);
 
@@ -109,15 +109,26 @@ export default function APIPageClient({ machineId }) {
   // API key visibility toggle state
   const [visibleKeys, setVisibleKeys] = useState(new Set());
 
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability --
+     The useEffects below intentionally run once on mount (locale detection,
+     bootstrap fetch, scroll-into-view, status poll) or sync external state
+     changes back into the UI (caveman level reset when locale changes). The
+     handler functions they call (syncTunnelStatus, loadSettings, patchSetting,
+     fetchData) are declared further down in this 2000-line file, which is
+     a static-analysis limitation, not a runtime bug — closures capture the
+     declarations correctly when the effects run. */
+
   // Client-side local/remote detection (UI hint only, not a security gate)
   const [isRemoteHost, setIsRemoteHost] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined")
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client-only detection on mount.
       setIsRemoteHost(!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname));
   }, []);
 
   // Track app UI locale to gate wenyan caveman levels
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time locale sync on mount; effect is intentional, not a derived value.
     setLocale(getCurrentLocale());
     return onLocaleChange(() => setLocale(getCurrentLocale()));
   }, []);
@@ -128,9 +139,11 @@ export default function APIPageClient({ machineId }) {
     : CAVEMAN_LEVELS.filter((lvl) => !lvl.wenyan);
 
   // Reset wenyan level to "ultra" when leaving a Chinese locale
+  // eslint-disable-next-line react-hooks/immutability -- patchSetting is declared further down in the file; captured by closure at runtime.
   useEffect(() => {
     const current = CAVEMAN_LEVELS.find((lvl) => lvl.id === cavemanLevel);
     if (current?.wenyan && !isWenyanLocale) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs external UI locale change back into local storage; effect is intentional.
       setCavemanLevel("ultra");
       patchSetting({ cavemanLevel: "ultra" });
     }
@@ -150,12 +163,15 @@ export default function APIPageClient({ machineId }) {
   }, [tsInstallLog]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial bootstrap fetch; the function declarations below are intentionally hoisted below the JSX (no derived state pattern fits a one-shot init).
     fetchData();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial bootstrap fetch.
     loadSettings();
   }, []);
 
   // Status poll: only while degraded (not yet reachable). Stop once healthy to avoid spam.
   // Visibility re-check: refresh once when tab becomes visible.
+  // eslint-disable-next-line react-hooks/immutability -- syncTunnelStatus is declared further down; captured by closure at runtime.
   useEffect(() => {
     const anyEnabled = tunnelEnabled || tsEnabled;
     if (!anyEnabled) return;
@@ -170,6 +186,7 @@ export default function APIPageClient({ machineId }) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
+  // eslint-disable-next-line react-hooks/immutability -- syncTunnelStatus is declared further down in the file; capturing via closure works fine at runtime but trips the static analysis.
   }, [tunnelEnabled, tsEnabled, tunnelReachable, tsReachable]);
 
   // Browser-side periodic ping: probes tunnel/tailscale URLs directly so UI stays
@@ -431,10 +448,8 @@ export default function APIPageClient({ machineId }) {
   // ── ACL Edit Key handlers ──────────────────────────────────────────
   const ALL_KINDS = ["llm", "embedding", "image", "tts", "stt", "webSearch", "webFetch"];
 
-  // Build unique provider list grouped from connections + nodes + registry.
-  // Registry providers (especially noAuth/free ones) are included even when
-  // there is no connection, so ACL can allow/deny them explicitly.
-  const buildProviderList = (connections, nodes, registry) => {
+  // Build unique provider list grouped from connections + nodes
+  const buildProviderList = (connections, nodes) => {
     const nodeMap = {};
     for (const n of (nodes || [])) {
       // API returns prefix/apiType/baseUrl as top-level fields (parsed from data JSON)
@@ -447,21 +462,13 @@ export default function APIPageClient({ machineId }) {
       if (!byProvider[p]) byProvider[p] = { id: p, count: 0, alias: c.alias || null };
       byProvider[p].count++;
     }
-    // Merge registry providers (free/noAuth and any other registered provider)
-    for (const def of (registry || [])) {
-      const id = def.id;
-      if (!byProvider[id]) {
-        byProvider[id] = { id, count: 0, alias: def.alias || null };
-      }
-    }
     // Build final list with friendly names
     return Object.values(byProvider).map(({ id, count, alias }) => {
       const node = nodeMap[id];
-      const reg = (registry || []).find((r) => r.id === id);
-      let displayName = reg?.displayName || id;
+      let displayName = id;
       let prefix = null;
       if (node) {
-        displayName = node.name || displayName;
+        displayName = node.name || id;
         prefix = node.prefix || null;
       }
       return { id, displayName, prefix, alias, count };
@@ -544,10 +551,10 @@ export default function APIPageClient({ machineId }) {
   const fetchData = async () => {
     try {
       const [keysRes, providersRes, combosRes, nodesRes] = await Promise.all([
-        fetch("/api/keys"),
-        fetch("/api/providers"),
-        fetch("/api/combos"),
-        fetch("/api/provider-nodes"),
+        fetchCached("/api/keys"),
+        fetchCached("/api/providers"),
+        fetchCached("/api/combos"),
+        fetchCached("/api/provider-nodes"),
       ]);
       const keysData = await keysRes.json();
       if (keysRes.ok) {
@@ -555,19 +562,16 @@ export default function APIPageClient({ machineId }) {
       }
       let connections = [];
       let nodes = [];
-      let registry = [];
       if (providersRes.ok) {
         const pData = await providersRes.json();
         connections = pData.connections || [];
-        registry = pData.providers || [];
-        setProviderRegistry(registry);
         if (pData.aliasMap) setAliasMap(pData.aliasMap);
       }
       if (nodesRes.ok) {
         const nData = await nodesRes.json();
         nodes = nData.nodes || [];
       }
-      setProviderList(buildProviderList(connections, nodes, registry));
+      setProviderList(buildProviderList(connections, nodes));
       if (combosRes.ok) {
         const cData = await combosRes.json();
         setComboList(cData.combos || []);
@@ -998,6 +1002,7 @@ export default function APIPageClient({ machineId }) {
   // Hydration fix: Only access window on client side
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client-only hydration; this is the canonical useEffect+setState pattern, not a derived value.
       setBaseUrl(`${window.location.origin}/v1`);
     }
   }, []);
@@ -2019,5 +2024,6 @@ export default function APIPageClient({ machineId }) {
     </div>
   );
 }
+
 
 

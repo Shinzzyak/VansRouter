@@ -21,7 +21,9 @@ export default function Drawer({
 }) {
   const widths = DRAWER_WIDTHS;
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (isOpen) {
