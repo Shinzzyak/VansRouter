@@ -101,7 +101,7 @@
 │  Your CLI   │  (Claude Code, Codex, Cursor, Cline, OpenCode...)
 │   Tool      │
 └──────┬──────┘
-       │ POST http://localhost:20128/v1/chat/completions
+       │ POST http://localhost:3003/v1/chat/completions
        ↓
 ┌──────────────────────────────────────────────────────────┐
 │                     VansRoute Engine                      │
@@ -140,10 +140,12 @@ pnpm install
 pnpm run build
 cp -r public .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
-PORT=20128 node server.js
+pnpm start
 ```
 
-Open `http://localhost:20128/dashboard`, add provider connections, generate a VansRoute API key, and point your CLI to `http://localhost:20128/v1`.
+Open `http://localhost:3003/dashboard`, add provider connections, generate a VansRoute API key, and point your CLI to `http://localhost:3003/v1`.
+
+> **Port convention:** `pnpm dev` runs on `http://localhost:20127`. `pnpm start` (production / standalone) defaults to `http://localhost:3003` unless you override `PORT` in `.env`.
 
 ### PM2 (production)
 
@@ -157,7 +159,7 @@ pm2 save
 
 ```bash
 docker run -d \
-  -p 20128:20128 \
+  -p 3003:3003 \
   -v vansroute-data:/home/node/.vansroute \
   --name vansroute \
   ghcr.io/vanszs/vansroute:latest
@@ -202,9 +204,9 @@ pnpm install
 JWT_SECRET=ganti-dengan-string-acak-panjang
 INITIAL_PASSWORD=passwordmu
 DATA_DIR=C:\Users\NamaKamu\.vansroute
-PORT=20128
+PORT=3003
 NODE_ENV=production
-NEXT_PUBLIC_BASE_URL=http://localhost:20128
+NEXT_PUBLIC_BASE_URL=http://localhost:3003
 ```
 
 ### Step 6 — Build
@@ -216,11 +218,10 @@ pnpm run build
 ### Step 7 — Run
 
 ```cmd
-set PORT=20128
-node server.js
+pnpm start
 ```
 
-Open: http://localhost:20128
+Open: http://localhost:3003
 
 ### Windows PM2 (auto-start)
 
@@ -257,14 +258,14 @@ nano .env  # set JWT_SECRET, INITIAL_PASSWORD, PORT
 pnpm run build
 cp -r public .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
-PORT=20128 node server.js
+pnpm start
 ```
 
 ### PM2 (production)
 
 ```bash
 npm install -g pm2
-PORT=20128 pm2 start server.js --name vansroute
+PORT=3003 pm2 start server.js --name vansroute
 pm2 startup
 pm2 save
 ```
@@ -276,7 +277,7 @@ pm2 save
 
 ```bash
 docker run -d \
-  -p 20128:20128 \
+  -p 3003:3003 \
   -v vansroute-data:/home/node/.vansroute \
   --name vansroute \
   ghcr.io/vanszs/vansroute:latest
@@ -482,12 +483,12 @@ Yes. VansRoute retains full format compatibility with 9Router. The DB schema, AP
 # Required
 JWT_SECRET=your-random-secret-at-least-32-chars
 INITIAL_PASSWORD=your-dashboard-password
-PORT=20128
+PORT=3003
 
 # Optional
 DATA_DIR=~/.vansroute        # Default: ~/.vansroute
 NODE_ENV=production
-NEXT_PUBLIC_BASE_URL=http://localhost:20128
+NEXT_PUBLIC_BASE_URL=http://localhost:3003
 ANTIGRAVITY_TIMEOUT_MS=15000 # Antigravity quota fetch timeout
 ```
 
@@ -498,16 +499,16 @@ pnpm install
 pnpm run build
 cp -r public .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
-PORT=20128 node server.js
+pnpm start
 ```
 
 ### 3. Dashboard Configuration
 
-1. Open `http://localhost:20128/masuk` (login)
+1. Open `http://localhost:3003/masuk` (login)
 2. Go to **Providers** → add API keys / OAuth
 3. Go to **Settings** → generate VansRoute API key
 4. Go to **CLI Tools** → configure your tool (Claude Code, Codex, etc.)
-5. Point your CLI to `http://localhost:20128/v1`
+5. Point your CLI to `http://localhost:3003/v1`
 
 ### 4. Kimchi Setup
 
@@ -516,7 +517,7 @@ VansRoute's Kimchi provider exposes exactly 5 models matching the Kimchi CLI:
 ```json
 {
   "model": "kimchi/kimi-k2.6",
-  "baseURL": "http://localhost:20128/v1",
+  "baseURL": "http://localhost:3003/v1",
   "apiKey": "your-vansroute-key"
 }
 ```
@@ -567,7 +568,7 @@ Any model ID works — AgentRouter routes to the upstream provider.
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `EADDRINUSE` | Port already in use | Change `PORT=20128` or kill the process |
+| `EADDRINUSE` | Port already in use | Change `PORT` in `.env` or kill the process |
 | `EACCES` | Permission denied | Run as admin (Windows) or check folder permissions |
 | `Model not found` | Wrong model ID | Check `/v1/models` for available models |
 | `expanded is not defined` | — | ✅ Fixed in VansRoute |
