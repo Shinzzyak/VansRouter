@@ -1,6 +1,9 @@
 import { claudeToOpenAIRequest } from "../translator/request/claude-to-openai.js";
 import { openaiToClaudeRequest } from "../translator/request/openai-to-claude.js";
-import { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } from "../translator/request/openai-responses.js";
+import {
+  openaiResponsesToOpenAIRequest,
+  openaiToOpenAIResponsesRequest,
+} from "../translator/request/openai-responses.js";
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -70,6 +73,14 @@ function maskEndpoint(endpoint) {
   }
 }
 
+function hasUnsafeResponsesInputForCompression(body) {
+  if (!Array.isArray(body?.input)) return false;
+  return body.input.some((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    return typeof item.type === "string" && item.type !== "message";
+  });
+}
+
 // POST messages to Headroom /v1/compress; returns compressed messages + stats or null.
 async function callCompress(url, messages, model, timeoutMs, compressUserMessages, diagnostics) {
   const endpoint = buildCompressEndpoint(url);
@@ -136,16 +147,25 @@ export async function compressWithHeadroom(body, { enabled, url, model, format, 
       return data;
     }
 
-    // OpenAI Responses shape: translate → OpenAI → compress → translate back.
-    if (format === "openai-responses" && Array.isArray(body?.input)) {
-      const translated = openaiResponsesToOpenAIRequest(model, { ...body }, false);
-      if (!Array.isArray(translated?.messages)) {
-        setDiagnostic(diagnostics, "OpenAI Responses request did not translate to messages[]");
+    // OpenAI Responses shape (Codex): body.input holds Responses items, NOT OpenAI
+    // messages. Translate input -> OpenAI -> compress -> translate back to input so
+    // body.input keeps the Responses contract (the proxy only understands OpenAI). (#1998)
+    if (format === "openai-responses") {
+      if (hasUnsafeResponsesInputForCompression(body)) {
+        setDiagnostic(diagnostics, "skipped: openai-responses tool/reasoning input is not safe to compress");
         return null;
       }
-      const data = await callCompress(url, translated.messages, model, timeoutMs, compressUserMessages, diagnostics || {});
+      const oai = openaiResponsesToOpenAIRequest(model, body, false);
+      if (!Array.isArray(oai?.messages)) return null;
+      const data = await callCompress(url, oai.messages, model, timeoutMs, compressUserMessages, diagnostics || {});
       if (!data) return null;
-      const responsesBody = openaiToOpenAIResponsesRequest(model, { messages: data.messages }, false);
+      // input: undefined so the translator rebuilds input from the compressed
+      // messages instead of returning the original input unchanged.
+      const responsesBody = openaiToOpenAIResponsesRequest(
+        model,
+        { ...oai, input: undefined, messages: data.messages },
+        false
+      );
       if (Array.isArray(responsesBody?.input)) body.input = responsesBody.input;
       if (diagnostics) diagnostics.after = captureSizeSnapshot(body);
       return data;
