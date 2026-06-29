@@ -24,6 +24,8 @@ export default function CombosPage() {
   const [confirmState, setConfirmState] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
+  /* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect --
+     One-time bootstrap fetch on mount; fetchData is declared below. */
   useEffect(() => {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -516,7 +518,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   };
 
   useEffect(() => {
-    if (isOpen) fetchModalData();
+    if (isOpen)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on open; fetchModalData is declared below the JSX section.
+      fetchModalData();
   }, [isOpen]);
 
   const validateName = (value) => {

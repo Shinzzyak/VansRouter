@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardSkeleton,
@@ -736,9 +736,9 @@ function AddOpenAICompatibleModal({ isOpen, onClose, onCreated }) {
 
   const apiTypeOptions = API_TYPE_OPTIONS;
 
-  const prevApiTypeRef = useRef(formData.apiType);
-  if (formData.apiType !== prevApiTypeRef.current) {
-    prevApiTypeRef.current = formData.apiType;
+  const [prevApiType, setPrevApiType] = useState(formData.apiType);
+  if (formData.apiType !== prevApiType) {
+    setPrevApiType(formData.apiType);
     setFormData((prev) => ({ ...prev, baseUrl: "https://api.openai.com/v1" }));
   }
 
@@ -910,14 +910,14 @@ function AddAnthropicCompatibleModal({ isOpen, onClose, onCreated }) {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null); // { valid, error, method }
 
-  const prevIsOpenRef = useRef(false);
-  if (isOpen && !prevIsOpenRef.current) {
-    prevIsOpenRef.current = true;
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
     setValidationResult(null);
     setCheckKey("");
     setCheckModelId("");
-  } else if (!isOpen && prevIsOpenRef.current) {
-    prevIsOpenRef.current = false;
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
   }
 
   const handleSubmit = async () => {

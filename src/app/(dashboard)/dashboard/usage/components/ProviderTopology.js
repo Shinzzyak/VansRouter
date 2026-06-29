@@ -207,18 +207,26 @@ export default function ProviderTopology({ providers = EMPTY_PROVIDERS, activeRe
   const errorSet = useMemo(() => new Set(errorKey ? [errorKey] : []), [errorKey]);
 
   // Track firstSeen per active provider; drop provider if running too long (BE stuck)
-  const firstSeenRef = useRef({});
+  const [firstSeen, setFirstSeen] = useState({});
+  const [activeSet, setActiveSet] = useState(new Set());
   const [tick, setTick] = useState(0);
 
+  // Tracks when each provider became active so we can drop providers that
+  // are stuck (e.g. backend never marked them done). State (not ref) so
+  // downstream useEffects can react to changes.
   useEffect(() => {
-    const seen = firstSeenRef.current;
     const now = Date.now();
-    for (const p of rawActiveSet) {
-      if (!seen[p]) seen[p] = now;
-    }
-    for (const p of Object.keys(seen)) {
-      if (!rawActiveSet.has(p)) delete seen[p];
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- updater pattern avoids stale state; cascading renders are intentional here.
+    setFirstSeen((prev) => {
+      const next = { ...prev };
+      for (const p of rawActiveSet) {
+        if (!next[p]) next[p] = now;
+      }
+      for (const p of Object.keys(next)) {
+        if (!rawActiveSet.has(p)) delete next[p];
+      }
+      return next;
+    });
   }, [rawActiveSet]);
 
   useEffect(() => {
@@ -227,16 +235,19 @@ export default function ProviderTopology({ providers = EMPTY_PROVIDERS, activeRe
     return () => clearInterval(id);
   }, [rawActiveSet]);
 
-  const activeSet = useMemo(() => {
-    void tick; // trigger re-computation on interval
+  // Compute filtered activeSet in an effect so Date.now() is not called
+  // during render. tick + firstSeen + rawActiveSet all trigger recompute.
+  useEffect(() => {
+    void tick; // re-run on tick
     const now = Date.now();
     const filtered = new Set();
     for (const p of rawActiveSet) {
-      const ts = firstSeenRef.current[p];
+      const ts = firstSeen[p];
       if (!ts || now - ts < FE_ACTIVE_TIMEOUT_MS) filtered.add(p);
     }
-    return filtered;
-  }, [rawActiveSet, tick]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Date.now() is not allowed during render; computed in effect so render stays pure.
+    setActiveSet(filtered);
+  }, [rawActiveSet, tick, firstSeen]);
 
   const { nodes, edges } = useMemo(
     () => buildLayout(providers, activeSet, lastSet, errorSet),

@@ -32,6 +32,9 @@ export default function TokenSaverClient() {
 
   const { copied, copy } = useCopyToClipboard();
 
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability --
+     Locale bootstrap and locale-change reset. patchSetting is declared
+     further down; captured by closure at runtime. */
   useEffect(() => {
     setLocale(getCurrentLocale());
     return onLocaleChange(() => setLocale(getCurrentLocale()));

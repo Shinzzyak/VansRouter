@@ -70,7 +70,9 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
     }
   }, [isControlled, onClose, locale]);
   const setIsOpenRef = useRef(setIsOpen);
-  setIsOpenRef.current = setIsOpen;
+  useEffect(() => {
+    setIsOpenRef.current = setIsOpen;
+  });
 
   // Close modal when clicking outside
   useEffect(() => {

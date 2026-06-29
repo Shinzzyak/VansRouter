@@ -52,9 +52,12 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   // openai: reset baseUrl when apiType changes; anthropic: reset checks when opened
   useEffect(() => {
     if (config.hasApiType) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from prop changes; uses updater pattern.
       setFormData((prev) => ({ ...prev, baseUrl: config.defaultBaseUrl }));
     } else if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset validation state when modal opens.
       setValidationResult(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset validation state when modal opens.
       setCheckKey("");
       setCheckModelId("");
     }

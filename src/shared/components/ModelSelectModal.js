@@ -48,68 +48,44 @@ export default function ModelSelectModal({
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
 
-  const fetchCombos = async () => {
-    try {
-      const res = await fetch("/api/combos");
-      if (!res.ok) throw new Error(`Failed to fetch combos: ${res.status}`);
-      const data = await res.json();
-      setCombos(data.combos || []);
-    } catch (error) {
-      console.error("Error fetching combos:", error);
-      setCombos([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchCombos();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/combos")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setCombos(data.combos || []); })
+      .catch((err) => { console.error("Error fetching combos:", err); if (!cancelled) setCombos([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchProviderNodes = async () => {
-    try {
-      const res = await fetch("/api/provider-nodes");
-      if (!res.ok) throw new Error(`Failed to fetch provider nodes: ${res.status}`);
-      const data = await res.json();
-      setProviderNodes(data.nodes || []);
-    } catch (error) {
-      console.error("Error fetching provider nodes:", error);
-      setProviderNodes([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchProviderNodes();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/provider-nodes")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setProviderNodes(data.nodes || []); })
+      .catch((err) => { console.error("Error fetching provider nodes:", err); if (!cancelled) setProviderNodes([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchCustomModels = async () => {
-    try {
-      const res = await fetch("/api/models/custom");
-      if (!res.ok) throw new Error(`Failed to fetch custom models: ${res.status}`);
-      const data = await res.json();
-      setCustomModels(data.models || []);
-    } catch (error) {
-      console.error("Error fetching custom models:", error);
-      setCustomModels([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchCustomModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/models/custom")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setCustomModels(data.models || []); })
+      .catch((err) => { console.error("Error fetching custom models:", err); if (!cancelled) setCustomModels([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchDisabledModels = async () => {
-    try {
-      const res = await fetch("/api/models/disabled");
-      if (!res.ok) throw new Error(`Failed to fetch disabled models: ${res.status}`);
-      const data = await res.json();
-      setDisabledModels(data.disabled || {});
-    } catch (error) {
-      console.error("Error fetching disabled models:", error);
-      setDisabledModels({});
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchDisabledModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/models/disabled")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setDisabledModels(data.disabled || {}); })
+      .catch((err) => { console.error("Error fetching disabled models:", err); if (!cancelled) setDisabledModels({}); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);

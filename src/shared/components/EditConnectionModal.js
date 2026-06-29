@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useReducer, useRef } from "react";
+import { useState, useReducer } from "react";
 import Modal from "@/shared/components/Modal";
 import Input from "@/shared/components/Input";
 import Button from "@/shared/components/Button";
@@ -36,9 +36,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const [async_, dispatch] = useReducer(asyncReducer, { testing: false, testResult: null, validating: false, validationResult: null, saving: false });
   const { testing, testResult, validating, validationResult, saving } = async_;
 
-  const prevConnectionRef = useRef(connection);
-  if (connection !== prevConnectionRef.current) {
-    prevConnectionRef.current = connection;
+  const [prevConnection, setPrevConnection] = useState(connection);
+  if (connection !== prevConnection) {
+    setPrevConnection(connection);
     if (connection) {
       setFormData({
         name: connection.name || "",

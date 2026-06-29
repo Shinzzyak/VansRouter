@@ -118,7 +118,8 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     } catch (e) { console.log("ModelsCard fetch error:", e); }
   }, [providerId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { /* eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap fetch on mount and when providerId changes. */
+    fetchData(); }, [fetchData]);
 
   const handleSetAlias = async (modelId, alias) => {
     const fullModel = `${providerAlias}/${modelId}`;

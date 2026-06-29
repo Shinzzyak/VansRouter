@@ -34,7 +34,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   });
   const callbackProcessedRef = useRef(false);
   const onSuccessRef = useRef(onSuccess);
-  onSuccessRef.current = onSuccess;
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  });
 
   // Define all useCallback hooks BEFORE the useEffects that reference them
 

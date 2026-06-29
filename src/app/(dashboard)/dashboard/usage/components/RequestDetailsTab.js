@@ -241,6 +241,7 @@ export default function RequestDetailsTab() {
     if (!appliedStart) return;
 
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch with abort controller; setLoading(true) is intentional at the start of the request.
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (appliedProvider) params.append("provider", appliedProvider);
