@@ -271,11 +271,14 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const cooldownMs = getProviderShortestCooldownMs(provider);
     const retryAfterSec = Math.ceil(cooldownMs / 1000) || 30;
     log.warn("GATE", `${provider} circuit breaker OPEN on all proxy buckets — short-circuiting before credential lookup`);
-    return unavailableResponse(
-      HTTP_STATUS.SERVICE_UNAVAILABLE,
-      `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
-      retryAfterSec,
-      `${retryAfterSec}s`
+    return withSelectedConnectionHeader(
+      unavailableResponse(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
+        retryAfterSec,
+        `${retryAfterSec}s`
+      ),
+      null
     );
   }
 
@@ -283,6 +286,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
+  let lastExcludedConnectionId = null;
   // Bug #3758: per-request counter bounding the early-close (STREAM_EARLY_EOF)
   // re-attempt to exactly one for the whole request. Declared outside the
   // credential retry loop so it can never reset and loop.
@@ -315,21 +319,30 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
           if (waitDecision.reason === "client_disconnected") {
             log.info("CHAT", `[${provider}/${model}] client disconnected during cooldown wait — aborting`);
             // Return a minimal response; client is gone anyway.
-            return new Response(null, { status: 499 });
+            return withSelectedConnectionHeader(new Response(null, { status: 499 }), credentials?.connectionId ?? null);
           }
           log.info("CHAT", `[${provider}/${model}] cooldown retry skipped: ${waitDecision.reason}`);
         }
         const errorMsg = lastError || credentials.lastError || "Unavailable";
         const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
-        return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+        return withSelectedConnectionHeader(
+          unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman),
+          credentials?.connectionId ?? null
+        );
       }
       if (excludeConnectionIds.size === 0) {
         log.warn("AUTH", `No active credentials for provider: ${provider}`);
-        return errorResponse(HTTP_STATUS.NOT_FOUND, `No active credentials for provider: ${provider}`);
+        return withSelectedConnectionHeader(
+          errorResponse(HTTP_STATUS.NOT_FOUND, `No active credentials for provider: ${provider}`),
+          credentials?.connectionId ?? null
+        );
       }
       log.warn("CHAT", "No more accounts available", { provider });
-      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
+      return withSelectedConnectionHeader(
+        errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable"),
+        lastExcludedConnectionId
+      );
     }
 
     // Compute proxy bucket key for this account — groups accounts by shared proxy.
@@ -343,6 +356,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     if (isProviderInCooldown(provider, proxyHash)) {
       log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
       excludeConnectionIds.add(credentials.connectionId);
+      lastExcludedConnectionId = credentials.connectionId;
       continue;
     }
 
@@ -433,10 +447,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
+    // Normalize result.error to a string before passing to pattern matchers.
+    // Some upstream paths may return an Error instance; JSON.stringify(new Error())
+    // yields "{}" and breaks keyword matching in quota detectors.
+    const errorText = result.error?.message || result.error;
+
     // Kimchi quota exhausted: deactivate the account until the 1st of next month.
-    // Will be auto-reactivated by reactivateExpiredKimchiAccounts() on startup
-    // and via the periodic timer in startup.
-    if (isKimchiQuotaExhausted(provider, result.error)) {
+    if (isKimchiQuotaExhausted(provider, errorText)) {
       try {
         const update = buildKimchiQuotaExhaustedUpdate();
         await updateProviderConnection(credentials.connectionId, update);
@@ -448,11 +465,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     // Generalized daily quota detection (non-Kimchi): when a 429 error body
-    // mentions today's/daily quota being exhausted, lock just THIS model on
-    // the connection until tomorrow 00:00 UTC. The account stays active for
-    // other models. Kimchi keeps its existing next-month deactivation logic
-    // above and is excluded here so the two paths never interfere.
-    const dailyQuota = detectDailyQuotaExhaustion(provider, result.error);
+    const dailyQuota = detectDailyQuotaExhaustion(provider, errorText);
     if (dailyQuota && result.status === 429) {
       try {
         const lockUpdate = buildDailyQuotaLockUpdate(model);
@@ -464,20 +477,20 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       // Fall through to fallback behavior — the next account will be tried.
     }
 
-    // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs);
+    // Mark account unavailable (auto-calculates cooldown with classify429 for 429s, exponential backoff, or precise resetsAtMs)
+    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, errorText, provider, model, result.resetsAtMs);
 
     // Record provider-level failure for circuit breaker — skip if it's a known
     // Kimchi quota-exhaustion (not a provider-wide outage). Proxy-aware: failure
     // is attributed to the specific proxy bucket.
-    if (!isKimchiQuotaExhausted(provider, result.error)) {
-      recordProviderFailure(provider, result.status, result.error, log, credentials.connectionId, proxyHash);
+    if (!isKimchiQuotaExhausted(provider, errorText)) {
+      recordProviderFailure(provider, result.status, errorText, log, credentials.connectionId, proxyHash);
     }
 
     if (shouldFallback) {
       log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
       excludeConnectionIds.add(credentials.connectionId);
-      lastError = result.error;
+      lastError = errorText;
       lastStatus = result.status;
       continue;
     }
