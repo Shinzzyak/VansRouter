@@ -155,16 +155,6 @@ PORT=3003 pm2 start server.js --name vansroute
 pm2 save
 ```
 
-### Docker
-
-```bash
-docker run -d \
-  -p 3003:3003 \
-  -v vansroute-data:/home/node/.vansroute \
-  --name vansroute \
-  ghcr.io/vanszs/vansroute:latest
-```
-
 ---
 
 ## 🧭 Beginner Setup Guide
