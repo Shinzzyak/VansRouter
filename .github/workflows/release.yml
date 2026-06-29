@@ -94,6 +94,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install CLI package devDependencies
+        # cli/ is not in pnpm-workspace.yaml, so its devDependencies (esbuild)
+        # are not installed by `pnpm install`. Install them here so the CLI
+        # build script (which requires esbuild) can run.
+        run: npm install --prefix cli --no-audit --no-fund
+
       - name: Configure npm authentication
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
