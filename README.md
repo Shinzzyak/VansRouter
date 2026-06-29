@@ -272,24 +272,6 @@ pm2 save
 
 </details>
 
-<details>
-<summary><b>🐳 Docker</b></summary>
-
-```bash
-docker run -d \
-  -p 3003:3003 \
-  -v vansroute-data:/home/node/.vansroute \
-  --name vansroute \
-  ghcr.io/vanszs/vansroute:latest
-```
-
-Or with docker-compose:
-
-```bash
-docker-compose up -d
-```
-
-</details>
 
 ---
 
