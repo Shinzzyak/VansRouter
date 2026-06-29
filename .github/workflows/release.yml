@@ -10,7 +10,30 @@ env:
   GHCR_IMAGE: ghcr.io/vanszs/vansrouter
 
 jobs:
+  check-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      is-main: ${{ steps.check.outputs.is-main }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag/commit is on main
+        id: check
+        run: |
+          git fetch origin main
+          if git merge-base --is-ancestor HEAD origin/main; then
+            echo "is-main=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Release target is on main"
+          else
+            echo "is-main=false" >> "$GITHUB_OUTPUT"
+            echo "⛔ Release skipped: tag is not on main"
+          fi
+
   build-and-push-ghcr:
+    needs: check-branch
+    if: needs.check-branch.outputs.is-main == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,6 +74,8 @@ jobs:
           sbom: false
 
   publish-npm:
+    needs: check-branch
+    if: needs.check-branch.outputs.is-main == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
