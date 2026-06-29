@@ -1,3 +1,21 @@
+# v0.7.0 (2026-06-29)
+
+First independent VansRouter release. Fork branding is now applied throughout the UI, CLI, documentation, and published artifacts while preserving the `~/.9router` data directory for backward compatibility.
+
+## Infrastructure
+- Unified release workflow (`.github/workflows/release.yml`) publishes both Docker images (GHCR + Docker Hub) and the `vansrouter` npm package on every `v*` tag push.
+- Docker image: `ghcr.io/Vanszs/VansRouter:latest` and `vanszs/vansrouter:latest`.
+- npm package: `vansrouter`.
+
+## Branding
+- Rename CLI npm package and UI labels from `9Router` to `VansRouter`.
+- Update landing page, login page, CLI tray, terminal UI, and docs links to point to `github.com/Vanszs/VansRouter`.
+- Update Docker / Compose docs to use VansRouter image while keeping host data path at `$HOME/.9router`.
+
+## Notes
+- Data directory remains `~/.9router` so existing users do not need to migrate.
+- Internal provider/model IDs and autostart system identifiers are unchanged to avoid breaking existing configs.
+
 # v0.5.12 (2026-06-26)
 
 ## Features
