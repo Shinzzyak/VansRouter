@@ -290,8 +290,9 @@ pm2 save
 
 ```bash
 docker run -d \
-  -p 3003:3003 \
-  -v vansrouter-data:/home/node/.vansrouter \
+  -p 20128:20128 \
+  -v "$HOME/.9router:/app/data" \
+  -e DATA_DIR=/app/data \
   --name vansrouter \
   ghcr.io/vanszs/vansrouter:latest
 ```
