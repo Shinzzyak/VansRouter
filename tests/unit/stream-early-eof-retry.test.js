@@ -1,7 +1,9 @@
 // Tests for STREAM_EARLY_EOF detection + bounded single retry.
 // When upstream returns HTTP 200 then closes SSE with zero useful frames,
 // VansRoute retries once on the SAME connection before returning 502.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import { handleStreamingResponse } from "../../open-sse/handlers/chatCore/streamingHandler.js";
+import { createStreamController } from "../../open-sse/utils/streamHandler.js";
 
 // Test the retry decision logic: shouldRetryStreamEarlyEof
 describe("STREAM_EARLY_EOF retry logic", () => {
@@ -76,5 +78,91 @@ describe("STREAM_EARLY_EOF result shape", () => {
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe("STREAM_EARLY_EOF");
     expect(result.status).toBe(502);
+  });
+});
+
+// Integration: handleStreamingResponse must actually detect and report early EOF.
+describe("handleStreamingResponse STREAM_EARLY_EOF integration", () => {
+  function makeStream(chunks) {
+    const queue = [...chunks];
+    return new ReadableStream({
+      pull(controller) {
+        if (queue.length === 0) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(queue.shift());
+      }
+    });
+  }
+
+  function makeResponse(chunks) {
+    return new Response(makeStream(chunks), {
+      status: 200,
+      headers: { "content-type": "text/event-stream" }
+    });
+  }
+
+  function makeController() {
+    return createStreamController({
+      onDisconnect: () => {},
+      onError: () => {},
+      provider: "agentrouter",
+      model: "glm-5.2"
+    });
+  }
+
+  const baseCtx = {
+    provider: "agentrouter",
+    model: "glm-5.2",
+    sourceFormat: "claude",
+    targetFormat: "openai",
+    userAgent: "test",
+    body: { messages: [{ role: "user", content: "hi" }] },
+    stream: true,
+    translatedBody: null,
+    finalBody: null,
+    requestStartTime: Date.now(),
+    connectionId: "conn-1",
+    apiKey: "sk-test",
+    apiKeyName: "test-key",
+    clientRawRequest: null,
+    onRequestSuccess: null,
+    reqLogger: null,
+    toolNameMap: new Map(),
+    onStreamComplete: () => {}
+  };
+
+  it("returns STREAM_EARLY_EOF when upstream body is empty", async () => {
+    const result = await handleStreamingResponse({
+      ...baseCtx,
+      providerResponse: makeResponse([]),
+      streamController: makeController()
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("STREAM_EARLY_EOF");
+    expect(result.status).toBe(502);
+  });
+
+  it("returns success=true when upstream body has at least one chunk", async () => {
+    const encoder = new TextEncoder();
+    const result = await handleStreamingResponse({
+      ...baseCtx,
+      providerResponse: makeResponse([encoder.encode("data: {\"ok\":true}\n\n")]),
+      streamController: makeController()
+    });
+    expect(result.success).toBe(true);
+    expect(result.response).toBeInstanceOf(Response);
+    expect(result.response.body).toBeInstanceOf(ReadableStream);
+  });
+
+  it("returns STREAM_EARLY_EOF when upstream body is null", async () => {
+    const result = await handleStreamingResponse({
+      ...baseCtx,
+      providerResponse: new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      streamController: makeController()
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("STREAM_EARLY_EOF");
   });
 });
