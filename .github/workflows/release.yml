@@ -32,6 +32,8 @@ jobs:
           fi
 
   build-and-push-ghcr:
+    needs: check-branch
+    if: needs.check-branch.outputs.is-main == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,6 +74,8 @@ jobs:
           sbom: false
 
   publish-npm:
+    needs: check-branch
+    if: needs.check-branch.outputs.is-main == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
