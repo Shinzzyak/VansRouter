@@ -1,3 +1,25 @@
+# v0.8.1 (2026-07-01)
+
+Hotfix release to fix the failed v0.8.0 npm publish and include the WebP icon optimization.
+
+## Fixed
+- **CLI package version mismatch** (`cli/package.json`): the npm publish step for v0.8.0 failed because the CLI package was still at `0.7.8` while the repository was tagged `v0.8.0`. npm rejected the publish because version `0.7.8` already exists. Bumped `cli/package.json` to `0.8.1` so the package version matches the release tag.
+
+## Changed
+- **Provider icons** (`public/providers/`): converted all 106 provider icons from PNG to WebP (~56% size reduction) and updated all references in source code and README/i18n files to use `.webp`.
+
+## Verified
+- `pnpm lint` → 0 errors.
+- `pnpm test` → 1963 pass / 18 expected fail / 75 skip.
+- `pnpm run build` → build complete.
+
+## Install
+```bash
+npm install -g vansrouter
+# or pull the image
+docker pull ghcr.io/vanszs/vansrouter:0.8.1
+```
+
 # v0.7.8 (2026-06-30)
 
 Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/vansrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
