@@ -50,12 +50,11 @@ export default {
       503: { attempts: 3, delayMs: 1000 },
     },
   },
-  // Exactly the 5 models advertised by the Kimchi CLI (kimchi-dev provider).
+  // Exactly the 4 models advertised by the Kimchi CLI (kimchi-dev provider).
   models: [
     { id: "kimi-k2.7", name: "Kimi K2.7" },
     { id: "minimax-m3", name: "MiniMax M3" },
-    { id: "kimi-k2.6", name: "Kimi K2.6" },
     { id: "nemotron-3-ultra-fp4", name: "Nemotron 3 Ultra FP4" },
-    { id: "glm-5.2-fp8", name: "GLM 5.2 FP8" },
+    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
   ],
 };

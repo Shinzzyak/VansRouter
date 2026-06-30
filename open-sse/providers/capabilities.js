@@ -98,15 +98,14 @@ export const MODEL_CAPABILITIES = {
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
-  // Kimchi provider — exactly the 5 models advertised by the Kimchi CLI.
+  // Kimchi provider — exactly the 4 models advertised by the Kimchi CLI.
   // Kimi entries copied from the official Kimchi CLI catalog
   // (https://models.dev/api.json, provider "moonshotai").
   kimchi: {
     "kimi-k2.7":              { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 262144, structuredOutput: true, supportsTemperature: false },
-    "kimi-k2.6":              { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: true, contextWindow: 262144, maxOutput: 262144, structuredOutput: true, supportsTemperature: true },
     "minimax-m3":             { vision: true, reasoning: true, thinkingFormat: "minimax", contextWindow: 1048576, maxOutput: 512000 },
     "nemotron-3-ultra-fp4":   { reasoning: false, contextWindow: 128000, maxOutput: 8192 },
-    "glm-5.2-fp8":            { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 128000, maxOutput: 128000 },
+    "deepseek-v4-flash":      { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 50000 },
   },
   // AgentRouter — multi-model gateway (Claude format).
   agentrouter: {

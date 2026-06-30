@@ -39,7 +39,7 @@ describe("agentrouter registry entry", () => {
   it("sends full Claude CLI spoofing headers for client validation", () => {
     const headers = agentrouter.transport.headers || {};
     // AgentRouter validates these to ensure the request comes from a Claude CLI client.
-    expect(headers["User-Agent"]).toBe("claude-cli/2.1.187 (external, cli)");
+    expect(headers["User-Agent"]).toBe("claude-cli/2.1.195 (external, cli)");
     expect(headers["X-App"]).toBe("cli");
     expect(headers["Anthropic-Dangerous-Direct-Browser-Access"]).toBe("true");
     expect(headers["Anthropic-Beta"]).toContain("claude-code-20250219");
