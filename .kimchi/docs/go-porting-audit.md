@@ -108,6 +108,13 @@ VansRoute is a Next.js 16 + Node 20 universal AI gateway built around a single O
 
 **Status (Phase 1, Step 2):** The provider registry is now JSON-backed. Run `node scripts/export-registry.js` to regenerate `backend/data/providers.json` from the Node.js registry. The Go backend should load this file at runtime rather than importing JavaScript modules.
 
+**Status (Phase 1, Step 3):** Go module initialized at `backend/go.mod` (`github.com/9router/9router/backend`, Go 1.22) and the agreed dependency stack is locked. A minimal registry loader lives in `backend/internal/providers/registry.go`:
+
+- `LoadRegistry(path)` reads `backend/data/providers.json`, unmarshals it into a `Registry` struct, and validates that `generatedAt`, `nodeVersion`, `providers`, `PROVIDERS`, `PROVIDER_MODELS`, `PROVIDER_OAUTH`, and `PROVIDER_MEDIA` are present and non-empty.
+- Provider structs are intentionally small: scalar fields that are immediately useful (`id`, `alias`, `category`, `authType`, `hasOAuth`, `priority`, etc.) are typed, while nested blobs (`display`, `transport`, `models`, `oauth`, configs) are `json.RawMessage` so future code can decode them on demand without updating the loader.
+- Tests in `backend/internal/providers/registry_test.go` load the real exported registry and assert success, a provider count >= 100, populated top-level maps, and error behavior for missing/empty paths.
+- Locked module stack: `github.com/go-chi/chi/v5`, `modernc.org/sqlite`, `github.com/golang-jwt/jwt/v5`, `github.com/coreos/go-oidc/v3/oidc`, `golang.org/x/crypto/bcrypt`, `github.com/google/uuid`, `golang.org/x/sync/singleflight`, `github.com/caarlos0/env/v11`, `github.com/stretchr/testify`. Optional CLI deps `github.com/pterm/pterm` and `github.com/pkg/browser` are omitted for now to keep the module graph lean.
+
 | File | Role | Complexity |
 |------|------|------------|
 | `open-sse/providers/registry/*.js` (~115 files) | Per-provider transport + models + OAuth/media configs. | Medium (data-heavy; code-generate or load as config). |
