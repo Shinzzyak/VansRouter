@@ -54,8 +54,15 @@ export function filterToOpenAIFormat(body, opts = {}) {
       if (filteredContent.length === 0) {
         filteredContent.push({ type: OPENAI_BLOCK.TEXT, text: "" });
       }
-      
-      return { ...msg, content: collapseTextParts(filteredContent) };
+
+      // When preserving cache_control, do not collapse text parts into a plain
+      // string — strings cannot carry cache_control metadata (DashScope/alicode).
+      const hasCacheControl = filteredContent.some(b => b.cache_control);
+      const content = keepCache && hasCacheControl
+        ? filteredContent
+        : collapseTextParts(filteredContent);
+
+      return { ...msg, content };
     }
     
     return msg;
