@@ -139,20 +139,27 @@ export default function Sidebar({ onClose }) {
                   {updateInfo.githubStatus === "github_behind_npm" && "vansrouter repo hasn't been updated to this version yet"}
                 </span>
               )}
+              {updateInfo.runtime && (
+                <span className="text-[10px] text-text-muted">
+                  Runtime: <span className="font-mono">{updateInfo.runtime}</span>
+                  {updateInfo.canAutoRestart && " — auto-restart supported ✓"}
+                  {!updateInfo.canAutoRestart && " — manual restart required"}
+                </span>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowUpdateModal(true)}
                   className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
-                  Update now
+                  {updateInfo.canAutoRestart ? "Update & Restart" : "Update now"}
                 </button>
                 <button
-                  onClick={() => copy(INSTALL_CMD)}
+                  onClick={() => copy(updateInfo.installCommand || INSTALL_CMD)}
                   title="Copy install command"
                   className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
                 >
                   <code className="block text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono truncate">
-                    {copied ? "✓ copied!" : INSTALL_CMD}
+                    {copied ? "✓ copied!" : (updateInfo.installCommand || INSTALL_CMD)}
                   </code>
                 </button>
               </div>
