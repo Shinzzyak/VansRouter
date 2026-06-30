@@ -1,3 +1,46 @@
+# v0.8.0 (2026-07-01)
+
+Major provider expansion + resilience improvements. This release syncs AgentRouter and Kimchi catalogs with OmniRoute, ports 22 additional OpenAI-compatible API-key providers, hardens combo/account-fallback abort handling, and adds per-provider resilience profiles.
+
+## Added
+- **22 new providers** ported from OmniRoute (`open-sse/providers/registry/`):
+  `ai21`, `alibaba`, `baseten`, `bytez`, `codestral`, `databricks`, `deepinfra`, `friendliai`, `galadriel`, `gigachat`, `heroku`, `llamagate`, `nanogpt`, `nscale`, `ovhcloud`, `predibase`, `publicai`, `sambanova`, `snowflake`, `upstage`, `volcengine`, `wandb`.
+  All are simple OpenAI-compatible, API-key (`bearer`) providers using the default executor.
+- **Provider validation test** (`tests/unit/omniroute-ported-providers.test.js`): asserts every ported provider is registered exactly once, has the required registry shape, builds into `PROVIDERS`/`PROVIDER_MODELS`, and has unique model ids.
+- **Provider resilience profiles** (`open-sse/config/providerProfiles.js`): per-auth-category thresholds/windows/cooldowns (`oauth`/`apikey`/`local`) with environment overrides for large pools.
+- **Combo per-target timeout + client-signal propagation** (`open-sse/services/combo.js`, `src/sse/handlers/chat.js`, `open-sse/config/runtimeConfig.js`): each combo target is now raced against `COMBO_TARGET_TIMEOUT_MS` (default 30 s) and aborted on timeout or client disconnect.
+- **Account semaphore immediate cleanup** (`open-sse/services/accountSemaphore.js`): switches from 5-minute idle cleanup to immediate cleanup.
+- **Circuit-breaker window-aware failure counting** (`open-sse/utils/circuitBreaker.js`): opt-in `failureWindowMs` for sliding-window counting.
+- **Quota Tracker per-model filter** (`src/app/(dashboard)/dashboard/usage/components/ProviderLimits/`): compact provider dropdown + model filter for multi-model providers (`antigravity`, `gemini-cli`).
+
+## Changed
+- **AgentRouter/Kimchi catalog sync** (`open-sse/providers/registry/agentrouter.js`, `open-sse/providers/registry/kimchi.js`, `open-sse/providers/shared.js`):
+  - AgentRouter models: `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `glm-5.2`, `gpt-5.5`.
+  - Kimchi models: `kimi-k2.7`, `minimax-m3`, `nemotron-3-ultra-fp4`, `deepseek-v4-flash`.
+  - AgentRouter Claude CLI spoof headers synced with OmniRoute (`claude-cli/2.1.195`, `X-Stainless-Runtime-Version: v24.3.0`, full `anthropic-beta` list).
+- **Account fallback** (`open-sse/services/accountFallback.js`): now reads profile-specific `providerFailureThreshold`, `providerFailureWindowMs`, and `providerCooldownMs`.
+- **Handlers** (`src/sse/handlers/chat.js`, `tts.js`, `search.js`, `imageGeneration.js`, `fetch.js`): pass per-combo `targetTimeoutMs` and `queueDepth` into `handleComboChat`.
+
+## Fixed
+- **Client-abort fallback loop** (`src/sse/handlers/chat.js`, `open-sse/handlers/chatCore.js`): client disconnect now short-circuits the account fallback loop and propagates to upstream fetches via `streamController.abort()`.
+
+## Tests
+- Full suite: **1963 passed, 18 expected fail, 75 skipped**.
+- New tests: `tests/unit/combo-error-paths.test.js`, `tests/unit/provider-resilience-profiles.test.js`, `tests/unit/account-semaphore.test.js`, `tests/unit/omniroute-ported-providers.test.js`.
+- Snapshot churn: `tests/translator/__snapshots__/golden-url-header.test.js.snap` regenerated for all providers.
+
+## Verified
+- `pnpm lint` → 0 errors.
+- `pnpm test` → 1963 pass / 18 expected fail / 75 skip.
+- `pnpm run build` → build complete.
+
+## Install
+```bash
+npm install -g vansrouter
+# or pull the image
+docker pull ghcr.io/vanszs/vansrouter:0.8.0
+```
+
 # v0.7.8 (2026-06-30)
 
 Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/vansrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
