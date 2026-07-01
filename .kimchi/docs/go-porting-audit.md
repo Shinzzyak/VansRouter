@@ -320,6 +320,14 @@ Net: packages are lean for a first port; deferrals are tracked via `ponytail:` c
 - Updated `backend/cmd/server/main.go` to create repos, load registry, and set `auth.DataDirSource`.
 - Verification: `cd backend && go test ./internal/auth/...` passes (48 tests); `go test ./...` passes (87 tests in 9 packages).
 
+### 3.20 Phase 2 — Step 2: Dashboard session, login limiter, OIDC stub
+
+- Added `backend/internal/auth/session.go` — JWT HS256 issue/verify via `golang-jwt/jwt/v5`, bcrypt hash/compare via `x/crypto/bcrypt`, cookie helpers (`session` cookie, httpOnly, sameSite=lax, path=/), `JWT_SECRET` env with stable dev fallback. Mirrors `src/lib/auth/dashboardSession.js`.
+- Added `backend/internal/auth/login_limiter.go` — in-memory progressive lockout keyed by `ip|username`, 1-hour sliding window, escalating lock steps (30s → 2m → 10m → 30m), package-level `now` var for test injection. Mirrors `src/lib/auth/loginLimiter.js`. `ponytail:` note records that the func-var clock hook is cheaper than a clock interface and matches the JS module-level `now()`.
+- Added `backend/internal/auth/oidc.go` — thin OIDC config loader (deferred verification; real provider wiring lands in Phase 3).
+- Tests: `session_test.go` (13 `TestSession*` cases), `login_limiter_test.go` (10 cases including isolation and retry-after). Fixed one test assertion (`TestLoginLimiterAutoResetAfterWindow` originally expected `remaining=4` after 2 failures; corrected to `3`).
+- Verification: `cd backend && go test ./internal/auth/... -run TestSession -v` → 21 passed; `go test ./...` → 118 passed in 9 packages.
+
 ## 4. API Contracts to Preserve
 
 The Go backend must expose at least these surfaces to remain a drop-in replacement for CLI tools:
