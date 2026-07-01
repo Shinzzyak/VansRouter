@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/9router/9router/backend/internal/api"
+	"github.com/9router/9router/backend/internal/auth"
 	"github.com/9router/9router/backend/internal/config"
 	"github.com/9router/9router/backend/internal/db"
+	"github.com/9router/9router/backend/internal/db/repos"
 	"github.com/9router/9router/backend/internal/log"
 	"github.com/9router/9router/backend/internal/providers"
 )
@@ -92,7 +94,10 @@ func newServer(cfg *config.Config, logger *slog.Logger) (*http.Server, func(), e
 	}
 	logger.Info("loaded provider registry", slog.Int("count", len(registry.Providers)))
 
-	router := api.Routes(logger)
+	auth.DataDirSource = func() string { return cfg.DataDir }
+
+	repoSet := repos.New(database)
+	router := api.Routes(logger, repoSet, registry)
 	return &http.Server{Handler: router}, func() { database.Close() }, nil
 }
 

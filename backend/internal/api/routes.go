@@ -5,30 +5,38 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/9router/9router/backend/internal/auth"
+	"github.com/9router/9router/backend/internal/db/repos"
 	"github.com/9router/9router/backend/internal/log"
+	"github.com/9router/9router/backend/internal/providers"
 	"github.com/go-chi/chi/v5"
 )
 
-// Routes builds the chi router with logging, recovery, and placeholder handlers.
-func Routes(logger *slog.Logger) http.Handler {
-	r := chi.NewRouter()
+// Routes builds the chi router with logging, recovery, auth, and v1 handlers.
+func Routes(logger *slog.Logger, r *repos.Repos, registry *providers.Registry) http.Handler {
+	router := chi.NewRouter()
 
-	r.Use(log.Recovery(logger))
-	r.Use(log.RequestLogger(logger))
+	router.Use(log.Recovery(logger))
+	router.Use(log.RequestLogger(logger))
 
-	r.Get("/health", healthHandler)
-	r.Get("/shutdown", shutdownHandler)
-	r.Get("/version", versionHandler)
-	r.Get("/api/v1/models", modelsHandler)
+	router.Get("/health", healthHandler)
+	router.Get("/shutdown", shutdownHandler)
+	router.Get("/version", versionHandler)
 
-	r.Mount("/v1", v1Router())
+	// Public OpenAI-compatible surface.
+	router.Mount("/v1", v1Router(r, registry))
 
-	return r
+	// Legacy dashboard path kept for compatibility during the port.
+	router.With(auth.APIKeyMiddleware(r.Keys)).Get("/api/v1/models", modelsHandler(registry))
+
+	return router
 }
 
-func v1Router() http.Handler {
-	r := chi.NewRouter()
-	return r
+func v1Router(r *repos.Repos, registry *providers.Registry) http.Handler {
+	router := chi.NewRouter()
+	router.Use(auth.APIKeyMiddleware(r.Keys))
+	router.Get("/models", modelsHandler(registry))
+	return router
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,11 +63,14 @@ func versionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func modelsHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"object": "list",
-		"data":   []any{},
-	})
+func modelsHandler(registry *providers.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_ = registry
+		writeJSON(w, http.StatusOK, map[string]any{
+			"object": "list",
+			"data":   []any{},
+		})
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

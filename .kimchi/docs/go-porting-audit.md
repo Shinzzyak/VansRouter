@@ -308,6 +308,18 @@ Notable flags:
 
 Net: packages are lean for a first port; deferrals are tracked via `ponytail:` comments rather than speculative abstractions.
 
+### 3.19 Phase 2 — Step 1: Auth, ACL, internal trust
+
+- Created `backend/internal/auth` package with:
+  - `apikey.go` — `ExtractAPIKey`, API-key middleware, context attachment
+  - `acl.go` — `IsProviderAllowed`, `IsComboAllowed`, `IsKindAllowed` with alias resolution and custom-compatible-provider prefix fix
+  - `internal.go` — `IsTrustedInternalRequest` (fail-closed, constant-time)
+  - `machine.go` — `GetConsistentMachineId` with on-disk raw machine ID + CLI secret persistence
+  - Full unit-test coverage for extraction, ACL, custom prefix, internal-trust exploit resistance, and machine-id stability
+- Wired `auth.APIKeyMiddleware` into `/v1/*` and `/api/v1/models` routes in `backend/internal/api/routes.go`.
+- Updated `backend/cmd/server/main.go` to create repos, load registry, and set `auth.DataDirSource`.
+- Verification: `cd backend && go test ./internal/auth/...` passes (48 tests); `go test ./...` passes (87 tests in 9 packages).
+
 ## 4. API Contracts to Preserve
 
 The Go backend must expose at least these surfaces to remain a drop-in replacement for CLI tools:

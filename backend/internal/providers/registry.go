@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 )
 
 // Registry is the top-level structure exported by scripts/export-registry.js.
@@ -82,6 +83,77 @@ func LoadRegistry(path string) (*Registry, error) {
 	}
 
 	return &r, nil
+}
+
+// ResolveProviderId returns the canonical provider id for an id or alias.
+// If the input is already a known provider id, it is returned unchanged.
+// Otherwise it searches provider aliases (Alias field and the Aliases list).
+// If nothing matches, the original input is returned so callers can fall back
+// to exact string comparison.
+func ResolveProviderId(r *Registry, idOrAlias string) string {
+	if r == nil || idOrAlias == "" {
+		return idOrAlias
+	}
+	if _, ok := r.Providers[idOrAlias]; ok {
+		return idOrAlias
+	}
+	for id, p := range r.Providers {
+		if p.ID == idOrAlias || p.Alias == idOrAlias {
+			return id
+		}
+		for _, a := range resolveAliases(p.Aliases) {
+			if a == idOrAlias {
+				return id
+			}
+		}
+	}
+	return idOrAlias
+}
+
+// ResolveAlias returns the provider alias (UIAlias when present, otherwise Alias)
+// for an id or alias. If the input cannot be resolved, it is returned unchanged.
+func ResolveAlias(r *Registry, idOrAlias string) string {
+	if r == nil || idOrAlias == "" {
+		return idOrAlias
+	}
+	if p, ok := r.Providers[idOrAlias]; ok {
+		if p.UIAlias != "" {
+			return p.UIAlias
+		}
+		return p.Alias
+	}
+	for _, p := range r.Providers {
+		if p.ID == idOrAlias || p.Alias == idOrAlias {
+			if p.UIAlias != "" {
+				return p.UIAlias
+			}
+			return p.Alias
+		}
+		for _, a := range resolveAliases(p.Aliases) {
+			if a == idOrAlias {
+				if p.UIAlias != "" {
+					return p.UIAlias
+				}
+				return p.Alias
+			}
+		}
+	}
+	return idOrAlias
+}
+
+func resolveAliases(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return nil
+	}
+	return list
+}
+
+func containsAlias(raw json.RawMessage, target string) bool {
+	return slices.Contains(resolveAliases(raw), target)
 }
 
 func validateRegistry(r *Registry) error {
