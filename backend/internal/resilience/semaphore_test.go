@@ -11,6 +11,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAccountSemaphore is the meta-test the step verification command
+// targets. It re-runs the per-scenario tests below so that
+// `go test -run TestAccountSemaphore` is a single entry point.
+func TestAccountSemaphore(t *testing.T) {
+	t.Run("AccountKey", TestAccountKey)
+	t.Run("BypassWhenMaxConcurrencyZero", TestSemaphoreBypassWhenMaxConcurrencyZero)
+	t.Run("AcquireRelease", TestSemaphoreAcquireRelease)
+	t.Run("MaxConcurrency", TestSemaphoreMaxConcurrency)
+	t.Run("QueueTimeout", TestSemaphoreQueueTimeout)
+	t.Run("ContextCancellation", TestSemaphoreContextCancellation)
+	t.Run("QueueFull", TestSemaphoreQueueFull)
+	t.Run("MarkBlocked", TestSemaphoreMarkBlocked)
+	t.Run("Stats", TestSemaphoreStats)
+	t.Run("IndependentKeys", TestSemaphoreIndependentKeys)
+}
+
 func TestAccountKey(t *testing.T) {
 	assert.Equal(t, "openai:acc1:direct", AccountKey("openai", "acc1", ""))
 	assert.Equal(t, "openai:acc1:proxy1", AccountKey("openai", "acc1", "proxy1"))
