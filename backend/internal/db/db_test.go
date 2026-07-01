@@ -13,7 +13,7 @@ import (
 func openTestDB(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 	dir := t.TempDir()
-	db, err := Open(dir)
+	db, err := Open(filepath.Join(dir, "test.db"))
 	require.NoError(t, err)
 	require.NoError(t, Migrate(db))
 	return db, func() {
@@ -40,7 +40,8 @@ func TestMigrate(t *testing.T) {
 
 func TestOpenCreatesDataDir(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nested", "data")
-	db, err := Open(dir)
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 

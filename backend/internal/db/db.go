@@ -9,15 +9,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Open opens a SQLite database at the given data directory.
-// The database file is named "vansroute.db" inside dataDir.
+// Open opens a SQLite database at the given file path.
+// The containing directory is created if it does not exist.
 // It enables WAL mode, foreign keys, and a busy timeout via connection pragmas.
-func Open(dataDir string) (*sql.DB, error) {
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+func Open(dbPath string) (*sql.DB, error) {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	dsn := filepath.Join(dataDir, "vansroute.db") +
+	dsn := dbPath +
 		"?_pragma=foreign_keys(1)" +
 		"&_pragma=journal_mode(WAL)" +
 		"&_pragma=synchronous(NORMAL)" +

@@ -199,6 +199,15 @@ VansRoute is a Next.js 16 + Node 20 universal AI gateway built around a single O
 | `src/lib/localDb.js` | Barrel export of DB functions (used widely). | Low |
 | `src/lib/db/paths.js`, `src/lib/dataDir.js` | Data directory resolution. | Low |
 
+**Status (Phase 1, Step 6):** Chi router skeleton, slog middleware, and graceful shutdown wired up under `backend/cmd/server/main.go` and supporting packages:
+
+- `backend/internal/log/log.go` provides `New(level string) (*slog.Logger, error)`, returning a JSON `slog.Logger` with levels mapped from "debug", "info", "warn", and "error".
+- `backend/internal/log/middleware.go` adds request-logging middleware (method, path, status, duration) and panic-recovery middleware that logs panics and returns HTTP 500.
+- `backend/internal/api/routes.go` builds a `chi.Mux`, wires middleware, and registers placeholder handlers for `GET /health`, `GET /shutdown`, `GET /version`, `GET /api/v1/models`, plus an empty `/v1` sub-router.
+- `backend/cmd/server/main.go` loads config, initializes the logger, opens/migrates SQLite via `db.Open(cfg.DBPath())`, loads `backend/data/providers.json`, builds the chi router, and starts an `http.Server` with graceful shutdown on `SIGINT`/`SIGTERM` using a 10-second bounded `Shutdown` context.
+- `backend/cmd/server/main_test.go` starts the server on an ephemeral port, asserts `GET /health` returns 200 and `{"status":"ok"}`, and verifies the configured SQLite file is created.
+- Verification: `cd backend && go build ./cmd/server` compiles and `cd backend && go test ./cmd/server/... -run TestServerStart` passes.
+
 **Status (Phase 1, Step 5):** Runtime environment config and resilience primitives ported to Go:
 
 - `backend/internal/config/config.go` defines a `Config` struct parsed with `github.com/caarlos0/env/v11` tags and fills defaults matching the JS backend (`PORT`, `DATA_DIR`, `DATABASE_FILE`, `JWT_SECRET`, `LOG_LEVEL`, etc.).
