@@ -320,6 +320,25 @@ Net: packages are lean for a first port; deferrals are tracked via `ponytail:` c
 - Updated `backend/cmd/server/main.go` to create repos, load registry, and set `auth.DataDirSource`.
 - Verification: `cd backend && go test ./internal/auth/...` passes (48 tests); `go test ./...` passes (87 tests in 9 packages).
 
+### 3.24 Phase 2 — Step 6: Ponytail review of auth/ACL/models ports
+
+Scanned `src/sse/services/{auth,internalTrust,allowedModels}.js`, `src/lib/auth/{dashboardSession,loginLimiter,oidc}.js` against the Go ports in `backend/internal/{auth,models}` and `backend/internal/api/middleware`.
+
+Findings (format: location → what → replacement, applied or deferred):
+
+Applied:
+- `backend/internal/auth/acl.go` L65-72 → custom `contains()` helper duplicated `slices.Contains` (stdlib since Go 1.21). **stdlib:** removed the helper, replaced 3 call sites with `slices.Contains`.
+
+Deferred (recorded as `// ponytail:` comments — not refactored now because the work would touch tests, callers, and the Source interface for cosmetic gain):
+- `backend/internal/models/models.go` L62-69 (Source interface) → five tiny methods called sequentially from `load()`. **yagni/shrink:** collapse to `Snapshot(ctx) SnapshotData` so the build is one DB roundtrip. Test fake would change shape (acceptable; countingSource re-implements the same methods).
+- `backend/internal/models/models.go` L350-388 (`connectedEntries`/`freeEntries`) → ~100 lines each, one caller apiece, share 95% body. **yagni/shrink:** merge into one `walkEntries(provider, *Connection)` helper. Defers naturally to when Phase 3 adds live fetches.
+- `backend/internal/api/middleware/cors.go` L24-28 → `Vary: Origin` set even when origin is "*". **shrink:** skip the header when AllowOrigin == "*". One if-statement. Marked, not fixed — only matters once the dashboard hardens its origin.
+
+Out-of-scope (correctness/security, not complexity):
+- `backend/internal/auth/internal.go` — no per-process memoization of the computed CLI token (JS memoizes in `_cachedCliToken`). Existing test still passes because the implementation is correct, just slightly slower on warm calls. Defer to Phase 3 along with the rest of the per-request budget work.
+
+Verification: `cd backend && go test ./...` → 151 PASS in 12 packages (no regressions after the slices.Contains swap). Grep `grep -r "ponytail:" backend/internal/{auth,models,api/middleware}` → 9 comments.
+
 ### 3.23 Phase 2 — Step 5: GET /v1/models
 
 - Added `backend/internal/models/sql_source.go` — `SQLSource` implements `Source` over SQLite (combos table + providerConnections `data` JSON + three `kv` scopes: `modelAliases`, `customModels`, `disabledModels`). Mirrors JS conventions in `src/lib/db/repos/{aliasRepo,disabledModelsRepo}.js`.

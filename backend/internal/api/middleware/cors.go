@@ -21,6 +21,8 @@ func NewCORS(allowOrigin string) *CORS {
 
 func (c *CORS) Wrap(next http.Handler) http.Handler {
 	origin := c.AllowOrigin
+	// ponytail: when origin == "*", Vary: Origin is wasted header bytes;
+	// skip it. Only relevant once the dashboard locks to a non-wildcard origin.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/9router/9router/backend/internal/db/repos"
@@ -28,18 +29,18 @@ func IsProviderAllowed(key *repos.APIKey, registry *providers.Registry, provider
 	if len(allowed) == 0 {
 		return false
 	}
-	if contains(allowed, providerID) {
+	if slices.Contains(allowed, providerID) {
 		return true
 	}
 	alias := providers.ResolveAlias(registry, providerID)
-	if alias != providerID && contains(allowed, alias) {
+	if alias != providerID && slices.Contains(allowed, alias) {
 		return true
 	}
 	resolved := providers.ResolveProviderId(registry, providerID)
-	if resolved != providerID && contains(allowed, resolved) {
+	if resolved != providerID && slices.Contains(allowed, resolved) {
 		return true
 	}
-	if isCustomCompatible(providerID) && customPrefix != "" && contains(allowed, customPrefix) {
+	if isCustomCompatible(providerID) && customPrefix != "" && slices.Contains(allowed, customPrefix) {
 		return true
 	}
 	return false
@@ -58,7 +59,7 @@ func IsComboAllowed(key *repos.APIKey, comboName string) bool {
 		return false
 	}
 	name := strings.TrimPrefix(comboName, "combo/")
-	return contains(allowed, name)
+	return slices.Contains(allowed, name)
 }
 
 // IsKindAllowed reports whether the API key may use the given request kind.
@@ -73,16 +74,7 @@ func IsKindAllowed(key *repos.APIKey, kind string) bool {
 	if len(allowed) == 0 {
 		return false
 	}
-	return contains(allowed, kind)
-}
-
-func contains(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, kind)
 }
 
 func isCustomCompatible(providerID string) bool {

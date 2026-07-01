@@ -65,6 +65,11 @@ type CustomModel struct {
 
 // Source supplies DB-backed model data to the builder. It is an interface
 // so tests can inject in-memory fakes without touching SQLite.
+//
+// ponytail: collapse the five-method Source into a single Snapshot(ctx) that
+// returns one struct holding combos/connections/customs/aliases/disabled.
+// The five-call load() then becomes one DB roundtrip. Deferred — current
+// shape keeps the test fake (countingSource) trivial.
 type Source interface {
 	Combos(ctx context.Context) ([]Combo, error)
 	Connections(ctx context.Context) ([]Connection, error)
@@ -342,6 +347,11 @@ func (b *Builder) buildEntries(
 	return entries
 }
 
+// ponytail: connectedEntries and freeEntries have a single caller each and
+// share 95% of their body — model-id extraction, kind filter, dedup,
+// disabled check, sub-kind pseudo-models. Collapse into one
+// walkEntries(provider, conn *Connection) helper when Phase 3 adds live
+// fetches and the duplication cost actually grows.
 func (b *Builder) connectedEntries(
 	provider providers.Provider,
 	conn Connection,
