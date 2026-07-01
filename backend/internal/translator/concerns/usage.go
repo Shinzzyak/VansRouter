@@ -1,5 +1,7 @@
 package concerns
 
+import "maps"
+
 // ToOpenAIUsage converts provider-native usage to OpenAI-style counters.
 func ToOpenAIUsage(usage map[string]any, format string) map[string]any {
 	if usage == nil {
@@ -32,9 +34,7 @@ func MergeUsage(dst, src map[string]any) map[string]any {
 	if dst == nil {
 		dst = map[string]any{}
 	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 

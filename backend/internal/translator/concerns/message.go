@@ -1,6 +1,10 @@
 package concerns
 
-import "github.com/9router/9router/backend/internal/translator/schema"
+import (
+	"strings"
+
+	"github.com/9router/9router/backend/internal/translator/schema"
+)
 
 // CollapseTextParts turns a slice of OpenAI text parts into a single content value.
 func CollapseTextParts(parts []map[string]any) any {
@@ -76,12 +80,5 @@ func DeepCloneMessage(msg map[string]any) map[string]any {
 }
 
 func joinStrings(parts []string, sep string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	out := parts[0]
-	for i := 1; i < len(parts); i++ {
-		out += sep + parts[i]
-	}
-	return out
+	return strings.Join(parts, sep)
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/9router/9router/backend/internal/translator/schema"
 )
 
+// ponytail: duplicated []any / []map[string]any branching and repeated type assertions should move to concerns/ helpers.
+
 func init() {
 	translator.Register(string(translator.FormatOpenAI), string(translator.FormatClaude), openaiToClaudeRequest, nil)
 }

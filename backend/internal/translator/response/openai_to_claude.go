@@ -327,6 +327,7 @@ func sanitizeReadArgs(args map[string]any) {
 	}
 }
 
+// ponytail: regexp.MustCompile inside a hot function compiles on every call; hoist to a package-level var.
 func isValidPdfPagesArg(filePath, pages string) bool {
 	return strings.HasSuffix(strings.ToLower(filePath), ".pdf") &&
 		regexp.MustCompile(`^\d+(?:-\d+)?$`).MatchString(pages)

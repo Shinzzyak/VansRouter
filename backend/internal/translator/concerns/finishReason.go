@@ -20,6 +20,7 @@ func ToOpenAIFinish(reason, format string) string {
 	return reason
 }
 
+// ponytail: reverse-map lookups are O(n); precompute reverse maps in schema/ to avoid scanning on every call.
 // FromOpenAIFinish maps an OpenAI finish reason to a provider-native stop reason.
 func FromOpenAIFinish(reason, format string) string {
 	switch format {

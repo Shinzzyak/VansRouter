@@ -923,4 +923,44 @@ Files created:
 
 ---
 
+## 16. Phase 4 Step 6 — Ponytail-review of executors/translators
+
+### Stdlib wins applied
+- `backend/internal/translator/concerns/message.go`: `joinStrings` had an empty-check + index loop (`out = parts[0]; for i := 1; i < len(parts); i++ { out += sep + parts[i] }`). Replaced with `strings.Join(parts, sep)`. Empty-check dropped: `strings.Join([], sep)` returns `""` and `strings.Join([x], sep)` returns `x` — both match the original behavior.
+- `backend/internal/translator/concerns/usage.go`: `MergeUsage` had a manual `for k, v := range src { dst[k] = v }` loop. Replaced with `maps.Copy(dst, src)`.
+
+### `// ponytail:` deferrals already recorded (from prior steps, unchanged)
+- `concerns/finishReason.go`: reverse-map lookups in `FromOpenAIFinish` are O(n); precompute reverse maps in `schema/` to avoid scanning on every call.
+- `request/claude_to_openai.go` and `request/openai_to_claude.go`: duplicated `[]any` / `[]map[string]any` branching and type-assertion patterns should move to `concerns/` helpers.
+- `response/openai_to_claude.go:330`: `regexp.MustCompile` inside a hot function compiles on every call; hoist to a package-level var.
+
+### Verification
+- `cd /media/DiskE/Code/9router-new/backend && go test ./... -count=1` → 469 PASS in 19 packages (unchanged).
+- `grep -r "ponytail:" internal/providers internal/translator | wc -l` → 19 deferral comments recorded.
+
+---
+
 *End of audit.*
+
+## 16. Phase 4 Step 6 — Ponytail-review
+
+Applied specific stdlib wins and recorded speculative refactors as `// ponytail:` deferral comments. No test files were modified.
+
+### Stdlib wins
+
+- `backend/internal/translator/concerns/message.go`: `joinStrings` hand-rolled loop → `strings.Join`.
+- `backend/internal/translator/concerns/usage.go`: `MergeUsage` `for k, v := range src { dst[k] = v }` loop → `maps.Copy(dst, src)`.
+
+### `// ponytail:` deferral comments added
+
+- `backend/internal/translator/concerns/finishReason.go`: reverse-map lookups in `FromOpenAIFinish` are `O(n)`; precompute reverse maps in `schema/`.
+- `backend/internal/translator/request/claude_to_openai.go`: duplicated `[]any` / `[]map[string]any` branching and type-assertion patterns should move to `concerns/` helpers.
+- `backend/internal/translator/request/openai_to_claude.go`: duplicated `[]any` / `[]map[string]any` branching and repeated type assertions should move to `concerns/` helpers.
+- `backend/internal/translator/response/openai_to_claude.go`: `regexp.MustCompile` inside `isValidPdfPagesArg` compiles on every call; hoist to a package-level var.
+
+### Verification
+
+- `cd /media/DiskE/Code/9router-new/backend && go test ./... -count=1` → TODO.
+- `cd /media/DiskE/Code/9router-new/backend && grep -r "ponytail:" internal/providers internal/translator | wc -l` → TODO.
+- `cd /media/DiskE/Code/9router-new && git diff --stat` → TODO.
+
