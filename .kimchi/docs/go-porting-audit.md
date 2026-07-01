@@ -320,6 +320,15 @@ Net: packages are lean for a first port; deferrals are tracked via `ponytail:` c
 - Updated `backend/cmd/server/main.go` to create repos, load registry, and set `auth.DataDirSource`.
 - Verification: `cd backend && go test ./internal/auth/...` passes (48 tests); `go test ./...` passes (87 tests in 9 packages).
 
+### 3.21 Phase 2 — Step 3: Allowed-models resolution
+
+- Added `backend/internal/models/models.go` — `Builder` with `BuildModelsList(ctx, kindFilter)` and `IsModelAllowed(ctx, modelStr, apiKeyPresent)`. Mirrors `src/sse/services/allowedModels.js` for combo entries, connected-provider entries (with `enabledModels` override + alias prefix stripping), free/noAuth providers, custom models, model aliases, disabled filter, and sub-kind (tts/embedding/webSearch/webFetch) pseudo-models.
+- Introduced `Source` interface so tests use a `fakeSource` and routes can plug in a SQLite-backed implementation later.
+- 30s TTL cache on the allow-list with `InvalidateCache()`. `ponytail:` comments defer the live `modelsFetcher` and compatible-provider HTTP fetches to Phase 3 (registry alone covers the static-models path needed for the first `/v1/models` live cut).
+- `inferKindFromUnknownModelId` ports the JS regex fallback (embed/tts/image).
+- Tests (`backend/internal/models/models_test.go`, 14 cases): combo emission, kind filtering, registry providers, dedup, disabled filter, allow-list cache + invalidation, strip-prefix helper, kind inference.
+- Verification: `cd backend && go test ./internal/models/...` → 14 passed; `go test ./...` → 132 passed in 10 packages.
+
 ### 3.20 Phase 2 — Step 2: Dashboard session, login limiter, OIDC stub
 
 - Added `backend/internal/auth/session.go` — JWT HS256 issue/verify via `golang-jwt/jwt/v5`, bcrypt hash/compare via `x/crypto/bcrypt`, cookie helpers (`session` cookie, httpOnly, sameSite=lax, path=/), `JWT_SECRET` env with stable dev fallback. Mirrors `src/lib/auth/dashboardSession.js`.
