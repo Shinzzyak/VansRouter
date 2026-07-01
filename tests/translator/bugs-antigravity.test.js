@@ -1,7 +1,7 @@
 // Real Antigravity-MITM requests (Gemini-internal: { request: { contents, ... } }) → OpenAI.
 import { describe, it, expect } from "vitest";
 import "./registerAll.js";
-import { translateRequest } from "../../open-sse/translator/index.js";
+import { translateRequest, translateResponse, initState } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { AntigravityExecutor } from "../../open-sse/executors/antigravity.js";
 
@@ -51,6 +51,32 @@ describe("Antigravity → OpenAI", () => {
       ? content.some((c) => c.type === "text" && c.text === "")
       : content === "";
     expect(hasEmpty, "empty text part emitted").toBe(false);
+  });
+});
+
+describe("Antigravity → Claude", () => {
+  it("tool call input_json_delta includes Anthropic index", () => {
+    const state = initState(FORMATS.CLAUDE);
+    const events = translateResponse(FORMATS.ANTIGRAVITY, FORMATS.CLAUDE, {
+      response: {
+        responseId: "resp-1",
+        modelVersion: "gemini-pro-agent",
+        candidates: [{
+          content: {
+            role: "model",
+            parts: [{ functionCall: { name: "bash", args: { command: "git status" } } }],
+          },
+          finishReason: "STOP",
+          index: 0,
+        }],
+      },
+    }, state);
+
+    const jsonDelta = events.find(
+      (event) => event.type === "content_block_delta" && event.delta?.type === "input_json_delta"
+    );
+    expect(jsonDelta).toMatchObject({ index: expect.any(Number) });
+    expect(JSON.parse(jsonDelta.delta.partial_json)).toEqual({ command: "git status" });
   });
 });
 
