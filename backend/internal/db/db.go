@@ -12,6 +12,7 @@ import (
 // Open opens a SQLite database at the given file path.
 // The containing directory is created if it does not exist.
 // It enables WAL mode, foreign keys, and a busy timeout via connection pragmas.
+// ponytail: pragma string concatenation is fine, but consider a single const DSN template to shrink boilerplate.
 func Open(dbPath string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)

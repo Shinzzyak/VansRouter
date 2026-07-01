@@ -12,6 +12,7 @@ const appName = "9router"
 // defaultDataDir returns the platform-specific default data directory.
 // On Windows it uses %APPDATA%/<appName> if APPDATA is set, otherwise
 // falls back to ~/AppData/Roaming/<appName>. On Unix it returns ~/.<appName>.
+// ponytail: APPDATA branch and Unix leading-dot convention are mirrored from JS; consider filepath.Join(os.UserConfigDir(), appName) on all platforms.
 func defaultDataDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

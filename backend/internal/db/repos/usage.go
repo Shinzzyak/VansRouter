@@ -27,6 +27,7 @@ type UsageEntry struct {
 }
 
 // UsageDay holds aggregated usage for one calendar day.
+// ponytail: UsageCounter fields repeat keys already stored in map keys; drop RawModel/Provider/APIKey/Endpoint from counter to save lines.
 type UsageDay struct {
 	Requests          int                       `json:"requests"`
 	PromptTokens      int                       `json:"promptTokens"`
@@ -81,6 +82,7 @@ func addToCounter(target map[string]*UsageCounter, key string, vals *UsageCounte
 	c.Cost += vals.Cost
 }
 
+// ponytail: composite keys for ByModel/ByAPIKey/ByEndpoint duplicate provider/model in key and counter; use single composite key or simpler grouping.
 func (r *UsageRepo) aggregateEntryToDay(day *UsageDay, e *UsageEntry) {
 	day.Requests++
 	day.PromptTokens += e.PromptTokens

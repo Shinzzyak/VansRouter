@@ -12,23 +12,24 @@ import (
 
 // Runtime defaults mirrored from the Node.js backend.
 const (
-	defaultPort            = 3003
-	defaultLogLevel        = "info"
-	defaultDashboardURL    = "http://localhost:3000"
-	defaultStreamStallMs   = 360 * 1000
-	defaultFirstChunkMs    = 200 * 1000
-	defaultFetchConnectMs  = 60 * 1000
-	defaultComboTargetMs   = 30 * 1000
-	defaultMaxTokens       = 64000
-	defaultMinTokens       = 32000
-	defaultMITMRouterBase  = "http://localhost:20128"
-	defaultHeadroomURL     = "http://localhost:8787"
-	defaultBackoffBaseMs   = 2000
-	defaultBackoffMaxMs    = 5 * 60 * 1000
+	defaultPort              = 3003
+	defaultLogLevel          = "info"
+	defaultDashboardURL      = "http://localhost:3000"
+	defaultStreamStallMs     = 360 * 1000
+	defaultFirstChunkMs      = 200 * 1000
+	defaultFetchConnectMs    = 60 * 1000
+	defaultComboTargetMs     = 30 * 1000
+	defaultMaxTokens         = 64000
+	defaultMinTokens         = 32000
+	defaultMITMRouterBase    = "http://localhost:20128"
+	defaultHeadroomURL       = "http://localhost:8787"
+	defaultBackoffBaseMs     = 2000
+	defaultBackoffMaxMs      = 5 * 60 * 1000
 	defaultTransientCooldown = 30 * 1000
 )
 
 // LogLevel is a validated log level string.
+// ponytail: named type LogLevel adds no behavior; use string with consts to avoid casts.
 type LogLevel string
 
 // Log level constants.
@@ -40,6 +41,7 @@ const (
 )
 
 // Config holds runtime configuration parsed from environment variables.
+// ponytail: many timeout helper methods below just cast int to Duration; inline at call sites unless used repeatedly.
 type Config struct {
 	Port            int      `env:"PORT" envDefault:"3003"`
 	DataDir         string   `env:"DATA_DIR" envDefault:""`
@@ -62,6 +64,7 @@ type Config struct {
 
 // Load parses environment variables into a Config with defaults matching the
 // Node.js backend. It also resolves and creates the data directory.
+// ponytail: env/v11 dependency is convenient but adds ~1 MB binary and a new failure surface; os.Getenv with defaults is ~30 lines and zero deps.
 func Load() (*Config, error) {
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {

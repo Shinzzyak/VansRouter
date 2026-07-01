@@ -6,6 +6,7 @@ import (
 )
 
 // CacheEntry stores a cached value plus its expiration time.
+// ponytail: wrapper struct duplicates map key/value; store expiration in a parallel map to avoid one allocation per entry.
 type CacheEntry[V any] struct {
 	Value      V
 	Expiration time.Time
@@ -13,6 +14,7 @@ type CacheEntry[V any] struct {
 
 // TTLCache is a simple in-memory cache with per-entry TTL and explicit invalidation.
 // It uses a sync.RWMutex for thread-safe access.
+// ponytail: generic TTL cache is reusable, but only 2 repos use it; a 10-line per-repo map would be less abstraction.
 type TTLCache[K comparable, V any] struct {
 	mu      sync.RWMutex
 	entries map[K]CacheEntry[V]

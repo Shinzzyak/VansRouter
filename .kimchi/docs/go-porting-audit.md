@@ -294,6 +294,20 @@ VansRoute is a Next.js 16 + Node 20 universal AI gateway built around a single O
 
 ---
 
+## 3.18 Phase 1 Ponytail Review
+
+Reviewed the Phase 1 Go packages (`internal/providers`, `internal/db`, `internal/config`, `internal/resilience/profiles.go`) against their JS counterparts. No behavior was changed; findings were recorded as `ponytail:` comments in the source for later simplification.
+
+Notable flags:
+
+- `internal/providers/registry.go`: provider overrides table and deep modeling of display/transport blobs are speculative; keep `json.RawMessage` passthrough until consumers exist.
+- `internal/db/repos/*.go`: account/key/usage structs over-model JSON data; consider `map[string]any` passthrough until the dashboard consumes concrete fields.
+- `internal/db/repos/cache.go`: generic TTL cache is reusable but only backs two repos; a per-repo map would be less abstraction.
+- `internal/config/config.go`: `env/v11` dependency adds binary size and a failure surface; manual `os.Getenv` with defaults is ~30 lines and zero deps.
+- `internal/resilience/profiles.go`: provider-specific tuning table is speculative; start with `DefaultProfile` everywhere and add overrides after real outage data.
+
+Net: packages are lean for a first port; deferrals are tracked via `ponytail:` comments rather than speculative abstractions.
+
 ## 4. API Contracts to Preserve
 
 The Go backend must expose at least these surfaces to remain a drop-in replacement for CLI tools:

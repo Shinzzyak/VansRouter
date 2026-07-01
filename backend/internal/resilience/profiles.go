@@ -10,10 +10,12 @@ type Profile struct {
 	// SuccessThreshold is the number of consecutive successes in HALF_OPEN
 	// required to close the circuit. The JS breaker uses a single probe by
 	// default, so this field is kept for future use.
+	// ponytail: SuccessThreshold is always 1; remove the field once breaker implementation hard-codes single-probe close.
 	SuccessThreshold int
 
 	// FailureWindowMs is the sliding window duration for failure counting.
 	// 0 means cumulative counting (legacy behavior).
+	// ponytail: sliding-window failure counting is more complex than cumulative; defer until rate-limit bursts actually require it.
 	FailureWindowMs int
 
 	// TimeoutMs is the base duration the circuit stays OPEN before allowing
@@ -21,6 +23,7 @@ type Profile struct {
 	TimeoutMs int
 
 	// HalfOpenMaxCalls is the number of probe requests allowed while HALF_OPEN.
+	// ponytail: JS breaker only allows one probe; consider removing once callers settle on single-probe behavior.
 	HalfOpenMaxCalls int
 
 	// MaxConcurrency limits concurrent requests per account key. Values <= 0
@@ -43,6 +46,7 @@ func DefaultProfile() *Profile {
 
 // providerOverrides maps known provider IDs to slightly tuned profiles.
 // Values that are not overridden keep the default.
+// ponytail: provider-specific tuning table is speculative; start with DefaultProfile for all providers and add overrides only after real outage data.
 var providerOverrides = map[string]func(*Profile){
 	"openai": func(p *Profile) {
 		// OpenAI is strict on rate limits; fail faster and retry sooner.

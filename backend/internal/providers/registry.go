@@ -22,6 +22,7 @@ type Registry struct {
 // Nested structures that are not needed for validation are kept as json.RawMessage
 // so the loader stays future-proof without over-modelling.
 // ponytail: only scalar/filter fields are typed; decode RawMessage on demand later.
+// ponytail: providerOverrides table is speculative; only openai/anthropic/gemini/groq tuning is likely needed at launch.
 type Provider struct {
 	ID                      string          `json:"id"`
 	Alias                   string          `json:"alias"`

@@ -11,6 +11,7 @@ import (
 
 // Account mirrors the providerConnections table row. Extra fields are stored
 // as JSON in the data column to stay compatible with the JS schema.
+// ponytail: 20+ typed fields mirrored from JSON data are over-modelled; keep a map[string]any until a caller needs strong typing.
 type Account struct {
 	ID                   string
 	Provider             string
@@ -65,6 +66,7 @@ func NewAccountsRepo(db *sql.DB) *AccountsRepo {
 	}
 }
 
+// ponytail: long allow-list of JSON fields mirrors JS flexibility; consider a single map until concrete consumers exist.
 var accountOptionalFields = []string{
 	"displayName", "email", "globalPriority", "defaultModel",
 	"accessToken", "refreshToken", "expiresAt", "tokenType",
@@ -117,6 +119,7 @@ func (r *AccountsRepo) scanAccount(rows *sql.Rows) (*Account, error) {
 	return &a, nil
 }
 
+// ponytail: hydrateExtra + accountToData are ~120 lines of JSON field mapping; replace with map passthrough once consumers are known.
 func (r *AccountsRepo) hydrateExtra(a *Account) {
 	if a.Data == nil {
 		return

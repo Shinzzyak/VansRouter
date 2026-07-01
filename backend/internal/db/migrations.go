@@ -14,6 +14,7 @@ import (
 var migrationsFS embed.FS
 
 // migrationRecord describes one embedded migration file.
+// ponytail: struct wrapper around version/name/sql adds 4 lines; inline tuple ([]string, int, string) if only Migrate uses it.
 type migrationRecord struct {
 	Version int
 	Name    string
@@ -21,6 +22,7 @@ type migrationRecord struct {
 }
 
 // loadMigrations reads and sorts all embedded migration files by version.
+// ponytail: sort.Slice is overkill for integer versions; use slices.SortFunc or a simple O(n^2) scan since migration count is tiny.
 func loadMigrations() ([]migrationRecord, error) {
 	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {

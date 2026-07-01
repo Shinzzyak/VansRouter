@@ -11,6 +11,7 @@ import (
 
 // APIKey mirrors the apiKeys table row and uses JSON text columns for ACL lists.
 // DB NULL means "all allowed"; "[]" means "none allowed".
+// ponytail: JSON-encoded allow-lists are simple, but the JS schema stores them as comma-joined strings; align storage format later.
 type APIKey struct {
 	ID               string
 	Key              string
