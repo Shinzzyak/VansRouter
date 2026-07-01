@@ -1,9 +1,18 @@
 package executors
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"strconv"
 )
+
+// Executor is the provider-agnostic upstream interface. DefaultExecutor
+// satisfies it; provider-specific executors embed BaseExecutor and override
+// BuildURL / BuildHeaders / Execute as needed.
+type Executor interface {
+	Execute(ctx context.Context, req ExecuteRequest) (*http.Response, error)
+}
 
 // defaultRetryDelayMs mirrors RETRY_CONFIG.delayMs in open-sse/config/runtimeConfig.js.
 const defaultRetryDelayMs = 2000
