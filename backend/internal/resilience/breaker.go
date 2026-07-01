@@ -26,6 +26,7 @@ const (
 	FailureKindTransient     FailureKind = "transient"
 	FailureKindRateLimit     FailureKind = "rate_limit"
 	FailureKindQuotaExhausted FailureKind = "quota_exhausted"
+	FailureKindDailyQuota     FailureKind = "daily_quota"
 )
 
 // KindThreshold overrides the global failure threshold for a specific kind.
