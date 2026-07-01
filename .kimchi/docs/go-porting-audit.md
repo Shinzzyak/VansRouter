@@ -737,4 +737,106 @@ Files created:
 
 ---
 
+## 12. Phase 4 Step 2 — Special Provider Executors
+
+Files created:
+- `backend/internal/providers/executors/special_executors_test.go`
+
+Files already present (ported in this step, no implementation changes unless tests revealed bugs):
+- `backend/internal/providers/executors/azure.go`
+- `backend/internal/providers/executors/ollama.go`
+- `backend/internal/providers/executors/github.go`
+- `backend/internal/providers/executors/vertex.go`
+- `backend/internal/providers/executors/codex.go`
+- `backend/internal/providers/executors/registry.go`
+
+### Ported behavior
+- **Azure**: deployment-scoped `BuildURL` with `azureEndpoint`, `apiVersion`, and `deployment` from `providerSpecificData`; `api-key` header auth.
+- **Ollama local**: `BuildURL` resolves `ollamaHost`/`baseUrl`/`OLLAMA_HOST` to `/api/chat`.
+- **GitHub Models**: fixed `https://models.inference.ai.azure.com/chat/completions` endpoint with `Authorization: Bearer <token>`.
+- **Vertex**: Gemini URL builder with `projectId`, `location`, and `streamGenerateContent?alt=sse`; partner URL builder with `global/endpoints/openapi/chat/completions`.
+- **Vertex partner**: `Execute` validates that `projectId` or `VERTEX_PROJECT_ID` is present.
+- **Codex**: `/v1/responses` endpoint with `Authorization`, `originator: codex_cli_rs`, and `session_id: default` headers.
+- **Registry**: `Register`/`Get` factory map with built-in fallbacks for `cu`, `mmf`, `zc`, and default executor.
+
+### Tests added (11)
+- `TestSpecialExecutors_Registry_Azure`
+- `TestSpecialExecutors_Registry_DefaultFallback`
+- `TestSpecialExecutors_AzureURL`
+- `TestSpecialExecutors_AzureApiKeyHeader`
+- `TestSpecialExecutors_OllamaLocalHost`
+- `TestSpecialExecutors_GithubEndpointAndBearer`
+- `TestSpecialExecutors_VertexGeminiURL`
+- `TestSpecialExecutors_VertexPartnerURL`
+- `TestSpecialExecutors_VertexPartnerRequiresProjectID`
+- `TestSpecialExecutors_CodexResponsesEndpoint`
+- `TestSpecialExecutors_CodexHeaders`
+
+### Deferred (`// ponytail:` comments)
+- Vertex SA JSON token minting and ADC refresh (`vertex.go:77`).
+- Vertex auto-resolve `projectId` from raw API key on first 404 (`vertex.go:31`).
+- Remaining provider executors: cursor, grok-web, perplexity-web, kiro, qoder, opencode, opencode-go, antigravity, iflow, qwen, gemini-cli, commandcode, xiaomi-tokenplan, mimo-free, zcode, codebuddy-cn, proxy, etc.
+- Base/Default header hooks (kimi, cline, claudeOverlay, etc.) (`base.go:138`).
+- Transient body error retries (`default.go:22`).
+- json_schema fallback, client_metadata drop, nvidia max_tokens clamp (`default.go:29`).
+- Full Codex request transform, image prefetch, and SSE overload peeking (`codex.go:58`).
+
+### Verification
+- `cd /media/DiskE/Code/9router-new/backend && go test ./internal/providers/... -run TestSpecialExecutors -v` → 11 PASS.
+- `cd /media/DiskE/Code/9router-new/backend && go test ./... -count=1` → 422 PASS in 13 packages (was 411 before Step 2).
+
+---
+
+## 13. Phase 4 Step 3 — Translator Registry + Schema/Concerns/Formats Scaffolding
+
+Files created:
+- `backend/internal/translator/registry.go`
+- `backend/internal/translator/formats.go`
+- `backend/internal/translator/translator.go`
+- `backend/internal/translator/registry_test.go`
+- `backend/internal/translator/schema/roles.go`
+- `backend/internal/translator/schema/blocks.go`
+- `backend/internal/translator/schema/finishReasons.go`
+- `backend/internal/translator/schema/defaults.go`
+- `backend/internal/translator/concerns/chunk.go`
+- `backend/internal/translator/concerns/finishReason.go`
+- `backend/internal/translator/concerns/image.go`
+- `backend/internal/translator/concerns/json.go`
+- `backend/internal/translator/concerns/message.go`
+- `backend/internal/translator/concerns/modality.go`
+- `backend/internal/translator/concerns/paramSupport.go`
+- `backend/internal/translator/concerns/prefetch.go`
+- `backend/internal/translator/concerns/reasoning.go`
+- `backend/internal/translator/concerns/thinking.go`
+- `backend/internal/translator/concerns/thinkingUnified.go`
+- `backend/internal/translator/concerns/toolCall.go`
+- `backend/internal/translator/concerns/usage.go`
+- `backend/internal/translator/formats/claude.go`
+- `backend/internal/translator/formats/gemini.go`
+- `backend/internal/translator/formats/maxTokens.go`
+- `backend/internal/translator/formats/openai.go`
+- `backend/internal/translator/formats/responsesApi.go`
+
+### Ported behavior
+- **Registry**: `Register(from, to, req, res)`, `GetRequestTranslator(key)`, `GetResponseTranslator(key)` with per-map mutexes.
+- **Formats**: `Format` type and constants for OpenAI, Claude, Gemini, Vertex, Kiro, Cursor, Ollama, CommandCode, Antigravity, OpenAIResponses.
+- **Schema**: ported role constants, block/type constants, finish-reason maps, and defaults (`MODEL_FALLBACK`, `DEFAULT_IMAGE_MIME`) from `open-sse/translator/schema/`.
+- **Concerns**: stub helpers for tool-call IDs, message handling, thinking capture, usage merging, image normalization, JSON schema parsing, modality filtering, param support, prefetch, reasoning, and chunk handling. Full behavior deferred.
+- **Formats helpers**: stub helpers for OpenAI filter, Claude request prep, Gemini constants, responses API constants, and max-tokens lookup.
+- **Translator core**: `TranslateRequest`, `TranslateResponse`, `NeedsTranslation`, `InitState`, and `State` struct skeleton that future request/response translators will consume.
+
+### Tests added (1)
+- `TestRegistry`: registers request and response translators and verifies lookup and missing-key behavior.
+
+### Deferred (`// ponytail:` comments)
+- Full request/response translator pairs (claude-to-openai, openai-to-claude, gemini-to-openai, openai-to-gemini, vertex, kiro, cursor, ollama, commandcode, antigravity, openai-responses).
+- Full concern implementations (tool-call fixing, thinking normalization, reasoning capture, usage aggregation, image prefetch, modality/param filtering).
+- Format-specific request prep and response filtering.
+
+### Verification
+- `cd /media/DiskE/Code/9router-new/backend && go test ./internal/translator/... -run TestRegistry -v` → 1 PASS.
+- `cd /media/DiskE/Code/9router-new/backend && go test ./... -count=1` → 423 PASS in 17 packages (was 422 before Step 3).
+
+---
+
 *End of audit.*
