@@ -4,8 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"strings"
 )
+
+// Stack returns the current goroutine's stack trace as a string. Used
+// by the HTTP recovery middleware to log panic origin.
+func Stack() string { return string(debug.Stack()) }
 
 // New creates a JSON slog.Logger at the requested level.
 // Valid levels are: debug, info, warn, error.

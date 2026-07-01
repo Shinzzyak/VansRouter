@@ -320,6 +320,17 @@ Net: packages are lean for a first port; deferrals are tracked via `ponytail:` c
 - Updated `backend/cmd/server/main.go` to create repos, load registry, and set `auth.DataDirSource`.
 - Verification: `cd backend && go test ./internal/auth/...` passes (48 tests); `go test ./...` passes (87 tests in 9 packages).
 
+### 3.22 Phase 2 — Step 4: Auth, CORS, real-IP, logging middleware
+
+- Added `backend/internal/api/middleware/{realip,cors,logger}.go` and `middleware_test.go`. Mirrors the request-handling bits Next.js used to provide implicitly (recovery, access logs) and fills the gaps JS handled per-response (`Access-Control-Allow-Origin: *` in `corsHeadersFrom`).
+- `RealIP` reads `X-Forwarded-For` (first hop) then `X-Real-IP` and rewrites `r.RemoteAddr` so downstream handlers/loggers see the resolved IP. Helper `ClientIP(r)` is exported.
+- `CORS` adds permissive ACAO/ACAM/ACAH/Vary headers, answers `OPTIONS` preflight with 204. Matches the proxy-pattern default of `*`.
+- `RequestLogger` emits one structured slog line per request with method/path/query/status/bytes/ip/ua/duration. `statusRecorder` captures the response code and bytes for the log entry.
+- `Recovery` turns panics into a 500 JSON body and logs `panic_recovered` with the stack from `log.Stack()`. Added `Stack()` to `backend/internal/log/log.go`.
+- Updated `backend/internal/api/routes.go` to chain `RealIP → Recovery → RequestLogger → CORS` on the root router and keep `auth.APIKeyMiddleware` on the `/v1/*` and `/api/v1/models` mounts.
+- Tests (`backend/internal/api/middleware/middleware_test.go`, 12 cases): XFF/XRI/fallback resolution, CORS preflight, custom origin, log shape, status capture for 4xx, recovery no-op + panic path, full chain order, ClientIP helper.
+- Verification: `cd backend && go test ./internal/api/middleware/...` → 12 PASS; `go test ./...` → 144 PASS in 11 packages; `go build ./...` → clean.
+
 ### 3.21 Phase 2 — Step 3: Allowed-models resolution
 
 - Added `backend/internal/models/models.go` — `Builder` with `BuildModelsList(ctx, kindFilter)` and `IsModelAllowed(ctx, modelStr, apiKeyPresent)`. Mirrors `src/sse/services/allowedModels.js` for combo entries, connected-provider entries (with `enabledModels` override + alias prefix stripping), free/noAuth providers, custom models, model aliases, disabled filter, and sub-kind (tts/embedding/webSearch/webFetch) pseudo-models.

@@ -5,19 +5,22 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/9router/9router/backend/internal/api/middleware"
 	"github.com/9router/9router/backend/internal/auth"
 	"github.com/9router/9router/backend/internal/db/repos"
-	"github.com/9router/9router/backend/internal/log"
 	"github.com/9router/9router/backend/internal/providers"
 	"github.com/go-chi/chi/v5"
 )
 
-// Routes builds the chi router with logging, recovery, auth, and v1 handlers.
+// Routes builds the chi router with logging, recovery, CORS, real-IP,
+// auth, and v1 handlers.
 func Routes(logger *slog.Logger, r *repos.Repos, registry *providers.Registry) http.Handler {
 	router := chi.NewRouter()
 
-	router.Use(log.Recovery(logger))
-	router.Use(log.RequestLogger(logger))
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Recovery(logger))
+	router.Use(middleware.RequestLogger(logger))
+	router.Use(middleware.NewCORS("").Wrap)
 
 	router.Get("/health", healthHandler)
 	router.Get("/shutdown", shutdownHandler)
