@@ -3,6 +3,7 @@ package resilience
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"time"
 )
@@ -13,7 +14,7 @@ type State string
 // Circuit breaker states.
 const (
 	StateClosed   State = "CLOSED"
-	StateDegraded State = "DEGRADED"
+	StateDegraded State = "DEGRADED" // ponytail: DEGRADED state adds a transition the JS breaker does not expose; remove if no caller acts on it.
 	StateOpen     State = "OPEN"
 	StateHalfOpen State = "HALF_OPEN"
 )
@@ -246,15 +247,7 @@ func (b *Breaker) RecordFailure(err error) {
 func (b *Breaker) RetryAfterMs() int64 {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
-	if b.state != StateOpen || b.openedAt.IsZero() {
-		return 0
-	}
-	remaining := b.effectiveTimeout() - time.Since(b.openedAt)
-	if remaining < 0 {
-		return 0
-	}
-	return int64(remaining / time.Millisecond)
+	return b.retryAfterMsLocked()
 }
 
 // Reset forces the breaker to CLOSED.
@@ -296,10 +289,14 @@ func (b *Breaker) Status() Status {
 }
 
 func (b *Breaker) retryAfterMsLocked() int64 {
-	if b.state != StateOpen || b.openedAt.IsZero() {
+	return computeRetryAfterMs(b.state, b.openedAt, b.effectiveTimeout())
+}
+
+func computeRetryAfterMs(state State, openedAt time.Time, timeout time.Duration) int64 {
+	if state != StateOpen || openedAt.IsZero() {
 		return 0
 	}
-	remaining := b.effectiveTimeout() - time.Since(b.openedAt)
+	remaining := timeout - time.Since(openedAt)
 	if remaining < 0 {
 		return 0
 	}
@@ -345,18 +342,17 @@ func (b *Breaker) transition(newState State) {
 	}
 }
 
+// ponytail: sliding-window failure counting is more complex than cumulative counting and is not required by the JS legacy path (failureWindowMs=0). Consider removing the windowed path unless live bursts prove it is needed.
 func (b *Breaker) pruneFailureTimestamps() {
 	if b.failureWindow <= 0 {
 		return
 	}
 	cutoff := time.Now().Add(-b.failureWindow)
-	idx := 0
-	for i, ts := range b.failureTimestamps {
-		if ts.After(cutoff) || ts.Equal(cutoff) {
-			idx = i
-			break
-		}
-		idx = i + 1
+	idx := slices.IndexFunc(b.failureTimestamps, func(ts time.Time) bool {
+		return ts.After(cutoff) || ts.Equal(cutoff)
+	})
+	if idx < 0 {
+		idx = len(b.failureTimestamps)
 	}
 	b.failureTimestamps = b.failureTimestamps[idx:]
 }
