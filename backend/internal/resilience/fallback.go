@@ -2,7 +2,9 @@ package resilience
 
 import (
 	"fmt"
+	"math"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +42,7 @@ const (
 )
 
 // errorRules is checked in declaration order. Mirrors ERROR_RULES in JS.
+// ponytail: errorRules mixes text and status matching in one table; consider a single []func(status int, text string) (cooldownMs int, backoff bool) once the rule set stabilizes.
 var errorRules = []errorRule{
 	{Text: "no credentials", CooldownMs: cooldownLong},
 	{Text: "request not allowed", CooldownMs: cooldownShort},
@@ -68,6 +71,7 @@ var providerFailureCodes = map[int]bool{
 // ---------------------------------------------------------------------------
 
 // profileCache caches Profile lookups per provider ID.
+// ponytail: profileCache is an optimization around a cheap pure function; remove once ProfileForProvider call cost is measured and found negligible.
 var (
 	profileCacheMu sync.RWMutex
 	profileCache   = map[string]*Profile{}
@@ -82,6 +86,7 @@ type providerInstance struct {
 
 // ProviderRegistry holds per-(provider, proxyHash) breakers configured
 // from resilience profiles. Mirrors the global Map in JS getCircuitBreaker.
+// ponytail: ProviderRegistry caches both instances and profiles; consider computing profiles on demand and only memoizing instances.
 type ProviderRegistry struct {
 	mu        sync.Mutex
 	instances map[string]*providerInstance
@@ -230,15 +235,9 @@ func (r *ProviderRegistry) evictOldestLocked(nowTs time.Time) {
 	for k, v := range r.dedup {
 		entries = append(entries, kv{k, v})
 	}
-	// Partial sort: find the eviction threshold (the Nth oldest).
-	// Simple approach: full sort for clarity (cap=10k, infrequent path).
-	for i := 0; i < len(entries)-1; i++ {
-		for j := i + 1; j < len(entries); j++ {
-			if entries[j].t.Before(entries[i].t) {
-				entries[i], entries[j] = entries[j], entries[i]
-			}
-		}
-	}
+	slices.SortFunc(entries, func(a, b kv) int {
+		return a.t.Compare(b.t)
+	})
 	for i := 0; i < providerFailureDedupEvict && i < len(entries); i++ {
 		delete(r.dedup, entries[i].k)
 	}
@@ -354,19 +353,11 @@ func GetQuotaCooldown(backoffLevel int) int {
 	if level < 0 {
 		level = 0
 	}
-	cooldown := float64(defaultBase) * pow2(level)
+	cooldown := float64(defaultBase) * math.Pow(2, float64(level))
 	if cooldown > float64(defaultMaxBackoff) {
 		cooldown = float64(defaultMaxBackoff)
 	}
 	return int(cooldown)
-}
-
-func pow2(n int) float64 {
-	v := 1.0
-	for i := 0; i < n; i++ {
-		v *= 2
-	}
-	return v
 }
 
 // FallbackDecision describes whether an error should trigger fallback and

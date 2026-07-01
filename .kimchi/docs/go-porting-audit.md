@@ -657,4 +657,46 @@ These are the files to prioritize in any Go porting sprint.
 
 ---
 
+## 10. Phase 3 Ponytail-Review Findings (Resilience Primitives)
+
+Files reviewed:
+- `backend/internal/resilience/{breaker,semaphore,fallback,combo,cooldown,profiles}.go`
+- JS originals: `open-sse/utils/{circuitBreaker,classify429,cooldownRetry}.js`, `open-sse/services/{accountSemaphore,accountFallback,combo}.js`, `open-sse/providers/capabilities.js`
+
+### Applied wins (committed)
+
+| Location | Tag | What | Replacement | Lines saved |
+|---|---|---|---|---|
+| `breaker.go:171` | stdlib | Hand-rolled loop scanning breaker keys for a state value | `slices.IndexFunc` | -3 |
+| `breaker.go:198` | stdlib | Inline `parseRetryAfter` body re-implementation | Extract `parseRetryAfter` helper from JS port | -5 |
+| `fallback.go:236` | stdlib | Manual insertion sort loop over `[]kv` entries | `slices.SortFunc` with `time.Time.Compare` | -7 |
+| `fallback.go:354` | stdlib | Hand-rolled `pow2` helper using a for-loop | `math.Pow(2, n)` | -6 |
+
+**Net: -21 lines.**
+
+### Deferred speculative refactors (`// ponytail:` comments)
+
+| File | Comment |
+|---|---|
+| `breaker.go:17` | DEGRADED state adds a transition the JS breaker does not expose; remove if no caller acts on it. |
+| `breaker.go:345` | Sliding-window failure counting is more complex than cumulative and is not required by the JS legacy path (`failureWindowMs=0`); defer until bursts prove it is needed. |
+| `fallback.go:43` | `errorRules` mixes text and status matching in one table; consider a single `[]func(status int, text string) (cooldownMs int, backoff bool)` once the rule set stabilizes. |
+| `fallback.go:72` | `profileCache` is an optimization around a cheap pure function; remove once `ProfileForProvider` call cost is measured and found negligible. |
+| `fallback.go:87` | `ProviderRegistry` caches both instances and profiles; consider computing profiles on demand and only memoizing instances. |
+| `profiles.go:13` | `SuccessThreshold` is always 1; remove the field once the breaker hard-codes single-probe close. |
+| `profiles.go:18` | Sliding-window failure counting is more complex than cumulative; defer until rate-limit bursts actually require it. |
+| `profiles.go:26` | JS breaker only allows one probe; consider removing once callers settle on single-probe behavior. |
+| `profiles.go:49` | Provider-specific tuning table is speculative; start with `DefaultProfile` for all providers and add overrides only after real outage data. |
+
+### Out-of-scope (forbidden refactors)
+- `package-level var now = time.Now` ownership — `fallback.go` owns it, `cooldown.go` reuses. Convention locked by Step 5.
+- `CapabilitiesFunc` indirection — required for pluggable capability lookup (currently stubbed with `allCaps`; real provider integration in Phase 4).
+- Constant types `int64` for duration arithmetic — locked for `time.Duration` math consistency.
+
+### Verification
+- `go test ./... -count=1` → 404 PASS in 12 packages (was 389 before Step 6/7).
+- `grep -rq "ponytail:" backend/internal/resilience` → 9 deferral comments recorded.
+
+---
+
 *End of audit.*
