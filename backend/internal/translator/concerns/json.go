@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// ponytail: JSON schema coercion and strict mode handling deferred.
+// ParseJSONSchema coerces raw input into a JSON schema map.
 func ParseJSONSchema(raw any) (map[string]any, error) {
 	switch v := raw.(type) {
 	case map[string]any:
@@ -21,6 +21,22 @@ func ParseJSONSchema(raw any) (map[string]any, error) {
 	}
 }
 
+// SafeUnmarshal unmarshals JSON into out.
 func SafeUnmarshal(data []byte, out any) error {
 	return json.Unmarshal(data, out)
+}
+
+// SafeParseJSON tries to parse s as JSON; on failure returns s itself as a string.
+func SafeParseJSON(s string, fallback string) any {
+	var out any
+	if err := json.Unmarshal([]byte(s), &out); err == nil {
+		return out
+	}
+	return fallback
+}
+
+// MarshalJSON marshals v to a JSON string.
+func MarshalJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }

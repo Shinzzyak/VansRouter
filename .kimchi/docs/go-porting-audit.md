@@ -839,4 +839,58 @@ Files created:
 
 ---
 
+## 14. Phase 4 Step 4 — Request/Response Translator Pairs (Claude ↔ OpenAI)
+
+Files created:
+- `backend/internal/translator/translator_test.go` (side-by-side tests)
+
+Files modified:
+- `backend/internal/translator/concerns/chunk.go` (BuildChunk helper)
+- `backend/internal/translator/concerns/usage.go` (ToOpenAIUsage, IntNumber export)
+- `backend/internal/translator/concerns/finishReason.go` (ToOpenAIFinish, FromOpenAIFinish)
+- `backend/internal/translator/concerns/reasoning.go` (ExtractReasoningText)
+- `backend/internal/translator/concerns/image.go` (EncodeDataUri, ParseDataUri)
+- `backend/internal/translator/concerns/message.go` (CollapseTextParts, ExtractTextContent)
+- `backend/internal/translator/concerns/json.go` (SafeParseJSON, MarshalJSON)
+- `backend/internal/translator/concerns/toolCall.go` (EnsureToolCallIds, FixMissingToolResponses)
+- `backend/internal/translator/formats/maxTokens.go` (AdjustMaxTokens)
+- `backend/internal/translator/translator.go` (State fields, InitState)
+- `backend/internal/translator/schema/blocks.go` (Claude block types, function/file blocks)
+- `backend/internal/translator/registry_test.go` (use test-only keys to avoid shadowing real translators)
+
+Files created (request):
+- `backend/internal/translator/request/claude_to_openai.go`
+- `backend/internal/translator/request/openai_to_claude.go`
+
+Files created (response):
+- `backend/internal/translator/response/claude_to_openai.go`
+- `backend/internal/translator/response/openai_to_claude.go`
+
+### Ported behavior
+- **Claude → OpenAI request**: system text stripping (Anthropic billing header), message conversion with role remapping, content-block-to-part conversion (text/image/tool_use/tool_result), tools normalization to OpenAI `function` shape, tool_choice conversion, reasoning_effort passthrough.
+- **OpenAI → Claude request**: system message extraction, tool_use block packaging with prefix, image base64 → Claude source conversion, response_format → JSON-schema system-prompt injection, cache_control stamping on last assistant block, tool_choice sanitization (only pass through types Claude accepts).
+- **Claude → OpenAI response**: SSE event stream → OpenAI chunk stream. `message_start` emits role chunk; `content_block_start` (text/thinking/tool_use/server_tool_use) emits delta/tool_calls; `content_block_delta` emits text_delta/thinking_delta/input_json_delta; `message_delta` resolves stop_reason and attaches usage; `message_stop` ensures final finish-reason chunk.
+- **OpenAI → Claude response**: OpenAI chunk → Claude SSE events. First chunk emits `message_start`; reasoning content opens `thinking` block; text opens `text` block; tool calls open `tool_use` blocks; finish_reason flushes buffered args (with sanitization) and emits `message_delta` + `message_stop`.
+
+### Tests added (5)
+- `TestClaudeToOpenAIRequest`
+- `TestOpenAIToClaudeRequest`
+- `TestClaudeToOpenAIResponse`
+- `TestOpenAIToClaudeResponse`
+- `TestRoundTripClaudeOpenAIClaude`
+
+TestRegistry was also updated to use isolated keys (`test-from:test-to`) so it does not shadow real translator registrations.
+
+### Deferred (`// ponytail:` comments)
+- Remaining translator pairs (gemini ↔ openai, vertex, kiro, cursor, ollama, commandcode, antigravity, openai-responses).
+- Full concern implementations: thinking normalization, reasoning capture, usage aggregation, image prefetch, modality/param filtering.
+- Tool-name prefix stripping for non-Anthropic OAuth transports and full `openai-to-claude` for Antigravity variant.
+- Cross-format translation pivot (source → openai → target) — current `TranslateRequest` only resolves direct routes registered in the registry.
+
+### Verification
+- `cd /media/DiskE/Code/9router-new/backend && go test ./internal/translator/... -v` → 6 PASS.
+- `cd /media/DiskE/Code/9router-new/backend && go test ./... -count=1` → 428 PASS in 19 packages (was 423 before Step 4).
+
+---
+
 *End of audit.*

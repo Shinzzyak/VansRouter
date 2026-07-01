@@ -1,15 +1,20 @@
 package schema
 
 const (
-	OpenAIBlockTypeText         = "text"
-	OpenAIBlockTypeImageURL     = "image_url"
-	OpenAIBlockTypeInputAudio   = "input_audio"
-	OpenAIBlockTypeRefusal      = "refusal"
+	OpenAIBlockTypeText       = "text"
+	OpenAIBlockTypeImageURL   = "image_url"
+	OpenAIBlockTypeInputAudio = "input_audio"
+	OpenAIBlockTypeRefusal    = "refusal"
+	OpenAIBlockTypeFunction   = "function"
+	OpenAIBlockTypeImage      = "image"
+	OpenAIBlockTypeFile       = "file"
 
-	ClaudeBlockTypeText  = "text"
-	ClaudeBlockTypeImage = "image"
-	ClaudeBlockTypeToolUse   = "tool_use"
+	ClaudeBlockTypeText       = "text"
+	ClaudeBlockTypeImage      = "image"
+	ClaudeBlockTypeToolUse    = "tool_use"
 	ClaudeBlockTypeToolResult = "tool_result"
+	ClaudeBlockTypeThinking   = "thinking"
+	ClaudeBlockTypeDocument   = "document"
 
 	ResponsesItemTypeMessage      = "message"
 	ResponsesItemTypeThinking     = "thinking"
