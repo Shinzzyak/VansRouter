@@ -1,0 +1,39 @@
+{
+    # Disable automatic HTTPS so this works out of the box on localhost and
+    # IP addresses without a domain. For production with a real domain, remove
+    # this line and Caddy will provision TLS automatically.
+    auto_https off
+}
+
+:80 {
+    # Public model list used by the dashboard.
+    handle /api/models {
+        rewrite * /models
+        reverse_proxy backend:20128
+    }
+    handle /models {
+        reverse_proxy backend:20128
+    }
+
+    # API and OpenAI-compatible endpoints go to the Go backend.
+    handle /api/* {
+        reverse_proxy backend:20128
+    }
+    handle /v1/* {
+        reverse_proxy backend:20128
+    }
+    handle /v1beta/* {
+        reverse_proxy backend:20128
+    }
+    handle /health {
+        reverse_proxy backend:20128
+    }
+    handle /version {
+        reverse_proxy backend:20128
+    }
+
+    # Everything else is served by the Next.js dashboard.
+    handle {
+        reverse_proxy dashboard:3003
+    }
+}

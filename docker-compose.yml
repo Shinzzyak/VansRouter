@@ -1,30 +1,82 @@
 services:
-  vansrouter:
-    image: ghcr.io/Vanszs/VansRouter:latest
-    container_name: vansrouter
-    restart: always
-    ports:
-      - "20128:20128"
-    volumes:
-      - 9router-data:/app/data
-    env_file:
-      - .env
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vansroute-backend
+    restart: unless-stopped
     environment:
+      PORT: 20128
+      HOSTNAME: 0.0.0.0
       DATA_DIR: /app/data
-      PORT: "20128"
-      HOSTNAME: "0.0.0.0"
-      NODE_ENV: production
-      HEADROOM_URL: http://headroom:8787
-    depends_on:
-      - headroom
+      JWT_SECRET: ${JWT_SECRET}
+      API_KEY_SECRET: ${API_KEY_SECRET}
+      INITIAL_PASSWORD: ${INITIAL_PASSWORD}
+      MACHINE_ID_SALT: ${MACHINE_ID_SALT:-}
+      ENABLE_REQUEST_LOGS: ${ENABLE_REQUEST_LOGS:-false}
+      OBSERVABILITY_ENABLED: ${OBSERVABILITY_ENABLED:-true}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      REQUIRE_API_KEY: ${REQUIRE_API_KEY:-false}
+      BASE_URL: ${BASE_URL:-http://localhost}
+      CLOUD_URL: ${CLOUD_URL:-}
+    volumes:
+      - vansroute-data:/app/data
+    networks:
+      - vansroute
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:20128/health >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    container_name: headroom
-    restart: always
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: vansroute-dashboard
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      HOSTNAME: 0.0.0.0
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - vansroute
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3003/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: vansroute-caddy
+    restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - vansroute
+    depends_on:
+      backend:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
 
 volumes:
-  9router-data:
-    name: 9router-data
+  vansroute-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  vansroute:
+    driver: bridge

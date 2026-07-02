@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1.7
+# Production Dockerfile for the VansRoute Next.js dashboard.
+# Uses pnpm and the existing standalone output so the runtime image is small.
+ARG NODE_IMAGE=node:22-alpine
+
+# -----------------------------------------------------------------------------
+# Build stage
+# -----------------------------------------------------------------------------
+FROM ${NODE_IMAGE} AS builder
+WORKDIR /build
+RUN apk --no-cache add python3 make g++ linux-headers
+
+# Install pnpm so we can use the existing pnpm-lock.yaml.
+RUN npm install -g pnpm
+
+# Copy dependency manifests and install exact versions.
+COPY package.json pnpm-lock.yaml ./
+# Native builds (better-sqlite3, sharp, unrs-resolver) are optional for the
+# static dashboard build; skip them so pnpm install succeeds non-interactively.
+# The runtime dashboard uses sql.js as the SQLite fallback.
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Copy the rest of the source and build the standalone output.
+COPY . ./
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production \
+    NEXT_PUBLIC_BASE_URL=/api
+RUN pnpm run build
+
+# Next.js output tracing sometimes omits sql.js WASM files. Copy them explicitly
+# so the in-browser SQLite fallback works in the standalone runtime image.
+RUN mkdir -p .next/standalone/node_modules/sql.js/dist && \
+    find node_modules -path '*/sql.js/dist/*.wasm' -exec cp {} .next/standalone/node_modules/sql.js/dist/ \; 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Runtime stage
+# -----------------------------------------------------------------------------
+FROM ${NODE_IMAGE}
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=3003 \
+    HOSTNAME=0.0.0.0
+
+# The build script already copies public/ and .next/static into .next/standalone.
+# Keep the original directory layout so server.js can require ./.next/standalone/server.js.
+COPY --from=builder /build/.next/standalone /app/.next/standalone
+# The top-level server.js sets the default PORT and delegates to standalone.
+COPY --from=builder /build/server.js /app/server.js
+
+USER node
+EXPOSE 3003
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
+    CMD node -e "require('http').get('http://127.0.0.1:3003/', (r) => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+
+CMD ["node", "server.js"]

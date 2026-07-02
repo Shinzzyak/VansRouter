@@ -78,6 +78,7 @@ README1.md
 # =============================================================================
 *.db
 data/
+!data/providers.json
 !backend/data/
 !backend/data/providers.json
 
@@ -111,6 +112,9 @@ next-env.d.ts
 /backend/bin/
 /vansroute
 
+# Archived JS backend copies (kept on disk for reference, not tracked)
+/archive/js-backend/
+
 # =============================================================================
 # Vercel
 # =============================================================================
@@ -123,7 +127,8 @@ next-env.d.ts
 # .kimchi/ contains generated audit and lighthouse reports; .understand-anything/
 # contains generated knowledge-graph data. These are produced by the project
 # tooling and regenerated on demand — do not commit fresh generations.
-/.kimchi/
+/.kimchi/*
+!/.kimchi/docs/
 /.understand-anything/
 
 # Refactor backup reference / graphify output (do not bundle/lint)

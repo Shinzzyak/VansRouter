@@ -133,10 +133,23 @@
 
 ## 🚀 Quick Start
 
+VansRoute now ships as a zero-CGO Go backend (`./vansroute`) plus the unchanged Next.js dashboard (`pnpm start`).
+
 ```bash
 git clone https://github.com/Vanszs/VansRouter.git
 cd VansRouter
 pnpm install
+
+# Build the Go backend
+CGO_ENABLED=0 go build -o vansroute ./cmd/server
+
+# Start the Go backend
+./vansroute
+```
+
+In another terminal, build and start the dashboard:
+
+```bash
 pnpm run build
 cp -r public .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
@@ -145,13 +158,14 @@ pnpm start
 
 Open `http://localhost:3003/dashboard`, add provider connections, generate a VansRoute API key, and point your CLI to `http://localhost:3003/v1`.
 
-> **Port convention:** `pnpm dev` runs on `http://localhost:20127`. `pnpm start` (production / standalone) defaults to `http://localhost:3003` unless you override `PORT` in `.env`.
+> **Port convention:** `pnpm dev` runs on `http://localhost:20127`. `pnpm start` (production / standalone) defaults to `http://localhost:3003` unless you override `PORT` in `.env`. The Go backend defaults to port `20128` and can be changed with `PORT`.
 
 ### PM2 (production)
 
 ```bash
 npm install -g pm2
-PORT=3003 pm2 start server.js --name vansroute
+PORT=20128 pm2 start ./vansroute --name vansroute-backend
+PORT=3003 pm2 start server.js --name vansroute-dashboard
 pm2 save
 ```
 
@@ -168,13 +182,59 @@ npx vansrouter
 
 This pulls the published package from https://www.npmjs.com/package/vansrouter and launches the dashboard at `http://localhost:20128`.
 
-### Docker
+### Docker Compose (recommended — production standard, one command)
+
+Works on Linux, Windows (Docker Desktop), and macOS. No local Go/Node/pnpm required.
+
+```bash
+# 1. Copy and edit environment variables
+cp .env.example .env
+# Edit .env and set at least JWT_SECRET, API_KEY_SECRET, INITIAL_PASSWORD
+
+# 2. Start everything (backend + dashboard + reverse proxy)
+docker compose up -d
+
+# 3. Open the dashboard
+open http://localhost
+```
+
+What you get:
+
+| Service | Container | Internal port | External access |
+|---------|-----------|---------------|-----------------|
+| Go backend | `vansroute-backend` | `20128` | `http://localhost/api/*`, `/v1/*`, `/health` |
+| Next.js dashboard | `vansroute-dashboard` | `3003` | `http://localhost` |
+| Caddy reverse proxy | `vansroute-caddy` | `80`/`443` | Single entry point, routes `/api` and `/v1` to backend |
+
+Other useful commands:
+
+```bash
+# View logs
+docker compose logs -f
+
+# Restart everything
+docker compose restart
+
+# Stop and remove containers + volumes
+docker compose down -v
+
+# Update after pulling new code
+docker compose build --no-cache
+docker compose up -d
+```
+
+For TLS in production, remove `auto_https off` from `Caddyfile` and set your domain.
+
+### Docker (single backend container)
 
 ```bash
 docker run -d \
-  -p 3003:3003 \
-  -v vansrouter-data:/home/node/.vansrouter \
-  --name vansrouter \
+  -p 20128:20128 \
+  -v vansrouter-data:/app/data \
+  -e JWT_SECRET=change-me \
+  -e API_KEY_SECRET=change-me \
+  -e INITIAL_PASSWORD=change-me \
+  --name vansroute-backend \
   ghcr.io/vanszs/vansrouter:latest
 ```
 

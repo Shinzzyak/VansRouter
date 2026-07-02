@@ -1,59 +1,52 @@
 # syntax=docker/dockerfile:1.7
-ARG NODE_IMAGE=node:22-alpine
-FROM ${NODE_IMAGE} AS base
-WORKDIR /app
+# Production Dockerfile for the VansRoute Go backend.
+# Builds a zero-CGO statically-linked binary and runs it as an unprivileged user.
+ARG GO_IMAGE=golang:1.25-alpine
+ARG RUNTIME_IMAGE=alpine:latest
 
-FROM base AS builder
+# -----------------------------------------------------------------------------
+# Build stage
+# -----------------------------------------------------------------------------
+FROM ${GO_IMAGE} AS builder
+WORKDIR /build
+RUN apk --no-cache add git ca-certificates tzdata
 
-RUN apk --no-cache upgrade && apk --no-cache add python3 make g++ linux-headers
+# Download dependencies first so Docker layer caching works.
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY package.json ./
-RUN --mount=type=cache,target=/root/.npm \
-  npm install
-
+# Copy source and embeddable assets, then build.
 COPY . ./
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w" \
+    -o vansroute ./cmd/server
 
-FROM ${NODE_IMAGE} AS runner
+# -----------------------------------------------------------------------------
+# Runtime stage
+# -----------------------------------------------------------------------------
+FROM ${RUNTIME_IMAGE}
+RUN apk --no-cache add ca-certificates tzdata wget
+
 WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=20128 \
+    HOSTNAME=0.0.0.0 \
+    DATA_DIR=/app/data
 
-LABEL org.opencontainers.image.title="9router"
+# Copy the binary and embedded data (provider registry, migrations).
+COPY --from=builder /build/vansroute ./
+COPY --from=builder /build/data ./data
 
-ENV NODE_ENV=production
-ENV PORT=20128
-ENV HOSTNAME=0.0.0.0
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATA_DIR=/app/data
-# API_KEY_SECRET is required by src/shared/utils/apiKey.js (generateCrc uses it
-# as the HMAC secret for API keys). Provide a sensible default so GHCR installs
-# work out-of-the-box; override at runtime with
-#   -e API_KEY_SECRET="$(openssl rand -hex 32)"
-# for production deployments to invalidate keys minted by the default.
-ENV API_KEY_SECRET=vansrouter-dev-default-change-me-in-production
+# Prepare data directory and an unprivileged user.
+RUN mkdir -p /app/data && \
+    addgroup -S app && \
+    adduser -S app -G app && \
+    chown -R app:app /app/data
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/custom-server.js ./custom-server.js
-COPY --from=builder /app/open-sse ./open-sse
-# Next file tracing can omit sibling files; MITM runs server.js as a separate process.
-COPY --from=builder /app/src/mitm ./src/mitm
-# Standalone node_modules may omit deps only required by the MITM child process.
-COPY --from=builder /app/node_modules/node-forge ./node_modules/node-forge
-# Ensure `next` is available at runtime in case tracing did not include it.
-COPY --from=builder /app/node_modules/next ./node_modules/next
-
-RUN mkdir -p /app/data && chown -R node:node /app && \
-  mkdir -p /app/data-home && chown node:node /app/data-home && \
-  ln -sf /app/data-home /root/.9router 2>/dev/null || true
-
-# Fix permissions at runtime (handles mounted volumes)
-RUN apk --no-cache upgrade && apk --no-cache add su-exec && \
-  printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
-  chmod +x /entrypoint.sh
-
+USER app
 EXPOSE 20128
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["node", "custom-server.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:20128/health >/dev/null 2>&1 || exit 1
+
+CMD ["./vansroute"]

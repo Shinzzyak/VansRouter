@@ -15,7 +15,9 @@ dist
 coverage
 
 # Runtime data and logs
-data
+# Allow the embedded provider registry to be copied into the image.
+data/*
+!data/providers.json
 logs
 
 # Local env files (inject at runtime via --env-file or -e)
