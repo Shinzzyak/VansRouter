@@ -1,8 +1,11 @@
 # v0.8.5-beta.2 (2026-07-03)
 
-Beta release for issue #6: more robust Antigravity thought-signature handling.
+Beta release combining the CLI fix from beta.1 and a more robust Antigravity thought-signature fix for issue #6.
 
 ## Fixed
+- **CLI package missing `@next/env`** (`cli/scripts/build-cli.js`):
+  - `ensureModuleInBundle()` now resolves transitive deps in the pnpm virtual store so `@next/env` is bundled into the standalone CLI app.
+  - Verified: `vansrouter@0.8.5-beta.2` installs globally and `next/dist/server/config.js` loads without `MODULE_NOT_FOUND`.
 - **Antigravity synthetic thought signatures** (`open-sse/executors/antigravity.js`, `open-sse/translator/request/openai-to-gemini.js`):
   - Replaced the static `DEFAULT_THINKING_AG_SIGNATURE` placeholder with the documented bypass sentinel `skip_thought_signature_validator` for synthetic/migrated `functionCall` parts.
   - Static placeholder signatures are a known detection fingerprint (see upstream 9router #1138 and CLIProxyAPI `gemini_validation.go`) and can trigger upstream blocks or empty responses.
