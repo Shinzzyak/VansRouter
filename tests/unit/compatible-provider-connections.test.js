@@ -38,14 +38,14 @@ async function setupTestContext(nodeData) {
   };
 }
 
-function makeRequest(provider, suffix = "") {
+function makeRequest(provider, name = "Test Connection") {
   return new Request("https://9router.local/api/providers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       provider,
-      apiKey: `test-key${suffix}`,
-      name: `Test Connection${suffix}`,
+      apiKey: "test-key",
+      name,
       defaultModel: "test-model",
     }),
   });
@@ -156,8 +156,8 @@ describe("compatible provider connections API", () => {
     });
     cleanup = ctx.cleanup;
 
-    const firstResponse = await ctx.POST(makeRequest(ctx.node.id, "-1"));
-    const secondResponse = await ctx.POST(makeRequest(ctx.node.id, "-2"));
+    const firstResponse = await ctx.POST(makeRequest(ctx.node.id, "Key A"));
+    const secondResponse = await ctx.POST(makeRequest(ctx.node.id, "Key B"));
     const storedConnections = await ctx.getProviderConnections({ provider: ctx.node.id });
 
     expect(firstResponse.status).toBe(201);
