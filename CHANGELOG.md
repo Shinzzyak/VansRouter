@@ -1,3 +1,19 @@
+# v0.8.5-beta.2 (2026-07-03)
+
+Beta release for issue #6: more robust Antigravity thought-signature handling.
+
+## Fixed
+- **Antigravity synthetic thought signatures** (`open-sse/executors/antigravity.js`, `open-sse/translator/request/openai-to-gemini.js`):
+  - Replaced the static `DEFAULT_THINKING_AG_SIGNATURE` placeholder with the documented bypass sentinel `skip_thought_signature_validator` for synthetic/migrated `functionCall` parts.
+  - Static placeholder signatures are a known detection fingerprint (see upstream 9router #1138 and CLIProxyAPI `gemini_validation.go`) and can trigger upstream blocks or empty responses.
+  - The bypass sentinel avoids `400 INVALID_ARGUMENT` when no real Gemini signature exists, without degrading into a detectable fingerprint.
+  - Added regression test in `tests/translator/bugs-antigravity.test.js` to verify the sentinel is emitted instead of the placeholder.
+
+## Install (beta)
+```bash
+npm install -g vansrouter@0.8.5-beta.2
+```
+
 # v0.8.4 (2026-07-03)
 
 Hotfix for Antigravity streaming failures. Ports two upstream `decolua/9router` fixes that caused `API Error: Content block not found` / `API returned an empty or malformed response (HTTP 200)` on Antigravity models.
