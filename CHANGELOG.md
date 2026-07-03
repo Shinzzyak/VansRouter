@@ -1,3 +1,36 @@
+# v0.8.4 (2026-07-03)
+
+Hotfix for Antigravity streaming failures. Ports two upstream `decolua/9router` fixes that caused `API Error: Content block not found` / `API returned an empty or malformed response (HTTP 200)` on Antigravity models.
+
+## Fixed
+- **Antigravity/Gemini → Claude tool-call stream state collision** (`open-sse/translator/response/gemini-to-openai.js`):
+  - `geminiToOpenAIResponse()` was pre-populating the shared `state.toolCalls` map, which the downstream `OpenAI → Claude` translator also uses for Claude `content_block_start` metadata.
+  - When a response contained a `functionCall`, Claude deltas were emitted without a matching `content_block_start`, causing clients to crash with `Content block not found` over an HTTP 200 stream.
+  - Fix: keep Gemini bookkeeping in a separate `state.geminiToolCallCount` counter.
+  - Upstream reference: `decolua/9router` [#2225](https://github.com/decolua/9router/issues/2225), [#2248](https://github.com/decolua/9router/pull/2248).
+- **Antigravity executor drops empty `parts` after thought filtering** (`open-sse/executors/antigravity.js`):
+  - After stripping `thought`-only / `thoughtSignature`-only parts, a content entry could be left with `parts: []`.
+  - Google `v1internal` rejects empty `parts` arrays with `400 INVALID_ARGUMENT`; the Antigravity client surfaces this as a malformed response.
+  - Fix: filter out any content entry whose `parts` array becomes empty after transformation.
+  - Upstream reference: `decolua/9router` [#2191](https://github.com/decolua/9router/issues/2191).
+
+## Tests
+- Added regression test: `Antigravity → Claude` tool-call streaming asserts that `input_json_delta` carries a valid Anthropic block index.
+- Added regression test: Antigravity executor strips content entries that end up with empty `parts`.
+- Updated `tests/translator/claude-kiro-direct.test.js` to assert `jsonDelta.index` is defined.
+
+## Verified
+- `pnpm test --run tests/translator/` → 324 passed / 18 expected fail / 28 skipped.
+- `pnpm test --run tests/unit/` → 1657 passed / 49 skipped.
+- `pnpm run build` → build complete.
+
+## Install
+```bash
+npm install -g vansrouter
+# or pull the image
+docker pull ghcr.io/vanszs/vansrouter:0.8.4
+```
+
 # v0.8.3 (2026-07-02)
 
 Maintenance release that fixes the `npm run dev` startup error, hardens legacy database upgrades, and cleans up bundling/standalone edge cases.
@@ -320,7 +353,7 @@ First independent VansRouter release. Fork branding is now applied throughout th
 - **LLM selector**: show custom vision models in selector and model list
 - **Image**: prevent compatible nodes from shadowing provider aliases
 
-# v0.5.2 (2026-06-17)
+# v00.5.2 (2026-06-17)
 
 ## Features
 - **Combo Fusion strategy** — fans the prompt out to all member models in parallel, then a configurable judge model synthesizes one final answer (quorum-grace, anonymized sources, graceful degradation)
@@ -377,33 +410,6 @@ First independent VansRouter release. Fork branding is now applied throughout th
 # v0.4.71 (2026-06-06)
 
 ## Features
-- Caveman: add wenyan classical Chinese levels and sync upstream prompts; locale-based visibility on endpoint page
-- i18n: endpoint exposure notice across multiple languages + Russian README
-- Antigravity: add gemini-3.5-flash-extra-low (Low) model
-- xiaomi-tokenplan: add Claude-native MiMo V2.5 Pro alias via dedicated executor
-- Qoder: fetch latest model + dashboard import-model button (#1642)
-- MiniMax: add MiniMax-M3 + update Quota Tracker coding/CN (#1631)
-
-## Fixes
-- Codex: harden streaming timeouts (stall/connect raised to 60s, configurable per-provider), accept `response.done` event, and always emit a terminal `response.failed` + `[DONE]` for Responses passthrough when a stream closes, stalls, or aborts before a terminal event — prevents codex clients from hanging (#1648, #1680, #1688, #1618)
-- Codex: durable OAuth refresh lifecycle (#1664)
-- Tunnel: skip virtual interfaces to prevent false netchange watchdog
-- Claude: fix forced tool_choice 400 on cc/ OAuth route (#1592)
-- Proxy: raise Next client body limit to 128MB via `NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE` (#1529, #1572)
-- MiniMax: echo `reasoning_content` on follow-up turns to avoid 400 (#1543)
-- Kiro: handle 400 on tool-bearing history without client tools; add mappable "auto" model slot; fix binary EventStream crash + add models & TTS tool filtering
-- Antigravity: passthrough tab-autocomplete + mark default agent slot mandatory
-- Qoder: allow `qmodel_latest` model key (#1638)
-- Providers: restore one-connection guard for compatible/embedding nodes
-- Model-test: route image/STT probes to their real endpoints, harden STT ping; add opencode-go + xiaomi-tokenplan to connection test (#1576, #1628)
-
-## Improvements
-- Dashboard: reorganize menu actions across sidebar/header/profile
-- Translator: add data-driven coverage, bug-exposing cases, and real provider smoke tests
-
-# v0.4.66 (2026-05-29)
-
-## Features
 - Add Qoder provider: device-flow OAuth, COSY signing, WAF-bypass body encoding, live model catalog, dashboard quota tracker, 11 models (#1372)
 - Add new models: Claude Opus 4.8 (Claude Code), GPT 5.4 Mini (Codex)
 
@@ -437,46 +443,7 @@ First independent VansRouter release. Fork branding is now applied throughout th
 - Strip empty Read pages argument in OpenAI-to-Claude translator (#1354)
 - Forward Gemini output dimensions for embeddings (#1366)
 - Resolve setState-in-effect errors in dashboard components (#1362)
-- Gemini CLI: reuse stored OAuth project IDs for quota checks and show clearer setup guidance when the project is missing (#1271, #1428)
-
-## Features
-- Add Cloudflare Workers proxy deployer and pool integration (#1360)
-- Add Deno Deploy relays support and improved proxy pools dashboard layout (#1437)
-
-## Improvements
-- Refactor Tunnel into dedicated Cloudflare and Tailscale manager modules
-- Refactor tokenRefresh service with in-flight dedup to prevent refresh_token_reused errors
-
-# v0.4.59 (2026-05-21)
-
-## Fixes
-- OAuth: fix login flow on Windows
-
-# v0.4.58 (2026-05-21)
-
-## Features
-- xAI Grok provider (OAuth, API key, image)
-- Provider limits: paginated accounts with page size controls
-
-## Fixes
-- Tailscale: fix connection status on Windows (#1300)
-- Tunnel: fix false "checking" when tunnel URL is reachable
-- Stream: fix pipe errors on client disconnect/abort
-
-# v0.4.55 (2026-05-18)
-
-## Features
-- Xiaomi MiMo Token Plan: region selector (Singapore / China / Europe) — keys are cluster-specific
-- Antigravity: risk confirmation dialog before first connection
-- Gemini CLI: surface upstream retry delay on 429 errors
-
-## Fixes
-- MITM: cannot kill process on macOS under sudo (lsof not found in PATH)
-- Stream: false-positive stall timeout on Claude reasoning / Kiro responses
-- Tunnel: cannot re-enable after disable (stuck state)
-- Tunnel: cloudflared error messages now include log tail for easier debugging
-- Language switcher: applies selected locale immediately on close (#1234)
-- Antigravity OAuth: metadata now matches the official client
+- Gemini CLI: reuse stored OAuth project IDs forAntigravity OAuth: metadata now matches the official client
 
 ## Improvements
 - Gemini CLI: bump engine to 0.34.0
@@ -521,12 +488,12 @@ First independent VansRouter release. Fork branding is now applied throughout th
 ## Fixes
 - Fix model check (test-models) blocked by dashboardGuard: pass machineId-based CLI token in internal self-calls
 
-# v0.4.46 (2026-05-15)
+# v0.4.46 (2026-06-15)
 
 ## Breaking Changes
 - Tunnel public URL changed — old tunnel links no longer work, please reconnect to get the new URL
 
-# v0.4.44 (2026-05-15)
+# v0.4.44 (2026-06-15)
 
 ## Features
 - Add Blackbox provider with `bb` alias (#1143)
@@ -539,7 +506,7 @@ First independent VansRouter release. Fork branding is now applied throughout th
 - Update provider name retrieval for compatibility provider (#1135)
 - Update JWT_SECRET handling
 
-# v0.4.41 (2026-05-14)
+# v0.4.41 (2026-06-14)
 
 ## Features
 - Add jcode CLI tool integration with auto-configuration (#1047)
@@ -556,12 +523,10 @@ First independent VansRouter release. Fork branding is now applied throughout th
 - fix(ui): show API key row actions on mobile (#1112)
 
 ## Improvements
-- Sync DeepSeek TUI card style with other CLI tools (badges, layout, manual config modal)
-- Add official logos for Amp CLI, jcode, Qwen Code (replace generic icons)
-- Resize deepseek-tui icon 1024→128 with padding for visual consistency
+- Dashboard: reorganize menu actions across sidebar/header/profile
+- Translator: add data-driven coverage, bug-exposing cases, and real provider smoke tests
 
-# v0.4.39 (2026-05-14)
+# v0.4.39 (2026-06-14)
 
 ## Fixes
 - fix(docker): restore `/app/server.js` (v0.4.38 regression)
-
