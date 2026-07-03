@@ -1,6 +1,6 @@
 import { register } from "../registry.js";
 import { FORMATS } from "../formats.js";
-import { DEFAULT_THINKING_AG_SIGNATURE, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE } from "../../config/defaultThinkingSignature.js";
+import { DEFAULT_THINKING_AG_SIGNATURE, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE, ANTIGRAVITY_THOUGHT_SIGNATURE_BYPASS } from "../../config/defaultThinkingSignature.js";
 import { ANTIGRAVITY_DEFAULT_SYSTEM } from "../../config/appConstants.js";
 import { openaiToClaudeRequestForAntigravity } from "./openai-to-claude.js";
 function generateUUID() {
@@ -311,7 +311,7 @@ function wrapInCloudCodeEnvelope(model, geminiCLI, credentials = null, isAntigra
 }
 
 // Wrap Claude format in Cloud Code envelope for Antigravity
-function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = null, signature = DEFAULT_THINKING_AG_SIGNATURE) {
+function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = null, signature = ANTIGRAVITY_THOUGHT_SIGNATURE_BYPASS) {
   const projectId = credentials?.projectId || generateProjectId();
 
   const envelope = {

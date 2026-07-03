@@ -85,6 +85,22 @@ describe("Antigravity → Claude", () => {
 });
 
 describe("Antigravity executor", () => {
+  it("backfills missing thoughtSignature with the bypass sentinel, not a static placeholder", () => {
+    const out = new AntigravityExecutor().transformRequest("gemini-2.5-pro", {
+      request: {
+        contents: [{
+          role: "model",
+          parts: [{
+            functionCall: { id: "call-1", name: "bash", args: { command: "git status" } },
+          }],
+        }],
+      },
+    }, true, { projectId: "project-1", connectionId: "conn-1" });
+
+    const fnPart = out.request.contents[0].parts.find(p => p.functionCall);
+    expect(fnPart.thoughtSignature).toBe("skip_thought_signature_validator");
+  });
+
   it("uses the same translator registry as translator modules", () => {
     expect(getRequestTranslator("openai:antigravity")).toBeDefined();
   });
