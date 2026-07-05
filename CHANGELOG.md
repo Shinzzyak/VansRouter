@@ -1,3 +1,47 @@
+# v0.8.6 (2026-07-05)
+
+VansRoute 0.8.6 combines the latest VansRouter fork improvements with upstream enhancements from `decolua/9router`, reshaping everything into a faster, more personal AI gateway. Changes are listed by author so every contributor is visible.
+
+## Added
+- **API key secret management and directory handling** — improves how API-key secrets are stored and resolved, plus fixes directory handling for data paths. Merged from fork commit `c5171b47` by **@29nls**.
+- **Cache invalidation after key creation** — `EndpointPageClient` now refreshes its cache after a new API key is created so the new key appears immediately. Merged from fork commit `c5171b47` by **@29nls**.
+- **Standalone instrumentation import fix** — adds a build-time fix so the standalone output loads instrumentation correctly. Merged from fork commit `c5171b47` by **@29nls**.
+- **ClinePass provider support** — new provider registration with OAuth flow and model discovery. Merged from upstream commit `f1003019` by @sternelee.
+- **Codex auto-ping scheduler** — generalizes the existing Claude auto-ping so it also keeps Codex's 5-hour session window warm after a reset. Merged from upstream commit `7d7b5006` by @Emirhan.
+- **Codex reset-credit inspector** — read-only endpoint and service that expose how many Codex rate-limit reset credits remain and when they expire. Merged from upstream PR [#2290](https://github.com/decolua/9router/pull/2290) by @raflyazf.
+- **Cached-token cost tracking** — surfaces `cached_tokens` and `cache_creation_input_tokens`, and corrects cost math so cache-creation tokens are not double-counted. Merged from upstream PR [#2209](https://github.com/decolua/9router/pull/2209) by @hodtien.
+- **Xiaomi TokenPlan region selector** — region-aware connection setup, improved key validation, and multi-connection support for compatible providers. Merged from upstream PR [#2251](https://github.com/decolua/9router/pull/2251) by @MiQieR.
+- **NVIDIA model expansion** — adds newer models and capabilities for the NVIDIA provider.
+- Regression tests for Claude foreign-thinking passthrough, Kiro regional IdC routing, GLM/fireworks repeated tool-call IDs, ClinePass, Xiaomi multi-connection, and cached-token cost.
+
+## Fixed
+- **DATA_DIR import path** — corrects the import path used for `DATA_DIR` so database/data resolution stays consistent. Merged from fork commit `c5171b47` by **@29nls**.
+- **GitBook Pages deployment workflow** — updates the GitHub Pages deployment configuration so the documentation site publishes reliably. Merged from fork commit `81ca1ff0` by **@29nls**.
+- **GitBook Pages content-write permission** — adds the `contents: write` permission required by the GitBook Pages deployment job. Merged from fork commit `81ceafc4` by **@29nls**.
+- **Claude foreign-thinking passthrough** — drops non-user-facing `thinking` signatures in passthrough mode so downstream clients never receive unexpected content blocks. Merged from upstream commit `47ee418a` by @decolua.
+- **Kiro regional IdC auth** — routes Kiro Identity Center authentication to the correct regional CodeWhisperer surface and drops an invalid placeholder ARN. Merged from upstream PR [#2297](https://github.com/decolua/9router/pull/2297) by @lossless1.
+- **Headroom tool-history safety** — skips unsafe response entries when building tool history for providers that need headroom. Merged from upstream issue [#2132](https://github.com/decolua/9router/issues/2132) by @Sutarto Jordan Chrisfivo.
+- **OpenCode Go GLM tool-call ids** — prevents repeated or malformed tool-call identifiers when using GLM models through OpenCode. Merged from upstream commit `65d0fd56` by @decolua.
+- **CodeBuddy-CN bonus packs** — bonus packs are now shown as one-time purchases instead of monthly-replenishing plans. Merged from upstream commit `9524411c` by @decolua.
+- **CodeBuddy-CN empty tool_calls** — strips empty `tool_calls` arrays so reasoning streams remain intact. Merged from upstream commit `a93958ea` by @decolua.
+- **Kiro Claude Sonnet 5 support** — adds the new Sonnet 5 model slot for Kiro. Merged from upstream PR [#2264](https://github.com/decolua/9router/pull/2264) by @SemonCat.
+- **Streaming request-detail deduplication** — shares a single `streamDetailId` between placeholder and final usage rows so the database upsert merges correctly instead of creating duplicates. Merged from upstream commit `c479fc9a` by @Qin Li.
+
+## Changed
+- The legacy `claudeAutoPing.js` service has been replaced by a generalized `quotaAutoPing.js` service. The existing `claudeAutoPing` settings key is preserved, so current configurations continue to work.
+
+## Verified
+- `pnpm test` → 170 test files passed / 13 skipped / 2040 tests / 0 failures.
+- `pnpm run build` → build complete.
+- `pm2 start .next/standalone/server.js --name 9router` → online on port 3003.
+
+## Install
+```bash
+npm install -g vansrouter
+# or pull the image
+docker pull ghcr.io/vanszs/vansrouter:0.8.6
+```
+
 # v0.8.4 (2026-07-03)
 
 Hotfix for Antigravity streaming failures. Ports two upstream `decolua/9router` fixes that caused `API Error: Content block not found` / `API returned an empty or malformed response (HTTP 200)` on Antigravity models.
@@ -297,6 +341,7 @@ First independent VansRouter release. Fork branding is now applied throughout th
 - Support Gemini native TTS generateContent endpoint — nguyenha935
 - Add missing zh-CN endpoint key label (i18n) — weimaozhen
 - CodeBuddy: only send reasoning params when client requests reasoning (#2071) — Rex
+- CodeBuddy CN: show one-shot bonus packs as expiring, not monthly-replenishing
 - Show custom provider models in combo picker — Sapto
 - Docker: add docker-compose.yml with headroom enabled by default — nitsuahlabs
 - Clarify token diagnostics vs provider billing (headroom, #1998) — Sutarto Jordan Chrisfivo
