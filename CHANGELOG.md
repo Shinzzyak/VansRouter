@@ -1,8 +1,11 @@
 # v0.8.6 (2026-07-05)
 
-VansRoute 0.8.6 takes the latest upstream improvements from `decolua/9router` and reshapes them for a faster, more personal AI gateway. Every provider fix, cost improvement, and auto-ping feature below has been merged with VansRoute's existing customizations intact.
+VansRoute 0.8.6 combines the latest VansRouter fork improvements with upstream enhancements from `decolua/9router`, reshaping everything into a faster, more personal AI gateway. Changes are listed by author so every contributor is visible.
 
 ## Added
+- **API key secret management and directory handling** — improves how API-key secrets are stored and resolved, plus fixes directory handling for data paths. Merged from fork commit `c5171b47` by **@29nls**.
+- **Cache invalidation after key creation** — `EndpointPageClient` now refreshes its cache after a new API key is created so the new key appears immediately. Merged from fork commit `c5171b47` by **@29nls**.
+- **Standalone instrumentation import fix** — adds a build-time fix so the standalone output loads instrumentation correctly. Merged from fork commit `c5171b47` by **@29nls**.
 - **ClinePass provider support** — new provider registration with OAuth flow and model discovery. Merged from upstream commit `f1003019` by @sternelee.
 - **Codex auto-ping scheduler** — generalizes the existing Claude auto-ping so it also keeps Codex's 5-hour session window warm after a reset. Merged from upstream commit `7d7b5006` by @Emirhan.
 - **Codex reset-credit inspector** — read-only endpoint and service that expose how many Codex rate-limit reset credits remain and when they expire. Merged from upstream PR [#2290](https://github.com/decolua/9router/pull/2290) by @raflyazf.
@@ -12,6 +15,9 @@ VansRoute 0.8.6 takes the latest upstream improvements from `decolua/9router` an
 - Regression tests for Claude foreign-thinking passthrough, Kiro regional IdC routing, GLM/fireworks repeated tool-call IDs, ClinePass, Xiaomi multi-connection, and cached-token cost.
 
 ## Fixed
+- **DATA_DIR import path** — corrects the import path used for `DATA_DIR` so database/data resolution stays consistent. Merged from fork commit `c5171b47` by **@29nls**.
+- **GitBook Pages deployment workflow** — updates the GitHub Pages deployment configuration so the documentation site publishes reliably. Merged from fork commit `81ca1ff0` by **@29nls**.
+- **GitBook Pages content-write permission** — adds the `contents: write` permission required by the GitBook Pages deployment job. Merged from fork commit `81ceafc4` by **@29nls**.
 - **Claude foreign-thinking passthrough** — drops non-user-facing `thinking` signatures in passthrough mode so downstream clients never receive unexpected content blocks. Merged from upstream commit `47ee418a` by @decolua.
 - **Kiro regional IdC auth** — routes Kiro Identity Center authentication to the correct regional CodeWhisperer surface and drops an invalid placeholder ARN. Merged from upstream PR [#2297](https://github.com/decolua/9router/pull/2297) by @lossless1.
 - **Headroom tool-history safety** — skips unsafe response entries when building tool history for providers that need headroom. Merged from upstream issue [#2132](https://github.com/decolua/9router/issues/2132) by @Sutarto Jordan Chrisfivo.
