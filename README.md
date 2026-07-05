@@ -5,6 +5,8 @@
 
   ### Universal AI Gateway — One Endpoint, Every Provider
 
+  *VansRoute combines the provider breadth of 9router with the routing intelligence of OmniRoute, then re-optimizes everything for a faster, more personal AI gateway experience.*
+
   **Circuit breaker resilience · Kimchi CLI-native · RTK token compression · 40+ providers · 214 tests**
 
   [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
