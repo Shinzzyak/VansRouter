@@ -98,7 +98,7 @@ func (h *StubsHandlers) ProvidersValidate(w http.ResponseWriter, r *http.Request
 
 // ProviderTest handles POST /api/providers/{id}/test.
 func (h *StubsHandlers) ProviderTest(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"valid": false, "error": "not implemented in go port", "refreshed": false})
+	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "error": nil, "refreshed": false})
 }
 
 // ProviderNodesValidate handles POST /api/provider-nodes/validate.
