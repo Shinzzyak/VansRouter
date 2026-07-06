@@ -63,4 +63,23 @@ console.log(`▶ copying public/ + ${distDir}/static into ${distDir}/standalone`
 fs.cpSync(path.join(appDir, "public"), path.join(appDir, distDir, "standalone", "public"), { recursive: true });
 fs.cpSync(path.join(appDir, distDir, "static"), path.join(appDir, distDir, "standalone", distDir, "static"), { recursive: true });
 
+// Copy middleware files into the standalone output so the production server
+// runs src/proxy.js (dashboardGuard) for protected routes like /dashboard.
+const middlewareSource = path.join(appDir, distDir, "server");
+const middlewareTarget = path.join(appDir, distDir, "standalone", distDir, "server");
+for (const entry of fs.readdirSync(middlewareSource)) {
+  if (entry.startsWith("middleware")) {
+    const src = path.join(middlewareSource, entry);
+    const dst = path.join(middlewareTarget, entry);
+    const stat = fs.statSync(src);
+    if (stat.isDirectory()) {
+      fs.cpSync(src, dst, { recursive: true, force: true });
+    } else {
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.copyFileSync(src, dst);
+    }
+  }
+}
+console.log(`▶ copied middleware files into ${distDir}/standalone/${distDir}/server`);
+
 console.log("✅ build complete");

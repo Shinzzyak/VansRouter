@@ -20,11 +20,15 @@ type fakeSource struct {
 	disabled    map[string][]string
 }
 
-func (f *fakeSource) Combos(context.Context) ([]Combo, error)                    { return f.combos, nil }
-func (f *fakeSource) Connections(context.Context) ([]Connection, error)          { return f.connections, nil }
-func (f *fakeSource) CustomModels(context.Context) ([]CustomModel, error)        { return f.custom, nil }
-func (f *fakeSource) ModelAliases(context.Context) (map[string]string, error)    { return f.aliases, nil }
-func (f *fakeSource) DisabledByAlias(context.Context) (map[string][]string, error) { return f.disabled, nil }
+func (f *fakeSource) Snapshot(context.Context) (*SourceSnapshot, error) {
+	return &SourceSnapshot{
+		Combos:          f.combos,
+		Connections:     f.connections,
+		CustomModels:    f.custom,
+		ModelAliases:    f.aliases,
+		DisabledByAlias: f.disabled,
+	}, nil
+}
 
 func loadTestRegistry(t *testing.T) *providers.Registry {
 	t.Helper()
@@ -154,7 +158,7 @@ func TestIsModelAllowedCaches(t *testing.T) {
 	loadCount := 0
 	counting := &countingSource{
 		Source: src,
-		onCombos: func() { loadCount++ },
+		onSnapshot: func() { loadCount++ },
 	}
 	b := NewBuilder(reg, counting)
 
@@ -174,7 +178,7 @@ func TestBuilderInvalidateCache(t *testing.T) {
 	loadCount := 0
 	counting := &countingSource{
 		Source: src,
-		onCombos: func() { loadCount++ },
+		onSnapshot: func() { loadCount++ },
 	}
 	b := NewBuilder(reg, counting)
 
@@ -188,14 +192,14 @@ func TestBuilderInvalidateCache(t *testing.T) {
 
 type countingSource struct {
 	Source
-	onCombos func()
+	onSnapshot func()
 }
 
-func (c *countingSource) Combos(ctx context.Context) ([]Combo, error) {
-	if c.onCombos != nil {
-		c.onCombos()
+func (c *countingSource) Snapshot(ctx context.Context) (*SourceSnapshot, error) {
+	if c.onSnapshot != nil {
+		c.onSnapshot()
 	}
-	return c.Source.Combos(ctx)
+	return c.Source.Snapshot(ctx)
 }
 
 func TestInferKindFromUnknownModelId(t *testing.T) {

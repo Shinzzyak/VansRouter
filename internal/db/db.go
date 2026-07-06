@@ -30,8 +30,11 @@ func Open(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	db.SetMaxOpenConns(1) // SQLite with WAL performs best with a single writer.
-	db.SetMaxIdleConns(1)
+	// SQLite with WAL allows many concurrent readers while serializing writers.
+	// A single connection pool would serialize every request, so allow a small
+	// pool while keeping the busy timeout to resolve transient writer locks.
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(5)
 
 	if err := db.Ping(); err != nil {
 		_ = db.Close()

@@ -24,14 +24,14 @@ type fakeSource struct {
 	disabled    map[string][]string
 }
 
-func (f *fakeSource) Combos(context.Context) ([]models.Combo, error)         { return f.combos, nil }
-func (f *fakeSource) Connections(context.Context) ([]models.Connection, error) { return f.connections, nil }
-func (f *fakeSource) CustomModels(context.Context) ([]models.CustomModel, error) {
-	return f.custom, nil
-}
-func (f *fakeSource) ModelAliases(context.Context) (map[string]string, error) { return f.aliases, nil }
-func (f *fakeSource) DisabledByAlias(context.Context) (map[string][]string, error) {
-	return f.disabled, nil
+func (f *fakeSource) Snapshot(context.Context) (*models.SourceSnapshot, error) {
+	return &models.SourceSnapshot{
+		Combos:          f.combos,
+		Connections:     f.connections,
+		CustomModels:    f.custom,
+		ModelAliases:    f.aliases,
+		DisabledByAlias: f.disabled,
+	}, nil
 }
 
 func loadTestRegistry(t *testing.T) *providers.Registry {

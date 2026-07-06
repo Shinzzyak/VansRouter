@@ -76,6 +76,14 @@ func run() error {
 	return server.Shutdown(shutdownCtx)
 }
 
+const (
+	readTimeout       = 30 * time.Second
+	readHeaderTimeout = 10 * time.Second
+	writeTimeout      = 0 // streaming endpoints manage their own deadlines
+	idleTimeout       = 120 * time.Second
+	maxHeaderBytes    = 1 << 20 // 1 MiB
+)
+
 func newServer(cfg *config.Config, logger *slog.Logger) (*http.Server, func(), error) {
 	database, err := db.Open(cfg.DBPath())
 	if err != nil {
@@ -98,7 +106,14 @@ func newServer(cfg *config.Config, logger *slog.Logger) (*http.Server, func(), e
 
 	repoSet := repos.New(database)
 	router := api.Routes(logger, repoSet, registry)
-	return &http.Server{Handler: router}, func() { database.Close() }, nil
+	return &http.Server{
+		Handler:           router,
+		ReadTimeout:       readTimeout,
+		ReadHeaderTimeout: readHeaderTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
+	}, func() { database.Close() }, nil
 }
 
 func registryPath() string {

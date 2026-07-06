@@ -65,17 +65,8 @@ type CustomModel struct {
 
 // Source supplies DB-backed model data to the builder. It is an interface
 // so tests can inject in-memory fakes without touching SQLite.
-//
-// ponytail: collapse the five-method Source into a single Snapshot(ctx) that
-// returns one struct holding combos/connections/customs/aliases/disabled.
-// The five-call load() then becomes one DB roundtrip. Deferred — current
-// shape keeps the test fake (countingSource) trivial.
 type Source interface {
-	Combos(ctx context.Context) ([]Combo, error)
-	Connections(ctx context.Context) ([]Connection, error)
-	CustomModels(ctx context.Context) ([]CustomModel, error)
-	ModelAliases(ctx context.Context) (map[string]string, error)
-	DisabledByAlias(ctx context.Context) (map[string][]string, error)
+	Snapshot(ctx context.Context) (*SourceSnapshot, error)
 }
 
 type registryModel struct {
@@ -173,11 +164,11 @@ func (b *Builder) InvalidateCache() {
 // BuildModelsList returns the deduplicated OpenAI-compatible model list
 // filtered to the given kinds. Pass nil for all kinds.
 func (b *Builder) BuildModelsList(ctx context.Context, kindFilter []Kind) ([]Model, error) {
-	combos, conns, customs, aliases, disabled, err := b.load(ctx)
+	snap, err := b.load(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entries := b.buildEntries(kindFilter, combos, conns, customs, aliases, disabled)
+	entries := b.buildEntries(kindFilter, snap.Combos, snap.Connections, snap.CustomModels, snap.ModelAliases, snap.DisabledByAlias)
 
 	seen := make(map[string]struct{}, len(entries))
 	out := make([]Model, 0, len(entries))
@@ -226,11 +217,11 @@ func (b *Builder) cachedAllowList(ctx context.Context) (map[string]struct{}, err
 	}
 	b.mu.RUnlock()
 
-	combos, conns, customs, aliases, disabled, err := b.load(ctx)
+	snap, err := b.load(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entries := b.buildEntries(AllKinds, combos, conns, customs, aliases, disabled)
+	entries := b.buildEntries(AllKinds, snap.Combos, snap.Connections, snap.CustomModels, snap.ModelAliases, snap.DisabledByAlias)
 	set := make(map[string]struct{}, len(entries))
 	for _, e := range entries {
 		if e.ID != "" {
@@ -244,28 +235,12 @@ func (b *Builder) cachedAllowList(ctx context.Context) (map[string]struct{}, err
 	return set, nil
 }
 
-func (b *Builder) load(ctx context.Context) ([]Combo, []Connection, []CustomModel, map[string]string, map[string][]string, error) {
-	combos, err := b.src.Combos(ctx)
+func (b *Builder) load(ctx context.Context) (*SourceSnapshot, error) {
+	snap, err := b.src.Snapshot(ctx)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("load combos: %w", err)
+		return nil, fmt.Errorf("load model snapshot: %w", err)
 	}
-	conns, err := b.src.Connections(ctx)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("load connections: %w", err)
-	}
-	customs, err := b.src.CustomModels(ctx)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("load custom models: %w", err)
-	}
-	aliases, err := b.src.ModelAliases(ctx)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("load model aliases: %w", err)
-	}
-	disabled, err := b.src.DisabledByAlias(ctx)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("load disabled models: %w", err)
-	}
-	return combos, conns, customs, aliases, disabled, nil
+	return snap, nil
 }
 
 func (b *Builder) buildEntries(

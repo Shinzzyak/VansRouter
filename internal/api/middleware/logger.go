@@ -3,30 +3,36 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/9router/9router/internal/log"
 )
 
-// statusRecorder captures the response status for the access log.
+// statusRecorder captures the response status for the access log with minimal
+// overhead: one atomic int32 instead of counting every byte written.
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status atomic.Int32
 }
 
 func (s *statusRecorder) WriteHeader(code int) {
-	s.status = code
+	s.status.Store(int32(code))
 	s.ResponseWriter.WriteHeader(code)
 }
 
 func (s *statusRecorder) Write(b []byte) (int, error) {
-	if s.status == 0 {
-		s.status = http.StatusOK
+	if s.status.Load() == 0 {
+		s.status.Store(int32(http.StatusOK))
 	}
-	n, err := s.ResponseWriter.Write(b)
-	s.bytes += n
-	return n, err
+	return s.ResponseWriter.Write(b)
+}
+
+func (s *statusRecorder) statusCode() int {
+	if c := s.status.Load(); c != 0 {
+		return int(c)
+	}
+	return http.StatusOK
 }
 
 // RequestLogger emits one structured slog line per HTTP request. It is
@@ -42,8 +48,7 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("query", r.URL.RawQuery),
-				slog.Int("status", rec.status),
-				slog.Int("bytes", rec.bytes),
+				slog.Int("status", rec.statusCode()),
 				slog.String("ip", ClientIP(r)),
 				slog.String("ua", r.UserAgent()),
 				slog.Duration("duration", time.Since(start)),

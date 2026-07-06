@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 )
@@ -181,9 +180,23 @@ func (h *ChatHandler) copyResponse(w http.ResponseWriter, resp *http.Response) {
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	if resp.Body != nil {
-		defer resp.Body.Close()
-		_, _ = io.Copy(w, resp.Body)
+	if resp.Body == nil {
+		return
+	}
+	defer resp.Body.Close()
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 16*1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			_, _ = w.Write(buf[:n])
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if err != nil {
+			return
+		}
 	}
 }
 

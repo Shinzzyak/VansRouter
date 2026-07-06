@@ -64,7 +64,24 @@ const nextConfig = {
     return config;
   },
   async rewrites() {
+    const backendBase = process.env.NINEROUTER_BACKEND_URL || "http://localhost:20128";
+    const isDev = process.env.NODE_ENV === "development";
+    const devProxy = isDev
+      ? [
+          // In development, proxy API calls to the Go backend so the
+          // dashboard talks to the ported server instead of the legacy
+          // src/app/api route handlers.
+          { source: "/api/:path*", destination: `${backendBase}/api/:path*` },
+          { source: "/api", destination: `${backendBase}/api` },
+          { source: "/v1/:path*", destination: `${backendBase}/v1/:path*` },
+          { source: "/v1", destination: `${backendBase}/v1` },
+          { source: "/models", destination: `${backendBase}/models` },
+          { source: "/health", destination: `${backendBase}/health` },
+          { source: "/version", destination: `${backendBase}/version` }
+        ]
+      : [];
     return [
+      ...devProxy,
       {
         source: "/v1/v1/:path*",
         destination: "/api/v1/:path*"

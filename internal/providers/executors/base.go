@@ -213,8 +213,6 @@ func (ex *BaseExecutor) Execute(ctx context.Context, req ExecuteRequest) (*http.
 	var lastErr error
 	var lastStatus int
 
-	client := &http.Client{Transport: ProxyTransport()}
-
 	for urlIndex := 0; urlIndex < fallbackCount; urlIndex++ {
 		url := ex.BuildURL(req.Model, req.Stream, urlIndex, req.Credentials)
 		if url == "" {
@@ -230,7 +228,7 @@ func (ex *BaseExecutor) Execute(ctx context.Context, req ExecuteRequest) (*http.
 			}
 			httpReq.Header = ex.BuildHeaders(req.Credentials, req.Stream)
 
-			resp, err := client.Do(httpReq)
+			resp, err := sharedClient.Do(httpReq)
 			connectCancel()
 
 			if err != nil {

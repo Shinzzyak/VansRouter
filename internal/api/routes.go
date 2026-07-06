@@ -90,19 +90,120 @@ func dashboardRouter(r *repos.Repos, registry *providers.Registry, builder *mode
 	router.With(dashboard.RequireSession).Get("/usage/{connectionId}", usageHandlers.ConnectionUsage)
 	router.With(dashboard.RequireSession).Post("/usage/{connectionId}/codex-reset-credits", usageHandlers.CodexResetCredits)
 
+	stubs := dashboard.NewStubsHandlers()
+
 	providerNodesHandlers := dashboard.NewProviderNodesHandlers()
 	router.With(dashboard.RequireSession).Get("/provider-nodes", providerNodesHandlers.List)
+	router.With(dashboard.RequireSession).Post("/provider-nodes/validate", stubs.ProviderNodesValidate)
 
 	tunnelHandlers := dashboard.NewTunnelHandlers()
 	router.With(dashboard.RequireSession).Get("/tunnel/status", tunnelHandlers.Status)
+	router.With(dashboard.RequireSession).Post("/tunnel/enable", stubs.TunnelEnable)
+	router.With(dashboard.RequireSession).Post("/tunnel/disable", stubs.TunnelDisable)
+	router.With(dashboard.RequireSession).Post("/tunnel/tailscale-check", stubs.TunnelTailscaleCheck)
+	router.With(dashboard.RequireSession).Post("/tunnel/tailscale-install", stubs.TunnelTailscaleInstall)
+	router.With(dashboard.RequireSession).Post("/tunnel/tailscale-enable", stubs.TunnelTailscaleEnable)
+	router.With(dashboard.RequireSession).Post("/tunnel/tailscale-disable", stubs.TunnelTailscaleDisable)
 
 	headroomHandlers := dashboard.NewHeadroomHandlers()
 	router.With(dashboard.RequireSession).Get("/headroom/status", headroomHandlers.Status)
+	router.With(dashboard.RequireSession).Post("/headroom/start", stubs.HeadroomStart)
+	router.With(dashboard.RequireSession).Post("/headroom/stop", stubs.HeadroomStop)
 
 	versionHandlers := dashboard.NewVersionHandlers()
 	router.Get("/version", versionHandlers.GetVersion)
 
-	// TODO: proxy-pools, models, cli-tools, oauth, translator, locale, pricing, tags.
+	// Stubs for routes not fully ported yet. These return empty but shape-valid
+	// JSON so the frontend never sees a 404 while the Go port is in progress.
+	router.With(dashboard.RequireSession).Get("/auth/oidc/test", stubs.OIDCTest)
+
+	router.With(dashboard.RequireSession).Get("/models", stubs.ModelsList)
+	router.With(dashboard.RequireSession).Get("/models/alias", stubs.ModelAliases)
+	router.With(dashboard.RequireSession).Put("/models/alias", stubs.ModelAliases)
+	router.With(dashboard.RequireSession).Delete("/models/alias", stubs.ModelAliases)
+	router.With(dashboard.RequireSession).Get("/models/availability", stubs.ModelAvailability)
+	router.With(dashboard.RequireSession).Get("/models/custom", stubs.ModelCustom)
+	router.With(dashboard.RequireSession).Get("/models/disabled", stubs.ModelDisabled)
+	router.With(dashboard.RequireSession).Get("/models/test", stubs.ModelTest)
+
+	router.With(dashboard.RequireSession).Get("/providers/client", stubs.ProvidersClient)
+	router.With(dashboard.RequireSession).Get("/providers/kilo/free-models", stubs.ProvidersKiloFreeModels)
+	router.With(dashboard.RequireSession).Post("/providers/test-batch", stubs.ProvidersTestBatch)
+	router.With(dashboard.RequireSession).Post("/providers/validate", stubs.ProvidersValidate)
+
+	router.With(dashboard.RequireSession).Get("/proxy-pools", stubs.ProxyPoolsList)
+	router.With(dashboard.RequireSession).Post("/proxy-pools", stubs.ProxyPoolsCreate)
+	router.With(dashboard.RequireSession).Post("/proxy-pools/vercel-deploy", stubs.ProxyPoolsVercelDeploy)
+	router.With(dashboard.RequireSession).Post("/proxy-pools/cloudflare-deploy", stubs.ProxyPoolsCloudflareDeploy)
+	router.With(dashboard.RequireSession).Post("/proxy-pools/deno-deploy", stubs.ProxyPoolsDenoDeploy)
+
+	router.With(dashboard.RequireSession).Get("/settings/proxy-test", stubs.SettingsProxyTest)
+	router.With(dashboard.RequireSession).Get("/settings/database", stubs.SettingsDatabase)
+	router.With(dashboard.RequireSession).Post("/settings/database", stubs.SettingsDatabase)
+
+	router.With(dashboard.RequireSession).Get("/pricing", stubs.Pricing)
+	router.With(dashboard.RequireSession).Patch("/pricing", stubs.Pricing)
+	router.With(dashboard.RequireSession).Delete("/pricing", stubs.Pricing)
+
+	router.With(dashboard.RequireSession).Get("/translator/load", stubs.TranslatorLoad)
+	router.With(dashboard.RequireSession).Post("/translator/save", stubs.TranslatorSave)
+	router.With(dashboard.RequireSession).Post("/translator/send", stubs.TranslatorSend)
+	router.With(dashboard.RequireSession).Post("/translator/translate", stubs.TranslatorTranslate)
+	router.With(dashboard.RequireSession).Get("/translator/console-logs", stubs.TranslatorConsoleLogs)
+	router.With(dashboard.RequireSession).Delete("/translator/console-logs", stubs.TranslatorConsoleLogs)
+	router.With(dashboard.RequireSession).Get("/translator/console-logs/stream", stubs.TranslatorConsoleLogsStream)
+
+	router.With(dashboard.RequireSession).Get("/oauth/codex/bulk-import", stubs.OAuthCodexBulkImport)
+
+	// Dashboard mirrors of /v1 media endpoints. The frontend uses relative
+	// paths under /api/v1/*; Caddy proxies them here, so we keep the same
+	// surface available with session auth.
+	router.With(dashboard.RequireSession).Post("/v1/audio/transcriptions", stubs.V1AudioTranscriptions)
+	router.With(dashboard.RequireSession).Post("/v1/embeddings", stubs.V1Embeddings)
+
+	// CLI tool settings stubs.
+	router.With(dashboard.RequireSession).Get("/cli-tools/all-statuses", stubs.CliToolsAllStatuses)
+	router.With(dashboard.RequireSession).Get("/cli-tools/antigravity-mitm", stubs.CliToolsAntigravityMitm)
+	router.With(dashboard.RequireSession).Post("/cli-tools/antigravity-mitm", stubs.CliToolsAntigravityMitm)
+	router.With(dashboard.RequireSession).Get("/cli-tools/antigravity-mitm/alias", stubs.CliToolsAntigravityMitmAlias)
+	router.With(dashboard.RequireSession).Get("/cli-tools/claude-settings", stubs.CliToolsClaudeSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/claude-settings", stubs.CliToolsClaudeSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/claude-settings", stubs.CliToolsClaudeSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/cline-settings", stubs.CliToolsClineSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/cline-settings", stubs.CliToolsClineSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/cline-settings", stubs.CliToolsClineSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/codex-settings", stubs.CliToolsCodexSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/codex-settings", stubs.CliToolsCodexSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/codex-settings", stubs.CliToolsCodexSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/copilot-settings", stubs.CliToolsCopilotSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/copilot-settings", stubs.CliToolsCopilotSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/copilot-settings", stubs.CliToolsCopilotSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/cowork-settings", stubs.CliToolsCoworkSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/cowork-settings", stubs.CliToolsCoworkSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/cowork-settings", stubs.CliToolsCoworkSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/cowork-mcp-registry", stubs.CliToolsCoworkMcpRegistry)
+	router.With(dashboard.RequireSession).Get("/cli-tools/cowork-mcp-tools", stubs.CliToolsCoworkMcpTools)
+	router.With(dashboard.RequireSession).Get("/cli-tools/deepseek-tui-settings", stubs.CliToolsDeepseekTuiSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/deepseek-tui-settings", stubs.CliToolsDeepseekTuiSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/deepseek-tui-settings", stubs.CliToolsDeepseekTuiSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/droid-settings", stubs.CliToolsDroidSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/droid-settings", stubs.CliToolsDroidSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/droid-settings", stubs.CliToolsDroidSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/hermes-settings", stubs.CliToolsHermesSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/hermes-settings", stubs.CliToolsHermesSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/hermes-settings", stubs.CliToolsHermesSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/jcode-settings", stubs.CliToolsJcodeSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/jcode-settings", stubs.CliToolsJcodeSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/jcode-settings", stubs.CliToolsJcodeSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/kilo-settings", stubs.CliToolsKiloSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/kilo-settings", stubs.CliToolsKiloSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/kilo-settings", stubs.CliToolsKiloSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/openclaw-settings", stubs.CliToolsOpenclawSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/openclaw-settings", stubs.CliToolsOpenclawSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/openclaw-settings", stubs.CliToolsOpenclawSettings)
+	router.With(dashboard.RequireSession).Get("/cli-tools/opencode-settings", stubs.CliToolsOpencodeSettings)
+	router.With(dashboard.RequireSession).Post("/cli-tools/opencode-settings", stubs.CliToolsOpencodeSettings)
+	router.With(dashboard.RequireSession).Delete("/cli-tools/opencode-settings", stubs.CliToolsOpencodeSettings)
 
 	return router
 }
@@ -125,6 +226,10 @@ func v1Router(r *repos.Repos, builder *models.Builder) http.Handler {
 
 	messagesHandler := &v1.MessagesHandler{}
 	router.Post("/messages/count_tokens", http.HandlerFunc(messagesHandler.ServeHTTP))
+
+	stubs := dashboard.NewStubsHandlers()
+	router.Post("/audio/transcriptions", stubs.V1AudioTranscriptions)
+	router.Post("/embeddings", stubs.V1Embeddings)
 
 	return router
 }
