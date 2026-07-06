@@ -1,16 +1,16 @@
 services:
   9router:
-    image: ghcr.io/shinzzyak/vansrouter:latest
-    container_name: 9router
+    image: ghcr.io/vanszs/vansrouter:0.8.6
+    container_name: vansrouter-086-prod
     restart: always
     ports:
-      - "20127:20127"
+      - "20127:20128"
     volumes:
       - /root/.openclaw/workspace/.vansroute:/app/data
     env_file:
       - .env
     environment:
       DATA_DIR: /app/data
-      PORT: "20127"
+      PORT: "20128"
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
