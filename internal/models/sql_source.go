@@ -61,7 +61,7 @@ func (s *SQLSource) Snapshot(ctx context.Context) (*SourceSnapshot, error) {
 // array of model ids.
 func (s *SQLSource) Combos(ctx context.Context) ([]Combo, error) {
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id, name, kind, models FROM combos ORDER BY name`)
+		`SELECT id, name, COALESCE(kind, '') AS kind, models FROM combos ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("query combos: %w", err)
 	}
