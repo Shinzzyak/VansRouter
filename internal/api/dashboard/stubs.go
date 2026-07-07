@@ -3,16 +3,23 @@ package dashboard
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/9router/9router/internal/models"
 )
 
 // StubsHandlers holds placeholder implementations for dashboard routes that
 // are not fully ported to Go yet. They return empty but shape-valid responses
 // so the frontend never hits a 404/500 while navigating the dashboard.
-type StubsHandlers struct{}
+type StubsHandlers struct {
+	// Builder is the model list builder, used by ModelsList to serve the
+	// /api/models route with real data instead of an empty stub.
+	Builder *models.Builder
+}
 
-// NewStubsHandlers creates stub handlers.
-func NewStubsHandlers() *StubsHandlers {
-	return &StubsHandlers{}
+// NewStubsHandlers creates stub handlers. The builder parameter is optional;
+// pass nil to keep the old empty-stub behaviour for routes that don't need it.
+func NewStubsHandlers(builder *models.Builder) *StubsHandlers {
+	return &StubsHandlers{Builder: builder}
 }
 
 func (h *StubsHandlers) empty(w http.ResponseWriter, r *http.Request) {
@@ -82,8 +89,19 @@ func (h *StubsHandlers) OIDCTest(w http.ResponseWriter, r *http.Request) {
 // Model stubs
 
 // ModelsList handles GET /api/models.
+// If the handler was created with a Builder, it serves the real model list;
+// otherwise it falls back to the empty-stub response.
 func (h *StubsHandlers) ModelsList(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"models": []any{}})
+	if h.Builder == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"models": []any{}})
+		return
+	}
+	list, err := h.Builder.BuildModelsList(r.Context(), models.AllKinds)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to build models list")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": list})
 }
 
 // ModelAliases handles GET /api/models/alias.
