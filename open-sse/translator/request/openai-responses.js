@@ -222,12 +222,13 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
 
   for (const msg of messages) {
     if (msg.role === ROLE.SYSTEM || msg.role === ROLE.DEVELOPER) {
-      // Use first system/developer message as instructions
+      // Use the first instruction-bearing message as instructions.
+      // OpenAI recommends role="developer" for GPT-5/Codex as the system-level prompt.
       if (!hasSystemMessage) {
         result.instructions = typeof msg.content === "string" ? msg.content : "";
         hasSystemMessage = true;
       }
-      continue; // Skip system/developer messages in input
+      continue; // Skip instruction messages in input
     }
 
     // Convert user/assistant messages to input items
