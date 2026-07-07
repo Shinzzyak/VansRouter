@@ -60,8 +60,26 @@ func loadMigrations() ([]migrationRecord, error) {
 	return records, nil
 }
 
+// detectNodejsVersion checks if the database was created by the Node.js backend
+// (9Router/VansRouter) by looking for the _meta table with a schemaVersion row.
+// Returns the version (1-based) if detected, 0 otherwise.
+// The Node.js backend uses _meta.key='schemaVersion' to track schema version.
+func detectNodejsVersion(database *sql.DB) int {
+	var version int
+	err := database.QueryRow(`SELECT CAST(value AS INTEGER) FROM _meta WHERE key = 'schemaVersion'`).Scan(&version)
+	if err != nil {
+		return 0
+	}
+	if version > 0 {
+		return version
+	}
+	return 0
+}
+
 // Migrate runs all embedded migrations that have not yet been applied.
 // It uses a schema_migrations table to track applied versions.
+// If the database was created by the Node.js backend (detected via _meta table),
+// all migrations up to the Node.js schemaVersion are pre-marked as applied.
 func Migrate(db *sql.DB) error {
 	records, err := loadMigrations()
 	if err != nil {
@@ -75,6 +93,16 @@ func Migrate(db *sql.DB) error {
 		)
 	`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
+	// Detect Node.js backend and pre-seed schema_migrations
+	nodejsVer := detectNodejsVersion(db)
+	if nodejsVer > 0 {
+		for _, rec := range records {
+			if rec.Version <= nodejsVer {
+				db.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, rec.Version)
+			}
+		}
 	}
 
 	for _, rec := range records {
