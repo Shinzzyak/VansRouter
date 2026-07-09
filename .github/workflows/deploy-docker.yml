@@ -1,0 +1,121 @@
+name: Build + Deploy Docker Image to VPS
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (e.g. v0.8.7)"
+        required: true
+        default: "latest"
+
+env:
+  GHCR_IMAGE: ghcr.io/shinzzyak/vansrouter
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER }}
+  VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+  CONTAINER_NAME: vansrouter-086-prod
+  DATA_DIR: /root/.openclaw/workspace/.vansroute
+
+jobs:
+  build-and-push:
+    name: Build + Push to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GHCR_IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.GHCR_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache,mode=max
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.VPS_HOST }}
+          username: ${{ env.VPS_USER }}
+          key: ${{ env.VPS_SSH_KEY }}
+          script: |
+            set -e
+            TAG="${{ steps.tag.outputs.tag }}"
+            IMAGE="${{ env.GHCR_IMAGE }}:${TAG}"
+            CONTAINER="${{ env.CONTAINER_NAME }}"
+            DATA="${{ env.DATA_DIR }}"
+
+            echo "=== Pulling ${IMAGE} ==="
+            docker pull "${IMAGE}"
+
+            echo "=== Stopping old container ==="
+            docker stop "${CONTAINER}" 2>/dev/null || true
+            docker rm "${CONTAINER}" 2>/dev/null || true
+
+            echo "=== Starting new container ==="
+            docker run -d --name "${CONTAINER}" \
+              -p 20127:20128 \
+              -v "${DATA}:/app/data" \
+              --restart unless-stopped \
+              "${IMAGE}"
+
+            echo "=== Waiting for startup ==="
+            sleep 5
+
+            echo "=== Verifying ==="
+            if curl -fsS http://localhost:20127/ > /dev/null 2>&1; then
+              echo "✅ VansRouter is running on :20127"
+            else
+              echo "❌ Health check failed"
+              docker logs "${CONTAINER}" --tail 20
+              exit 1
+            fi
+
+            echo "=== Deploy complete ==="
