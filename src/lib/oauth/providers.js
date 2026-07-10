@@ -6,31 +6,6 @@
 // Ensure outbound fetch respects HTTP(S)_PROXY/ALL_PROXY in Node runtime
 import "open-sse/index.js";
 import crypto from "crypto";
-import os from "os";
-
-// ponytail: ZCode source headers — generated once per process; not per-request, since the
-// X-ZCode-Agent / X-Platform etc. are static identity of this client. x-request-id is
-// added per-request at the call site, not here.
-let _zcodeSourceHeaders = null;
-function buildZCodeSourceHeaders() {
-  if (_zcodeSourceHeaders) return _zcodeSourceHeaders;
-  const arch = os.arch() || "x64";
-  const platform = os.platform() || "linux";
-  _zcodeSourceHeaders = {
-    "User-Agent": "ZCode/3.1.0",
-    "X-ZCode-Agent": "glm",
-    "X-Platform": `${platform}-${arch}`,
-    "X-Client-Language": "en",
-    "X-Client-Timezone": Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    "X-Os-Category": "linux",
-    "X-Os-Version": os.release?.() || "",
-  };
-  return _zcodeSourceHeaders;
-}
-
-function newZCodeRequestId() {
-  return crypto.randomUUID();
-}
 
 import { generatePKCE, generateState } from "./utils/pkce";
 import {
@@ -44,14 +19,16 @@ import {
   GITHUB_CONFIG,
   KIRO_CONFIG,
   assertValidAwsRegion,
-  getOAuthClientMetadata,
   CURSOR_CONFIG,
   KIMI_CODING_CONFIG,
   KILOCODE_CONFIG,
   CLINE_CONFIG,
+  CLINEPASS_CONFIG,
   GITLAB_CONFIG,
   CODEBUDDY_CONFIG,
-  ZAI_CONFIG,
+  KIMCHI_CONFIG,
+  GROK_CLI_CONFIG,
+  getOAuthClientMetadata,
 } from "./constants/oauth";
 import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai";
 import {
@@ -276,6 +253,122 @@ const PROVIDERS = {
         mapped.providerSpecificData = { idToken: tokens.id_token };
       }
       return mapped;
+    },
+  },
+
+  // Grok CLI / Grok Build — device code flow to auth.x.ai, inference on cli-chat-proxy.grok.com
+  "grok-cli": {
+    config: GROK_CLI_CONFIG,
+    flowType: "device_code",
+    requestDeviceCode: async (config) => {
+      const body = new URLSearchParams({
+        client_id: config.clientId,
+        scope: config.scope,
+      });
+      // Official CLI sends referrer=grok-build
+      if (config.referrer) body.set("referrer", config.referrer);
+
+      const response = await fetch(config.deviceCodeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Grok CLI device code request failed: ${error}`);
+      }
+
+      return await response.json();
+    },
+    pollToken: async (config, deviceCode) => {
+      const response = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
+        },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          device_code: deviceCode,
+          client_id: config.clientId,
+        }),
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        data = { error: "invalid_response", error_description: text };
+      }
+
+      // Device flow: 400 + authorization_pending is expected while user authorizes
+      const pending =
+        data?.error === "authorization_pending" ||
+        data?.error === "slow_down";
+      return {
+        ok: response.ok || pending,
+        data,
+      };
+    },
+    postExchange: async (tokens) => {
+      // Best-effort user profile from cli-chat-proxy (non-fatal)
+      try {
+        const res = await fetch("https://cli-chat-proxy.grok.com/v1/user", {
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`,
+            Accept: "application/json",
+            "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
+            "x-xai-token-auth": "xai-grok-cli",
+            "x-grok-client-version": "0.2.93",
+          },
+        });
+        if (res.ok) return { user: await res.json() };
+      } catch {
+        /* ignore */
+      }
+      return { user: null };
+    },
+    mapTokens: (tokens, extra) => {
+      const email =
+        decodeXaiIdTokenEmail(tokens.id_token) ||
+        extractEmailFromAccessToken(tokens.access_token) ||
+        extra?.user?.email ||
+        null;
+      const userId =
+        extra?.user?.userId ||
+        extra?.user?.principalId ||
+        null;
+      const displayName = [extra?.user?.firstName, extra?.user?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || null;
+
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresIn: tokens.expires_in,
+        scope: tokens.scope,
+        // Top-level for dashboard connection cards
+        email: email || undefined,
+        displayName: displayName || undefined,
+        // Mirror identity into providerSpecificData so GrokCliExecutor can set
+        // x-email / x-userid without depending on top-level credential shape.
+        providerSpecificData: {
+          authMethod: "device_code",
+          idToken: tokens.id_token || null,
+          email: email || null,
+          userId,
+          hasGrokCodeAccess: extra?.user?.hasGrokCodeAccess ?? null,
+          subscriptionTier: extra?.user?.subscriptionTier ?? null,
+        },
+      };
     },
   },
 
@@ -1145,7 +1238,62 @@ const PROVIDERS = {
     }),
   },
   clinepass: {
-    flowType: "apikey",
+    config: CLINEPASS_CONFIG,
+    flowType: "authorization_code",
+    buildAuthUrl: (config, redirectUri) => {
+      const params = new URLSearchParams({
+        client_type: "extension",
+        callback_url: redirectUri,
+        redirect_uri: redirectUri,
+      });
+      return `${config.authorizeUrl}?${params.toString()}`;
+    },
+    exchangeToken: async (config, code, redirectUri) => {
+      try {
+        // Cline encodes token data as base64 in the code param
+        let base64 = code;
+        const padding = 4 - (base64.length % 4);
+        if (padding !== 4) base64 += "=".repeat(padding);
+        const decoded = Buffer.from(base64, "base64").toString("utf-8");
+        const lastBrace = decoded.lastIndexOf("}");
+        if (lastBrace === -1) throw new Error("No JSON found in decoded code");
+        const tokenData = JSON.parse(decoded.substring(0, lastBrace + 1));
+        return {
+          access_token: tokenData.accessToken,
+          refresh_token: tokenData.refreshToken,
+          email: tokenData.email,
+          firstName: tokenData.firstName,
+          lastName: tokenData.lastName,
+          expires_at: tokenData.expiresAt,
+        };
+      } catch (e) {
+        const response = await fetch(config.tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ grant_type: "authorization_code", code, client_type: "extension", redirect_uri: redirectUri }),
+        });
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`ClinePass token exchange failed: ${error}`);
+        }
+        const data = await response.json();
+        return {
+          access_token: data.data?.accessToken || data.accessToken,
+          refresh_token: data.data?.refreshToken || data.refreshToken,
+          email: data.data?.userInfo?.email || "",
+          expires_at: data.data?.expiresAt || data.expiresAt,
+        };
+      }
+    },
+    mapTokens: (tokens) => ({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresIn: tokens.expires_at
+        ? Math.floor((new Date(tokens.expires_at).getTime() - Date.now()) / 1000)
+        : 3600,
+      email: tokens.email,
+      providerSpecificData: { firstName: tokens.firstName, lastName: tokens.lastName },
+    }),
   },
   // GitLab Duo - Authorization Code Flow with PKCE
   // Supports two login modes via loginMode metadata: "oauth" (default) or "pat"
@@ -1285,181 +1433,76 @@ const PROVIDERS = {
     }),
   },
 
-  // Zcode: Z.ai OAuth via zcode.z.ai proxy + business token exchange for /api/anthropic.
-  // Manual paste flow only (zcode:// custom scheme — browser shows ERR_UNKNOWN_URL_SCHEME,
-  // user copies URL from address bar). Client: zcode://zai-auth/callback (ZCode source v3.1.0).
-  zcode: {
-    config: ZAI_CONFIG,
-    flowType: "authorization_code",
+  kimchi: {
+    config: KIMCHI_CONFIG,
+    flowType: "browser_token",
     buildAuthUrl: (config, redirectUri, state) => {
+      const baseUrl = (config.webAppUrl || "https://app.kimchi.dev").replace(/\/+$/, "");
       const params = new URLSearchParams({
-        redirect_uri: redirectUri,
-        response_type: "code",
-        client_id: config.clientId,
+        callback: redirectUri,
         state,
       });
-      return `${config.authorizeUrl}?${params.toString()}`;
+      return `${baseUrl}/cli-auth?${params.toString()}`;
     },
-    exchangeToken: async (config, code, redirectUri, _codeVerifier, state, _meta) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      try {
-        const response = await fetch(config.tokenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ provider: "zai", code, redirect_uri: redirectUri, state: state || "" }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || (data.code !== undefined && data.code !== 0)) {
-          const msg = data.msg || `HTTP ${response.status}`;
-          throw new Error(`Z.ai token exchange failed: ${msg}`);
-        }
-        const accessToken = data.data?.zai?.access_token || data.data?.access_token;
-        if (!accessToken) throw new Error("Z.ai token exchange: missing data.zai.access_token");
-        return {
-          accessToken,
-          refreshToken: data.data?.zai?.refresh_token,
-          zcodeJwtToken: data.data?.token,
-          expiresIn: data.data?.expires_in,
-          raw: data.data,
-        };
-      } catch (e) {
-        clearTimeout(timeout);
-        if (e.name === "AbortError") throw new Error("Z.ai token exchange timed out (20s)");
-        throw e;
-      }
-    },
-    postExchange: async (tokens) => {
-      const accessToken = tokens.accessToken;
-      const zcodeHeaders = () => ({
-        ...buildZCodeSourceHeaders(),
-        "x-request-id": newZCodeRequestId(),
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      });
-
-      // User info (non-fatal — missing profile should not block connection)
-      let userInfo = {};
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(ZAI_CONFIG.userInfoUrl, { headers: zcodeHeaders(), signal: controller.signal });
-        clearTimeout(timeout);
-        if (res.ok) userInfo = await res.json();
-      } catch (e) {
-        console.log("Zcode userInfo fetch failed (non-fatal):", e?.message);
+    exchangeToken: async (config, token) => {
+      const accessToken = String(token || "").trim();
+      if (!accessToken) {
+        throw new Error("Missing Kimchi token");
       }
 
-      // Business token exchange: OAuth token → business access token for /api/anthropic.
-      // ponytail: business token refresh on 401, not preemptively. Retry once on transient failure.
-      let businessToken = "";
-      if (ZAI_CONFIG.businessLoginUrl) {
-        for (let attempt = 0; attempt < 2 && !businessToken; attempt++) {
-          let timeout;
-          try {
-            const controller = new AbortController();
-            timeout = setTimeout(() => controller.abort(), 15000);
-            const res = await fetch(ZAI_CONFIG.businessLoginUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token: accessToken }),
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            if (res.ok) {
-              const data = await res.json().catch(() => ({}));
-              businessToken = data.data?.access_token || data.data?.token || "";
-            } else {
-              console.log(`Zcode business-token exchange attempt ${attempt + 1} failed: HTTP ${res.status}`);
-            }
-          } catch (e) {
-            clearTimeout(timeout);
-            console.log(`Zcode business-token exchange attempt ${attempt + 1} error:`, e?.message);
-          }
-          if (!businessToken && attempt === 0) await new Promise((r) => setTimeout(r, 1000));
-        }
-        if (!businessToken) console.log("Zcode business-token exchange gave up after retries; connection may fail for /api/anthropic");
-      }
-
-      // Subscription / coding plan (non-fatal)
-      let planId = "";
-      let tier = "free";
-      let quotaPools = {
-        fiveHourPool: { remaining: 0, total: 0 },
-        weeklyQuota: { remaining: 0, total: 0 },
-        monthlyMcpQuota: { remaining: 0, total: 0 },
-      };
-      let modelUsage = {};
-      let modelAccess = [];
-      if (ZAI_CONFIG.subscriptionUrl) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 10000);
-          const res = await fetch(ZAI_CONFIG.subscriptionUrl, {
-            method: "POST",
-            headers: { ...zcodeHeaders(), "Content-Type": "application/json", "User-Agent": ZAI_CONFIG.userAgent },
-            body: JSON.stringify({}),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          if (res.ok) {
-            const data = await res.json();
-            planId = data.planId || data.plan?.id || "";
-            tier = data.tier || data.plan?.tier || "free";
-            if (data.quotaPools) {
-              quotaPools.fiveHourPool = {
-                remaining: data.quotaPools.fiveHour?.remaining || 0,
-                total: data.quotaPools.fiveHour?.total || 0,
-              };
-              quotaPools.weeklyQuota = {
-                remaining: data.quotaPools.weekly?.remaining || 0,
-                total: data.quotaPools.weekly?.total || 0,
-              };
-              quotaPools.monthlyMcpQuota = {
-                remaining: data.quotaPools.monthlyMcp?.remaining || 0,
-                total: data.quotaPools.monthlyMcp?.total || 0,
-              };
-            }
-            if (data.modelUsage) modelUsage = data.modelUsage;
-            if (Array.isArray(data.allowedModels)) modelAccess = data.allowedModels;
-            else if (data.models) modelAccess = data.models;
-          }
-        } catch (e) {
-          console.log("Zcode subscription fetch failed (non-fatal):", e?.message);
-        }
-      }
-
-      return { userInfo, planId, tier, quotaPools, modelUsage, modelAccess, businessToken };
-    },
-    mapTokens: (tokens, extra) => ({
-      accessToken: tokens.accessToken || tokens.access_token,
-      refreshToken: tokens.refreshToken || tokens.refresh_token,
-      expiresIn: tokens.expiresIn || tokens.expires_in,
-      scope: tokens.scope,
-      zcodeJwtToken: tokens.zcodeJwtToken,
-      email: extra?.userInfo?.email,
-      planId: extra?.planId,
-      tier: extra?.tier,
-      providerSpecificData: {
-        sub: "zai",
-        quotaPools: extra?.quotaPools || {
-          fiveHourPool: { remaining: 0, total: 0 },
-          weeklyQuota: { remaining: 0, total: 0 },
-          monthlyMcpQuota: { remaining: 0, total: 0 },
+      const validationUrl = config.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers";
+      const validationRes = await fetch(validationUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
-        modelUsage: extra?.modelUsage || {},
-        modelAccess: extra?.modelAccess || [],
-        apiBaseUrl: ZAI_CONFIG.apiBaseUrl,
-        zcodePlanBaseUrl: ZAI_CONFIG.zcodePlanBaseUrl,
-        region: "global",
-        zcodeJwtToken: tokens.zcodeJwtToken || "",
-        businessToken: extra?.businessToken || "",
-        // ponytail: hardcoded 4 variants; sync with PROVIDER_MODELS.zcode when model set changes
-        enabledModels: ["GLM-5.2", "GLM-5.2-Max", "GLM-5-Turbo", "GLM-5-Turbo-Max"],
-      },
-    }),
+      });
+      if (!validationRes.ok) {
+        throw new Error(`Kimchi token validation failed: ${validationRes.status}`);
+      }
+
+      let userInfo = {};
+      if (config.userInfoUrl) {
+        try {
+          const userRes = await fetch(config.userInfoUrl, {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          if (userRes.ok) {
+            userInfo = await userRes.json();
+          }
+        } catch {
+          userInfo = {};
+        }
+      }
+
+      return {
+        access_token: accessToken,
+        token_type: "Bearer",
+        _kimchiUser: userInfo,
+      };
+    },
+    mapTokens: (tokens) => {
+      const user = tokens._kimchiUser || {};
+      const userId = user.id ? String(user.id) : "";
+      const username = user.username || "";
+      const email = user.email || (userId ? `kimchi-user-${userId}` : null);
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: null,
+        email,
+        displayName: user.name || username || null,
+        providerSpecificData: {
+          authMethod: "browser_token",
+          userId,
+          username,
+        },
+      };
+    },
   },
 };
 
@@ -1615,9 +1658,9 @@ export async function backfillCodexEmails() {
       const hasAccountInfo = !!c.providerSpecificData?.chatgptAccountId;
       return !hasEmail || !hasAccountInfo;
     });
-    await Promise.all(targets.map(async (conn) => {
+    for (const conn of targets) {
       const info = extractCodexAccountInfo(conn.idToken);
-      if (!info.email && !info.chatgptAccountId) return;
+      if (!info.email && !info.chatgptAccountId) continue;
       const patch = {};
       if (!conn.email && info.email) patch.email = info.email;
       if (info.chatgptAccountId || info.chatgptPlanType) {
@@ -1630,7 +1673,7 @@ export async function backfillCodexEmails() {
       if (Object.keys(patch).length) {
         await updateProviderConnection(conn.id, patch);
       }
-    }));
+    }
   } catch (err) {
     codexBackfillDone = false;
     console.log("backfillCodexEmails failed:", err?.message || err);
