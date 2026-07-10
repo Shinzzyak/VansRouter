@@ -1,4 +1,4 @@
-# v0.5.25 (2026-07-10)
+# v0.5.28 (2026-07-10)
 
 ## Features
 - **Perplexity**: add Agent API provider (#2492)
@@ -6,6 +6,10 @@
 - **Featherless**: add OpenAI-compatible provider presets
 - **SearXNG**: configure endpoint via SEARXNG_URL env (#2499)
 - **Providers**: add max thinking level for gpt-5.6-sol (#2500)
+- **Headroom**: add extras detection and install UI (#2403)
+- **Headroom**: activate/uninstall extras + fix interpreter detection
+- **PXPipe**: PXPIPE token saver — multimodal prompt compression (#2465)
+- **Proxy-Pools**: auto-rotate strategy for no-auth providers (#2409)
 
 ## Fixes
 - **Cloudflare-AI**: support accountId in bulk key import (#2449)
@@ -21,6 +25,7 @@
 - **Codex**: handle fast tier and capacity SSE (#2452)
 - **Volcengine-ark**: clamp Kimi max_tokens to 32768 endpoint cap
 - **Antigravity**: align provider fingerprint with IDE Desktop 2.1.1 (#2389)
+- **Pricing**: update Claude/Codex model rates and add new models
 
 ## Improvements
 - **i18n(zh-CN)**: complete Chinese translations for all UI strings (#2436)
