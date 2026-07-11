@@ -50,7 +50,7 @@ jobs:
         run: pnpm lint:undef
 
       - name: Build application
-        run: pnpm run build
+        run: node scripts/build.js
 
       - name: Verify standalone output exists
         shell: bash

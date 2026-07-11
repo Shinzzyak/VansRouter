@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
+    "lint:undef": "node scripts/lint-undef.cjs",
+    "lint:reacthooks": "node scripts/lint-reacthooks.cjs",
+    "lint": "eslint . --no-warn-ignored",
     "build": "next build --webpack",
     "start": "next start --port 20127",
     "dev:bun": "bun --bun next dev --webpack --port 20127",
