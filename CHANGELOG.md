@@ -1,3 +1,20 @@
+# v0.9.0 (2026-07-11)
+
+VansRouter 0.9.0 delivers a major sync with upstream v0.5.30, adds experimental PXPIPE token saver (multimodal prompt compression), integrates Perplexity Agent / Grok CLI / Featherless providers, and resolves critical packaging, environment, and streaming regressions.
+
+## Added
+- **Upstream v0.5.30 sync** — cherry-picks 23 upstream commits.
+- **PXPIPE Token Saver** — experimental fifth token saver. Claude-format request bodies are rendered as dense PNGs via pxpipe-proxy, cutting input tokens by ~35-60%.
+- **New Providers** — Perplexity Agent, Grok CLI (with OAuth device-code flow), and Featherless OpenAI-compatible presets.
+- **Proxy Auto-Rotation** — strategy for unauthenticated providers.
+- **Headroom Extras** — activation, uninstall UI, and interpreter auto-detection.
+
+## Fixed
+- **NPM Package Env Crash** — whitelisted swc-helpers underscore folders (`_`) and bundled `@next/env` inside `app/_nm` to avoid npm's default `node_modules` stripping.
+- **SSE Streaming Batching** — disabled Next.js default compression (`compress: false`) to flush SSE chunks immediately to the client without buffering.
+- **ZCode OAuth Flow** — restored missing ZCode/Z.ai configuration and helper functions from the merge.
+- **Registry Index** — regenerated index to include all 124 local and custom providers.
+
 # v0.8.9 (2026-07-09)
 
 VansRouter 0.8.9 syncs the latest upstream v0.5.20 fixes, hardens production data-directory handling, and cleans up the remaining test/lint regressions.
