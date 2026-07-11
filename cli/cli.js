@@ -583,7 +583,10 @@ function startServer(latestVersion) {
       env: {
         ...buildEnvWithRuntime(process.env),
         PORT: port.toString(),
-        HOSTNAME: host
+        HOSTNAME: host,
+        // app/node_modules/ is renamed to app/_nm/ so npm publish doesn't strip it.
+        // NODE_PATH lets the standalone server resolve next, @next/env, etc. from there.
+        NODE_PATH: path.join(standaloneDir, "_nm")
       }
     });
     if (!showLog && child.stderr) {

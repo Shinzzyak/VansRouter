@@ -292,6 +292,16 @@ if (require.main === module) {
     process.exit(1);
   }
 
+  // Rename app/node_modules → app/_nm so npm publish doesn't strip it.
+  // cli.js sets NODE_PATH=app/_nm when spawning the server so Next.js resolves correctly.
+  const nmDir = path.join(cliAppDir, "node_modules");
+  const nmDest = path.join(cliAppDir, "_nm");
+  if (fs.existsSync(nmDir)) {
+    if (fs.existsSync(nmDest)) fs.rmSync(nmDest, { recursive: true, force: true });
+    fs.renameSync(nmDir, nmDest);
+    console.log("✅ Renamed app/node_modules → app/_nm (npm-publish-safe)\n");
+  }
+
   console.log("✨ CLI package build completed!");
   console.log(`📁 Output: ${cliAppDir}`);
 
