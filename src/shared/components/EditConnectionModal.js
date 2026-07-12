@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useReducer } from "react";
+import { useState, useReducer, useEffect } from "react";
 import Modal from "@/shared/components/Modal";
 import Input from "@/shared/components/Input";
 import Button from "@/shared/components/Button";
@@ -66,6 +66,46 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       dispatch({ type: "RESET" });
     }
   }
+
+  const [gcpProjects, setGcpProjects] = useState(null);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [projectsError, setProjectsError] = useState("");
+
+  const isGoogle = connection?.provider === "gemini-cli" || connection?.provider === "antigravity";
+
+  useEffect(() => {
+    if (!isOpen || !connection || !isGoogle) {
+      setGcpProjects(null);
+      setProjectsError("");
+      return;
+    }
+
+    let active = true;
+    const loadGcpProjects = async () => {
+      setLoadingProjects(true);
+      setProjectsError("");
+      try {
+        const res = await fetch(`/api/providers/${connection.id}/gcp-projects`);
+        if (!active) return;
+        const data = await res.json();
+        if (res.ok) {
+          setGcpProjects(data.projects || []);
+        } else {
+          setProjectsError(data.error || "Failed to load GCP projects");
+        }
+      } catch (err) {
+        if (!active) return;
+        setProjectsError(err.message || "Failed to load GCP projects");
+      } finally {
+        if (active) setLoadingProjects(false);
+      }
+    };
+
+    loadGcpProjects();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, connection?.id, isGoogle]);
 
   const isOAuth = connection?.authType === "oauth";
   const isAzure = connection?.provider === "azure";
@@ -213,14 +253,38 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value, 10) || 1 })}
         />
 
-        {(connection.provider === "gemini-cli" || connection.provider === "antigravity") && (
-          <Input
-            label="Project ID"
-            value={formData.projectId}
-            onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-            placeholder="Google GCP Project ID"
-            hint="Override the automatically resolved GCP project ID used for API requests."
-          />
+        {isGoogle && (
+          <>
+            {loadingProjects ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-text">Project ID</span>
+                <div className="text-xs text-text-muted animate-pulse py-2">Loading GCP projects...</div>
+              </div>
+            ) : gcpProjects && gcpProjects.length > 0 && !projectsError ? (
+              <Select
+                label="Project ID"
+                value={formData.projectId}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                options={[
+                  { value: "", label: "-- Select GCP Project --" },
+                  ...gcpProjects.map((p) => ({ value: p.id, label: `${p.name} (${p.id})` })),
+                ]}
+                hint="Choose which GCP project ID to use for API requests."
+              />
+            ) : (
+              <Input
+                label="Project ID"
+                value={formData.projectId}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                placeholder="Google GCP Project ID"
+                hint={
+                  projectsError
+                    ? `Failed to load projects (${projectsError}). Please type Project ID manually.`
+                    : "Override the automatically resolved GCP project ID used for API requests."
+                }
+              />
+            )}
+          </>
         )}
 
         {!isOAuth && (
@@ -311,7 +375,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           <Button
             onClick={handleSubmit}
             fullWidth
-            disabled={saving || ((connection.provider === "gemini-cli" || connection.provider === "antigravity") && formData.projectId !== (connection.projectId || "") && testResult !== "success")}
+            disabled={saving || (isGoogle && formData.projectId !== (connection.projectId || "") && !(gcpProjects && gcpProjects.length > 0 && !projectsError) && testResult !== "success")}
           >
             {saving ? "Saving..." : "Save"}
           </Button>
