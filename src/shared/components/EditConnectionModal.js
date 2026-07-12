@@ -86,7 +86,13 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     if (!connection?.provider) return;
     dispatch({ type: "TEST_START" });
     try {
-      const res = await fetch(`/api/providers/${connection.id}/test`, { method: "POST" });
+      const isGoogle = connection.provider === "gemini-cli" || connection.provider === "antigravity";
+      const body = isGoogle ? { projectId: formData.projectId } : undefined;
+      const res = await fetch(`/api/providers/${connection.id}/test`, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
       const data = await res.json();
       dispatch({ type: "TEST_DONE", result: data.valid ? "success" : "failed" });
     } catch {
@@ -302,7 +308,13 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         )}
 
         <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+          <Button
+            onClick={handleSubmit}
+            fullWidth
+            disabled={saving || ((connection.provider === "gemini-cli" || connection.provider === "antigravity") && formData.projectId !== (connection.projectId || "") && testResult !== "success")}
+          >
+            {saving ? "Saving..." : "Save"}
+          </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>Cancel</Button>
         </div>
       </div>
