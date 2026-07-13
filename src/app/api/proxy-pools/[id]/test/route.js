@@ -11,8 +11,9 @@ async function testVercelRelay(relayUrl, timeoutMs = 10000) {
     const res = await undiciFetch(relayUrl, {
       method: "GET",
       headers: {
-        "x-relay-target": "https://httpbin.org",
-        "x-relay-path": "/get",
+        // httpbin.org is intermittently slow from Vercel Edge, causing false-red pools.
+        "x-relay-target": "https://api.ipify.org",
+        "x-relay-path": "/?format=json",
       },
       signal: controller.signal,
     });
