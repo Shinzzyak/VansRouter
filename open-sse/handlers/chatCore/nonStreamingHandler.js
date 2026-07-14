@@ -276,7 +276,8 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   let didReverse = false;
   let finalResponse = translatedResponse;
   if (sourceFormat === FORMATS.CLAUDE && targetFormat !== FORMATS.CLAUDE) {
-    finalResponse = openaiToClaudeNonStreaming(translatedResponse, model);
+    const reversed = openaiToClaudeNonStreaming(translatedResponse, model);
+    finalResponse = decloakToolNames(reversed, toolNameMap);
     didReverse = true;
   }
 

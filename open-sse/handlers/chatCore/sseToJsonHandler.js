@@ -6,6 +6,7 @@ import { PROVIDERS } from "../../config/providers.js";
 import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requestDetail.js";
 import { extractToolNames, fuzzyMatchToolName } from "../../translator/concerns/toolCall.js";
 import { openaiToClaudeNonStreaming } from "./nonStreamingHandler.js";
+import { decloakToolNames } from "../../utils/claudeCloaking.js";
 
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
@@ -118,7 +119,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel, validToolNames =
  * Handle case: provider forced streaming but client wants JSON.
  * Supports both Codex/Responses API SSE and standard Chat Completions SSE.
  */
-export async function handleForcedSSEToJson({ providerResponse, sourceFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyName, clientRawRequest, onRequestSuccess, trackDone, appendLog, comboName }) {
+export async function handleForcedSSEToJson({ providerResponse, sourceFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyName, clientRawRequest, onRequestSuccess, trackDone, appendLog, comboName, toolNameMap }) {
   const contentType = providerResponse.headers.get("content-type") || "";
   const isSSE = contentType.includes("text/event-stream") || (contentType === "" && isResponsesProvider(provider));
   if (!isSSE) return null; // not handled here
@@ -197,7 +198,8 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
           usage: { prompt_tokens: inTokens, completion_tokens: outTokens }
         };
         if (hasToolCalls) openaiBody.choices[0].message.tool_calls = toolCalls;
-        finalResp = openaiToClaudeNonStreaming(openaiBody, model);
+        const reversed = openaiToClaudeNonStreaming(openaiBody, model);
+        finalResp = decloakToolNames(reversed, toolNameMap);
       } else {
         const message = { role: "assistant", content: textContent || (hasToolCalls ? null : "") };
         if (hasToolCalls) message.tool_calls = toolCalls;
@@ -262,7 +264,8 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
     //  streaming response was aggregated to OpenAI JSON, must convert back)
     let finalResp = parsed;
     if (sourceFormat === FORMATS.CLAUDE) {
-      finalResp = openaiToClaudeNonStreaming(parsed, model);
+      const reversed = openaiToClaudeNonStreaming(parsed, model);
+      finalResp = decloakToolNames(reversed, toolNameMap);
     }
 
     return { success: true, response: new Response(JSON.stringify(finalResp), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
