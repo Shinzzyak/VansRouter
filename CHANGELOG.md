@@ -1,3 +1,12 @@
+# v0.9.4 (2026-07-16)
+
+VansRouter 0.9.4 fixes source-clone version detection and preserves Docker SQLite data across updates.
+
+## Fixed
+- **Version Update Detection** — checks the published `vansrouter` package instead of legacy `9router`.
+- **Docker SQLite Volume Persistence** — preserves the `9router-data` volume name.
+
+
 # v0.9.3 (2026-07-16)
 
 VansRouter 0.9.3 replaces placeholder logos with official icons, aligns multi-name provider assets, removes redundant defaultModel input for custom compatible endpoints, and syncs upstream omnirouter provider additions.
