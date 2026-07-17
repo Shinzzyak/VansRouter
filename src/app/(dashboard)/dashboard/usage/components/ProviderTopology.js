@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 
 // Force-stop FE animation if a provider stays active longer than this
 const FE_ACTIVE_TIMEOUT_MS = 60000;
@@ -29,9 +30,8 @@ function getProviderConfig(providerId) {
   return AI_PROVIDERS[providerId] || { color: "#6b7280", name: providerId };
 }
 
-// Use local provider images from /public/providers/
 function getProviderImageUrl(providerId) {
-  return `/providers/${providerId}.webp`;
+  return getProviderIconSrc(providerId);
 }
 
 // Custom provider node - rectangle with image + name
@@ -57,8 +57,20 @@ function ProviderNode({ data }) {
         className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
         style={{ backgroundColor: `${color}15` }}
       >
-        {!imgError ? (
-          <Image src={imageUrl} alt={label} className="w-6 h-6 rounded-sm object-contain" width={24} height={24} onError={() => setImgError(true)} unoptimized />
+        {imageUrl && !imgError ? (
+          <Image
+            src={imageUrl}
+            alt={label}
+            className="w-6 h-6 rounded-sm object-contain"
+            width={24}
+            height={24}
+            unoptimized
+            onError={() => {
+              const m = imageUrl?.match(/^\/providers\/([^/]+)\.(png|webp)$/i);
+              if (m) markProviderIconMissing(m[1]);
+              setImgError(true);
+            }}
+          />
         ) : (
           <span className="text-sm font-bold" style={{ color }}>{textIcon}</span>
         )}
