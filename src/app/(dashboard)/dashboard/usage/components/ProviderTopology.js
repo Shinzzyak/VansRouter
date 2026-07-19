@@ -1,5 +1,6 @@
 "use client";
 
+import PropTypes from "prop-types";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 
