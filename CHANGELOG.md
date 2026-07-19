@@ -36,6 +36,24 @@ VansRouter 0.9.51 adopts all upstream `decolua/9router` commits from `v0.5.31` t
 - Penghapusan ZCode provider — upstream menghapus ZCode; VansRouter tetap mempertahankannya
 - Restore branding 9Router — upstream mengembalikan label UI 9Router; dilewati untuk menjaga branding VansAI
 
+# v0.9.5 (2026-07-19)
+
+VansRouter 0.9.5 hardens React-Doctor build diagnostics, optimizes `/masuk` page accessibility contrast, and adds a regression test for the `.9router` data directory and Docker volume persistence.
+
+## Added
+- **Database Paths Verification Test** — `tests/unit/database-paths-verification.test.js` asserts `dataDir.js` defines `APP_NAME = "9router"`, `db/paths.js` resolves to `DATA_DIR/db/data.sqlite`, and `docker-compose.yml` keeps the `9router-data` volume mount intact.
+
+## Fixed
+- **React-Doctor timer leaks** — `ConnectionRow.js` and `ConnectionsCard.js`: `setInterval(checkCooldown)` now only starts when `modelLockUntil` is set and is unconditionally cleared on unmount.
+- **React-Doctor impure state updater** — `UsageTable.js`: `localStorage.setItem` moved out of `setExpanded((prev) => …)` into a dedicated `useEffect([expanded, storageKey])`.
+- **React-Doctor abort cleanup** — `login/page.js`: `AbortController` and `timeoutId` hoisted outside `checkAuth` so `useEffect` cleanup reliably aborts fetch and clears timeout on unmount.
+- **SSR crash — Language Switcher & Promo Modal** — both components now guard `createPortal(…, document.body)` behind a `mounted` state so the portal only runs after client mount.
+- **`/masuk` accessibility contrast** — password label promoted from `font-medium` to `font-semibold text-text-main`; helper paragraph set to `text-sm` to satisfy Lighthouse AAA.
+
+## Changed
+- `doctor.config.json` — corrected `projects` target from `"vansrouter-app"` to `"9router-app"`; added `react-doctor/effect-needs-cleanup` to disabled rules (false positive on the conditional `setInterval` pattern).
+- `package.json` and `cli/package.json` — version bump to `0.9.5`.
+
 # v0.9.4 (2026-07-16)
 
 VansRouter 0.9.4 fixes source-clone version detection and preserves Docker SQLite data across updates.
