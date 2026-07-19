@@ -1,3 +1,15 @@
+# v0.9.60 (2026-07-19)
+
+VansRouter 0.9.60 introduces granular settings controls for guards (Loop Guard, Circuit Breaker, Semaphore) in the Token Saver dashboard, extracts cleanCookie helper utilities, refactors the validation routes to isolate GraphQL payloads, and handles various robust toggle evaluations.
+
+## Added
+- **Guards & Shields Panel** — Added Loop Guard, Circuit Breaker, and Semaphore toggles to the Token Saver dashboard page.
+- **Isolate Muse Spark Connection Validation** — Relocated Meta AI GraphQL query payloads from route handlers to their respective executor definitions.
+
+## Fixed
+- **Robust Toggle Evaluations** — Fixed boolean evaluations against SQLite integer formats (0/1) for circuit breaker, loop guard, and semaphore toggles.
+- **Extracted cleanCookie Utility** — Unified cookie cleaning (sso, ecto_1_sess, __Secure-next-auth) into a shared `cookie.js` utility.
+
 # v0.9.56 (2026-07-19)
 
 VansRouter 0.9.56 restores the visibility of Web Cookie providers in the dashboard, allowing users to configure Meta AI Muse Spark Web cookie-based authentication, and rebases local customizations cleanly onto the latest upstream branch.

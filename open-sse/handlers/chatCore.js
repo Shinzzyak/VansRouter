@@ -101,7 +101,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -298,7 +298,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     log?.debug?.("TOOLPROTO", `${provider}/${model} | ${finalFormat}`);
   }
 
-  applyLoopGuard(translatedBody, finalFormat, provider, model, log);
+  if (loopGuardEnabled) {
+    applyLoopGuard(translatedBody, finalFormat, provider, model, log);
+  }
 
   if (needsTerminationPrompt(provider, model)) {
     injectTerminationPrompt(translatedBody, finalFormat);

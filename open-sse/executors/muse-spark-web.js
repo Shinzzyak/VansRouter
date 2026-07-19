@@ -3,6 +3,7 @@ import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { SSE_DONE } from "../utils/sseConstants.js";
 import { sseChunk } from "../utils/sse.js";
+import { cleanCookie } from "../utils/cookie.js";
 
 const META_AI_GRAPHQL_API = "https://www.meta.ai/api/graphql";
 const META_AI_DEFAULT_COOKIE = "ecto_1_sess";
@@ -250,11 +251,11 @@ function evictContinuationIfNeeded(cached, cacheKey) {
 
 function normalizeSessionCookieHeader(apiKey, defaultCookieName) {
   if (!apiKey) return "";
-  apiKey = apiKey.trim();
-  if (apiKey.includes("=")) {
-    return apiKey;
+  const token = cleanCookie(apiKey, defaultCookieName);
+  if (token.includes("=")) {
+    return token;
   }
-  return `${defaultCookieName}=${apiKey}`;
+  return `${defaultCookieName}=${token}`;
 }
 
 function selectMetaAiCookieHeader(credentials) {
@@ -911,4 +912,34 @@ export class MuseSparkWebExecutor extends BaseExecutor {
 
     return { response, url: META_AI_GRAPHQL_API, headers, transformedBody };
   }
+}
+
+export async function validateMuseSparkConnection(apiKey) {
+  const token = cleanCookie(apiKey, "ecto_1_sess");
+  const res = await fetch("https://www.meta.ai/api/graphql", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      Cookie: `ecto_1_sess=${token}`,
+      Origin: "https://www.meta.ai",
+      Referer: "https://www.meta.ai/",
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    },
+    body: JSON.stringify({
+      doc_id: "29ae946c82d1f301196c6ca2226400b5",
+      variables: {
+        assistantMessageId: crypto.randomUUID(),
+        content: "ping",
+        conversationId: `c.${crypto.randomUUID().slice(0, 15)}`,
+        currentBranchPath: "0",
+        entryPoint: "KADABRA__CHAT__UNIFIED_INPUT_BAR",
+        isNewConversation: true,
+        mode: "mode_fast",
+        turnId: crypto.randomUUID(),
+        userMessageId: crypto.randomUUID(),
+      }
+    })
+  });
+  return res.status !== 401 && res.status !== 403;
 }

@@ -46,6 +46,11 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/cooldownRetry.js";
 
+function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
+  if (!enabled) return false;
+  return proxyHash ? isProviderInCooldown(provider, proxyHash) : isProviderFullyBlocked(provider);
+}
+
 /**
  * Handle chat completion request
  * Supports: OpenAI, Claude, Gemini, OpenAI Responses API formats
@@ -274,10 +279,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Extract userAgent from request
   const userAgent = request?.headers?.get("user-agent") || "";
 
+  const chatSettings = await getSettings();
+  const circuitBreakerEnabled = chatSettings.circuitBreakerEnabled !== false && chatSettings.circuitBreakerEnabled !== 0;
+
   // Pipeline gate: check circuit breaker state BEFORE credential lookup.
   // If ALL proxy buckets for this provider are OPEN, short-circuit immediately
   // — no point querying the DB when every bucket is blocked.
-  if (isProviderFullyBlocked(provider)) {
+  if (checkCircuitBreaker(provider, null, circuitBreakerEnabled)) {
     const cooldownMs = getProviderShortestCooldownMs(provider);
     const retryAfterSec = Math.ceil(cooldownMs / 1000) || 30;
     const retryAfterTimestamp = new Date(Date.now() + cooldownMs).toISOString();
@@ -382,7 +390,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     // Proxy-aware circuit breaker: skip THIS account if its proxy bucket is OPEN.
     // Accounts on other proxies are still tried.
-    if (isProviderInCooldown(provider, proxyHash)) {
+    if (checkCircuitBreaker(provider, proxyHash, circuitBreakerEnabled)) {
       log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
       excludeConnectionIds.add(credentials.connectionId);
       lastExcludedConnectionId = credentials.connectionId;
@@ -407,8 +415,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Acquire account semaphore (concurrency limiter per provider:account:proxy)
     const semaphoreKey = resolveAccountSemaphoreKey({ provider, model, connectionId: credentials.connectionId, credentials: refreshedCredentials, proxyHash });
     const semaphoreMax = resolveAccountSemaphoreMaxConcurrency(refreshedCredentials);
+    const semaphoreEnabled = chatSettings.semaphoreEnabled !== false && chatSettings.semaphoreEnabled !== 0;
     let semaphoreRelease = () => {};
-    if (semaphoreKey && semaphoreMax != null) {
+    if (semaphoreEnabled && semaphoreKey && semaphoreMax != null) {
       try {
         const semaphoreOptions = { maxConcurrency: semaphoreMax, timeoutMs: 30_000 };
         if (options?.maxQueueSize != null) {
@@ -427,7 +436,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     // Use shared chatCore — wrap in try/finally so semaphoreRelease() always runs
     let result;
-    const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
     try {
       result = await handleChatCore({
@@ -449,6 +457,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       cavemanLevel: chatSettings.cavemanLevel || "full",
       ponytailEnabled: !!chatSettings.ponytailEnabled,
       ponytailLevel: chatSettings.ponytailLevel || "full",
+      loopGuardEnabled: chatSettings.loopGuardEnabled !== false && chatSettings.loopGuardEnabled !== 0,
       providerThinking,
       clientSignal,
       // Detect source format by endpoint + body
