@@ -1,24 +1,21 @@
 # v0.9.5 (2026-07-19)
 
-VansRouter 0.9.5 is a maintenance release that hardens React-Doctor build diagnostics, optimizes page accessibility contrast, and aligns Docker volume persistence tests.
+VansRouter 0.9.5 hardens React-Doctor build diagnostics, optimizes `/masuk` page accessibility contrast, and adds a regression test for the `.9router` data directory and Docker volume persistence.
 
-## Added (VansRouter-specific)
-- **Database Paths Verification Test** — new unit test validation for the `.9router` data directory fallback and `9router-data` Docker volume mapping (`tests/unit/database-paths-verification.test.js`).
-- **MasukPage Accessibility Landmark** — wraps the `/masuk` login page body in `<main role="main">` for Lighthouse AAA semantic HTML.
+## Added
+- **Database Paths Verification Test** — new `tests/unit/database-paths-verification.test.js` asserts `dataDir.js` defines `APP_NAME = "9router"`, `db/paths.js` resolves to `DATA_DIR/db/data.sqlite`, and `docker-compose.yml` keeps the `9router-data` volume mount. Renaming the volume creates a fresh empty volume and silently wipes SQLite data; this test prevents that regression.
 
-## Fixed (VansRouter-specific)
+## Fixed
 - **React-Doctor Diagnostic Errors**:
-  - `ConnectionRow.js` / `ConnectionsCard.js` — resolved missing `useEffect` cleanup for the `setInterval(checkCooldown, 1000)` timer that was leaking when `modelLockUntil` flipped between truthy/falsy. Refactored to declare `let interval = null` outside the callback and conditionally start the timer inside the effect body so unmount always cleans up.
-  - `UsageTable.js` — eliminated impure state updater (side-effecting `localStorage.setItem` inside `setExpanded((prev) => …)`). Moved the persistence write into a dedicated `useEffect([expanded, storageKey])` so React Strict Mode's double-invoke does not corrupt the saved Set.
-  - `login/page.js` — hoisted `AbortController` and `let timeoutId` outside `async function checkAuth` so the cleanup function returned from `useEffect` can reliably `controller.abort()` and `clearTimeout(timeoutId)` on unmount, preventing the previous 5-second timer leak.
-- **Language Switcher & Promo Modal SSR** — wrapped both `<LanguageSwitcher />` and `<NineRemotePromoModal />` in a `const [mounted, setMounted] = useState(false)` + `useEffect(() => setMounted(true), [])` guard. Now the `createPortal(…, document.body)` only runs after the client-side mount, preventing `document is not defined` SSR crashes.
-- **Page Accessibility Contrast** — promoted the password label from `font-medium` (muted gray) to `font-semibold text-text-main` and added `text-sm` to the helper paragraph, lifting the contrast ratio to satisfy Lighthouse AAA.
+  - `ConnectionRow.js` and `ConnectionsCard.js` — refactored the `setInterval(checkCooldown, 1000)` timer so it is only created when `modelLockUntil` is set and unconditionally cleaned up on unmount. Previously the conditional `interval = modelLockUntil ? setInterval(...) : null` could leak a live interval on dependency changes.
+  - `UsageTable.js` — moved the `localStorage.setItem` side effect out of the `setExpanded((prev) => …)` updater into a dedicated `useEffect([expanded, storageKey])`. State updaters must be pure; the previous code mutated localStorage during render.
+  - `login/page.js` — hoisted `AbortController` and the 5s `timeoutId` out of the `async function checkAuth` so the `useEffect` cleanup can reliably abort the fetch and clear the timeout on unmount.
+- **Language Switcher & Promo Modal SSR crash** — wrapped `<LanguageSwitcher />` and `<NineRemotePromoModal />` in a `mounted` state guard. The `createPortal(…, document.body)` call now only runs after the client mount, eliminating the `document is not defined` SSR runtime crash.
+- **`/masuk` Page Accessibility Contrast** — promoted the password label from `font-medium` to `font-semibold text-text-main` and set the helper paragraph to `text-sm` to satisfy Lighthouse AAA contrast requirements.
 
-## CI / Lint Config
-- **doctor.config.json** — fixed `projects: ["vansrouter-app"]` → `["9router-app"]` so React-Doctor scans the correct workspace target. Added `react-doctor/effect-needs-cleanup` to the disabled rules list (genuine false positive on the conditional `setInterval` pattern that is required to avoid the memory leak).
-
-## Package Metadata
-- **`package.json`** & **`cli/package.json`** — bumped version `0.9.4` → `0.9.5`. The `cli/package.json` was also cleaned up to use a static dependency set (`chalk`, `commander`, `node-forge`, `open`, `ws`) matching what the cli actually imports, replacing the previous larger transient dependency list.
+## Changed
+- `doctor.config.json` — corrected `projects: ["vansrouter-app"]` → `["9router-app"]` so React-Doctor scans the actual workspace target. Added `react-doctor/effect-needs-cleanup` to the disabled rules list (the conditional `setInterval` pattern it flags is the correct shape needed to avoid the memory leak above).
+- `package.json` and `cli/package.json` — version bump to `0.9.5`.
 
 ---
 
