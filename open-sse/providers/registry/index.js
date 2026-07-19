@@ -123,6 +123,7 @@ import p122 from "./youcom.js";
 import p123 from "./zcode.js";
 import p124 from "./muse-spark-web.js";
 import p125 from "./a6api.js";
+import p126 from "./alims-intl.js";
 
 export default [
   p0,
@@ -249,5 +250,6 @@ export default [
   p122,
   p123,
   p124,
-  p125
+  p125,
+  p126
 ];
