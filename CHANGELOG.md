@@ -1,3 +1,10 @@
+# v0.9.61 (2026-07-19)
+
+VansRouter 0.9.61 fixes standalone Next.js server runtime issues in clean environments by including explicit dependencies (like `react`, `react-dom`, `node-machine-id`, and `ora`) in the CLI package structure.
+
+## Fixed
+- **CLI Runtime Dependencies** — Added `react`, `react-dom`, `node-machine-id`, and `ora` to `cli/package.json` to ensure clean global/local installations have standard runtime dependencies available.
+
 # v0.9.60 (2026-07-19)
 
 VansRouter 0.9.60 introduces granular settings controls for guards (Loop Guard, Circuit Breaker, Semaphore) in the Token Saver dashboard, extracts cleanCookie helper utilities, refactors the validation routes to isolate GraphQL payloads, and handles various robust toggle evaluations.

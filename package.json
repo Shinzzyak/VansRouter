@@ -1,6 +1,6 @@
 {
   "name": "vansrouter-app",
-  "version": "0.9.60",
+  "version": "0.9.61",
   "description": "9Router web dashboard",
   "private": true,
   "scripts": {
