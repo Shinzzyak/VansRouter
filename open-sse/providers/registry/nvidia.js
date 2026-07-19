@@ -15,6 +15,7 @@ export default {
     },
   },
   category: "freeTier",
+  modelsFetcher: { url: "https://integrate.api.nvidia.com/v1/models", type: "openai" },
   transport: {
     baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
     validateUrl: "https://integrate.api.nvidia.com/v1/models",
