@@ -222,7 +222,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
  * @param {string|null} model - The specific model that triggered the error
  * @returns {{ shouldFallback: boolean, cooldownMs: number }}
  */
-export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
+export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null, options = {}) {
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
@@ -249,7 +249,19 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
+  // When the circuit-breaker / loop-guard toggle is OFF, do NOT write a per-account
+  // model lock (mirrors chat behavior when the toggle is disabled). We still return
+  // shouldFallback so the request falls through to the next account/provider, but we
+  // leave the account lock state untouched.
+  const disableLock = options && options.disableLock === true;
+
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
+
+  if (disableLock) {
+    // Toggle OFF: skip the lock write entirely so the account stays usable.
+    return { shouldFallback: true, cooldownMs };
+  }
+
   const lockUpdate = buildModelLockUpdate(model, cooldownMs);
 
   await updateProviderConnection(connectionId, {

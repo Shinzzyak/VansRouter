@@ -8,6 +8,13 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
+import {
+  isProviderFullyBlocked,
+  getProviderShortestCooldownMs,
+  isProviderInCooldown,
+  recordProviderFailure,
+} from "open-sse/services/accountFallback.js";
+import { getProxyHash } from "@/lib/network/connectionProxy";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
@@ -115,6 +122,22 @@ export async function handleEmbeddings(request) {
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
   }
 
+  // Circuit-breaker toggle (mirrors handleChat). When disabled, skip the
+  // provider-level short-circuit so embeddings honor the same toggle as chat.
+  const circuitBreakerEnabled = settings.circuitBreakerEnabled !== false && settings.circuitBreakerEnabled !== 0;
+  if (circuitBreakerEnabled && isProviderFullyBlocked(provider)) {
+    const cooldownMs = getProviderShortestCooldownMs(provider);
+    const retryAfterSec = Math.ceil(cooldownMs / 1000) || 30;
+    const retryAfterTimestamp = new Date(Date.now() + cooldownMs).toISOString();
+    log.warn("GATE", `${provider} circuit breaker OPEN — short-circuiting embeddings before credential lookup`);
+    return unavailableResponse(
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
+      retryAfterTimestamp,
+      `${retryAfterSec}s`
+    );
+  }
+
   // Credential + fallback loop (mirrors handleChat)
   const excludeConnectionIds = new Set();
   let lastError = null;
@@ -143,6 +166,17 @@ export async function handleEmbeddings(request) {
 
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
+    if (circuitBreakerEnabled) {
+      const proxyHash = getProxyHash(credentials.providerSpecificData || {});
+      if (isProviderInCooldown(provider, proxyHash)) {
+        log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
+        excludeConnectionIds.add(credentials.connectionId);
+        lastError = "Provider temporarily unavailable (circuit breaker open)";
+        lastStatus = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        continue;
+      }
+    }
+
     const result = await handleEmbeddingsCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -162,7 +196,11 @@ export async function handleEmbeddings(request) {
 
     if (result.success) return result.response;
 
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
+    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, null, { disableLock: !circuitBreakerEnabled });
+
+    if (circuitBreakerEnabled) {
+      recordProviderFailure(provider, result.status, result.error, log, credentials.connectionId, getProxyHash(credentials.providerSpecificData || {}));
+    }
 
     if (shouldFallback) {
       log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);

@@ -139,7 +139,12 @@ export function isGeminiGenericRateLimit(errorText) {
   const isGenericResourceExhausted = /resource has been exhausted/i.test(text);
   const isGenericQuotaExceeded = /exceeded your (current )?quota/i.test(text);
   if (!isGenericResourceExhausted && !isGenericQuotaExceeded) return false;
-  const hasSpecificQualifier = /per[- ]?minute|rpm|daily|per[- ]?day|monthly|quota exceeded|user[- ]?project|billing required|payment required|reset (tomorrow|at)|will reset/i.test(text);
+  // Specific-cap qualifiers that mean a REAL quota/billing cap (keep 60-min lock):
+  // a per-minute reset, monthly/daily limits, USER_PROJECT quota, or an actual
+  // billing/payment block. NOTE: do NOT include bare "quota exceeded" — Gemini's
+  // RPM body literally says "Quota exceeded for metric: .../embed_content_free_tier_requests",
+  // which is the generic RPM limit, not a hard cap.
+  const hasSpecificQualifier = /per[- ]?minute|rpm|daily quota|per[- ]?day|monthly|user[- ]?project|billing required|payment required|reset (tomorrow|at)|will reset/i.test(text);
   return !hasSpecificQualifier;
 }
 
