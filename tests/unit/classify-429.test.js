@@ -249,3 +249,44 @@ describe("retryAfterFromResponse", () => {
     expect(retryAfterFromResponse(null)).toBe(null);
   });
 });
+
+describe("classify429 — Gemini per-minute RPM 429 must NOT be a 1h quota lock", () => {
+  it("classifies Gemini 'Resource has been exhausted' RPM 429 as rate_limit (60s)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: { error: { code: 429, message: "Resource has been exhausted (e.g. check quota).", status: "RESOURCE_EXHAUSTED" } },
+    });
+    expect(result.kind).toBe("rate_limit");
+    expect(result.cooldownMs).toBe(RATE_LIMIT_COOLDOWN_MS);
+  });
+
+  it("classifies Gemini 'You exceeded your current quota' RPM 429 as rate_limit (60s)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: "[429]: You exceeded your current quota, please check your plan and billing details. For more informa",
+    });
+    expect(result.kind).toBe("rate_limit");
+    expect(result.cooldownMs).toBe(RATE_LIMIT_COOLDOWN_MS);
+  });
+
+  it("still locks on a genuine Gemini quota cap (quota exceeded)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: { error: { message: "Quota exceeded for this project." } },
+    });
+    expect(result.kind).toBe("quota_exhausted");
+    expect(result.cooldownMs).toBe(QUOTA_EXHAUSTED_COOLDOWN_MS);
+  });
+
+  it("does NOT apply the gemini RPM rule to other providers", () => {
+    const result = classify429({
+      status: 429,
+      provider: "anthropic",
+      body: "[429]: You exceeded your current quota, please check your plan and billing details.",
+    });
+    expect(result.kind).toBe("quota_exhausted");
+  });
+});

@@ -240,7 +240,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     // instead of generic exponential backoff. This also prevents the daily
     // quota lock set earlier in the request path from being overwritten with
     // a shorter backoff cooldown.
-    const classification = classify429({ status, body: errorText });
+    const classification = classify429({ status, body: errorText, provider });
     shouldFallback = true;
     cooldownMs = classification.cooldownMs;
     newBackoffLevel = backoffLevel;

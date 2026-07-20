@@ -118,6 +118,32 @@ export function looksLikeQuotaExhausted(body) {
 }
 
 /**
+ * Gemini's per-minute RPM (rate LIMIT) messages refresh in ~60s and must NOT
+ * become a 60-minute quota lock. Both look like quota errors but are generic:
+ *   - "Resource has been exhausted (e.g. check quota)." (RESOURCE_EXHAUSTED)
+ *   - "You exceeded your current quota, please check your plan and billing details."
+ * NOTE: the RPM text mentions "plan and billing details" — bare "billing" is NOT
+ * a real-cap qualifier here (it's just Gemini's standard suggestion). A REAL cap
+ * carries specific qualifiers: a reset timeframe, monthly/daily limits, "quota
+ * exceeded", "USER_PROJECT quota", or an actual billing/payment block. Those still
+ * fall through to quota_exhausted (60-min lock).
+ *
+ * @param {string|object} errorText - raw error body or message
+ * @returns {boolean} true when this is Gemini's generic (RPM) exhaustion phrasing
+ */
+export function isGeminiGenericRateLimit(errorText) {
+  const text = typeof errorText === "string"
+    ? errorText
+    : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();
+  if (!text) return false;
+  const isGenericResourceExhausted = /resource has been exhausted/i.test(text);
+  const isGenericQuotaExceeded = /exceeded your (current )?quota/i.test(text);
+  if (!isGenericResourceExhausted && !isGenericQuotaExceeded) return false;
+  const hasSpecificQualifier = /per[- ]?minute|rpm|daily|per[- ]?day|monthly|quota exceeded|user[- ]?project|billing required|payment required|reset (tomorrow|at)|will reset/i.test(text);
+  return !hasSpecificQualifier;
+}
+
+/**
  * Compute the millisecond offset until the next UTC midnight (tomorrow 00:00 UTC).
  * Used as the cooldown for `daily_quota` classification.
  *
@@ -151,6 +177,15 @@ export function getMsUntilTomorrowMidnightUTC(now = new Date()) {
  */
 export function classify429(response) {
   if (!response) {
+    return { kind: "rate_limit", cooldownMs: RATE_LIMIT_COOLDOWN_MS };
+  }
+  // Gemini's generic "Resource has been exhausted" / "exceeded your current quota"
+  // is its per-minute RPM limit (refreshes in ~60s), NOT a quota lock. Treat it
+  // as a transient rate_limit so embeddings / high-RPS calls only wait 60s.
+  if (
+    (response.provider === "gemini" || response.provider === "gemini-cli") &&
+    isGeminiGenericRateLimit(response.body)
+  ) {
     return { kind: "rate_limit", cooldownMs: RATE_LIMIT_COOLDOWN_MS };
   }
   // Daily quota checked first — it's the most specific (daily implies a
