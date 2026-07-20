@@ -8,9 +8,9 @@ export default {
     icon: "bolt",
     color: "#EF4444",
     textIcon: "A6",
-    website: "https://a6api.com",
+    website: "https://a6api.com/?auth=register&aff=Ksbw",
     notice: {
-      apiKeyUrl: "https://a6api.com",
+      apiKeyUrl: "https://a6api.com/?auth=register&aff=Ksbw",
     },
   },
   category: "apikey",

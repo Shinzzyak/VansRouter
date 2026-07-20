@@ -124,6 +124,8 @@ import p123 from "./zcode.js";
 import p124 from "./muse-spark-web.js";
 import p125 from "./a6api.js";
 import p126 from "./alims-intl.js";
+import p127 from "./zenmux.js";
+import p128 from "./tokenrouter.js";
 
 export default [
   p0,
@@ -251,5 +253,7 @@ export default [
   p123,
   p124,
   p125,
-  p126
+  p126,
+  p127,
+  p128
 ];

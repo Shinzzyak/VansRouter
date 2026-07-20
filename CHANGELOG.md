@@ -1,3 +1,12 @@
+# v0.9.71 (2026-07-21)
+
+VansRouter 0.9.71 registers two new AI providers (`ZenMux AI` & `TokenRouter`), updates `a6api` referral links, and bumps the version to 0.9.71.
+
+## Features
+- **ZenMux AI Provider (`zenmux`)** — Full registration for ZenMux AI (`https://zenmux.ai`) with OpenAI API compatibility, passthrough model support, and embeddings/image generation services.
+- **TokenRouter Provider (`tokenrouter`)** — Full registration for TokenRouter (`https://www.tokenrouter.com`) with OpenAI API compatibility, passthrough model support, and embeddings/image generation services.
+- **a6api Affiliate Link** — Configured custom referral URL (`https://a6api.com/?auth=register&aff=Ksbw`) for `a6api` provider registration.
+
 # v0.9.70 (2026-07-21)
 
 VansRouter 0.9.70 adds the new `a6api` provider with a curated selection of Top 5 models per provider family (GPT, Claude, Gemini, Grok, etc.), adopts critical upstream v0.5.40 Cursor HTTP/2 AgentService (`agent.api5.cursor.sh`) Connect RPC updates, aligns UsageStats table headers, and optimizes provider icon anti-spam caching.
