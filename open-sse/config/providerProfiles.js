@@ -76,6 +76,13 @@ function resolveProviderCategory(provider) {
  * @returns {{ providerFailureThreshold: number, providerFailureWindowMs: number, providerCooldownMs: number }}
  */
 export function getProviderResilienceProfile(provider) {
+  if (provider === "a6api" || provider === "a6api-cli") {
+    return {
+      providerFailureThreshold: envInt("VANSROUTER_PROVIDER_FAILURE_A6API_THRESHOLD", 5),
+      providerFailureWindowMs: envInt("VANSROUTER_PROVIDER_FAILURE_A6API_WINDOW_MS", 30 * 1000),
+      providerCooldownMs: 3000, // 3 seconds cooldown specifically for a6api
+    };
+  }
   return PROFILES[resolveProviderCategory(provider)] ?? PROFILES.apikey;
 }
 

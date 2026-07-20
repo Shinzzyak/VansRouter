@@ -122,6 +122,7 @@ import p121 from "./xiaomi-tokenplan.js";
 import p122 from "./youcom.js";
 import p123 from "./zcode.js";
 import p124 from "./muse-spark-web.js";
+import p125 from "./a6api.js";
 
 export default [
   p0,
@@ -247,5 +248,6 @@ export default [
   p121,
   p122,
   p123,
-  p124
+  p124,
+  p125
 ];

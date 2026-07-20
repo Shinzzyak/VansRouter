@@ -37,7 +37,7 @@ function getProviderImageUrl(providerId) {
 
 // Custom provider node - rectangle with image + name
 function ProviderNode({ data }) {
-  const { label, color, imageUrl, textIcon, active } = data;
+  const { providerId, label, color, imageUrl, textIcon, active } = data;
   const [imgError, setImgError] = useState(false);
   return (
     <div
@@ -58,7 +58,29 @@ function ProviderNode({ data }) {
         className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
         style={{ backgroundColor: `${color}15` }}
       >
-        {imageUrl && !imgError ? (
+        {providerId === "a6api" || providerId === "a6api-cli" ? (
+          <span
+            className="a6api-custom-logo"
+            style={{
+              width: "24px",
+              height: "24px",
+              borderRadius: "50%",
+              display: "grid",
+              placeItems: "center",
+              position: "relative",
+              overflow: "hidden",
+              color: "var(--navy, #1F2937)",
+              fontSize: "9px",
+              fontWeight: "bold",
+              letterSpacing: 0,
+              background: "radial-gradient(circle at 34% 28%, rgba(255, 255, 255, .38), transparent 22%), conic-gradient(from 210deg, #3157ff, #16b8a6, #74c86a, #3157ff)",
+              boxShadow: "0 4px 8px #3157ff38",
+              isolation: "isolate",
+            }}
+          >
+            <span>A6</span>
+          </span>
+        ) : imageUrl && !imgError ? (
           <Image
             src={imageUrl}
             alt={label}
@@ -307,6 +329,7 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
     const error = !active && errorSet.has(p.provider?.toLowerCase());
     const nodeId = `provider-${p.provider}`;
     const data = {
+      providerId: p.provider,
       label: (config.name !== p.provider ? config.name : null) || p.nodeName || p.name || p.provider,
       color: config.color || "#6b7280",
       imageUrl: getProviderImageUrl(p.provider),

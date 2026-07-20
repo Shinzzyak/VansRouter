@@ -1,5 +1,24 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`GOLDEN buildHeaders (default executor providers) > a6api → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > agentrouter → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -316,10 +335,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "VansRouter/0.9.55",
+    "User-Agent": "VansRouter/0.9.63",
     "X-CLIENT-TYPE": "vansrouter",
-    "X-CLIENT-VERSION": "0.9.55",
-    "X-CORE-VERSION": "0.9.55",
+    "X-CLIENT-VERSION": "0.9.63",
+    "X-CORE-VERSION": "0.9.63",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.15.0",
@@ -329,10 +348,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "VansRouter/0.9.55",
+    "User-Agent": "VansRouter/0.9.63",
     "X-CLIENT-TYPE": "vansrouter",
-    "X-CLIENT-VERSION": "0.9.55",
-    "X-CORE-VERSION": "0.9.55",
+    "X-CLIENT-VERSION": "0.9.63",
+    "X-CORE-VERSION": "0.9.63",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.15.0",
@@ -343,10 +362,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "VansRouter/0.9.55",
+    "User-Agent": "VansRouter/0.9.63",
     "X-CLIENT-TYPE": "vansrouter",
-    "X-CLIENT-VERSION": "0.9.55",
-    "X-CORE-VERSION": "0.9.55",
+    "X-CLIENT-VERSION": "0.9.63",
+    "X-CORE-VERSION": "0.9.63",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.15.0",
@@ -860,7 +879,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "archlinux",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.55",
+    "X-Msh-Version": "0.9.63",
     "x-api-key": "<CRED>",
   },
   "nonStream": {
@@ -871,7 +890,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "archlinux",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.55",
+    "X-Msh-Version": "0.9.63",
     "x-api-key": "<CRED>",
   },
   "oauth": {
@@ -883,7 +902,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "archlinux",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.55",
+    "X-Msh-Version": "0.9.63",
     "x-api-key": "<CRED>",
   },
 }
@@ -1518,6 +1537,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > zcode → headers (a
     "Content-Type": "application/json",
     "x-api-key": "<CRED>",
   },
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > a6api → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://a6api.com/v1/chat/completions",
+  "stream": "https://a6api.com/v1/chat/completions",
 }
 `;
 

@@ -230,7 +230,19 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   // Provider-specific precise cooldown (e.g. codex usage_limit_reached resets_at) overrides backoff
   let shouldFallback, cooldownMs, newBackoffLevel;
-  if (resetsAtMs && resetsAtMs > Date.now()) {
+  const isA6 = provider === "a6api" || provider === "a6api-cli";
+  if (isA6) {
+    const classification = classify429({ status: status || 502, body: errorText, provider });
+    if (classification.kind === "quota_exhausted" || classification.kind === "daily_quota") {
+      shouldFallback = true;
+      cooldownMs = classification.cooldownMs;
+      newBackoffLevel = backoffLevel;
+    } else {
+      shouldFallback = true;
+      cooldownMs = 3000; // 3 seconds cooldown
+      newBackoffLevel = 0;
+    }
+  } else if (resetsAtMs && resetsAtMs > Date.now()) {
     shouldFallback = true;
     cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
     newBackoffLevel = 0;
