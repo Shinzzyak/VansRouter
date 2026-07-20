@@ -231,11 +231,11 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   // Provider-specific precise cooldown (e.g. codex usage_limit_reached resets_at) overrides backoff
   let shouldFallback, cooldownMs, newBackoffLevel;
   const isA6 = provider === "a6api" || provider === "a6api-cli";
-  if (isA6) {
+  if (isA6 && status !== 401 && status !== 404) {
     const classification = classify429({ status: status || 502, body: errorText, provider });
-    if (classification.kind === "quota_exhausted" || classification.kind === "daily_quota") {
+    if (status === 402 || classification.kind === "quota_exhausted" || classification.kind === "daily_quota") {
       shouldFallback = true;
-      cooldownMs = classification.cooldownMs;
+      cooldownMs = status === 402 ? 2 * 60 * 1000 : classification.cooldownMs;
       newBackoffLevel = backoffLevel;
     } else {
       shouldFallback = true;
