@@ -216,7 +216,7 @@ export function detectDailyQuotaExhaustion(provider, errorText) {
   // classify429 returns { kind, cooldownMs }. We only act on daily_quota here;
   // quota_exhausted (monthly/billing) is handled separately and rate_limit
   // is handled by the normal account cooldown/backoff path.
-  const classification = classify429({ status: 429, body: text });
+  const classification = classify429({ status: 429, body: text, provider });
   if (classification.kind !== "daily_quota") return null;
   return classification;
 }
