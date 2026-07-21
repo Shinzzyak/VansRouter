@@ -128,6 +128,13 @@ export class AntigravityExecutor extends BaseExecutor {
     return `${baseUrl}/v1internal:${action}`;
   }
 
+  // Daily host has newer models (Gemini 3.6). Production returns 404 for those IDs.
+  // Rotate to the next baseUrl on 404 as well as rate-limit.
+  shouldRetry(status, urlIndex) {
+    const retriable = status === HTTP_STATUS.RATE_LIMITED || status === HTTP_STATUS.NOT_FOUND || status === 404;
+    return retriable && urlIndex + 1 < this.getFallbackCount();
+  }
+
   // sessionId comes from transformRequest output; base.execute runs transformRequest before
   // buildHeaders, so we read it from instance state cached there (fallback: explicit arg).
   buildHeaders(credentials, stream = true, sessionId = null) {

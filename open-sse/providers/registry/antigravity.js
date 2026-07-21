@@ -19,7 +19,12 @@ export default {
   category: "oauth",
   serviceKinds: ["llm", "image"],
   transport: {
-    baseUrls: [ANTIGRAVITY_IDE_BASE_URL],
+    // Gemini 3.6 Flash is only served from the daily Cloud Code host today.
+    // Keep production as fallback for older models if daily flakes.
+    baseUrls: [
+      "https://daily-cloudcode-pa.googleapis.com",
+      ANTIGRAVITY_IDE_BASE_URL,
+    ],
     format: "antigravity",
     headers: {
       "User-Agent": ANTIGRAVITY_IDE_USER_AGENT,
@@ -36,7 +41,7 @@ export default {
       },
     },
     usage: {
-      quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+      quotaApiUrl: "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
       loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
       tokenUrl: "https://oauth2.googleapis.com/token",
     },
@@ -44,6 +49,9 @@ export default {
     clientSecret: "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",
   },
   models: [
+    { id: "gemini-3.6-flash-high", name: "Gemini 3.6 Flash (High)" },
+    { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)" },
+    { id: "gemini-3.6-flash-low", name: "Gemini 3.6 Flash (Low)" },
     { id: "gemini-3-flash-agent", name: "Gemini 3.5 Flash (High)" },
     { id: "gemini-3.5-flash-low", name: "Gemini 3.5 Flash (Medium)" },
     { id: "gemini-3.5-flash-extra-low", name: "Gemini 3.5 Flash (Low)" },
