@@ -30,7 +30,7 @@ function detectLogLevel(line) {
   return "INFO";
 }
 
-function renderFormattedLine(line) {
+function renderFormattedLine(line, key) {
   const level = detectLogLevel(line);
   const colorClass = LOG_LEVEL_COLORS[level] || "text-gray-300";
 
@@ -42,7 +42,7 @@ function renderFormattedLine(line) {
   }
 
   return (
-    <div className={`font-mono text-xs leading-relaxed break-all ${bgClass} ${colorClass}`}>
+    <div key={key} className={`font-mono text-xs leading-relaxed break-all ${bgClass} ${colorClass}`}>
       {line}
     </div>
   );
@@ -368,7 +368,7 @@ export default function ConsoleLogClient() {
               )}
             </div>
           ) : (
-            combinedLogs.map((line, i) => <div key={i}>{renderFormattedLine(line)}</div>)
+            combinedLogs.map((line, i) => renderFormattedLine(line, i))
           )}
         </div>
       </Card>
