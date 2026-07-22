@@ -131,7 +131,7 @@ export class AntigravityExecutor extends BaseExecutor {
   // Daily host has newer models (Gemini 3.6). Production returns 404 for those IDs.
   // Rotate to the next baseUrl on 404 as well as rate-limit.
   shouldRetry(status, urlIndex) {
-    const retriable = status === HTTP_STATUS.RATE_LIMITED || status === HTTP_STATUS.NOT_FOUND || status === 404;
+    const retriable = status === HTTP_STATUS.RATE_LIMITED || status === HTTP_STATUS.NOT_FOUND;
     return retriable && urlIndex + 1 < this.getFallbackCount();
   }
 

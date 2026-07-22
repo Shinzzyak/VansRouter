@@ -52,9 +52,8 @@ const DAILY_QUOTA_PATTERNS = [
   /come back tomorrow/i,
   // Grok CLI free-tier daily usage (subscription:free-usage-exhausted)
   // Resets at 00:00 UTC — treat as daily_quota, not a 60s rate_limit.
-  /free.?usage.?exhaust/i,
+  /free.*usage.*exhaust/i,
   /used all.*free usage/i,
-  /subscription.*free.*usage.*exhaust/i,
 ];
 
 /**
