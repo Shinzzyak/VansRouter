@@ -44,13 +44,31 @@ export function extractUsageFromResponse(responseBody) {
     };
   }
 
-  // Gemini format
-  if (responseBody.usageMetadata) {
+  // Gemini / Antigravity format
+  // Antigravity wraps usageMetadata inside response:
+  //   { response: { candidates: [...], usageMetadata: {...} } }
+  // Without the unwrap, non-stream Antigravity requests land as 0/0 in
+  // requestDetails (and disappear from Recent Requests which filters
+  // zero-token rows). Streaming path already unwraps this in
+  // usageTracking.js; non-stream route uses a different function.
+  const usageMeta = responseBody.usageMetadata || responseBody.response?.usageMetadata;
+  if (usageMeta && typeof usageMeta === "object") {
+    const thoughts = usageMeta.thoughtsTokenCount || 0;
+    const candidates = usageMeta.candidatesTokenCount || 0;
+    // Derive candidates from total when upstream omits it
+    let completion = candidates;
+    const total = usageMeta.totalTokenCount || 0;
+    const prompt = usageMeta.promptTokenCount || 0;
+    if (completion === 0 && total > 0) {
+      completion = Math.max(0, total - prompt - thoughts);
+    }
     return {
-      prompt_tokens: responseBody.usageMetadata.promptTokenCount || 0,
-      completion_tokens: responseBody.usageMetadata.candidatesTokenCount || 0,
-      cached_tokens: responseBody.usageMetadata.cachedContentTokenCount || 0,
-      reasoning_tokens: responseBody.usageMetadata.thoughtsTokenCount || 0
+      prompt_tokens: prompt,
+      // Fold thoughts into completion so saveUsageStats (which only reads
+      // prompt/completion) doesn't drop reasoning-heavy AG responses as 0 out.
+      completion_tokens: completion + thoughts,
+      cached_tokens: usageMeta.cachedContentTokenCount || 0,
+      reasoning_tokens: thoughts
     };
   }
 
