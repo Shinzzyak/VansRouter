@@ -3,7 +3,7 @@ import pkg from "../../../../package.json" with { type: "json" };
 
 // Keep aligned with the published package. Do not revert to legacy `9router`: it reports obsolete versions.
 const NPM_PACKAGE_NAME = "vansrouter";
-const VERSION_CACHE_TTL_MS = 3600000; // cache npm latest lookup for 1h
+const VERSION_CACHE_TTL_MS = 300000; // cache npm latest lookup for 5m
 
 // Survive hot reload; one cache per process
 const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
