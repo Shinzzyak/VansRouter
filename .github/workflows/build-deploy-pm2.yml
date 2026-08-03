@@ -52,6 +52,11 @@ jobs:
         run: |
           cp -r public .next/standalone/public
           cp -r .next/static .next/standalone/.next/static
+          # Bundle the root launcher (server.js) into the standalone tarball as
+          # launcher.js. The standalone dir already has its own server.js (the
+          # Next server), so rename ours to avoid clobbering it. The deploy step
+          # copies launcher.js -> $DEPLOY/server.js so the .env loader fix ships.
+          cp server.js .next/standalone/launcher.js
 
       - name: Create deployment tarball
         run: |
@@ -111,6 +116,14 @@ jobs:
             mkdir -p "${DEPLOY}/.next/standalone"
             tar -xzf "${TARBALL}" -C "${DEPLOY}/.next/standalone"
 
+            # Place the bundled launcher (with .env auto-loader) at the deploy
+            # root, replacing the old server.js that did NOT load .env. Without
+            # this, INITIAL_PASSWORD/JWT_SECRET from .env are never picked up.
+            if [ -f "${DEPLOY}/.next/standalone/launcher.js" ]; then
+              cp "${DEPLOY}/.next/standalone/launcher.js" "${DEPLOY}/server.js"
+              echo "=== launcher.js -> ${DEPLOY}/server.js (env loader shipped) ==="
+            fi
+
             # Preserve .env (it lives at project root, not in standalone)
             echo "=== .env exists? ==="
             ls -la "${DEPLOY}/.env" 2>/dev/null || echo "WARNING: .env not found"
@@ -135,6 +148,22 @@ jobs:
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/masuk")
             if [ "$STATUS" = "200" ]; then
               echo "✅ Deploy successful (HTTP $STATUS)"
+              # Verify the configured password actually authenticates (not just
+              # the page rendering). Uses INITIAL_PASSWORD from .env via the
+              # launcher; if unset, the app defaults to 123456.
+              LOGIN_BODY=$(curl -s --max-time 10 -X POST "http://localhost:${PORT}/api/auth/login" \
+                -H "Content-Type: application/json" \
+                -d "{\"password\":\"${INITIAL_PASSWORD:-123456}\"}")
+              if echo "$LOGIN_BODY" | grep -q '"success":true'; then
+                echo "✅ Auth check passed (configured password accepted)"
+              else
+                echo "❌ Auth check FAILED: $LOGIN_BODY"
+                echo "=== pm2 describe ==="
+                pm2 describe "${PM2_NAME}" 2>&1 | head -30
+                echo "=== pm2 error log (last 40) ==="
+                pm2 logs "${PM2_NAME}" --lines 40 --nostream --err 2>&1
+                exit 1
+              fi
               rm -f "${TARBALL}"
             else
               echo "❌ Health check failed (HTTP $STATUS)"
