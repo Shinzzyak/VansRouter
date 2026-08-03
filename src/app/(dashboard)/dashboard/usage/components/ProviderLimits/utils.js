@@ -1,5 +1,32 @@
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 
+// Providers whose usage endpoint returns per-model quota rows.
+// The model filter dropdown is shown only for these providers.
+export const MULTI_MODEL_PROVIDERS = new Set([
+  "antigravity",
+  "gemini-cli",
+]);
+
+/**
+ * Build model filter options for a given provider.
+ * @param {string} provider - Provider id
+ * @returns {Array<{id: string, name: string}>}
+ */
+export function getModelOptionsForProvider(provider) {
+  if (!provider || !MULTI_MODEL_PROVIDERS.has(provider)) return [];
+  const models = getModelsByProviderId(provider);
+  return models.map((m) => ({ id: m.id, name: m.name || m.id }));
+}
+
+/**
+ * Check whether a provider supports per-model quota filtering.
+ * @param {string} provider - Provider id
+ * @returns {boolean}
+ */
+export function isMultiModelProvider(provider) {
+  return MULTI_MODEL_PROVIDERS.has(provider);
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
@@ -156,6 +183,30 @@ export function getSafePagination(pagination, fallbackPageSize) {
       totalPages: 1,
     }
   );
+}
+
+/**
+ * Determine the model identifier for a normalized quota row.
+ * Falls back to the quota name when no explicit modelKey is present.
+ * @param {Object} quota - Normalized quota row
+ * @returns {string}
+ */
+export function getQuotaModelKey(quota) {
+  if (!quota) return "";
+  return quota.modelKey || quota.name || "";
+}
+
+/**
+ * Filter normalized quota rows by a selected model id.
+ * @param {Array<Object>} quotas - Normalized quota rows
+ * @param {string} modelFilter - Selected model id or "all"
+ * @returns {Array<Object>}
+ */
+export function filterQuotasByModel(quotas, modelFilter) {
+  if (!Array.isArray(quotas) || modelFilter === "all" || !modelFilter) {
+    return quotas || [];
+  }
+  return quotas.filter((q) => getQuotaModelKey(q) === modelFilter);
 }
 
 export function getSafeTotals(totals, fallbackTotal = 0) {
@@ -399,6 +450,41 @@ export function parseQuotaData(provider, data) {
         // The 'Remaining (USD)' row needs explicit remainingPercentage because
         // its used/total values would otherwise compute the wrong direction
         // (e.g. used=95.5 / total=100 → 4% instead of 96%).
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              remainingPercentage: quota.remainingPercentage,
+            });
+          });
+        }
+        break;
+
+      case "codebuddy-cn":
+        // CodeBuddy CN mixes recurring refill packs ("Monthly"/"Weekly"/...)
+        // with one-shot bonus packs ("Bonus Pack N"). Forward `recurring`
+        // so the UI can show "Expires in" for bonus packs (whose resetAt is
+        // a hard expiry, not a refresh) instead of "Reset in".
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              recurring: quota.recurring !== false,
+            });
+          });
+        }
+        break;
+
+      case "grok-cli":
+        // Grok Build credits (on-demand window + prepaid balance).
+        // Do NOT forward absolute `remaining` — getRemainingPercentage treats
+        // it as a 0–100 percentage (same as Qoder). Use remainingPercentage.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({

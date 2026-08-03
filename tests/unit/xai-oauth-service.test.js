@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Prevent proxyFetch.js from patching global.fetch; otherwise an earlier test
+// that loaded it would cause this test to use a captured originalFetch and
+// either hang on real network calls or return undefined responses.
+vi.mock("open-sse/utils/proxyFetch.js", () => ({
+  default: (url, options) => globalThis.fetch(url, options),
+}));
+
 describe("xai/oauth service", () => {
   beforeEach(() => {
     vi.resetModules();

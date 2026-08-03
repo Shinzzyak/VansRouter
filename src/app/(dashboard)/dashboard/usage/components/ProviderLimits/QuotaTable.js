@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatResetTime, getRemainingPercentage } from "./utils";
 
 const PAGE_SIZE = 10;
@@ -110,16 +110,16 @@ export default function QuotaTable({
 
   const totalPages = Math.max(1, Math.ceil(sortedQuotas.length / PAGE_SIZE));
 
-  const prevSortModeRef = useRef(sortMode);
-  const prevQuotasRef = useRef(quotas);
-  const prevTotalPagesRef = useRef(totalPages);
-  if (sortMode !== prevSortModeRef.current || quotas !== prevQuotasRef.current) {
-    prevSortModeRef.current = sortMode;
-    prevQuotasRef.current = quotas;
-    prevTotalPagesRef.current = totalPages;
+  const [prevSortMode, setPrevSortMode] = useState(sortMode);
+  const [prevQuotas, setPrevQuotas] = useState(quotas);
+  const [prevTotalPages, setPrevTotalPages] = useState(totalPages);
+  if (sortMode !== prevSortMode || quotas !== prevQuotas) {
+    setPrevSortMode(sortMode);
+    setPrevQuotas(quotas);
+    setPrevTotalPages(totalPages);
     setPage(1);
-  } else if (totalPages !== prevTotalPagesRef.current) {
-    prevTotalPagesRef.current = totalPages;
+  } else if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages);
     setPage((currentPage) => Math.min(currentPage, totalPages));
   }
 

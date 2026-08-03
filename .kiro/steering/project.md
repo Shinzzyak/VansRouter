@@ -24,7 +24,7 @@ tests/unit/   - Vitest unit tests
 ## Dev workflow
 ```bash
 # Dev mode
-PORT=20128 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run dev
+PORT=20127 NEXT_PUBLIC_BASE_URL=http://localhost:20127 npm run dev
 
 # Build + restart (production, sesuai agent.md)
 pnpm run build

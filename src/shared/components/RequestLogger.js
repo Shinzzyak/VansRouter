@@ -8,6 +8,8 @@ export default function RequestLogger() {
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  /* eslint-disable react-hooks/immutability --
+     One-time bootstrap fetch on mount; fetchLogs is declared below. */
   useEffect(() => {
     fetchLogs();
   }, []);

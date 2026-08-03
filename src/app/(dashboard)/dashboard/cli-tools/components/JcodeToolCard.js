@@ -15,7 +15,7 @@ function getLocalBaseUrl() {
   return "http://127.0.0.1:20128";
 }
 
-function JcodeExpandedSection({ applying, checkingJcode, customBaseUrl, getDisplayUrl, handleApplySettings, handleResetSettings, jcodeStatus, message, restoring, selectedApiKey, selectedModel, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModel, setShowManualConfigModal }) {
+function JcodeExpandedSection({ apiKeys, applying, checkingJcode, cloudEnabled, customBaseUrl, getDisplayUrl, handleApplySettings, handleResetSettings, hasActiveProviders, jcodeStatus, message, restoring, selectedApiKey, selectedModel, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModel, setShowManualConfigModal, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingJcode && (
@@ -339,7 +339,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
       <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
-            <Image src={tool.image || "/providers/jcode.png"} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
+            <Image src={tool.image || "/providers/jcode.webp"} alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -354,7 +354,7 @@ id = "${selectedModel || "cc/claude-opus-4-7"}"`;
         <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {isExpanded && <JcodeExpandedSection applying={applying} checkingJcode={checkingJcode} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApplySettings={handleApplySettings} handleResetSettings={handleResetSettings} jcodeStatus={jcodeStatus} message={message} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModel={setSelectedModel} setShowManualConfigModal={setShowManualConfigModal} />}
+      {isExpanded && <JcodeExpandedSection apiKeys={apiKeys} applying={applying} checkingJcode={checkingJcode} cloudEnabled={cloudEnabled} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApplySettings={handleApplySettings} handleResetSettings={handleResetSettings} hasActiveProviders={hasActiveProviders} jcodeStatus={jcodeStatus} message={message} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModel={setSelectedModel} setShowManualConfigModal={setShowManualConfigModal} tailscaleEnabled={tailscaleEnabled} tailscaleUrl={tailscaleUrl} tool={tool} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} />}
 
       <ModelSelectModal
         isOpen={modalOpen}

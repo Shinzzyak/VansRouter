@@ -12,9 +12,9 @@ const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [draftOverride, setDraft] = useState(null);
-  const prevModel = useRef(model);
-  if (prevModel.current !== model) {
-    prevModel.current = model;
+  const [prevModel, setPrevModel] = useState(model);
+  if (prevModel !== model) {
+    setPrevModel(model);
     setDraft(null);
   }
   const draft = draftOverride ?? model;
@@ -179,12 +179,14 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
         </div>
       </Modal>
 
-      <ModelSelectModal isOpen={showModelSelect} onClose={() => setShowModelSelect(false)}
-        onSelect={handleAddModel} onDeselect={handleDeselectModel}
-        activeProviders={activeProviders} modelAliases={modelAliases}
-        title="Add Model to Combo" kindFilter={kindFilter}
-        addedModelValues={models} closeOnSelect={false}
-        onBack={() => setShowModelSelect(false)} />
+      {showModelSelect && (
+        <ModelSelectModal isOpen={showModelSelect} onClose={() => setShowModelSelect(false)}
+          onSelect={handleAddModel} onDeselect={handleDeselectModel}
+          activeProviders={activeProviders} modelAliases={modelAliases}
+          title="Add Model to Combo" kindFilter={kindFilter}
+          addedModelValues={models} closeOnSelect={false}
+          onBack={() => setShowModelSelect(false)} />
+      )}
     </>
   );
 }

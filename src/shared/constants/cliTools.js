@@ -3,18 +3,16 @@ export const MITM_TOOLS = {
   antigravity: {
     id: "antigravity",
     name: "Antigravity",
-    image: "/providers/antigravity.png",
+    image: "/providers/antigravity.webp",
     color: "#4285F4",
     description: "Google Antigravity IDE with MITM",
     configType: "mitm",
     mitmDomain: "daily-cloudcode-pa.googleapis.com",
-    modelAliases: ["gemini-3.5-flash-low", "gemini-3-flash-agent", "gemini-3.5-flash-extra-low", "gemini-3.1-pro-low", "gemini-pro-agent", "claude-sonnet-4-6", "claude-opus-4-6-thinking", "gpt-oss-120b-medium", "gemini-3-flash"],
+    modelAliases: ["gemini-3.6-flash-high", "gemini-3.6-flash-medium", "gemini-3.6-flash-low", "gemini-3.5-flash-low", "gemini-3-flash-agent", "gemini-3.5-flash-extra-low", "gemini-3.1-pro-low", "gemini-pro-agent", "claude-sonnet-4-6", "claude-opus-4-6-thinking", "gpt-oss-120b-medium", "gemini-3-flash"],
     defaultModels: [
-      // `mandatory: true` on the out-of-box agent/Default model — verified via MITM dump capture:
-      // Antigravity's agent loop sends `gemini-3.5-flash-low` (requestType agent/checkpoint) by
-      // default. The other slots only appear when the user explicitly picks that model, so they
-      // stay optional. (Tab-autocomplete uses `tab_*` models that are never re-routed — see
-      // MODEL_NO_MAP in src/mitm/config.js.)
+      { id: "gemini-3.6-flash-high", name: "Gemini 3.6 Flash (High)", alias: "gemini-3.6-flash-high" },
+      { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)", alias: "gemini-3.6-flash-medium" },
+      { id: "gemini-3.6-flash-low", name: "Gemini 3.6 Flash (Low)", alias: "gemini-3.6-flash-low" },
       { id: "gemini-3.5-flash-low", name: "Gemini 3.5 Flash (Medium) / Default", alias: "gemini-3.5-flash-low", mandatory: true },
       { id: "gemini-3-flash-agent", name: "Gemini 3.5 Flash (High)", alias: "gemini-3-flash-agent" },
       { id: "gemini-3.5-flash-extra-low", name: "Gemini 3.5 Flash (Low)", alias: "gemini-3.5-flash-extra-low" },
@@ -29,7 +27,7 @@ export const MITM_TOOLS = {
   copilot: {
     id: "copilot",
     name: "GitHub Copilot",
-    image: "/providers/copilot.png",
+    image: "/providers/copilot.webp",
     color: "#1F6FEB",
     description: "GitHub Copilot IDE with MITM",
     configType: "mitm",
@@ -55,29 +53,29 @@ export const MITM_TOOLS = {
   kiro: {
     id: "kiro",
     name: "Kiro",
-    image: "/providers/kiro.png",
+    image: "/providers/kiro.webp",
     color: "#FF6B00",
     description: "Kiro IDE with MITM",
     configType: "mitm",
     mitmDomain: "q.us-east-1.amazonaws.com",
     defaultModels: [
-      // Kiro's agent/"vibe" mode sends modelId "auto" for the main turn (and "simple-task"
-      // for background sub-tasks). Without a mappable slot, getMappedModel returns null and the
-      // /generateAssistantResponse call is passed through to AWS instead of being routed to the
-      // chosen provider — surfacing as Kiro's "monthly usage limit" once the AWS quota is gone.
-      { id: "auto", name: "Auto (Kiro Agent)", alias: "auto" },
+      { id: "claude-sonnet-5", name: "Claude Sonnet 5", alias: "claude-sonnet-5" },
       { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5", alias: "claude-sonnet-4.5" },
       { id: "claude-sonnet-4", name: "Claude Sonnet 4", alias: "claude-sonnet-4" },
       { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", alias: "claude-haiku-4.5" },
       { id: "deepseek-3.2", name: "DeepSeek 3.2", alias: "deepseek-3.2" },
       { id: "minimax-m2.1", name: "MiniMax M2.1", alias: "minimax-m2.1" },
+      { id: "gpt-5.6-sol", name: "GPT 5.6 Sol", alias: "gpt-5.6-sol", contextLength: 272000, rateMultiplier: 2.4 },
+      { id: "gpt-5.6-terra", name: "GPT 5.6 Terra", alias: "gpt-5.6-terra", contextLength: 272000, rateMultiplier: 1.2 },
+      { id: "gpt-5.6-luna", name: "GPT 5.6 Luna", alias: "gpt-5.6-luna", contextLength: 272000, rateMultiplier: 0.6 },
       { id: "simple-task", name: "Qwen3 Coder Next", alias: "simple-task" },
+      { id: "auto", name: "Auto / Agent default", alias: "auto" },
     ],
   },
   // cursor: {
   //   id: "cursor",
   //   name: "Cursor",
-  //   image: "/providers/cursor.png",
+  //   image: "/providers/cursor.webp",
   //   color: "#000000",
   //   description: "Cursor IDE with MITM",
   //   configType: "mitm",
@@ -95,7 +93,7 @@ export const CLI_TOOLS = {
   claude: {
     id: "claude",
     name: "Claude Code",
-    image: "/providers/claude.png",
+    image: "/providers/claude.webp",
     color: "#D97757",
     description: "Anthropic Claude Code CLI",
     configType: "env",
@@ -104,20 +102,22 @@ export const CLI_TOOLS = {
       model: "ANTHROPIC_MODEL",
       opusModel: "ANTHROPIC_DEFAULT_OPUS_MODEL",
       sonnetModel: "ANTHROPIC_DEFAULT_SONNET_MODEL",
+      fableModel: "ANTHROPIC_DEFAULT_FABLE_MODEL",
       haikuModel: "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     },
-    modelAliases: ["default", "sonnet", "opus", "haiku", "opusplan"],
+    modelAliases: ["default", "sonnet", "opus", "fable", "haiku", "opusplan"],
     settingsFile: "~/.claude/settings.json",
     defaultModels: [
-      { id: "opus", name: "Claude Opus", alias: "opus", envKey: "ANTHROPIC_DEFAULT_OPUS_MODEL", defaultValue: "cc/claude-opus-4-6" },
-      { id: "sonnet", name: "Claude Sonnet", alias: "sonnet", envKey: "ANTHROPIC_DEFAULT_SONNET_MODEL", defaultValue: "cc/claude-sonnet-4-6" },
+      { id: "fable", name: "Claude Fable", alias: "fable", envKey: "ANTHROPIC_DEFAULT_FABLE_MODEL", defaultValue: "cc/claude-fable-5" },
+      { id: "opus", name: "Claude Opus", alias: "opus", envKey: "ANTHROPIC_DEFAULT_OPUS_MODEL", defaultValue: "cc/claude-opus-4-8" },
+      { id: "sonnet", name: "Claude Sonnet", alias: "sonnet", envKey: "ANTHROPIC_DEFAULT_SONNET_MODEL", defaultValue: "cc/claude-sonnet-5" },
       { id: "haiku", name: "Claude Haiku", alias: "haiku", envKey: "ANTHROPIC_DEFAULT_HAIKU_MODEL", defaultValue: "cc/claude-haiku-4-5-20251001" },
     ],
   },
   openclaw: {
     id: "openclaw",
     name: "Open Claw",
-    image: "/providers/openclaw.png",
+    image: "/providers/openclaw.webp",
     color: "#FF6B35",
     description: "Open Claw AI Assistant",
     configType: "custom",
@@ -125,7 +125,7 @@ export const CLI_TOOLS = {
   codex: {
     id: "codex",
     name: "OpenAI Codex CLI / App",
-    image: "/providers/codex.png",
+    image: "/providers/codex.webp",
     color: "#10A37F",
     description: "OpenAI Codex CLI",
     configType: "custom",
@@ -133,7 +133,7 @@ export const CLI_TOOLS = {
   opencode: {
     id: "opencode",
     name: "OpenCode",
-    image: "/providers/opencode.png",
+    image: "/providers/opencode.webp",
     color: "#E87040",
     description: "OpenCode AI Terminal Assistant",
     configType: "custom",
@@ -141,7 +141,7 @@ export const CLI_TOOLS = {
   cowork: {
     id: "cowork",
     name: "Claude Cowork",
-    image: "/providers/claude.png",
+    image: "/providers/claude.webp",
     color: "#D97757",
     description: "Claude Desktop Cowork (third-party inference)",
     configType: "custom",
@@ -149,7 +149,7 @@ export const CLI_TOOLS = {
   hermes: {
     id: "hermes",
     name: "Hermes Agent",
-    image: "/providers/hermes.png",
+    image: "/providers/hermes.webp",
     color: "#8B5CF6",
     description: "Nous Research self-improving AI agent",
     configType: "custom",
@@ -157,7 +157,7 @@ export const CLI_TOOLS = {
   droid: {
     id: "droid",
     name: "Factory Droid",
-    image: "/providers/droid.png",
+    image: "/providers/droid.webp",
     color: "#00D4FF",
     description: "Factory Droid AI Assistant",
     configType: "custom",
@@ -165,7 +165,7 @@ export const CLI_TOOLS = {
   cursor: {
     id: "cursor",
     name: "Cursor",
-    image: "/providers/cursor.png",
+    image: "/providers/cursor.webp",
     color: "#000000",
     description: "Cursor AI Code Editor",
     configType: "guide",
@@ -186,7 +186,7 @@ export const CLI_TOOLS = {
   cline: {
     id: "cline",
     name: "Cline",
-    image: "/providers/cline.png",
+    image: "/providers/cline.webp",
     color: "#00D1B2",
     description: "Cline AI Coding Assistant",
     configType: "custom",
@@ -194,7 +194,7 @@ export const CLI_TOOLS = {
   kilo: {
     id: "kilo",
     name: "Kilo Code",
-    image: "/providers/kilocode.png",
+    image: "/providers/kilocode.webp",
     color: "#FF6B6B",
     description: "Kilo Code AI Assistant",
     configType: "custom",
@@ -202,7 +202,7 @@ export const CLI_TOOLS = {
   roo: {
     id: "roo",
     name: "Roo",
-    image: "/providers/roo.png",
+    image: "/providers/roo.webp",
     color: "#FF6B6B",
     description: "Roo AI Assistant",
     configType: "guide",
@@ -217,7 +217,7 @@ export const CLI_TOOLS = {
   continue: {
     id: "continue",
     name: "Continue",
-    image: "/providers/continue.png",
+    image: "/providers/continue.webp",
     color: "#7C3AED",
     description: "Continue AI Assistant",
     configType: "guide",
@@ -241,7 +241,7 @@ export const CLI_TOOLS = {
   amp: {
     id: "amp",
     name: "Amp CLI",
-    image: "/providers/amp.png",
+    image: "/providers/amp.webp",
     color: "#F97316",
     description: "Sourcegraph Amp coding assistant CLI",
     docsUrl: "/docs?section=cli-tools&tool=amp",
@@ -272,7 +272,7 @@ amp --model "{{model}}"
   qwen: {
     id: "qwen",
     name: "Qwen Code",
-    image: "/providers/qwen.png",
+    image: "/providers/qwen.webp",
     color: "#10B981",
     description: "Alibaba Qwen Code CLI — supports OpenAI, Anthropic & Gemini providers via 9Router",
     docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/",
@@ -321,7 +321,7 @@ amp --model "{{model}}"
   "deepseek-tui": {
     id: "deepseek-tui",
     name: "DeepSeek TUI",
-    image: "/providers/deepseek-tui.png",
+    image: "/providers/deepseek-tui.webp",
     color: "#4D6BFE",
     description: "DeepSeek Terminal Coding Agent (Rust TUI)",
     docsUrl: "https://github.com/DeepSeek-TUI/DeepSeek-TUI",
@@ -341,7 +341,7 @@ amp --model "{{model}}"
   jcode: {
     id: "jcode",
     name: "jcode",
-    image: "/providers/jcode.png",
+    image: "/providers/jcode.webp",
     color: "#FF6B35",
     description: "High-performance Rust-based coding agent harness",
     configType: "custom",
@@ -367,6 +367,30 @@ amp --model "{{model}}"
       { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", alias: "gemini", defaultValue: "gemini/gemini-3.1-pro" },
     ],
   },
+  "grok-build": {
+    id: "grok-build",
+    name: "Grok Build",
+    image: "/providers/grok-cli.png",
+    color: "#1DA1F2",
+    description: "xAI Grok Build TUI coding agent",
+    configType: "custom",
+    docsUrl: "https://x.ai/cli",
+    defaultCommand: "grok",
+    notes: [
+      {
+        type: "info",
+        text: "Grok Build uses ~/.grok/config.toml. 9Router writes a [model.9router] custom model and sets it as the default.",
+      },
+      {
+        type: "info",
+        text: "After Apply, run grok (or /model 9router) to use the routed model. Switch back anytime with /model grok-build.",
+      },
+      {
+        type: "warning",
+        text: "Config path: Linux/macOS ~/.grok/config.toml • Windows %USERPROFILE%\\.grok\\config.toml",
+      },
+    ],
+  },
   // HIDDEN: gemini-cli
   // "gemini-cli": {
   //   id: "gemini-cli",
@@ -387,7 +411,7 @@ amp --model "{{model}}"
 };
 
 // Get all provider models for mapping dropdown
-const getProviderModelsForMapping = (providers) => {
+export const getProviderModelsForMapping = (providers) => {
   const result = [];
   providers.forEach(conn => {
     if (conn.isActive && (conn.testStatus === "active" || conn.testStatus === "success")) {
@@ -401,4 +425,3 @@ const getProviderModelsForMapping = (providers) => {
   });
   return result;
 };
-

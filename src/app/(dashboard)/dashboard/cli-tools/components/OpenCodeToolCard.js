@@ -9,7 +9,7 @@ import { matchKnownEndpoint } from "./cliEndpointMatch";
 
 const EMPTY_MODELS = [];
 
-function OpenCodeExpandedSection({ activeModel, activeProviders, apiKeys, applying, checkStatus, checking, cloudEnabled, customBaseUrl, getDisplayUrl, handleApply, handleReset, message, res, restoring, selectedApiKey, selectedModel, selectedModels, setActiveModel, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModels, setShowInstallGuide, setShowManualConfigModal, setSubagentModalOpen, setSubagentModel, showInstallGuide, status, subagentModel, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
+function OpenCodeExpandedSection({ activeModel, activeProviders, apiKeys, applying, checkStatus, checking, cloudEnabled, customBaseUrl, getDisplayUrl, handleApply, handleReset, message, restoring, selectedApiKey, selectedModel, selectedModels, setActiveModel, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModels, setShowInstallGuide, setShowManualConfigModal, setSubagentModalOpen, setSubagentModel, showInstallGuide, status, subagentModel, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && (
@@ -444,7 +444,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
       <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
-            <Image src="/providers/opencode.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
+            <Image src="/providers/opencode.webp" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -459,7 +459,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
         <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {isExpanded && <OpenCodeExpandedSection activeModel={activeModel} activeProviders={activeProviders} apiKeys={apiKeys} applying={applying} checkStatus={checkStatus} checking={checking} cloudEnabled={cloudEnabled} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApply={handleApply} handleReset={handleReset} message={message} res={res} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} selectedModels={selectedModels} setActiveModel={setActiveModel} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModels={setSelectedModels} setShowInstallGuide={setShowInstallGuide} setShowManualConfigModal={setShowManualConfigModal} setSubagentModalOpen={setSubagentModalOpen} setSubagentModel={setSubagentModel} showInstallGuide={showInstallGuide} status={status} subagentModel={subagentModel} tailscaleEnabled={tailscaleEnabled} tailscaleUrl={tailscaleUrl} tool={tool} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} />}
+      {isExpanded && <OpenCodeExpandedSection activeModel={activeModel} activeProviders={activeProviders} apiKeys={apiKeys} applying={applying} checkStatus={checkStatus} checking={checking} cloudEnabled={cloudEnabled} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApply={handleApply} handleReset={handleReset} message={message} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} selectedModels={selectedModels} setActiveModel={setActiveModel} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModels={setSelectedModels} setShowInstallGuide={setShowInstallGuide} setShowManualConfigModal={setShowManualConfigModal} setSubagentModalOpen={setSubagentModalOpen} setSubagentModel={setSubagentModel} showInstallGuide={showInstallGuide} status={status} subagentModel={subagentModel} tailscaleEnabled={tailscaleEnabled} tailscaleUrl={tailscaleUrl} tool={tool} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} />}
 
       <ModelSelectModal
         isOpen={modalOpen}

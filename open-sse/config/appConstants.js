@@ -1,41 +1,7 @@
-import { platform, arch } from "os";
+import { platform, arch, hostname } from "os";
 import { PROVIDERS, PROVIDER_OAUTH } from "./providers.js";
-import { proxyAwareFetch } from "../utils/proxyFetch.js";
-
-// === Kimchi CLI version (dynamic, cached from GitHub releases) ===
-const KIMCHI_FALLBACK_VERSION = "0.1.39";
-let _kimchiVersionCache = null;
-let _kimchiVersionFetching = null;
-const KIMCHI_VERSION_TTL_MS = 3600_000; // 1h
-
-async function fetchKimchiVersion() {
-  try {
-    const res = await proxyAwareFetch("https://api.github.com/repos/getkimchi/kimchi/releases/latest", {
-      headers: { Accept: "application/vnd.github+json" },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return KIMCHI_FALLBACK_VERSION;
-    const body = await res.json();
-    const tag = body?.tag_name || "";
-    const ver = tag.replace(/^v/, "");
-    return ver || KIMCHI_FALLBACK_VERSION;
-  } catch {
-    return KIMCHI_FALLBACK_VERSION;
-  }
-}
-
-export async function getKimchiVersion() {
-  if (_kimchiVersionCache && Date.now() - _kimchiVersionCache.ts < KIMCHI_VERSION_TTL_MS) return _kimchiVersionCache.ver;
-  if (_kimchiVersionFetching) return _kimchiVersionFetching;
-  _kimchiVersionFetching = fetchKimchiVersion().finally(() => { _kimchiVersionFetching = null; });
-  const ver = await _kimchiVersionFetching;
-  _kimchiVersionCache = { ver, ts: Date.now() };
-  return ver;
-}
-
-export function getKimchiVersionSync() {
-  return _kimchiVersionCache?.ver || KIMCHI_FALLBACK_VERSION;
-}
+import { ANTIGRAVITY_IDE_USER_AGENT } from "../providers/shared.js";
+import { createRequire } from "module";
 
 // === Gemini CLI === derive từ registry gemini-cli.transport
 export const GEMINI_CLI_VERSION = PROVIDERS["gemini-cli"]?.cliVersion;
@@ -95,7 +61,7 @@ export function getPlatformEnum() {
 }
 
 export function getPlatformUserAgent() {
-  return `antigravity/1.104.0 ${platform()}/${arch()}`;
+  return ANTIGRAVITY_IDE_USER_AGENT;
 }
 
 export const CLIENT_METADATA = {
@@ -164,8 +130,9 @@ export const AG_DEFAULT_TOOLS = new Set([
 ]);
 
 // Antigravity chat/stream headers
+export const ANTIGRAVITY_PRE_RESPONSE_TIMEOUT_CODE = "PRE_RESPONSE_TIMEOUT";
 export const ANTIGRAVITY_HEADERS = {
-  "User-Agent": `antigravity/1.107.0 ${platform()}/${arch()}`
+  "User-Agent": ANTIGRAVITY_IDE_USER_AGENT
 };
 
 // Cloud Code Assist API
@@ -206,12 +173,44 @@ export const OAUTH_ENDPOINTS = {
   github:    { token: PROVIDER_OAUTH["github"]?.tokenUrl, auth: PROVIDER_OAUTH["github"]?.authorizeUrl, deviceCode: PROVIDER_OAUTH["github"]?.deviceCodeUrl },
 };
 
-// Generate Kimi OAuth custom headers
-export function buildKimiHeaders() {
+let _appVersion;
+function getAppPackageVersion() {
+  if (_appVersion) return _appVersion;
+  try {
+    const require = createRequire(import.meta.url);
+    _appVersion = require("../../package.json").version || "0.0.0";
+  } catch {
+    _appVersion = process.env.npm_package_version || "0.0.0";
+  }
+  return _appVersion;
+}
+
+// Kimi Code OAuth / API headers (CLIProxyAPI internal/auth/kimi commonHeaders parity).
+// deviceId must stay stable per connection for the whole OAuth session.
+export function buildKimiHeaders(deviceId) {
+  const osName = platform();
+  const architecture = arch();
+  let deviceModel = `${osName} ${architecture}`;
+  if (osName === "darwin") deviceModel = `macOS ${architecture}`;
+  else if (osName === "win32") deviceModel = `Windows ${architecture}`;
+  else if (osName === "linux") deviceModel = `Linux ${architecture}`;
+
+  let deviceName = "unknown";
+  try {
+    deviceName = hostname() || "unknown";
+  } catch {
+    deviceName = "unknown";
+  }
+
+  const resolvedId = (typeof deviceId === "string" && deviceId.trim())
+    ? deviceId.trim()
+    : `kimi-${Date.now()}`;
+
   return {
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "2.1.2",
-    "X-Msh-Device-Model": typeof process !== "undefined" ? `${process.platform} ${process.arch}` : "unknown",
-    "X-Msh-Device-Id": `kimi-${Date.now()}`
+    "X-Msh-Version": getAppPackageVersion(),
+    "X-Msh-Device-Name": deviceName,
+    "X-Msh-Device-Model": deviceModel,
+    "X-Msh-Device-Id": resolvedId,
   };
 }

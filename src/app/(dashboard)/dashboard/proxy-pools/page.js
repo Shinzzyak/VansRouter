@@ -103,6 +103,7 @@ export default function ProxyPoolsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap fetch.
     fetchProxyPools();
   }, [fetchProxyPools]);
 

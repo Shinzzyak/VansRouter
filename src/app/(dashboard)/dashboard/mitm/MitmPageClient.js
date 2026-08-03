@@ -28,6 +28,9 @@ export default function MitmPageClient() {
   const { connections, apiKeys, modelAliases, cloudEnabled, mitmStatus } = data;
   const [expandedTool, setExpandedTool] = useState(null);
 
+  /* eslint-disable react-hooks/immutability --
+     One-time bootstrap fetch on mount. The fetch* functions are declared
+     further down; captured by closure at runtime. */
   useEffect(() => {
     fetchConnections();
     fetchApiKeys();

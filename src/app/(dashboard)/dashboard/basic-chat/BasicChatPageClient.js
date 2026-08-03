@@ -402,8 +402,11 @@ export default function BasicChatPageClient() {
         ? modelIndex.get(session.modelId)
         : savedModel;
       initializedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time bootstrap: rehydrates active session on first mount when persisted session exists.
       setActiveSessionId(session.id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time bootstrap.
       setActiveProviderId(sessionModel?.providerId || savedProvider.providerId);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time bootstrap.
       setActiveModelId(sessionModel?.id || savedModel.id);
       return;
     }

@@ -27,10 +27,10 @@ function baseBody() {
   };
 }
 
-// Khử field động: toolNameMap, kiro conversationId (uuid), timestamp trong content.
+// Khử field động: toolNameMap, kiro conversationId (uuid), agentContinuationId, timestamp trong content.
 function clean(body) {
   const s = JSON.stringify(body, (k, v) => {
-    if (k === "_toolNameMap" || k === "conversationId") return undefined;
+    if (k === "_toolNameMap" || k === "conversationId" || k === "agentContinuationId") return undefined;
     return v;
   }).replace(/Current time is [^"\\]+/g, "Current time is <TS>");
   return JSON.parse(s);
@@ -53,6 +53,45 @@ describe("GOLDEN request: OpenAI → Gemini", () => {
   it("full body (system/image/tool/tool_result)", () => {
     const out = translateRequest(FORMATS.OPENAI, FORMATS.GEMINI, "gemini-3-pro", baseBody(), true, { apiKey: "k" }, "gemini");
     expect(clean(out)).toMatchSnapshot();
+  });
+
+  it("Gemini CLI tool requests include validated toolConfig and enough output for high thinking", () => {
+    const body = {
+      messages: [{ role: "user", content: "Call add with 7 and 35." }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "add",
+            description: "Add two numbers",
+            parameters: {
+              type: "object",
+              properties: {
+                a: { type: "number" },
+                b: { type: "number" },
+              },
+              required: ["a", "b"],
+            },
+          },
+        },
+      ],
+      reasoning_effort: "high",
+      max_tokens: 128,
+    };
+    const out = translateRequest(
+      FORMATS.OPENAI,
+      FORMATS.GEMINI_CLI,
+      "gemini-3.1-pro-preview",
+      body,
+      true,
+      { accessToken: "t", projectId: "p" },
+      "gemini-cli"
+    );
+
+    expect(out.request.toolConfig).toEqual({ functionCallingConfig: { mode: "VALIDATED" } });
+    expect(out.request.safetySettings).toBeDefined();
+    expect(out.request.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "high", includeThoughts: true });
+    expect(out.request.generationConfig.maxOutputTokens).toBe(65535);
   });
 });
 

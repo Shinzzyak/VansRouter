@@ -58,6 +58,9 @@ export default function ProfilePage() {
   const [proxyLoading, setProxyLoading] = useState(false);
   const [proxyTestLoading, setProxyTestLoading] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect --
+     Locale sync on mount and bootstrap fetch of /api/settings. setState is
+     intentional; the effect runs once or when langOpen toggles. */
   useEffect(() => {
     setLocale(getLocaleFromCookie());
   }, [langOpen]);

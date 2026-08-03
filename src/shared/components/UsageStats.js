@@ -14,13 +14,35 @@ import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
+import dynamic from "next/dynamic";
+// Lazy-load: keeps @xyflow/react out of the shared bundle until topology renders
+const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
 
-const spinner = (
-  <div className="flex items-center justify-center py-12 text-text-muted">
-    <span className="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
+// Skeleton placeholders sized to match the final content so the layout does
+// not shift (CLS) when data arrives. Keep dimensions in sync with the real
+// components they replace.
+const overviewSkeleton = (
+  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-4">
+    {Array.from({ length: 4 }).map((_, i) => (
+      <div key={i} className="h-24 w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50" aria-hidden="true" />
+    ))}
   </div>
+);
+
+const topologySkeleton = (
+  <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+    <div className="h-[320px] w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50 sm:h-[480px]" aria-hidden="true" />
+    <div className="h-[320px] w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50 sm:h-[480px]" aria-hidden="true" />
+  </div>
+);
+
+const chartSkeleton = (
+  <div className="h-[220px] w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50" aria-hidden="true" />
+);
+
+const tableSkeleton = (
+  <div className="h-64 w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50" aria-hidden="true" />
 );
 
 function timeAgo(timestamp) {
@@ -97,9 +119,16 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
     .map(([key, data]) => {
       const totalTokens = (data.promptTokens || 0) + (data.completionTokens || 0);
       const totalCost = data.cost || 0;
-      const inputCost = totalTokens > 0 ? (data.promptTokens || 0) * (totalCost / totalTokens) : 0;
+      // ponytail: cost split is a token-share allocation of the (rate-accurate)
+      // server total, not a per-rate recompute. cached is a subset of prompt, so
+      // peel it out of the input share. Upgrade to a stored per-component cost
+      // breakdown if exact cached-rate cost display is needed.
+      const cachedTokens = data.cachedTokens || 0;
+      const nonCachedInput = Math.max(0, (data.promptTokens || 0) - cachedTokens);
+      const inputCost = totalTokens > 0 ? nonCachedInput * (totalCost / totalTokens) : 0;
+      const cachedCost = totalTokens > 0 ? cachedTokens * (totalCost / totalTokens) : 0;
       const outputCost = totalTokens > 0 ? (data.completionTokens || 0) * (totalCost / totalTokens) : 0;
-      return { ...data, key, totalTokens, totalCost, inputCost, outputCost, pending: pendingMap[key] || 0 };
+      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, pending: pendingMap[key] || 0 };
     })
     .sort((a, b) => {
       let valA = a[sortBy];
@@ -130,7 +159,12 @@ function groupDataByKey(data, keyField) {
     if (!groups[gk]) {
       groups[gk] = {
         groupKey: gk,
-        summary: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, cost: 0, inputCost: 0, outputCost: 0, lastUsed: null, pending: 0 },
+        summary: {
+          requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0,
+          totalTokens: 0, cost: 0, inputCost: 0, cachedCost: 0, outputCost: 0,
+          lastUsed: null, pending: 0,
+          provider: null, rawModel: null, keyName: null, endpoint: null
+        },
         items: [],
       };
     }
@@ -138,14 +172,29 @@ function groupDataByKey(data, keyField) {
     s.requests += item.requests || 0;
     s.promptTokens += item.promptTokens || 0;
     s.completionTokens += item.completionTokens || 0;
+    s.cachedTokens += item.cachedTokens || 0;
     s.totalTokens += item.totalTokens || 0;
     s.cost += item.cost || 0;
     s.inputCost += item.inputCost || 0;
+    s.cachedCost += item.cachedCost || 0;
     s.outputCost += item.outputCost || 0;
     s.pending += item.pending || 0;
     if (item.lastUsed && (!s.lastUsed || new Date(item.lastUsed) > new Date(s.lastUsed))) {
       s.lastUsed = item.lastUsed;
     }
+
+    const trackUnique = (field) => {
+      if (s[field] === null) {
+        s[field] = item[field] || undefined;
+      } else if (s[field] !== undefined && s[field] !== item[field]) {
+        s[field] = undefined;
+      }
+    };
+    trackUnique("provider");
+    trackUnique("rawModel");
+    trackUnique("keyName");
+    trackUnique("endpoint");
+
     groups[gk].items.push(item);
   });
   return Object.values(groups);
@@ -159,9 +208,9 @@ const MODEL_COLUMNS = [
 ];
 
 const ACCOUNT_COLUMNS = [
+  { field: "accountName", label: "Account" },
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
-  { field: "accountName", label: "Account" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
@@ -347,7 +396,13 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           emptyMessage: "No usage recorded yet.",
           renderSummaryCells: (group) => (
             <>
-              <td className="px-6 py-3 text-text-muted">—</td>
+              <td className="px-6 py-3">
+                {group.summary.provider ? (
+                  <Badge variant={group.summary.pending > 0 ? "primary" : "neutral"} size="sm">{group.summary.provider}</Badge>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
@@ -380,8 +435,20 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           emptyMessage: "No account-specific usage recorded yet.",
           renderSummaryCells: (group) => (
             <>
-              <td className="px-6 py-3 text-text-muted">—</td>
-              <td className="px-6 py-3 text-text-muted">—</td>
+              <td className="px-6 py-3">
+                {group.summary.rawModel ? (
+                  <span className="font-medium text-text-main">{group.summary.rawModel}</span>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
+              <td className="px-6 py-3">
+                {group.summary.provider ? (
+                  <Badge variant={group.summary.pending > 0 ? "primary" : "neutral"} size="sm">{group.summary.provider}</Badge>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
@@ -405,8 +472,20 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           emptyMessage: "No API key usage recorded yet.",
           renderSummaryCells: (group) => (
             <>
-              <td className="px-6 py-3 text-text-muted">—</td>
-              <td className="px-6 py-3 text-text-muted">—</td>
+              <td className="px-6 py-3">
+                {group.summary.rawModel ? (
+                  <span className="font-medium text-text-main">{group.summary.rawModel}</span>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
+              <td className="px-6 py-3">
+                {group.summary.provider ? (
+                  <Badge variant="neutral" size="sm">{group.summary.provider}</Badge>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
@@ -431,8 +510,20 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           emptyMessage: "No endpoint usage recorded yet.",
           renderSummaryCells: (group) => (
             <>
-              <td className="px-6 py-3 text-text-muted">—</td>
-              <td className="px-6 py-3 text-text-muted">—</td>
+              <td className="px-6 py-3">
+                {group.summary.rawModel ? (
+                  <span className="font-medium text-text-main">{group.summary.rawModel}</span>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
+              <td className="px-6 py-3">
+                {group.summary.provider ? (
+                  <Badge variant="neutral" size="sm">{group.summary.provider}</Badge>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
@@ -459,10 +550,10 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       {!hidePeriodSelector && <PeriodSelector period={period} setPeriod={setPeriod} fetching={fetching} />}
 
       {/* Overview cards */}
-      {loading ? spinner : <OverviewCards stats={stats} />}
+      {loading ? overviewSkeleton : <OverviewCards stats={stats} />}
 
       {/* Provider topology + Recent Requests */}
-      {loading ? spinner : (
+      {loading ? topologySkeleton : (
         <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <ProviderTopology
             providers={providers}
@@ -475,7 +566,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       )}
 
       {/* Token / Cost chart - sync period */}
-      {loading ? spinner : <UsageChart period={period} />}
+      {loading ? chartSkeleton : <UsageChart period={period} />}
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
@@ -505,7 +596,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             </button>
           </div>
         </div>
-        {loading ? spinner : activeTableConfig && (
+        {loading ? tableSkeleton : activeTableConfig && (
           <UsageTable
             title=""
             columns={activeTableConfig.columns}

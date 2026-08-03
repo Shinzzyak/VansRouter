@@ -22,6 +22,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
       : hasLegacyProxy
         ? `Legacy: ${connection.providerSpecificData?.connectionProxyUrl}`
         : "";
+  const autoPingTooltip = autoPing?.provider === "codex"
+    ? "Auto-starts the next 5h Codex window after reset by sending a tiny gpt-5.5 request. Consumes a small amount of quota."
+    : "When your 5h quota runs out, auto-sends a request the moment it resets so a new window starts right away.";
 
   let maskedProxyUrl = "";
   if (boundProxyPool?.proxyUrl || connection.providerSpecificData?.connectionProxyUrl) {
@@ -91,6 +94,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     .sort()[0] || null;
 
   useEffect(() => {
+    let interval = null;
     const checkCooldown = () => {
       const until = Object.entries(connection)
         .filter(([k]) => k.startsWith("modelLock_"))
@@ -101,11 +105,13 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     };
 
     checkCooldown();
-    const interval = modelLockUntil ? setInterval(checkCooldown, 1000) : null;
+    if (modelLockUntil) {
+      interval = setInterval(checkCooldown, 1000);
+    }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [modelLockUntil]);
+  }, [modelLockUntil, connection]);
 
   // Determine effective status (override unavailable if cooldown expired)
   const effectiveStatus = (connection.testStatus === "unavailable" && !isCooldown)
@@ -243,7 +249,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
             </div>
           )}
           {autoPing && (
-            <Tooltip text="When your 5h quota runs out, auto-sends a request the moment it resets so a new window starts right away.">
+            <Tooltip text={autoPingTooltip}>
               <button
                 onClick={() => autoPing.onToggle(!autoPing.on)}
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${autoPing.on ? "text-primary" : "text-text-muted hover:text-primary"}`}
@@ -272,4 +278,5 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     </div>
   );
 }
+
 

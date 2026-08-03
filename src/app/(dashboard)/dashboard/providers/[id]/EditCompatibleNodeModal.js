@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 
 const API_TYPE_OPTIONS = [
@@ -21,9 +21,9 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
 
-  const prevNodeRef = useRef(node);
-  if (node !== prevNodeRef.current) {
-    prevNodeRef.current = node;
+  const [prevNode, setPrevNode] = useState(node);
+  if (node !== prevNode) {
+    setPrevNode(node);
     if (node) {
       setFormData({
         name: node.name || "",

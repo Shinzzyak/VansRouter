@@ -26,7 +26,9 @@ export default function Modal({
 }) {
   const sizeClass = MODAL_SIZES[size] || MODAL_SIZES.md;
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (isOpen) {

@@ -1,40 +1,33 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 
+// Keep aligned with the published package. Do not revert to legacy `9router`: it reports obsolete versions.
 const NPM_PACKAGE_NAME = "vansrouter";
-const GITHUB_RAW_PKG = "https://raw.githubusercontent.com/Vanszs/VansRouter/main/package.json";
+const VERSION_CACHE_TTL_MS = 300000; // cache npm latest lookup for 5m
 
-function fetchJson(url) {
-  return new Promise((resolve) => {
-    const req = https.get(url, { timeout: 4000 }, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          resolve(null);
-        }
-      });
-    });
-    req.on("error", () => resolve(null));
-    req.on("timeout", () => { req.destroy(); resolve(null); });
-  });
-}
+// Survive hot reload; one cache per process
+const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
 
 // Fetch latest version from npm registry
 function fetchLatestVersion() {
-  return new Promise(async (resolve) => {
-    const data = await fetchJson(`https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`);
-    resolve(data?.version || null);
-  });
-}
-
-// Fetch version from GitHub main branch package.json
-function fetchGitHubVersion() {
-  return new Promise(async (resolve) => {
-    const data = await fetchJson(GITHUB_RAW_PKG);
-    resolve(data?.version || null);
+  return new Promise((resolve) => {
+    const req = https.get(
+      `https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`,
+      { timeout: 4000 },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(data).version || null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
   });
 }
 
@@ -48,30 +41,22 @@ function compareVersions(a, b) {
   return 0;
 }
 
+async function getLatestVersionCached() {
+  if (versionCache.value && Date.now() - versionCache.fetchedAt < VERSION_CACHE_TTL_MS) {
+    return versionCache.value;
+  }
+  const latest = await fetchLatestVersion();
+  if (latest) {
+    versionCache.value = latest;
+    versionCache.fetchedAt = Date.now();
+  }
+  return latest;
+}
+
 export async function GET() {
-  const [latestVersion, githubVersion] = await Promise.all([
-    fetchLatestVersion(),
-    fetchGitHubVersion(),
-  ]);
+  const latestVersion = await getLatestVersionCached();
   const currentVersion = pkg.version;
   const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
 
-  // githubStatus tells the user whether the GitHub repo already contains the
-  // newer npm version or is still behind it.
-  let githubStatus = null;
-  if (latestVersion && githubVersion) {
-    const ghVsNpm = compareVersions(githubVersion, latestVersion);
-    const localVsGh = compareVersions(currentVersion, githubVersion);
-    if (ghVsNpm >= 0 && localVsGh < 0) {
-      githubStatus = "github_ahead"; // GitHub already has the new version
-    } else if (ghVsNpm < 0) {
-      githubStatus = "github_behind_npm"; // GitHub repo hasn't received the new npm version yet
-    } else if (localVsGh > 0) {
-      githubStatus = "local_ahead"; // local is ahead of GitHub (unpushed changes)
-    } else {
-      githubStatus = "current";
-    }
-  }
-
-  return Response.json({ currentVersion, latestVersion, githubVersion, hasUpdate, githubStatus });
+  return Response.json({ currentVersion, latestVersion, hasUpdate });
 }

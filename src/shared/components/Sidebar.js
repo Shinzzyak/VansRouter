@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/utils/cn";
-import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
+import { APP_CONFIG, UPDATER_CONFIG, GITHUB_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import Button from "./Button";
@@ -12,7 +12,7 @@ import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 
 // const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
-const VISIBLE_MEDIA_KINDS = ["embedding", "image", "tts", "stt"];
+const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt"];
 // Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
@@ -133,28 +133,37 @@ export default function Sidebar({ onClose }) {
               <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
                 ↑ New version available: v{updateInfo.latestVersion}
               </span>
-              {updateInfo.githubStatus && (
-                <span className="text-[10px] text-text-muted">
-                  {updateInfo.githubStatus === "github_ahead" && "vansrouter already has this version — pull to update"}
-                  {updateInfo.githubStatus === "github_behind_npm" && "vansrouter repo hasn't been updated to this version yet"}
-                </span>
-              )}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowUpdateModal(true)}
                   className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
-                  Update now
+                  {updateInfo.canAutoRestart ? "Update & Restart" : "Update now"}
                 </button>
                 <button
-                  onClick={() => copy(INSTALL_CMD)}
+                  onClick={() => copy(updateInfo.installCommand || INSTALL_CMD)}
                   title="Copy install command"
                   className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
                 >
                   <code className="block text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono truncate">
-                    {copied ? "✓ copied!" : INSTALL_CMD}
+                    {copied ? "✓ copied!" : (updateInfo.installCommand || INSTALL_CMD)}
                   </code>
                 </button>
+              </div>
+              <div className="flex items-center mt-0.5">
+                <a
+                  href={
+                    GITHUB_CONFIG.changelogUrl
+                      ? GITHUB_CONFIG.changelogUrl.replace("raw.githubusercontent.com", "github.com").replace("/refs/heads/", "/blob/")
+                      : "https://github.com/Vanszs/VansRouter/blob/main/CHANGELOG.md"
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-green-600/80 hover:text-green-700 dark:text-amber-500/80 dark:hover:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[12px]">description</span>
+                  Check new changelog
+                </a>
               </div>
             </div>
           )}
@@ -343,7 +352,7 @@ export default function Sidebar({ onClose }) {
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
         onConfirm={handleUpdate}
-        title="Update 9Router"
+        title="Update VansRouter"
         message={`Show install command for v${updateInfo?.latestVersion || ""}? You can copy it and shutdown to install manually.`}
         confirmText="Show Command"
         cancelText="Cancel"
@@ -391,7 +400,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
           <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Update 9Router{latestVersion ? ` to v${latestVersion}` : ""}</h2>
+          <h2 className="text-lg font-semibold">Update VansRouter{latestVersion ? ` to v${latestVersion}` : ""}</h2>
           <p className="text-xs text-white/60">
             {isDisconnected
               ? "Server stopped. Paste the command into a terminal to install."
@@ -410,7 +419,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
       <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
         <li>Click <strong>Copy & Shutdown</strong> below.</li>
         <li>Paste the command into your terminal and press Enter.</li>
-        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">9router</code> again after install.</li>
+        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">vansrouter</code> again after install.</li>
       </ol>
 
       {isDisconnected ? (

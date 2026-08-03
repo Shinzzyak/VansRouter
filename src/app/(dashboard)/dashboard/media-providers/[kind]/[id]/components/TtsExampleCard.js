@@ -63,9 +63,11 @@ export function TtsExampleCard({ providerId }) {
   const [languageHint, setLanguageHint]     = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client-side hydration of window.location.origin.
     setLocalEndpoint(window.location.origin);
     fetch("/api/keys")
       .then((r) => r.json())
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch callback.
       .then((d) => { setApiKey((d.keys || []).find((k) => k.isActive !== false)?.key || ""); })
       .catch(() => {});
     fetch("/api/tunnel/status")
@@ -107,9 +109,12 @@ export function TtsExampleCard({ providerId }) {
   useEffect(() => {
     if (!config.voicesPerModel || !selectedModel) return;
     const voices = getTtsVoicesForModel(providerId, selectedModel) || [];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from props (model selection); recomputed when model changes.
     setCountryVoices(voices);
     if (voices.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from props.
       setSelectedVoice(voices[0].id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from props.
       setSelectedVoiceName(voices[0].name || voices[0].id);
     }
   }, [selectedModel]);

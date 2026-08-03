@@ -5,6 +5,9 @@ import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { cleanCookie } from "open-sse/utils/cookie.js";
+import { validateMuseSparkConnection } from "open-sse/executors/muse-spark-web.js";
+import { validateAgentRouterConnection } from "open-sse/executors/agentrouter.js";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -301,11 +304,11 @@ export async function POST(request) {
         case "minimax":
         case "minimax-cn":
         case "alicode-intl":
-        case "alicode":
-        case "agentrouter": {
+        case "alims-intl":
+        case "alicode": {
           // Use baseUrl from PROVIDERS (DRY); separate openai-format vs claude-format flow
           const cfg = PROVIDERS[provider];
-          const isOpenAiFormat = provider === "glm-cn" || provider === "alicode" || provider === "alicode-intl";
+          const isOpenAiFormat = provider === "glm-cn" || provider === "alicode" || provider === "alicode-intl" || provider === "alims-intl";
 
           if (isOpenAiFormat) {
             const testModel = getDefaultModel(provider);
@@ -330,6 +333,11 @@ export async function POST(request) {
             // 400 = model resolution error but auth passed (e.g. agentrouter "no available channel")
             isValid = res.status !== 401 && res.status !== 403;
           }
+          break;
+        }
+
+        case "agentrouter": {
+          isValid = await validateAgentRouterConnection(apiKey);
           break;
         }
         case "volcengine-ark":
@@ -382,10 +390,13 @@ export async function POST(request) {
           };
           const headers = {};
           if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-          const res = await fetch(endpoints[provider], { headers });
+          const res = await fetch(endpoints[provider], { headers, signal: AbortSignal.timeout(8000) });
           // xai returns 400 for bad key, 403 for valid-but-no-credit. Other providers use 401.
           if (provider === "xai") {
             isValid = res.status === 200 || res.status === 403;
+          } else if (provider === "xiaomi-tokenplan") {
+            // /models returns 403 for valid keys lacking list permission; only 401 means invalid
+            isValid = res.status !== 401;
           } else {
             isValid = res.ok;
           }
@@ -488,7 +499,7 @@ export async function POST(request) {
         }
 
         case "grok-web": {
-          const token = apiKey.startsWith("sso=") ? apiKey.slice(4) : apiKey;
+          const token = cleanCookie(apiKey, "sso");
           // Cloudflare-bypass: send POST with same browser fingerprint headers as GrokWebExecutor
           const randomHex = (n) => {
             const a = new Uint8Array(n);
@@ -542,10 +553,7 @@ export async function POST(request) {
         }
 
         case "perplexity-web": {
-          let sessionToken = apiKey;
-          if (sessionToken.startsWith("__Secure-next-auth.session-token=")) {
-            sessionToken = sessionToken.slice("__Secure-next-auth.session-token=".length);
-          }
+          const sessionToken = cleanCookie(apiKey, "__Secure-next-auth.session-token");
           const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
           const res = await fetch("https://www.perplexity.ai/rest/sse/perplexity_ask", {
             method: "POST",
@@ -573,6 +581,17 @@ export async function POST(request) {
           if (res.status === 401 || res.status === 403) {
             isValid = false;
             error = "Invalid session cookie — re-paste __Secure-next-auth.session-token from perplexity.ai";
+          } else {
+            isValid = true;
+          }
+          break;
+        }
+
+        case "muse-spark-web": {
+          const ok = await validateMuseSparkConnection(apiKey);
+          if (!ok) {
+            isValid = false;
+            error = "Invalid session cookie — re-paste ecto_1_sess from meta.ai";
           } else {
             isValid = true;
           }

@@ -71,10 +71,12 @@ function CallbackContent() {
     }
 
     if (!(code || error)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time callback status update after URL params parsed.
       const t = setTimeout(() => setStatus("manual"), 0);
       return () => clearTimeout(t);
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time callback success state.
     setStatus("success");
     const t1 = setTimeout(() => {
       window.close();

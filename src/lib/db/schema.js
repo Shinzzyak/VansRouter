@@ -1,5 +1,9 @@
-// Latest schema version — bumped when a migration is added in ./migrations/
-const SCHEMA_VERSION = 1;
+// ⚠️ AGENT/DEV: Bump this by +1 EVERY TIME you change the schema below
+// (add/remove/alter a table, column, or index in TABLES). It drives the
+// pre-change safety backup in migrate.js: when the stored version is lower,
+// one lightweight DB backup is taken before applying schema changes. Forgetting
+// to bump only skips that backup — it does NOT break the additive auto-sync.
+export const SCHEMA_VERSION = 2;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -79,9 +83,6 @@ export const TABLES = {
       machineId: "TEXT",
       isActive: "INTEGER DEFAULT 1",
       createdAt: "TEXT NOT NULL",
-      allowedProviders: "TEXT",
-      allowedCombos: "TEXT",
-      allowedKinds: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
@@ -112,6 +113,8 @@ export const TABLES = {
       provider: "TEXT",
       model: "TEXT",
       connectionId: "TEXT",
+      apiKey: "TEXT",
+      apiKeyName: "TEXT",
       apiKey: "TEXT",
       endpoint: "TEXT",
       promptTokens: "INTEGER DEFAULT 0",
@@ -144,7 +147,6 @@ export const TABLES = {
       apiKey: "TEXT",
       apiKeyName: "TEXT",
       status: "TEXT",
-      meta: "TEXT",
       data: "TEXT NOT NULL",
     },
     indexes: [
@@ -154,7 +156,23 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
     ],
   },
+  cachedProviderModels: {
+    columns: {
+      providerId: "TEXT NOT NULL",
+      modelId: "TEXT NOT NULL",
+      kind: "TEXT DEFAULT 'llm'",
+      ownedBy: "TEXT NOT NULL",
+      capabilities: "TEXT",
+      updatedAt: "INTEGER NOT NULL",
+    },
+    primaryKey: "PRIMARY KEY (providerId, modelId)",
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_cpm_kind ON cachedProviderModels(kind)",
+      "CREATE INDEX IF NOT EXISTS idx_cpm_provider ON cachedProviderModels(providerId)",
+    ],
+  },
 };
+
 
 export function buildCreateTableSql(name, def) {
   const cols = Object.entries(def.columns).map(([k, v]) => `${k} ${v}`);

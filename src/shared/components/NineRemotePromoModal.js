@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const FEATURES = [
@@ -19,7 +19,9 @@ const NINE_REMOTE_URL = "https://9remote.cc";
 
 export default function NineRemotePromoModal({ isOpen, onClose }) {
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -29,7 +31,13 @@ export default function NineRemotePromoModal({ isOpen, onClose }) {
     return () => { document.body.style.overflow = ""; document.removeEventListener("keydown", onEsc); };
   }, [isOpen]);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
