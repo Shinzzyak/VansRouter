@@ -128,6 +128,26 @@ jobs:
             echo "=== .env exists? ==="
             ls -la "${DEPLOY}/.env" 2>/dev/null || echo "WARNING: .env not found"
 
+            # --- DATA SAFETY -------------------------------------------------
+            # The SQLite DB (custom providers, settings, keys, usage) lives in
+            # $DATA_DIR (default ~/.9router, or DATA_DIR from .env), which is
+            # OUTSIDE .next/standalone and therefore untouched by the tarball
+            # extraction above. Take an explicit pre-deploy backup anyway so a
+            # bad restart never loses data. Never rm -rf the data dir.
+            DATA_DIR_VAL="$(grep -E '^DATA_DIR=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed -E 's/^["'\''"]|["'\''"]$//g')"
+            DATA_DIR_VAL="${DATA_DIR_VAL:-$HOME/.9router}"
+            if [ -d "${DATA_DIR_VAL}" ]; then
+              BACKUP_DIR="/home/ubuntu/vansrouter-data-backup-$(date +%Y%m%d-%H%M%S)"
+              mkdir -p "${BACKUP_DIR}"
+              cp -a "${DATA_DIR_VAL}/." "${BACKUP_DIR}/" 2>/dev/null \
+                && echo "=== DB backed up: ${BACKUP_DIR} ===" \
+                || echo "WARNING: DB backup failed (continuing)"
+              # Keep only the 3 most recent backups
+              ls -dt /home/ubuntu/vansrouter-data-backup-* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+            else
+              echo "=== No DB dir at ${DATA_DIR_VAL} yet (first run) ==="
+            fi
+
             echo "=== Restarting PM2 process: ${PM2_NAME} ==="
             export PORT="${PORT:-20128}"
             pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || pm2 start "${DEPLOY}/server.js" --name "${PM2_NAME}" --env production
@@ -149,11 +169,13 @@ jobs:
             if [ "$STATUS" = "200" ]; then
               echo "✅ Deploy successful (HTTP $STATUS)"
               # Verify the configured password actually authenticates (not just
-              # the page rendering). Uses INITIAL_PASSWORD from .env via the
-              # launcher; if unset, the app defaults to 123456.
+              # the page rendering). Read INITIAL_PASSWORD from the VPS .env
+              # (the same source the launcher loads), not the CI runner env.
+              DEPLOY_PW="$(grep -E '^INITIAL_PASSWORD=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed -E 's/^["'\''"]|["'\''"]$//g')"
+              DEPLOY_PW="${DEPLOY_PW:-123456}"
               LOGIN_BODY=$(curl -s --max-time 10 -X POST "http://localhost:${PORT}/api/auth/login" \
                 -H "Content-Type: application/json" \
-                -d "{\"password\":\"${INITIAL_PASSWORD:-123456}\"}")
+                -d "{\"password\":\"${DEPLOY_PW}\"}")
               if echo "$LOGIN_BODY" | grep -q '"success":true'; then
                 echo "✅ Auth check passed (configured password accepted)"
               else
