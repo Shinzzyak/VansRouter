@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, Button, Badge, Input, ModelSelectModal } from "@/shared/components";
-import { TOOL_HOSTS } from "@/shared/constants/mitmToolHosts";
+import { TOOL_HOSTS } from "@/shared/constants/mitmToolHosts.cjs";
 import Image from "next/image";
 
 const EMPTY_ALIASES = {};
@@ -14,7 +14,7 @@ const EMPTY_STATUS = {};
  * - Skips sudo modal if password is already cached
  * - Model mappings can only be edited when DNS is active
  */
-function MitmExpandedSection({ handleDnsToggle, handleMappingBlur, handleModelMappingChange, loading, mitmHosts, modelMappings, openModelSelector, saveMappings, warning }) {
+function MitmExpandedSection({ dnsActive, handleDnsToggle, handleMappingBlur, handleModelMappingChange, hasActiveProviders, loading, mitmHosts, modelMappings, openModelSelector, saveMappings, serverRunning, tool, warning }) {
   return (
           <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
             {/* Hosts */}
@@ -262,6 +262,8 @@ export default function MitmToolCard({
                 className="size-8 object-contain rounded-lg"
                 sizes="32px"
                 onError={(e) => { e.target.style.display = "none"; }}
+              loading="lazy"
+              decoding="async"
               />
             </div>
             <div className="min-w-0">
@@ -283,7 +285,7 @@ export default function MitmToolCard({
           </span>
         </button>
 
-      {isExpanded && <MitmExpandedSection handleDnsToggle={handleDnsToggle} handleMappingBlur={handleMappingBlur} handleModelMappingChange={handleModelMappingChange} loading={loading} mitmHosts={mitmHosts} modelMappings={modelMappings} openModelSelector={openModelSelector} saveMappings={saveMappings} warning={warning} />}
+      {isExpanded && <MitmExpandedSection dnsActive={dnsActive} handleDnsToggle={handleDnsToggle} handleMappingBlur={handleMappingBlur} handleModelMappingChange={handleModelMappingChange} hasActiveProviders={hasActiveProviders} loading={loading} mitmHosts={mitmHosts} modelMappings={modelMappings} openModelSelector={openModelSelector} saveMappings={saveMappings} serverRunning={serverRunning} tool={tool} warning={warning} />}
       </Card>
 
       {/* Password Modal */}
@@ -321,15 +323,17 @@ export default function MitmToolCard({
       )}
 
       {/* Model Select Modal */}
-      <ModelSelectModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSelect={handleModelSelect}
-        selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null}
-        activeProviders={activeProviders}
-        modelAliases={modelAliases}
-        title={`Select model for ${currentEditingAlias}`}
-      />
+      {modalOpen && (
+        <ModelSelectModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSelect={handleModelSelect}
+          selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null}
+          activeProviders={activeProviders}
+          modelAliases={modelAliases}
+          title={`Select model for ${currentEditingAlias}`}
+        />
+      )}
     </>
   );
 }

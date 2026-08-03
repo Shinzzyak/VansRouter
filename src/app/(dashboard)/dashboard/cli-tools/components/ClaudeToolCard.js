@@ -9,7 +9,7 @@ import { matchKnownEndpoint } from "./cliEndpointMatch";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-function ClaudeExpandedSection({ applying, ccFilterNaming, checkingClaude, claudeStatus, customBaseUrl, env, getDisplayUrl, handleApplySettings, handleCcFilterNamingToggle, handleResetSettings, message, openModelSelector, restoring, selectedApiKey, setCustomBaseUrl, setSelectedApiKey, setShowInstallGuide, setShowManualConfigModal, showInstallGuide, value }) {
+function ClaudeExpandedSection({ applying, apiKeys, ccFilterNaming, checkingClaude, cloudEnabled, claudeStatus, customBaseUrl, getDisplayUrl, handleApplySettings, handleCcFilterNamingToggle, handleResetSettings, hasActiveProviders, message, modelMappings, onModelMappingChange, openModelSelector, restoring, selectedApiKey, setCustomBaseUrl, setSelectedApiKey, setShowInstallGuide, setShowManualConfigModal, showInstallGuide, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingClaude && (
@@ -369,7 +369,7 @@ export default function ClaudeToolCard({
       <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
-            <Image src="/providers/claude.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
+            <Image src="/providers/claude.webp" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -384,7 +384,36 @@ export default function ClaudeToolCard({
         <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {isExpanded && <ClaudeExpandedSection applying={applying} ccFilterNaming={ccFilterNaming} checkingClaude={checkingClaude} claudeStatus={claudeStatus} customBaseUrl={customBaseUrl} env={env} getDisplayUrl={getDisplayUrl} handleApplySettings={handleApplySettings} handleCcFilterNamingToggle={handleCcFilterNamingToggle} handleResetSettings={handleResetSettings} message={message} openModelSelector={openModelSelector} restoring={restoring} selectedApiKey={selectedApiKey} setCustomBaseUrl={setCustomBaseUrl} setSelectedApiKey={setSelectedApiKey} setShowInstallGuide={setShowInstallGuide} setShowManualConfigModal={setShowManualConfigModal} showInstallGuide={showInstallGuide} value={value} />}
+      {isExpanded && <ClaudeExpandedSection
+        applying={applying}
+        apiKeys={apiKeys}
+        ccFilterNaming={ccFilterNaming}
+        checkingClaude={checkingClaude}
+        cloudEnabled={cloudEnabled}
+        claudeStatus={claudeStatus}
+        customBaseUrl={customBaseUrl}
+        getDisplayUrl={getDisplayUrl}
+        handleApplySettings={handleApplySettings}
+        handleCcFilterNamingToggle={handleCcFilterNamingToggle}
+        handleResetSettings={handleResetSettings}
+        hasActiveProviders={hasActiveProviders}
+        message={message}
+        modelMappings={modelMappings}
+        onModelMappingChange={onModelMappingChange}
+        openModelSelector={openModelSelector}
+        restoring={restoring}
+        selectedApiKey={selectedApiKey}
+        setCustomBaseUrl={setCustomBaseUrl}
+        setSelectedApiKey={setSelectedApiKey}
+        setShowInstallGuide={setShowInstallGuide}
+        setShowManualConfigModal={setShowManualConfigModal}
+        showInstallGuide={showInstallGuide}
+        tailscaleEnabled={tailscaleEnabled}
+        tailscaleUrl={tailscaleUrl}
+        tool={tool}
+        tunnelEnabled={tunnelEnabled}
+        tunnelPublicUrl={tunnelPublicUrl}
+      />}
 
       <ModelSelectModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSelect={handleModelSelect} selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null} activeProviders={activeProviders} modelAliases={modelAliases} title={`Select model for ${currentEditingAlias}`} />
 

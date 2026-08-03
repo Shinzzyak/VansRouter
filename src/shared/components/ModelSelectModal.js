@@ -47,69 +47,87 @@ export default function ModelSelectModal({
   const [providerNodes, setProviderNodes] = useState([]);
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
+  const [cursorModels, setCursorModels] = useState([]);
 
-  const fetchCombos = async () => {
-    try {
-      const res = await fetch("/api/combos");
-      if (!res.ok) throw new Error(`Failed to fetch combos: ${res.status}`);
-      const data = await res.json();
-      setCombos(data.combos || []);
-    } catch (error) {
-      console.error("Error fetching combos:", error);
-      setCombos([]);
-    }
-  };
+  // Cursor exposes the usable catalog per account. Keep the static catalog only
+  // as a fallback, since it quickly becomes stale and different accounts can
+  // have different model entitlements.
+  const cursorConnectionIds = useMemo(
+    () => activeProviders
+      .filter((provider) => provider.provider === "cursor" && provider.id)
+      .map((provider) => provider.id),
+    [activeProviders],
+  );
 
   useEffect(() => {
-    if (isOpen) fetchCombos();
+    if (!isOpen || cursorConnectionIds.length === 0) {
+      setCursorModels([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    Promise.all(cursorConnectionIds.map(async (connectionId) => {
+      const response = await fetch(`/api/providers/${connectionId}/models`, { cache: "no-store" });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data.models) ? data.models : [];
+    }))
+      .then((modelLists) => {
+        if (cancelled) return;
+        const seen = new Set();
+        setCursorModels(modelLists.flat().filter((model) => {
+          if (!model?.id || seen.has(model.id)) return false;
+          seen.add(model.id);
+          return true;
+        }));
+      })
+      .catch((error) => {
+        // Do not hide the static fallback when the account catalog is unavailable.
+        console.warn("Unable to load Cursor models for selector:", error);
+        if (!cancelled) setCursorModels([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [isOpen, cursorConnectionIds]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/combos")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setCombos(data.combos || []); })
+      .catch((err) => { console.error("Error fetching combos:", err); if (!cancelled) setCombos([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchProviderNodes = async () => {
-    try {
-      const res = await fetch("/api/provider-nodes");
-      if (!res.ok) throw new Error(`Failed to fetch provider nodes: ${res.status}`);
-      const data = await res.json();
-      setProviderNodes(data.nodes || []);
-    } catch (error) {
-      console.error("Error fetching provider nodes:", error);
-      setProviderNodes([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchProviderNodes();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/provider-nodes")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setProviderNodes(data.nodes || []); })
+      .catch((err) => { console.error("Error fetching provider nodes:", err); if (!cancelled) setProviderNodes([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchCustomModels = async () => {
-    try {
-      const res = await fetch("/api/models/custom");
-      if (!res.ok) throw new Error(`Failed to fetch custom models: ${res.status}`);
-      const data = await res.json();
-      setCustomModels(data.models || []);
-    } catch (error) {
-      console.error("Error fetching custom models:", error);
-      setCustomModels([]);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchCustomModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/models/custom")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setCustomModels(data.models || []); })
+      .catch((err) => { console.error("Error fetching custom models:", err); if (!cancelled) setCustomModels([]); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
-  const fetchDisabledModels = async () => {
-    try {
-      const res = await fetch("/api/models/disabled");
-      if (!res.ok) throw new Error(`Failed to fetch disabled models: ${res.status}`);
-      const data = await res.json();
-      setDisabledModels(data.disabled || {});
-    } catch (error) {
-      console.error("Error fetching disabled models:", error);
-      setDisabledModels({});
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchDisabledModels();
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/models/disabled")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled) setDisabledModels(data.disabled || {}); })
+      .catch((err) => { console.error("Error fetching disabled models:", err); if (!cancelled) setDisabledModels({}); });
+    return () => { cancelled = true; };
   }, [isOpen]);
 
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);
@@ -279,7 +297,9 @@ export default function ModelSelectModal({
           hasModels: mergedModels.length > 0,
         };
       } else {
-        const hardcodedModels = getModelsByProviderId(providerId);
+        const hardcodedModels = providerId === "cursor" && cursorModels.length > 0
+          ? cursorModels
+          : getModelsByProviderId(providerId);
         const hardcodedIds = new Set(hardcodedModels.map((m) => m.id));
 
         // Custom models: if no hardcoded models (e.g. openrouter), show all aliases for this provider
@@ -348,7 +368,7 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, activeProviders]);
+  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, activeProviders, cursorModels]);
 
   // Filter combos by search query (and hide combos when kindFilter is set — combos are LLM-only by design)
   const filteredCombos = useMemo(() => {
@@ -484,7 +504,7 @@ export default function ModelSelectModal({
             {/* Provider header */}
             <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
               <ProviderIcon
-                src={`/providers/${providerId}.png`}
+                src={`/providers/${providerId}.webp`}
                 alt={group.name}
                 size={14}
                 fallbackText={(group.name || providerId).slice(0, 2).toUpperCase()}

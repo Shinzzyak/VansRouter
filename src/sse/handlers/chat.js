@@ -28,7 +28,7 @@ import {
   resolveAccountSemaphoreMaxConcurrency,
   isSemaphoreCapacityError,
 } from "open-sse/services/accountSemaphore.js";
-import { getProxyHash } from "@/lib/network/connectionProxy";
+import { getProxyHash } from "@/lib/network/connectionProxy.js";
 import { updateProviderConnection, getProviderConnections } from "@/lib/localDb";
 import { isModelAllowed } from "../services/allowedModels.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
@@ -45,6 +45,11 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/cooldownRetry.js";
+
+function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
+  if (!enabled) return false;
+  return proxyHash ? isProviderInCooldown(provider, proxyHash) : isProviderFullyBlocked(provider);
+}
 
 /**
  * Handle chat completion request
@@ -172,11 +177,14 @@ export async function handleChat(request, clientRawRequest = null) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo),
+      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
       log,
       comboName: modelStr,
       comboStrategy,
-      comboStickyLimit
+      comboStickyLimit,
+      signal: request?.signal ?? null,
+      timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
+      queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
     });
   }
 
@@ -187,7 +195,11 @@ export async function handleChat(request, clientRawRequest = null) {
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, options = null) {
+  const externalSignal = options?.signal ?? null;
+  const clientSignal = request?.signal && externalSignal
+    ? AbortSignal.any([request.signal, externalSignal])
+    : (request?.signal || externalSignal || null);
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
@@ -225,11 +237,14 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return handleComboChat({
         body,
         models: comboModels,
-        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo),
+        handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
         log,
         comboName: modelStr,
         comboStrategy,
-        comboStickyLimit
+        comboStickyLimit,
+        signal: request?.signal ?? null,
+        timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
+        queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
       });
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });
@@ -264,25 +279,43 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Extract userAgent from request
   const userAgent = request?.headers?.get("user-agent") || "";
 
+  const chatSettings = await getSettings();
+  const circuitBreakerEnabled = chatSettings.circuitBreakerEnabled !== false && chatSettings.circuitBreakerEnabled !== 0;
+
   // Pipeline gate: check circuit breaker state BEFORE credential lookup.
   // If ALL proxy buckets for this provider are OPEN, short-circuit immediately
   // — no point querying the DB when every bucket is blocked.
-  if (isProviderFullyBlocked(provider)) {
+  if (checkCircuitBreaker(provider, null, circuitBreakerEnabled)) {
     const cooldownMs = getProviderShortestCooldownMs(provider);
     const retryAfterSec = Math.ceil(cooldownMs / 1000) || 30;
+    const retryAfterTimestamp = new Date(Date.now() + cooldownMs).toISOString();
     log.warn("GATE", `${provider} circuit breaker OPEN on all proxy buckets — short-circuiting before credential lookup`);
-    return unavailableResponse(
-      HTTP_STATUS.SERVICE_UNAVAILABLE,
-      `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
-      retryAfterSec,
-      `${retryAfterSec}s`
+    return withSelectedConnectionHeader(
+      unavailableResponse(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        `[${provider}/${model}] Provider temporarily unavailable (circuit breaker open)`,
+        retryAfterTimestamp,
+        `${retryAfterSec}s`
+      ),
+      null
     );
+  }
+
+  // Count configured accounts for this provider so chatCore can cap per-account
+  // retries: more accounts → fail faster and fall back to the next account.
+  let providerAccountCount = 0;
+  try {
+    const allProviderConnections = await getProviderConnections({ provider });
+    providerAccountCount = allProviderConnections?.length || 0;
+  } catch (e) {
+    log?.warn?.("AUTH", `Failed to count provider connections for ${provider}: ${e.message}`);
   }
 
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
+  let lastExcludedConnectionId = null;
   // Bug #3758: per-request counter bounding the early-close (STREAM_EARLY_EOF)
   // re-attempt to exactly one for the whole request. Declared outside the
   // credential retry loop so it can never reset and loop.
@@ -293,6 +326,14 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   let cooldownRetries = 0;
 
   while (true) {
+    // Abort check: stop trying accounts if the client already disconnected.
+    // Prevents wasted upstream calls and circuit-breaker probe hits on a dead
+    // connection.
+    if (request?.signal?.aborted) {
+      log.info("CHAT", `[${provider}/${model}] client disconnected — aborting fallback loop`);
+      return withSelectedConnectionHeader(new Response(null, { status: 499 }), lastExcludedConnectionId);
+    }
+
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
 
     // All accounts unavailable
@@ -315,21 +356,30 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
           if (waitDecision.reason === "client_disconnected") {
             log.info("CHAT", `[${provider}/${model}] client disconnected during cooldown wait — aborting`);
             // Return a minimal response; client is gone anyway.
-            return new Response(null, { status: 499 });
+            return withSelectedConnectionHeader(new Response(null, { status: 499 }), credentials?.connectionId ?? null);
           }
           log.info("CHAT", `[${provider}/${model}] cooldown retry skipped: ${waitDecision.reason}`);
         }
         const errorMsg = lastError || credentials.lastError || "Unavailable";
         const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
-        return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+        return withSelectedConnectionHeader(
+          unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman),
+          credentials?.connectionId ?? null
+        );
       }
       if (excludeConnectionIds.size === 0) {
         log.warn("AUTH", `No active credentials for provider: ${provider}`);
-        return errorResponse(HTTP_STATUS.NOT_FOUND, `No active credentials for provider: ${provider}`);
+        return withSelectedConnectionHeader(
+          errorResponse(HTTP_STATUS.NOT_FOUND, `No active credentials for provider: ${provider}`),
+          credentials?.connectionId ?? null
+        );
       }
       log.warn("CHAT", "No more accounts available", { provider });
-      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
+      return withSelectedConnectionHeader(
+        errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable"),
+        lastExcludedConnectionId
+      );
     }
 
     // Compute proxy bucket key for this account — groups accounts by shared proxy.
@@ -340,9 +390,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     // Proxy-aware circuit breaker: skip THIS account if its proxy bucket is OPEN.
     // Accounts on other proxies are still tried.
-    if (isProviderInCooldown(provider, proxyHash)) {
+    if (checkCircuitBreaker(provider, proxyHash, circuitBreakerEnabled)) {
       log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
       excludeConnectionIds.add(credentials.connectionId);
+      lastExcludedConnectionId = credentials.connectionId;
       continue;
     }
 
@@ -364,10 +415,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Acquire account semaphore (concurrency limiter per provider:account:proxy)
     const semaphoreKey = resolveAccountSemaphoreKey({ provider, model, connectionId: credentials.connectionId, credentials: refreshedCredentials, proxyHash });
     const semaphoreMax = resolveAccountSemaphoreMaxConcurrency(refreshedCredentials);
+    const semaphoreEnabled = chatSettings.semaphoreEnabled !== false && chatSettings.semaphoreEnabled !== 0;
     let semaphoreRelease = () => {};
-    if (semaphoreKey && semaphoreMax != null) {
+    if (semaphoreEnabled && semaphoreKey && semaphoreMax != null) {
       try {
-        semaphoreRelease = await acquireAccountSemaphore(semaphoreKey, { maxConcurrency: semaphoreMax, timeoutMs: 30_000 });
+        const semaphoreOptions = { maxConcurrency: semaphoreMax, timeoutMs: 30_000 };
+        if (options?.maxQueueSize != null) {
+          semaphoreOptions.maxQueueSize = options.maxQueueSize;
+        }
+        semaphoreRelease = await acquireAccountSemaphore(semaphoreKey, semaphoreOptions);
       } catch (e) {
         if (isSemaphoreCapacityError(e)) {
           log.warn("AUTH", `Account ${credentials.connectionName} at capacity, trying fallback`);
@@ -380,18 +436,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     // Use shared chatCore — wrap in try/finally so semaphoreRelease() always runs
     let result;
-    const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
     try {
       result = await handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
-      modelInfo: { provider, model },
+      modelInfo: { provider, model, accountCount: providerAccountCount },
       credentials: refreshedCredentials,
       log,
       clientRawRequest,
       connectionId: credentials.connectionId,
       userAgent,
       apiKey,
+      apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: !!chatSettings.rtkEnabled,
       headroomEnabled: !!chatSettings.headroomEnabled,
@@ -401,7 +457,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       cavemanLevel: chatSettings.cavemanLevel || "full",
       ponytailEnabled: !!chatSettings.ponytailEnabled,
       ponytailLevel: chatSettings.ponytailLevel || "full",
+      loopGuardEnabled: chatSettings.loopGuardEnabled !== false && chatSettings.loopGuardEnabled !== 0,
       providerThinking,
+      clientSignal,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
       onCredentialsRefreshed: async (newCreds) => {
@@ -433,10 +491,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
+    // Normalize result.error to a string before passing to pattern matchers.
+    // Some upstream paths may return an Error instance; JSON.stringify(new Error())
+    // yields "{}" and breaks keyword matching in quota detectors.
+    const errorText = result.error?.message || result.error;
+
     // Kimchi quota exhausted: deactivate the account until the 1st of next month.
-    // Will be auto-reactivated by reactivateExpiredKimchiAccounts() on startup
-    // and via the periodic timer in startup.
-    if (isKimchiQuotaExhausted(provider, result.error)) {
+    if (isKimchiQuotaExhausted(provider, errorText)) {
       try {
         const update = buildKimchiQuotaExhaustedUpdate();
         await updateProviderConnection(credentials.connectionId, update);
@@ -448,11 +509,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     // Generalized daily quota detection (non-Kimchi): when a 429 error body
-    // mentions today's/daily quota being exhausted, lock just THIS model on
-    // the connection until tomorrow 00:00 UTC. The account stays active for
-    // other models. Kimchi keeps its existing next-month deactivation logic
-    // above and is excluded here so the two paths never interfere.
-    const dailyQuota = detectDailyQuotaExhaustion(provider, result.error);
+    const dailyQuota = detectDailyQuotaExhaustion(provider, errorText);
     if (dailyQuota && result.status === 429) {
       try {
         const lockUpdate = buildDailyQuotaLockUpdate(model);
@@ -464,20 +521,20 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       // Fall through to fallback behavior — the next account will be tried.
     }
 
-    // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs);
+    // Mark account unavailable (auto-calculates cooldown with classify429 for 429s, exponential backoff, or precise resetsAtMs)
+    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, errorText, provider, model, result.resetsAtMs);
 
     // Record provider-level failure for circuit breaker — skip if it's a known
     // Kimchi quota-exhaustion (not a provider-wide outage). Proxy-aware: failure
     // is attributed to the specific proxy bucket.
-    if (!isKimchiQuotaExhausted(provider, result.error)) {
-      recordProviderFailure(provider, result.status, result.error, log, credentials.connectionId, proxyHash);
+    if (!isKimchiQuotaExhausted(provider, errorText)) {
+      recordProviderFailure(provider, result.status, errorText, log, credentials.connectionId, proxyHash);
     }
 
     if (shouldFallback) {
       log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
       excludeConnectionIds.add(credentials.connectionId);
-      lastError = result.error;
+      lastError = errorText;
       lastStatus = result.status;
       continue;
     }

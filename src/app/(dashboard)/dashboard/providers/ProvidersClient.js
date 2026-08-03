@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardSkeleton,
@@ -287,6 +287,14 @@ export default function ProvidersClient({ initialConnections, initialNodes }) {
     ),
     "apikey",
   );
+  const webCookieEntries = sortByPriority(
+    Object.entries(WEB_COOKIE_PROVIDERS).filter(
+      ([, info]) =>
+        !info.hidden &&
+        matchSearch(info.name),
+    ),
+    "cookie",
+  );
   const isApikeySearching = !!searchQuery.trim();
   const visibleApikeyEntries =
     isApikeySearching || showAllApikey
@@ -308,6 +316,7 @@ export default function ProvidersClient({ initialConnections, initialNodes }) {
     freeEntries.length > 0 ||
     freeTierEntries.length > 0 ||
     apikeyEntries.length > 0 ||
+    webCookieEntries.length > 0 ||
     compatibleProviders.length > 0 ||
     anthropicCompatibleProviders.length > 0;
 
@@ -364,6 +373,7 @@ export default function ProvidersClient({ initialConnections, initialNodes }) {
         freeTierEntries={freeTierEntries}
         apikeyEntries={apikeyEntries}
         visibleApikeyEntries={visibleApikeyEntries}
+        webCookieEntries={webCookieEntries}
         isApikeySearching={isApikeySearching}
         showAllApikey={showAllApikey}
         hiddenApikeyCount={hiddenApikeyCount}
@@ -399,7 +409,7 @@ export default function ProvidersClient({ initialConnections, initialNodes }) {
   );
 }
 
-function FreeAndApiKeySections({ freeEntries, freeTierEntries, apikeyEntries, visibleApikeyEntries, isApikeySearching, showAllApikey, hiddenApikeyCount, testingMode, getProviderStats, handleBatchTest, handleToggleProvider, onShowAll }) {
+function FreeAndApiKeySections({ freeEntries, freeTierEntries, apikeyEntries, visibleApikeyEntries, webCookieEntries, isApikeySearching, showAllApikey, hiddenApikeyCount, testingMode, getProviderStats, handleBatchTest, handleToggleProvider, onShowAll }) {
   return (
     <>
       {(freeEntries.length > 0 || freeTierEntries.length > 0) && (
@@ -435,6 +445,19 @@ function FreeAndApiKeySections({ freeEntries, freeTierEntries, apikeyEntries, vi
               Show all {apikeyEntries.length} providers
             </button>
           )}
+        </div>
+      )}
+      {webCookieEntries.length > 0 && (
+        <div className="flex flex-col gap-4 mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">Web Cookie Providers</h2>
+            <TestAllButton category="cookie" testingMode={testingMode} onTest={handleBatchTest} label="Cookie" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            {webCookieEntries.map(([key, info]) => (
+              <ApiKeyProviderCard key={key} providerId={key} provider={info} stats={getProviderStats(key, "cookie")} authType="cookie" onToggle={(active) => handleToggleProvider(key, "cookie", active)} />
+            ))}
+          </div>
         </div>
       )}
     </>
@@ -531,7 +554,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
               }}
             >
               <ProviderIcon
-                src={`/providers/${provider.id}.png`}
+                src={`/providers/${provider.id}.webp`}
                 alt={provider.name}
                 size={30}
                 className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
@@ -620,10 +643,10 @@ function ApiKeyProviderCard({
   const getIconPath = () => {
     if (isCompatible)
       return provider.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    if (isAnthropicCompatible) return "/providers/anthropic-m.png";
-    return `/providers/${provider.id}.png`;
+        ? "/providers/oai-r.webp"
+        : "/providers/oai-cc.webp";
+    if (isAnthropicCompatible) return "/providers/anthropic-m.webp";
+    return `/providers/${provider.id}.webp`;
   };
 
   return (
@@ -736,9 +759,9 @@ function AddOpenAICompatibleModal({ isOpen, onClose, onCreated }) {
 
   const apiTypeOptions = API_TYPE_OPTIONS;
 
-  const prevApiTypeRef = useRef(formData.apiType);
-  if (formData.apiType !== prevApiTypeRef.current) {
-    prevApiTypeRef.current = formData.apiType;
+  const [prevApiType, setPrevApiType] = useState(formData.apiType);
+  if (formData.apiType !== prevApiType) {
+    setPrevApiType(formData.apiType);
     setFormData((prev) => ({ ...prev, baseUrl: "https://api.openai.com/v1" }));
   }
 
@@ -910,14 +933,14 @@ function AddAnthropicCompatibleModal({ isOpen, onClose, onCreated }) {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null); // { valid, error, method }
 
-  const prevIsOpenRef = useRef(false);
-  if (isOpen && !prevIsOpenRef.current) {
-    prevIsOpenRef.current = true;
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
     setValidationResult(null);
     setCheckKey("");
     setCheckModelId("");
-  } else if (!isOpen && prevIsOpenRef.current) {
-    prevIsOpenRef.current = false;
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
   }
 
   const handleSubmit = async () => {

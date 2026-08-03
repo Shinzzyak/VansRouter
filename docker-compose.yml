@@ -1,3 +1,9 @@
+# VansRouter Docker Compose
+# Usage:
+#   1. cp .env.example .env && nano .env
+#   2. docker compose up -d
+#   3. Open http://localhost:20128
+
 services:
   9router:
     image: ghcr.io/vanszs/vansrouter:0.8.6

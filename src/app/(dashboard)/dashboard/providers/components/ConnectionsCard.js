@@ -61,6 +61,7 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
     .map(([, v]) => v).filter(Boolean).sort()[0] || null;
 
   useEffect(() => {
+    let t = null;
     const check = () => {
       const until = Object.entries(connection)
         .filter(([k]) => k.startsWith("modelLock_"))
@@ -68,9 +69,11 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
       setIsCooldown(!!until);
     };
     check();
-    const t = modelLockUntil ? setInterval(check, 1000) : null;
+    if (modelLockUntil) {
+      t = setInterval(check, 1000);
+    }
     return () => { if (t) clearInterval(t); };
-  }, [modelLockUntil]);
+  }, [modelLockUntil, connection]);
 
   useEffect(() => {
     if (!showProxyDropdown) return;
@@ -291,7 +294,8 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
     finally { setLoading(false); }
   }, [providerId]);
 
-  useEffect(() => { fetch_(); }, [fetch_]);
+  useEffect(() => { /* eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap fetch on mount and when providerId changes. */
+    fetch_(); }, [fetch_]);
 
   const saveStrategy = async (strategy, stickyLimit) => {
     try {

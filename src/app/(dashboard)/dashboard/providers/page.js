@@ -9,6 +9,7 @@ import {
   Toggle,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -21,8 +22,11 @@ import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
 import { useNotificationStore } from "@/store/notificationStore";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
+import { fetchCached } from "@/shared/utils/fetchCache";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
 import AddCompatibleModal from "./components/AddCompatibleModal";
+import { useCircuitBreakers } from "@/shared/hooks/useCircuitBreakers";
+import CircuitBreakerBadge from "./components/CircuitBreakerBadge";
 
 function getStatusDisplay(connected, error, errorCode) {
   const parts = [];
@@ -107,6 +111,7 @@ export default function ProvidersPage() {
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
   const unregisterSearch = useHeaderSearchStore((s) => s.unregister);
+  const { getCircuitBreakerForProvider, resetCircuitBreaker } = useCircuitBreakers();
 
   useEffect(() => {
     registerSearch("Search providers...");
@@ -147,9 +152,10 @@ export default function ProvidersPage() {
     const fetchData = async () => {
       try {
         const [connectionsRes, nodesRes] = await Promise.all([
-          fetch("/api/providers"),
-          fetch("/api/provider-nodes"),
+          fetch("/api/providers", { cache: "no-store" }),
+          fetch("/api/provider-nodes", { cache: "no-store" }),
         ]);
+
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
         if (connectionsRes.ok)
@@ -305,6 +311,18 @@ export default function ProvidersPage() {
       if (ca !== cb) return ca - cb;
       return (a.name || "").localeCompare(b.name || "");
     });
+  const webCookieEntries = Object.entries(WEB_COOKIE_PROVIDERS)
+    .filter(
+      ([, info]) =>
+        !info.hidden &&
+        matchSearch(info.name),
+    )
+    .sort(([ka, a], [kb, b]) => {
+      const ca = getProviderStats(ka, "cookie").total > 0 ? 0 : 1;
+      const cb = getProviderStats(kb, "cookie").total > 0 ? 0 : 1;
+      if (ca !== cb) return ca - cb;
+      return (a.name || "").localeCompare(b.name || "");
+    });
   const isApikeySearching = !!searchQuery.trim();
   const visibleApikeyEntries =
     isApikeySearching || showAllApikey
@@ -326,6 +344,7 @@ export default function ProvidersPage() {
     freeEntries.length > 0 ||
     freeTierEntries.length > 0 ||
     apikeyEntries.length > 0 ||
+    webCookieEntries.length > 0 ||
     compatibleProviders.length > 0 ||
     anthropicCompatibleProviders.length > 0;
 
@@ -382,6 +401,8 @@ export default function ProvidersPage() {
                   provider={info}
                   stats={getProviderStats(info.id, "apikey")}
                   authType="compatible"
+                  circuitBreaker={getCircuitBreakerForProvider(info.id)}
+                  onResetCircuit={resetCircuitBreaker}
                   onToggle={(active) =>
                     handleToggleProvider(info.id, "apikey", active)
                   }
@@ -429,6 +450,8 @@ export default function ProvidersPage() {
               provider={info}
               stats={getProviderStats(key, "oauth")}
               authType="oauth"
+              circuitBreaker={getCircuitBreakerForProvider(key)}
+              onResetCircuit={resetCircuitBreaker}
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
             />
           ))}
@@ -477,6 +500,8 @@ export default function ProvidersPage() {
                 provider={info}
                 stats={getProviderStats(key, freeAuthTypes)}
                 authType="free"
+                circuitBreaker={getCircuitBreakerForProvider(key)}
+                onResetCircuit={resetCircuitBreaker}
                 onToggle={(active) =>
                   handleToggleProvider(key, freeAuthTypes, active)
                 }
@@ -548,25 +573,27 @@ export default function ProvidersPage() {
       )}
 
       {/* Web Cookie Providers — use browser subscription cookie instead of API key */}
-      {/* <div className="flex flex-col gap-4">
+      {webCookieEntries.length > 0 && (
+      <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
             Web Cookie Providers{" "}
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Object.entries(WEB_COOKIE_PROVIDERS).map(([key, info]) => (
+          {webCookieEntries.map(([key, info]) => (
             <ApiKeyProviderCard
               key={key}
               providerId={key}
               provider={info}
-              stats={getProviderStats(key, "apikey")}
-              authType="apikey"
-              onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+              stats={getProviderStats(key, "cookie")}
+              authType="cookie"
+              onToggle={(active) => handleToggleProvider(key, "cookie", active)}
             />
           ))}
         </div>
-      </div> */}
+      </div>
+      )}
 
       <AddCompatibleModal
         variant="openai"
@@ -618,7 +645,7 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+function ProviderCard({ providerId, provider, stats, authType, onToggle, circuitBreaker, onResetCircuit }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
 
@@ -650,7 +677,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
               }}
             >
               <ProviderIcon
-                src={`/providers/${provider.id}.png`}
+                src={`/providers/${provider.id}.webp`}
                 alt={provider.name}
                 size={30}
                 className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
@@ -677,6 +704,9 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
                 ) : (
                   <>
                     {getStatusDisplay(connected, error, errorCode)}
+                    {circuitBreaker && (
+                      <CircuitBreakerBadge status={circuitBreaker} onReset={() => onResetCircuit(providerId)} />
+                    )}
                     {errorTime && (
                       <span className="text-text-muted">{errorTime}</span>
                     )}
@@ -710,12 +740,16 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
   );
 }
 
+
+
 function ApiKeyProviderCard({
   providerId,
   provider,
   stats,
   authType,
   onToggle,
+  circuitBreaker,
+  onResetCircuit,
 }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isCompatible = providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
@@ -737,12 +771,12 @@ function ApiKeyProviderCard({
   };
 
   const getIconPath = () => {
-    if (isCompatible)
+    if (isCompatible && provider.apiType)
       return provider.apiType === "responses"
-        ? "/providers/oai-r.png"
-        : "/providers/oai-cc.png";
-    if (isAnthropicCompatible) return "/providers/anthropic-m.png";
-    return `/providers/${provider.id}.png`;
+        ? "/providers/oai-r.webp"
+        : "/providers/oai-cc.webp";
+    if (isAnthropicCompatible) return "/providers/anthropic-m.webp";
+    return getProviderIconSrc(provider.id);
   };
 
   return (
@@ -830,6 +864,8 @@ function ApiKeyProviderCard({
   );
 }
 
+
+
 function ProviderTestResultsView({ results }) {
   if (results.error && !results.results) {
     return (
@@ -913,4 +949,5 @@ function ProviderTestResultsView({ results }) {
     </div>
   );
 }
+
 

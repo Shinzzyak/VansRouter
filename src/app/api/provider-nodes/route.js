@@ -79,11 +79,14 @@ export async function POST(request) {
     }
 
     if (nodeType === "anthropic-compatible") {
-      // Sanitize Base URL: remove trailing slash, and remove trailing /messages if user added it
-      // This prevents double-appending /messages at runtime
+      // Sanitize Base URL: remove trailing slash, and remove trailing /messages if user pasted full endpoint,
+      // then ensure it ends with /v1 so runtime `${baseUrl}/messages` maps to /v1/messages.
       let sanitizedBaseUrl = (baseUrl || ANTHROPIC_COMPATIBLE_DEFAULTS.baseUrl).trim().replace(/\/$/, "");
       if (sanitizedBaseUrl.endsWith("/messages")) {
-        sanitizedBaseUrl = sanitizedBaseUrl.slice(0, -9); // remove /messages
+        sanitizedBaseUrl = sanitizedBaseUrl.slice(0, -"/messages".length);
+      }
+      if (!sanitizedBaseUrl.endsWith("/v1")) {
+        sanitizedBaseUrl = `${sanitizedBaseUrl}/v1`;
       }
 
       const node = await createProviderNode({

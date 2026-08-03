@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, Badge, Modal, Input, ModelSelectModal } from "@/shared/components";
 import Image from "next/image";
 
-function AntigravityExpandedSection({ handleModelMappingChange, handleSaveMappings, handleStart, handleStop, isRunning, loading, message, modelMappings, openModelSelector, selectedApiKey, serverIsWindows, setSelectedApiKey, startingStep, status }) {
+function AntigravityExpandedSection({ apiKeys, cloudEnabled, handleModelMappingChange, handleSaveMappings, handleStart, handleStop, hasActiveProviders, isRunning, loading, message, modelMappings, openModelSelector, selectedApiKey, serverIsWindows, setSelectedApiKey, startingStep, status, tool }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {/* Status indicators — ordered: Cert → Server → DNS */}
@@ -438,7 +438,7 @@ export default function AntigravityToolCard({
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <Image
-              src="/providers/antigravity.png"
+              src="/providers/antigravity.webp"
               alt={tool.name}
               width={32}
               height={32}
@@ -462,7 +462,7 @@ export default function AntigravityToolCard({
         <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {isExpanded && <AntigravityExpandedSection handleModelMappingChange={handleModelMappingChange} handleSaveMappings={handleSaveMappings} handleStart={handleStart} handleStop={handleStop} isRunning={isRunning} loading={loading} message={message} modelMappings={modelMappings} openModelSelector={openModelSelector} selectedApiKey={selectedApiKey} serverIsWindows={serverIsWindows} setSelectedApiKey={setSelectedApiKey} startingStep={startingStep} status={status} />}
+      {isExpanded && <AntigravityExpandedSection apiKeys={apiKeys} cloudEnabled={cloudEnabled} handleModelMappingChange={handleModelMappingChange} handleSaveMappings={handleSaveMappings} handleStart={handleStart} handleStop={handleStop} hasActiveProviders={hasActiveProviders} isRunning={isRunning} loading={loading} message={message} modelMappings={modelMappings} openModelSelector={openModelSelector} selectedApiKey={selectedApiKey} serverIsWindows={serverIsWindows} setSelectedApiKey={setSelectedApiKey} startingStep={startingStep} status={status} tool={tool} />}
 
       <AntigravityPasswordModal showPasswordModal={showPasswordModal} setShowPasswordModal={setShowPasswordModal} sudoPassword={sudoPassword} setSudoPassword={setSudoPassword} loading={loading} message={message} setMessage={setMessage} handleConfirmPassword={handleConfirmPassword} />
 

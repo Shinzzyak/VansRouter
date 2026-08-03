@@ -34,7 +34,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   });
   const callbackProcessedRef = useRef(false);
   const onSuccessRef = useRef(onSuccess);
-  onSuccessRef.current = onSuccess;
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  });
 
   // Define all useCallback hooks BEFORE the useEffects that reference them
 
@@ -154,8 +156,18 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     try {
       setError(null);
 
-      // Device code flow providers
-      const deviceCodeProviders = ["github", "qwen", "kiro", "kimi-coding", "kilocode", "codebuddy-cn", "qoder"];
+      // Device code flow providers (must match oauth providers with flowType: "device_code")
+      const deviceCodeProviders = [
+        "github",
+        "qwen",
+        "kiro",
+        "kimi",
+        "kimi-coding",
+        "kilocode",
+        "codebuddy-cn",
+        "qoder",
+        "grok-cli",
+      ];
       if (deviceCodeProviders.includes(provider)) {
         setIsDeviceCode(true);
         setStep("waiting");
@@ -195,6 +207,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
               _qoderMachineId: data._qoderMachineId,
               _qoderVerifier: data.codeVerifier,
             }
+          : (provider === "kimi" || provider === "kimi-coding")
+          ? { _kimiDeviceId: data._kimiDeviceId }
           : null;
         startPolling(
           data.device_code,
@@ -280,6 +294,17 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       }
 
       setAuthData({ ...data, redirectUri, codexServerSide, xaiServerSide });
+
+      // Guard: device_code providers return authUrl:null from /authorize. Never window.open(null)
+      // (browsers coerce it to the relative path ".../null").
+      if (!data.authUrl) {
+        if (data.flowType === "device_code") {
+          throw new Error(
+            `Provider ${provider} uses device-code login but is not wired in the OAuth modal device-code list`
+          );
+        }
+        throw new Error("No authorization URL returned from OAuth provider");
+      }
 
       if (provider === "codex" && codexProxyActive) {
         // Proxy active: callback will be handled server-side (auto-exchange) or via channels (fallback)

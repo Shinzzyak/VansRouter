@@ -15,7 +15,7 @@ function getLocalBaseUrl() {
   return "http://127.0.0.1:20128";
 }
 
-function OpenClawExpandedSection({ agentModels, applying, checkingOpenclaw, customBaseUrl, getDisplayUrl, handleApplySettings, handleResetSettings, message, openclawStatus, provider, restoring, selectedApiKey, selectedModel, setAgentModalFor, setAgentModels, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModel, setShowManualConfigModal }) {
+function OpenClawExpandedSection({ agentModels, apiKeys, applying, checkingOpenclaw, cloudEnabled, customBaseUrl, getDisplayUrl, handleApplySettings, handleResetSettings, hasActiveProviders, message, openclawStatus, restoring, selectedApiKey, selectedModel, setAgentModalFor, setAgentModels, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModel, setShowManualConfigModal, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingOpenclaw && (
@@ -176,7 +176,6 @@ export default function OpenClawToolCard({
   const [modelAliases, setModelAliases] = useState({});
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [customBaseUrl, setCustomBaseUrl] = useState("");
-  const hasInitializedModel = useRef(false);
 
   const getConfigStatus = () => {
     if (!openclawStatus?.installed) return null;
@@ -231,9 +230,9 @@ export default function OpenClawToolCard({
     onToggle();
   }, [isExpanded, initializeCard, onToggle]);
 
-  useEffect(() => { initializeCard(); }, [initializeCard]);
-  if (openclawStatus?.installed && !hasInitializedModel.current) {
-    hasInitializedModel.current = true;
+  const [hasInitializedModel, setHasInitializedModel] = useState(false);
+  if (openclawStatus?.installed && !hasInitializedModel) {
+    setHasInitializedModel(true);
     const provider = openclawStatus.settings?.models?.providers?.["VansRoute"];
     if (provider) {
       const primaryModel = openclawStatus.settings?.agents?.defaults?.model?.primary;
@@ -360,7 +359,7 @@ export default function OpenClawToolCard({
       <button type="button" className="flex w-full items-start justify-between gap-3 hover:cursor-pointer sm:items-center text-left" onClick={handleToggle} aria-expanded={isExpanded} aria-label="Toggle section">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
-            <Image src="/providers/openclaw.png" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
+            <Image src="/providers/openclaw.webp" alt={tool.name} width={32} height={32} className="size-8 object-contain rounded-lg" sizes="32px" onError={(e) => { e.target.style.display = "none"; }} />
           </div>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -375,7 +374,7 @@ export default function OpenClawToolCard({
         <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {isExpanded && <OpenClawExpandedSection agentModels={agentModels} applying={applying} checkingOpenclaw={checkingOpenclaw} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApplySettings={handleApplySettings} handleResetSettings={handleResetSettings} message={message} openclawStatus={openclawStatus} provider={provider} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} setAgentModalFor={setAgentModalFor} setAgentModels={setAgentModels} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModel={setSelectedModel} setShowManualConfigModal={setShowManualConfigModal} />}
+      {isExpanded && <OpenClawExpandedSection agentModels={agentModels} apiKeys={apiKeys} applying={applying} checkingOpenclaw={checkingOpenclaw} cloudEnabled={cloudEnabled} customBaseUrl={customBaseUrl} getDisplayUrl={getDisplayUrl} handleApplySettings={handleApplySettings} handleResetSettings={handleResetSettings} hasActiveProviders={hasActiveProviders} message={message} openclawStatus={openclawStatus} restoring={restoring} selectedApiKey={selectedApiKey} selectedModel={selectedModel} setAgentModalFor={setAgentModalFor} setAgentModels={setAgentModels} setCustomBaseUrl={setCustomBaseUrl} setModalOpen={setModalOpen} setSelectedApiKey={setSelectedApiKey} setSelectedModel={setSelectedModel} setShowManualConfigModal={setShowManualConfigModal} tailscaleEnabled={tailscaleEnabled} tailscaleUrl={tailscaleUrl} tool={tool} tunnelEnabled={tunnelEnabled} tunnelPublicUrl={tunnelPublicUrl} />}
 
       <ModelSelectModal
         isOpen={modalOpen}

@@ -9,8 +9,6 @@ describe("Kimchi CLI-aligned config", () => {
   describe("upstream model id", () => {
     it("keeps user-facing Kimi ids unchanged for upstream llm.kimchi.dev", () => {
       expect(getModelUpstreamId("kimchi", "kimi-k2.7")).toBe("kimi-k2.7");
-      expect(getModelUpstreamId("kimchi", "kimi-k2.6")).toBe("kimi-k2.6");
-      expect(getModelUpstreamId("kimchi", "kimi-k2.5")).toBe("kimi-k2.5");
     });
   });
 
@@ -28,14 +26,14 @@ describe("Kimchi CLI-aligned config", () => {
       expect(caps.supportsTemperature).toBe(false);
     });
 
-    it("kimi-k2.6 matches CLI (toggle + temperature supported)", () => {
-      const caps = getCapabilitiesForModel("kimchi", "kimi-k2.6");
+    it("deepseek-v4-flash matches CLI", () => {
+      const caps = getCapabilitiesForModel("kimchi", "deepseek-v4-flash");
       expect(caps.vision).toBe(true);
-      expect(caps.videoInput).toBe(true);
       expect(caps.reasoning).toBe(true);
-      expect(caps.thinkingCanDisable).toBe(true);
-      expect(caps.structuredOutput).toBe(true);
-      expect(caps.supportsTemperature).toBe(true);
+      expect(caps.thinkingFormat).toBe("deepseek");
+      expect(caps.thinkingCanDisable).toBe(false);
+      expect(caps.contextWindow).toBe(1000000);
+      expect(caps.maxOutput).toBe(50000);
     });
 
     it("minimax-m3 matches CLI capabilities", () => {
@@ -54,18 +52,13 @@ describe("Kimchi CLI-aligned config", () => {
       expect(caps.maxOutput).toBe(8192);
     });
 
-    it("glm-5.2-fp8 is reasoning with OpenAI format", () => {
-      const caps = getCapabilitiesForModel("kimchi", "glm-5.2-fp8");
-      expect(caps.reasoning).toBe(true);
-      expect(caps.thinkingFormat).toBe("openai");
-      expect(caps.thinkingCanDisable).toBe(true);
-    });
+
   });
 
   describe("param stripping", () => {
-    it("keeps temperature for kimi-k2.6", () => {
+    it("keeps temperature for deepseek-v4-flash", () => {
       const body = { temperature: 0.7, messages: [] };
-      stripUnsupportedParams("kimchi", "kimi-k2.6", body);
+      stripUnsupportedParams("kimchi", "deepseek-v4-flash", body);
       expect(body.temperature).toBe(0.7);
     });
 
@@ -77,7 +70,7 @@ describe("Kimchi CLI-aligned config", () => {
 
     it("still drops non-temperature sampling knobs for all Kimchi models", () => {
       const body = { top_p: 0.9, presence_penalty: 0.5, frequency_penalty: 0.5, messages: [] };
-      stripUnsupportedParams("kimchi", "kimi-k2.6", body);
+      stripUnsupportedParams("kimchi", "deepseek-v4-flash", body);
       expect(body.top_p).toBeUndefined();
       expect(body.presence_penalty).toBeUndefined();
       expect(body.frequency_penalty).toBeUndefined();

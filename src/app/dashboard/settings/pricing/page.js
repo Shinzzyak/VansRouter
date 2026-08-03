@@ -11,6 +11,8 @@ export default function PricingSettingsPage() {
   const [currentPricing, setCurrentPricing] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  /* eslint-disable react-hooks/immutability --
+     One-time bootstrap fetch on mount; loadPricing is declared below. */
   useEffect(() => {
     loadPricing();
   }, []);

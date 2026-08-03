@@ -12,6 +12,7 @@ import { QwenExecutor } from "./qwen.js";
 import { OpenCodeExecutor } from "./opencode.js";
 import { OpenCodeGoExecutor } from "./opencode-go.js";
 import { GrokWebExecutor } from "./grok-web.js";
+import { GrokCliExecutor } from "./grok-cli.js";
 import { PerplexityWebExecutor } from "./perplexity-web.js";
 import { OllamaLocalExecutor } from "./ollama-local.js";
 import { CommandCodeExecutor } from "./commandcode.js";
@@ -19,6 +20,8 @@ import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { MimoFreeExecutor } from "./mimo-free.js";
 import { ZcodeExecutor } from "./zcode.js";
 import { CodeBuddyExecutor } from "./codebuddy-cn.js";
+import { AgentRouterExecutor } from "./agentrouter.js";
+import { MuseSparkWebExecutor } from "./muse-spark-web.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -38,6 +41,9 @@ const executors = {
   opencode: new OpenCodeExecutor(),
   "opencode-go": new OpenCodeGoExecutor(),
   "grok-web": new GrokWebExecutor(),
+  "grok-cli": new GrokCliExecutor(),
+  gcli: new GrokCliExecutor(), // Alias
+  gb: new GrokCliExecutor(), // Alias (Grok Build)
   "perplexity-web": new PerplexityWebExecutor(),
   "ollama-local": new OllamaLocalExecutor(),
   commandcode: new CommandCodeExecutor(),
@@ -47,6 +53,8 @@ const executors = {
   zcode: new ZcodeExecutor(),
   zc: new ZcodeExecutor(), // Alias for zcode
   "codebuddy-cn": new CodeBuddyExecutor(),
+  agentrouter: new AgentRouterExecutor(),
+  "muse-spark-web": new MuseSparkWebExecutor(),
 };
 
 const defaultCache = new Map();
@@ -77,6 +85,7 @@ export { QwenExecutor } from "./qwen.js";
 export { OpenCodeExecutor } from "./opencode.js";
 export { OpenCodeGoExecutor } from "./opencode-go.js";
 export { GrokWebExecutor } from "./grok-web.js";
+export { GrokCliExecutor } from "./grok-cli.js";
 export { PerplexityWebExecutor } from "./perplexity-web.js";
 export { OllamaLocalExecutor } from "./ollama-local.js";
 export { CommandCodeExecutor } from "./commandcode.js";
@@ -84,3 +93,4 @@ export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 export { MimoFreeExecutor } from "./mimo-free.js";
 export { ZcodeExecutor } from "./zcode.js";
 export { CodeBuddyExecutor } from "./codebuddy-cn.js";
+export { MuseSparkWebExecutor } from "./muse-spark-web.js";

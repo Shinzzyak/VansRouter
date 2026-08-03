@@ -6,6 +6,7 @@ import {
   PROVIDER_FAILURE_ERROR_CODES,
 } from "../utils/circuitBreaker.js";
 import { classify429 } from "../utils/classify429.js";
+import { getProviderResilienceProfile } from "../config/providerProfiles.js";
 
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
@@ -35,6 +36,9 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
     if (rule.text && lowerError && lowerError.includes(rule.text)) {
+      if (rule.shouldFallback === false) {
+        return { shouldFallback: false, cooldownMs: 0 };
+      }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
@@ -44,6 +48,9 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
 
     // Status-based rule: match HTTP status code
     if (rule.status && rule.status === status) {
+      if (rule.shouldFallback === false) {
+        return { shouldFallback: false, cooldownMs: 0 };
+      }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
@@ -140,34 +147,25 @@ export function isKimchiQuotaExhausted(provider, errorText) {
 }
 
 /**
- * Compute the next-month reset timestamp (00:00 UTC on the 1st of next month).
- * If today is already the 1st of the current month (at or after 00:00 UTC),
- * returns today's 00:00 UTC so accounts deactivated on the 1st don't sit idle
- * for an entire extra month.
- * Otherwise returns the 1st of next month at 00:00 UTC.
+ * Compute the next-day reset timestamp (00:00 UTC tomorrow).
  * @param {Date} [now=new Date()]
  * @returns {Date}
  */
-export function getNextMonthReset(now = new Date()) {
+export function getNextDayReset(now = new Date()) {
   const d = new Date(now.getTime());
-  // If today is the 1st, the next reset is today (the month already started)
-  if (d.getUTCDate() === 1) {
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0));
-  }
-  // Otherwise the next reset is the 1st of the following month
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0));
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0));
 }
 
 /**
  * Build update payload that deactivates a Kimchi account due to quota exhaustion.
  * Sets testStatus="quota_exhausted" (distinguishable from manual deactivation)
- * and rateLimitedUntil to next-month reset, so the existing cooldown filters
+ * and rateLimitedUntil to next-day reset, so the existing cooldown filters
  * skip it until then. Auto-reactivation runs on startup / periodically.
  * @param {Date} [now]
  * @returns {{ isActive: boolean, rateLimitedUntil: string, testStatus: string, lastErrorType: string, errorCode: number, quotaExhaustedAt: string }}
  */
 export function buildKimchiQuotaExhaustedUpdate(now = new Date()) {
-  const reset = getNextMonthReset(now);
+  const reset = getNextDayReset(now);
   return {
     isActive: false,
     rateLimitedUntil: reset.toISOString(),
@@ -218,7 +216,7 @@ export function detectDailyQuotaExhaustion(provider, errorText) {
   // classify429 returns { kind, cooldownMs }. We only act on daily_quota here;
   // quota_exhausted (monthly/billing) is handled separately and rate_limit
   // is handled by the normal account cooldown/backoff path.
-  const classification = classify429({ status: 429, body: text });
+  const classification = classify429({ status: 429, body: text, provider });
   if (classification.kind !== "daily_quota") return null;
   return classification;
 }
@@ -433,10 +431,12 @@ export function recordProviderFailure(provider, statusCode, errorText, log, conn
   // Only count failure-eligible status codes
   if (statusCode && !PROVIDER_FAILURE_ERROR_CODES.has(statusCode)) return;
 
+  const profile = getProviderResilienceProfile(provider);
   const breakerKey = `${provider}:${proxyHash}`;
   const breaker = getCircuitBreaker(breakerKey, {
-    failureThreshold: 5,
-    resetTimeout: 30_000,
+    failureThreshold: profile.providerFailureThreshold,
+    failureWindowMs: profile.providerFailureWindowMs,
+    resetTimeout: profile.providerCooldownMs,
   });
   if (!breaker) return;
   if (!breaker.canExecute()) return; // already OPEN, skip

@@ -115,6 +115,39 @@ describe("classify429 — daily_quota", () => {
   });
 });
 
+describe("classify429 — Grok CLI free-usage-exhausted is daily_quota (00:00 UTC)", () => {
+  it("classifies subscription:free-usage-exhausted JSON as daily_quota", () => {
+    const body = {
+      code: "subscription:free-usage-exhausted",
+      error: "You've used all the included free usage",
+    };
+    const result = classify429({ status: 429, body, provider: "grok-cli" });
+    expect(result.kind).toBe("daily_quota");
+    expect(result.cooldownMs).toBeGreaterThan(0);
+    expect(result.cooldownMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+  });
+
+  it("classifies 'You've used all the included free usage' as daily_quota", () => {
+    const result = classify429({
+      status: 429,
+      body: "You've used all the included free usage",
+      provider: "grok-cli",
+    });
+    expect(result.kind).toBe("daily_quota");
+  });
+
+  it("classifies 'free usage exhausted' as daily_quota", () => {
+    const result = classify429({ status: 429, body: "free usage exhausted", provider: "grok-cli" });
+    expect(result.kind).toBe("daily_quota");
+  });
+
+  it("does not treat plain rate-limit text as daily_quota", () => {
+    const result = classify429({ status: 429, body: "rate limit exceeded", provider: "grok-cli" });
+    expect(result.kind).toBe("rate_limit");
+    expect(result.cooldownMs).toBe(RATE_LIMIT_COOLDOWN_MS);
+  });
+});
+
 describe("classify429 — daily_quota takes priority over quota_exhausted", () => {
   it("classifies 'daily quota exceeded' as daily_quota (not quota_exhausted)", () => {
     // "exceed.*quota" would match quota_exhausted, but "daily" prefix makes it daily_quota
@@ -247,5 +280,46 @@ describe("retryAfterFromResponse", () => {
   it("returns null when Retry-After is absent", () => {
     expect(retryAfterFromResponse({ headers: {} })).toBe(null);
     expect(retryAfterFromResponse(null)).toBe(null);
+  });
+});
+
+describe("classify429 — Gemini per-minute RPM 429 must NOT be a 1h quota lock", () => {
+  it("classifies Gemini 'Resource has been exhausted' RPM 429 as rate_limit (60s)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: { error: { code: 429, message: "Resource has been exhausted (e.g. check quota).", status: "RESOURCE_EXHAUSTED" } },
+    });
+    expect(result.kind).toBe("rate_limit");
+    expect(result.cooldownMs).toBe(RATE_LIMIT_COOLDOWN_MS);
+  });
+
+  it("classifies Gemini 'You exceeded your current quota' RPM 429 as rate_limit (60s)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: "[429]: You exceeded your current quota, please check your plan and billing details. For more informa",
+    });
+    expect(result.kind).toBe("rate_limit");
+    expect(result.cooldownMs).toBe(RATE_LIMIT_COOLDOWN_MS);
+  });
+
+  it("still locks on a genuine Gemini quota cap (quota exceeded)", () => {
+    const result = classify429({
+      status: 429,
+      provider: "gemini",
+      body: { error: { message: "Quota exceeded for this project." } },
+    });
+    expect(result.kind).toBe("quota_exhausted");
+    expect(result.cooldownMs).toBe(QUOTA_EXHAUSTED_COOLDOWN_MS);
+  });
+
+  it("does NOT apply the gemini RPM rule to other providers", () => {
+    const result = classify429({
+      status: 429,
+      provider: "anthropic",
+      body: "[429]: You exceeded your current quota, please check your plan and billing details.",
+    });
+    expect(result.kind).toBe("quota_exhausted");
   });
 });

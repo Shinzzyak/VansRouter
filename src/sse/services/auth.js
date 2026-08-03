@@ -1,6 +1,7 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProviderNodeById } from "@/lib/localDb";
-import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProviderNodeById, getProxyPools } from "@/lib/localDb";
+import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
+import { classify429 } from "open-sse/utils/classify429.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS, AI_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers.js";
 import * as log from "../utils/logger.js";
@@ -49,7 +50,14 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     if (FREE_PROVIDERS[providerId]?.noAuth) {
       const settings = await getSettings();
       const override = (settings.providerStrategies || {})[providerId] || {};
-      const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: override.proxyPoolId || "" });
+      const strategy = override.rotateStrategy || "none";
+      let pickedId = override.proxyPoolId || null;
+      if (strategy !== "none") {
+        const allPools = await getProxyPools({ isActive: true });
+        const poolIds = allPools.filter(p => p.proxyUrl).map(p => p.id);
+        pickedId = pickProxyPoolId(poolIds, strategy, providerId);
+      }
+      const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
       return {
         id: "noauth",
         connectionName: "Public",
@@ -100,6 +108,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         log.warn("AUTH", `${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
         return {
           allRateLimited: true,
+          connectionId: earliestConn?.id || null,
           retryAfter: earliest,
           retryAfterHuman: formatRetryAfter(earliest),
           lastError: earliestConn?.lastError || null,
@@ -213,7 +222,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
  * @param {string|null} model - The specific model that triggered the error
  * @returns {{ shouldFallback: boolean, cooldownMs: number }}
  */
-export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
+export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null, options = {}) {
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
@@ -221,16 +230,43 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   // Provider-specific precise cooldown (e.g. codex usage_limit_reached resets_at) overrides backoff
   let shouldFallback, cooldownMs, newBackoffLevel;
-  if (resetsAtMs && resetsAtMs > Date.now()) {
+  const isA6 = provider === "a6api" || provider === "a6api-cli";
+  if (isA6 && status !== 401 && status !== 402 && status !== 404) {
+    shouldFallback = true;
+    cooldownMs = 3000; // 3 seconds cooldown for all non-401/402/404 errors
+    newBackoffLevel = 0;
+  } else if (resetsAtMs && resetsAtMs > Date.now()) {
     shouldFallback = true;
     cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
     newBackoffLevel = 0;
+  } else if (status === 429) {
+    // Use classify429 for all 429 responses so rate_limit, quota_exhausted,
+    // and daily_quota get deterministic, semantically correct cooldowns
+    // instead of generic exponential backoff. This also prevents the daily
+    // quota lock set earlier in the request path from being overwritten with
+    // a shorter backoff cooldown.
+    const classification = classify429({ status, body: errorText, provider });
+    shouldFallback = true;
+    cooldownMs = classification.cooldownMs;
+    newBackoffLevel = backoffLevel;
   } else {
     ({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(status, errorText, backoffLevel));
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
+  // When the circuit-breaker / loop-guard toggle is OFF, do NOT write a per-account
+  // model lock (mirrors chat behavior when the toggle is disabled). We still return
+  // shouldFallback so the request falls through to the next account/provider, but we
+  // leave the account lock state untouched.
+  const disableLock = options && options.disableLock === true;
+
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
+
+  if (disableLock) {
+    // Toggle OFF: skip the lock write entirely so the account stays usable.
+    return { shouldFallback: true, cooldownMs };
+  }
+
   const lockUpdate = buildModelLockUpdate(model, cooldownMs);
 
   await updateProviderConnection(connectionId, {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useReducer, useRef } from "react";
+import { useState, useReducer } from "react";
 import { Modal, Input, Button, Badge } from "@/shared/components";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -51,19 +51,19 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
   });
   const { formData, submitting, checkKey, checkModelId, validating, validationResult } = state;
 
-  const prevIsOpenRef = useRef(false);
-  const prevNodeRef = useRef(node);
-  if ((isOpen && !prevIsOpenRef.current) || (isOpen && node !== prevNodeRef.current)) {
-    prevIsOpenRef.current = isOpen;
-    prevNodeRef.current = node;
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  const [prevNode, setPrevNode] = useState(node);
+  if ((isOpen && !prevIsOpen) || (isOpen && node !== prevNode)) {
+    setPrevIsOpen(isOpen);
+    setPrevNode(node);
     dispatch({
       type: "RESET_FORM",
       formData: isEdit
         ? { name: node.name || "", prefix: node.prefix || "", baseUrl: node.baseUrl || DEFAULT_BASE_URL }
         : { name: "", prefix: "", baseUrl: DEFAULT_BASE_URL },
     });
-  } else if (!isOpen && prevIsOpenRef.current) {
-    prevIsOpenRef.current = false;
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
   }
 
   const handleSubmit = async () => {

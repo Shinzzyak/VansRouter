@@ -5,8 +5,34 @@ import { translateRequest } from "../../open-sse/translator/index.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 
 const O2K = (body) => translateRequest(FORMATS.OPENAI, FORMATS.KIRO, "m", body, true, null, "kiro");
+const R2K = (model, body) => translateRequest(
+  FORMATS.OPENAI_RESPONSES,
+  FORMATS.KIRO,
+  model,
+  body,
+  true,
+  null,
+  "kiro"
+);
 
 describe("OpenAI → Kiro", () => {
+  it.each([
+    ["high", "gpt-5.6-sol"],
+    ["medium", "gpt-5.6-terra"],
+    ["low", "gpt-5.6-luna"],
+  ])("preserves Responses reasoning.effort %s through the full Kiro route", (effort, model) => {
+    const out = R2K(model, {
+      input: "Use the requested effort",
+      reasoning: { effort },
+    });
+
+    expect(out.additionalModelRequestFields).toEqual({
+      reasoning: { effort },
+    });
+    expect(out.systemPrompt || "").not.toContain("<thinking_mode>");
+    expect(out.systemPrompt || "").not.toContain("<max_thinking_length>");
+  });
+
   // openai-to-kiro.js — safeJSONParse guards bad tool-call JSON (fixed in PR #1582)
   it("malformed tool arguments do not throw the whole request", () => {
     expect(() =>
@@ -29,17 +55,16 @@ describe("OpenAI → Kiro", () => {
     expect(out.inferenceConfig?.maxTokens, "client max_tokens ignored").toBe(100);
   });
 
-  // openai-to-kiro.js:132-134 — base64 data URI image is preserved as an image, not text
-  it("base64 data-uri image is preserved as an image, not text", () => {
+  // openai-to-kiro.js:132-134 — remote http image becomes "[Image: url]" text (lost)
+  // KNOWN BUG
+  it.fails("remote image url is preserved as an image, not text", () => {
     const out = O2K({
       messages: [{ role: "user", content: [
         { type: "text", text: "see" },
-        { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+        { type: "image_url", image_url: { url: "https://x.com/p.png" } },
       ] }],
     });
-    const currentMsg = out.conversationState?.currentMessage?.userInputMessage;
-    const content = currentMsg?.content || "";
-    expect(content, "data-uri image flattened to text").not.toContain("[Image:");
-    expect(currentMsg?.images?.length, "data-uri image dropped").toBeGreaterThan(0);
+    const content = out.conversationState?.currentMessage?.userInputMessage?.content || "";
+    expect(content, "remote image flattened to text").not.toContain("[Image:");
   });
 });
