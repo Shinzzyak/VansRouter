@@ -1,15 +1,13 @@
 {
-  "name": "9router-app",
-  "description": "9Router web dashboard Note: this project has over 100 source files; consider scoping analysis to a subdirectory for faster results.",
+  "name": "vansrouter-app",
+  "description": "VansRouter adalah universal AI router dan token saver berbasis Next.js yang menghubungkan CLI tools ke puluhan provider AI, menerjemahkan format API, mengelola quota, serta menyediakan fallback dan optimasi token.",
   "languages": [
     "4s",
     "config",
     "css",
     "dockerfile",
-    "html",
     "javascript",
     "json",
-    "jsonl",
     "markdown",
     "powershell",
     "python",
@@ -17,21 +15,16 @@
     "snap",
     "txt",
     "unknown",
+    "webp",
     "yaml"
   ],
   "frameworks": [
     "Next.js",
     "React",
-    "Tailwind CSS",
-    "Vitest",
+    "Express",
     "Zustand",
-    "Recharts",
-    "React Flow",
-    "dnd kit",
-    "Monaco Editor",
-    "ESLint",
+    "Tailwind CSS",
     "Docker",
-    "Docker Compose",
     "GitHub Actions"
   ],
   "files": [
@@ -152,7 +145,7 @@
     {
       "path": ".env.example",
       "language": "config",
-      "sizeLines": 38,
+      "sizeLines": 86,
       "fileCategory": "config"
     },
     {
@@ -164,19 +157,19 @@
     {
       "path": ".github/workflows/build-matrix.yml",
       "language": "yaml",
-      "sizeLines": 59,
-      "fileCategory": "infra"
-    },
-    {
-      "path": ".github/workflows/docker-publish.yml",
-      "language": "yaml",
-      "sizeLines": 60,
+      "sizeLines": 65,
       "fileCategory": "infra"
     },
     {
       "path": ".github/workflows/gitbook-pages.yml",
       "language": "yaml",
-      "sizeLines": 50,
+      "sizeLines": 51,
+      "fileCategory": "infra"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "language": "yaml",
+      "sizeLines": 116,
       "fileCategory": "infra"
     },
     {
@@ -336,180 +329,6 @@
       "fileCategory": "docs"
     },
     {
-      "path": ".kimchi/docs/audit-upstream.md",
-      "language": "markdown",
-      "sizeLines": 94,
-      "fileCategory": "docs"
-    },
-    {
-      "path": ".kimchi/docs/ferment-handoff.md",
-      "language": "markdown",
-      "sizeLines": 539,
-      "fileCategory": "docs"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/combos.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/combos.report.json",
-      "language": "json",
-      "sizeLines": 14101,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/combos.report.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/combos.report.report.json",
-      "language": "json",
-      "sizeLines": 12916,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/dashboard.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/dashboard.report.json",
-      "language": "json",
-      "sizeLines": 15316,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/dashboard.report.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/dashboard.report.report.json",
-      "language": "json",
-      "sizeLines": 13527,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/providers.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/providers.report.json",
-      "language": "json",
-      "sizeLines": 20119,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/providers.report.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/providers.report.report.json",
-      "language": "json",
-      "sizeLines": 18449,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/settings_pricing.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/settings_pricing.report.json",
-      "language": "json",
-      "sizeLines": 9516,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/settings_pricing.report.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/settings_pricing.report.report.json",
-      "language": "json",
-      "sizeLines": 9149,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/usage.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/usage.report.json",
-      "language": "json",
-      "sizeLines": 16710,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/usage.report.report.html",
-      "language": "html",
-      "sizeLines": 2901,
-      "fileCategory": "markup"
-    },
-    {
-      "path": ".kimchi/docs/lighthouse-reports/usage.report.report.json",
-      "language": "json",
-      "sizeLines": 16636,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/docs/ponytail-audit-report.md",
-      "language": "markdown",
-      "sizeLines": 34,
-      "fileCategory": "docs"
-    },
-    {
-      "path": ".kimchi/docs/remove-proptypes.js",
-      "language": "javascript",
-      "sizeLines": 51,
-      "fileCategory": "code"
-    },
-    {
-      "path": ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d.events.jsonl",
-      "language": "jsonl",
-      "sizeLines": 36,
-      "fileCategory": "code"
-    },
-    {
-      "path": ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d.json",
-      "language": "json",
-      "sizeLines": 458,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/reviews/phase-phase-1-1.json",
-      "language": "json",
-      "sizeLines": 49,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/reviews/phase-phase-2-1.json",
-      "language": "json",
-      "sizeLines": 49,
-      "fileCategory": "config"
-    },
-    {
-      "path": ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/runtime.json",
-      "language": "json",
-      "sizeLines": 27,
-      "fileCategory": "config"
-    },
-    {
       "path": ".kiro/settings/lsp.json",
       "language": "json",
       "sizeLines": 204,
@@ -530,20 +349,62 @@
     {
       "path": ".understand-anything/.understandignore",
       "language": "unknown",
-      "sizeLines": 85,
+      "sizeLines": 64,
       "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/fingerprints.json",
+      "language": "json",
+      "sizeLines": 57464,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".understand-anything/intermediate/scan-result.json",
+      "language": "json",
+      "sizeLines": 10727,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".understand-anything/knowledge-graph.json",
+      "language": "json",
+      "sizeLines": 94854,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".understand-anything/meta.json",
+      "language": "json",
+      "sizeLines": 5,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".understand-anything/tmp/add-missing-nodes.cjs",
+      "language": "javascript",
+      "sizeLines": 77,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/tmp/backend-nodes.json",
+      "language": "json",
+      "sizeLines": 34093,
+      "fileCategory": "config"
     },
     {
       "path": "agent.md",
       "language": "markdown",
-      "sizeLines": 46,
+      "sizeLines": 151,
       "fileCategory": "docs"
     },
     {
       "path": "AGENTS.md",
       "language": "markdown",
-      "sizeLines": 130,
+      "sizeLines": 132,
       "fileCategory": "docs"
+    },
+    {
+      "path": "Caddyfile",
+      "language": "unknown",
+      "sizeLines": 39,
+      "fileCategory": "code"
     },
     {
       "path": "captain-definition",
@@ -554,19 +415,25 @@
     {
       "path": "CHANGELOG.md",
       "language": "markdown",
-      "sizeLines": 323,
+      "sizeLines": 895,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "CLAUDE.md",
+      "language": "markdown",
+      "sizeLines": 91,
       "fileCategory": "docs"
     },
     {
       "path": "cli/.npmignore",
       "language": "unknown",
-      "sizeLines": 9,
+      "sizeLines": 14,
       "fileCategory": "code"
     },
     {
       "path": "cli/cli.js",
       "language": "javascript",
-      "sizeLines": 831,
+      "sizeLines": 874,
       "fileCategory": "code"
     },
     {
@@ -590,7 +457,7 @@
     {
       "path": "cli/package.json",
       "language": "json",
-      "sizeLines": 48,
+      "sizeLines": 49,
       "fileCategory": "config"
     },
     {
@@ -602,19 +469,25 @@
     {
       "path": "cli/scripts/build-cli.js",
       "language": "javascript",
-      "sizeLines": 281,
+      "sizeLines": 316,
       "fileCategory": "code"
     },
     {
       "path": "cli/scripts/buildMitm.js",
       "language": "javascript",
-      "sizeLines": 70,
+      "sizeLines": 71,
       "fileCategory": "code"
     },
     {
       "path": "cli/src/cli/api/client.js",
       "language": "javascript",
       "sizeLines": 556,
+      "fileCategory": "code"
+    },
+    {
+      "path": "cli/src/cli/commands/xaiVideo.js",
+      "language": "javascript",
+      "sizeLines": 300,
       "fileCategory": "code"
     },
     {
@@ -638,7 +511,7 @@
     {
       "path": "cli/src/cli/menus/providers.js",
       "language": "javascript",
-      "sizeLines": 846,
+      "sizeLines": 850,
       "fileCategory": "code"
     },
     {
@@ -668,7 +541,7 @@
     {
       "path": "cli/src/cli/tray/tray.ps1",
       "language": "powershell",
-      "sizeLines": 79,
+      "sizeLines": 130,
       "fileCategory": "script"
     },
     {
@@ -734,19 +607,19 @@
     {
       "path": "docker-compose.yml",
       "language": "yaml",
-      "sizeLines": 30,
+      "sizeLines": 43,
       "fileCategory": "infra"
     },
     {
       "path": "DOCKER.md",
       "language": "markdown",
-      "sizeLines": 132,
+      "sizeLines": 170,
       "fileCategory": "docs"
     },
     {
       "path": "Dockerfile",
       "language": "dockerfile",
-      "sizeLines": 53,
+      "sizeLines": 59,
       "fileCategory": "infra"
     },
     {
@@ -756,15 +629,21 @@
       "fileCategory": "docs"
     },
     {
+      "path": "docs/MIGRATION.md",
+      "language": "markdown",
+      "sizeLines": 162,
+      "fileCategory": "docs"
+    },
+    {
       "path": "doctor.config.json",
       "language": "json",
-      "sizeLines": 47,
+      "sizeLines": 48,
       "fileCategory": "config"
     },
     {
       "path": "eslint.config.mjs",
       "language": "javascript",
-      "sizeLines": 70,
+      "sizeLines": 71,
       "fileCategory": "code"
     },
     {
@@ -1482,6 +1361,18 @@
       "fileCategory": "code"
     },
     {
+      "path": "handover.md",
+      "language": "markdown",
+      "sizeLines": 163,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "i18n/README.fa_IR.md",
+      "language": "markdown",
+      "sizeLines": 1442,
+      "fileCategory": "docs"
+    },
+    {
       "path": "i18n/README.ja-JP.md",
       "language": "markdown",
       "sizeLines": 1209,
@@ -1491,6 +1382,12 @@
       "path": "i18n/README.ru.md",
       "language": "markdown",
       "sizeLines": 1311,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "i18n/README.th.md",
+      "language": "markdown",
+      "sizeLines": 723,
       "fileCategory": "docs"
     },
     {
@@ -1520,7 +1417,7 @@
     {
       "path": "next.config.mjs",
       "language": "javascript",
-      "sizeLines": 104,
+      "sizeLines": 129,
       "fileCategory": "code"
     },
     {
@@ -1536,9 +1433,21 @@
       "fileCategory": "docs"
     },
     {
+      "path": "open-sse/config/antigravityModelAliases.js",
+      "language": "javascript",
+      "sizeLines": 243,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/config/antigravityUpstream.js",
+      "language": "javascript",
+      "sizeLines": 20,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/config/appConstants.js",
       "language": "javascript",
-      "sizeLines": 217,
+      "sizeLines": 216,
       "fileCategory": "code"
     },
     {
@@ -1562,7 +1471,7 @@
     {
       "path": "open-sse/config/errorConfig.js",
       "language": "javascript",
-      "sizeLines": 85,
+      "sizeLines": 87,
       "fileCategory": "code"
     },
     {
@@ -1572,9 +1481,15 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/config/grokCli.js",
+      "language": "javascript",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/config/kiroConstants.js",
       "language": "javascript",
-      "sizeLines": 277,
+      "sizeLines": 358,
       "fileCategory": "code"
     },
     {
@@ -1592,19 +1507,25 @@
     {
       "path": "open-sse/config/providerModels.js",
       "language": "javascript",
-      "sizeLines": 83,
+      "sizeLines": 101,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/config/providerProfiles.js",
+      "language": "javascript",
+      "sizeLines": 94,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/config/providers.js",
       "language": "javascript",
-      "sizeLines": 19,
+      "sizeLines": 23,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/config/runtimeConfig.js",
       "language": "javascript",
-      "sizeLines": 87,
+      "sizeLines": 125,
       "fileCategory": "code"
     },
     {
@@ -1614,9 +1535,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/executors/agentrouter.js",
+      "language": "javascript",
+      "sizeLines": 109,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/executors/antigravity.js",
       "language": "javascript",
-      "sizeLines": 617,
+      "sizeLines": 671,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/executors/antigravity/sseCollect.js",
+      "language": "javascript",
+      "sizeLines": 149,
       "fileCategory": "code"
     },
     {
@@ -1628,7 +1561,7 @@
     {
       "path": "open-sse/executors/base.js",
       "language": "javascript",
-      "sizeLines": 186,
+      "sizeLines": 191,
       "fileCategory": "code"
     },
     {
@@ -1640,7 +1573,7 @@
     {
       "path": "open-sse/executors/codex.js",
       "language": "javascript",
-      "sizeLines": 401,
+      "sizeLines": 485,
       "fileCategory": "code"
     },
     {
@@ -1652,25 +1585,31 @@
     {
       "path": "open-sse/executors/cursor.js",
       "language": "javascript",
-      "sizeLines": 688,
+      "sizeLines": 1102,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/executors/default.js",
       "language": "javascript",
-      "sizeLines": 412,
+      "sizeLines": 453,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/executors/gemini-cli.js",
       "language": "javascript",
-      "sizeLines": 88,
+      "sizeLines": 99,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/executors/github.js",
       "language": "javascript",
       "sizeLines": 345,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/executors/grok-cli.js",
+      "language": "javascript",
+      "sizeLines": 552,
       "fileCategory": "code"
     },
     {
@@ -1688,19 +1627,25 @@
     {
       "path": "open-sse/executors/index.js",
       "language": "javascript",
-      "sizeLines": 86,
+      "sizeLines": 96,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/executors/kiro.js",
       "language": "javascript",
-      "sizeLines": 539,
+      "sizeLines": 1201,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/executors/mimo-free.js",
       "language": "javascript",
       "sizeLines": 166,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/executors/muse-spark-web.js",
+      "language": "javascript",
+      "sizeLines": 945,
       "fileCategory": "code"
     },
     {
@@ -1724,7 +1669,7 @@
     {
       "path": "open-sse/executors/perplexity-web.js",
       "language": "javascript",
-      "sizeLines": 505,
+      "sizeLines": 507,
       "fileCategory": "code"
     },
     {
@@ -1754,13 +1699,13 @@
     {
       "path": "open-sse/executors/zcode.js",
       "language": "javascript",
-      "sizeLines": 264,
+      "sizeLines": 267,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/handlers/chatCore.js",
       "language": "javascript",
-      "sizeLines": 461,
+      "sizeLines": 544,
       "fileCategory": "code"
     },
     {
@@ -1772,25 +1717,25 @@
     {
       "path": "open-sse/handlers/chatCore/nonStreamingHandler.js",
       "language": "javascript",
-      "sizeLines": 276,
+      "sizeLines": 388,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/handlers/chatCore/requestDetail.js",
       "language": "javascript",
-      "sizeLines": 104,
+      "sizeLines": 126,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/handlers/chatCore/sseToJsonHandler.js",
       "language": "javascript",
-      "sizeLines": 250,
+      "sizeLines": 288,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/handlers/chatCore/streamingHandler.js",
       "language": "javascript",
-      "sizeLines": 211,
+      "sizeLines": 212,
       "fileCategory": "code"
     },
     {
@@ -1946,7 +1891,7 @@
     {
       "path": "open-sse/handlers/search/chatSearch.js",
       "language": "javascript",
-      "sizeLines": 408,
+      "sizeLines": 455,
       "fileCategory": "code"
     },
     {
@@ -2040,6 +1985,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/handlers/videoCore.js",
+      "language": "javascript",
+      "sizeLines": 166,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/index.js",
       "language": "javascript",
       "sizeLines": 79,
@@ -2048,7 +1999,7 @@
     {
       "path": "open-sse/providers/capabilities.js",
       "language": "javascript",
-      "sizeLines": 296,
+      "sizeLines": 351,
       "fileCategory": "code"
     },
     {
@@ -2078,13 +2029,13 @@
     {
       "path": "open-sse/providers/models/schema.js",
       "language": "javascript",
-      "sizeLines": 31,
+      "sizeLines": 40,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/providers/pricing.js",
       "language": "javascript",
-      "sizeLines": 304,
+      "sizeLines": 317,
       "fileCategory": "code"
     },
     {
@@ -2094,33 +2045,57 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/a6api.js",
+      "language": "javascript",
+      "sizeLines": 73,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/agentrouter.js",
       "language": "javascript",
-      "sizeLines": 105,
+      "sizeLines": 54,
       "fileCategory": "code"
     },
     {
-      "path": "open-sse/providers/registry/alicode-intl.js",
+      "path": "open-sse/providers/registry/ai21.js",
       "language": "javascript",
-      "sizeLines": 29,
+      "sizeLines": 24,
       "fileCategory": "code"
     },
     {
-      "path": "open-sse/providers/registry/alicode.js",
-      "language": "javascript",
-      "sizeLines": 30,
-      "fileCategory": "code"
-    },
-    {
-      "path": "open-sse/providers/registry/anthropic.js",
+      "path": "open-sse/providers/registry/alibaba.js",
       "language": "javascript",
       "sizeLines": 32,
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/alicode-intl.js",
+      "language": "javascript",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/alicode.js",
+      "language": "javascript",
+      "sizeLines": 31,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/alims-intl.js",
+      "language": "javascript",
+      "sizeLines": 32,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/anthropic.js",
+      "language": "javascript",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/antigravity.js",
       "language": "javascript",
-      "sizeLines": 85,
+      "sizeLines": 89,
       "fileCategory": "code"
     },
     {
@@ -2139,6 +2114,12 @@
       "path": "open-sse/providers/registry/azure.js",
       "language": "javascript",
       "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/baseten.js",
+      "language": "javascript",
+      "sizeLines": 28,
       "fileCategory": "code"
     },
     {
@@ -2163,6 +2144,12 @@
       "path": "open-sse/providers/registry/byteplus.js",
       "language": "javascript",
       "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/bytez.js",
+      "language": "javascript",
+      "sizeLines": 25,
       "fileCategory": "code"
     },
     {
@@ -2196,6 +2183,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/clinepass.js",
+      "language": "javascript",
+      "sizeLines": 46,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/cloudflare-ai.js",
       "language": "javascript",
       "sizeLines": 55,
@@ -2208,9 +2201,15 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/codestral.js",
+      "language": "javascript",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/codex.js",
       "language": "javascript",
-      "sizeLines": 94,
+      "sizeLines": 91,
       "fileCategory": "code"
     },
     {
@@ -2244,9 +2243,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/databricks.js",
+      "language": "javascript",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/deepgram.js",
       "language": "javascript",
       "sizeLines": 33,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/deepinfra.js",
+      "language": "javascript",
+      "sizeLines": 44,
       "fileCategory": "code"
     },
     {
@@ -2280,6 +2291,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/featherless.js",
+      "language": "javascript",
+      "sizeLines": 34,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/firecrawl.js",
       "language": "javascript",
       "sizeLines": 34,
@@ -2292,6 +2309,18 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/friendliai.js",
+      "language": "javascript",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/galadriel.js",
+      "language": "javascript",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/gemini-cli.js",
       "language": "javascript",
       "sizeLines": 58,
@@ -2301,6 +2330,12 @@
       "path": "open-sse/providers/registry/gemini.js",
       "language": "javascript",
       "sizeLines": 81,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/gigachat.js",
+      "language": "javascript",
+      "sizeLines": 23,
       "fileCategory": "code"
     },
     {
@@ -2340,6 +2375,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/grok-cli.js",
+      "language": "javascript",
+      "sizeLines": 96,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/grok-web.js",
       "language": "javascript",
       "sizeLines": 39,
@@ -2349,6 +2390,12 @@
       "path": "open-sse/providers/registry/groq.js",
       "language": "javascript",
       "sizeLines": 37,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/heroku.js",
+      "language": "javascript",
+      "sizeLines": 32,
       "fileCategory": "code"
     },
     {
@@ -2372,7 +2419,7 @@
     {
       "path": "open-sse/providers/registry/index.js",
       "language": "javascript",
-      "sizeLines": 200,
+      "sizeLines": 259,
       "fileCategory": "code"
     },
     {
@@ -2396,37 +2443,37 @@
     {
       "path": "open-sse/providers/registry/kilocode.js",
       "language": "javascript",
-      "sizeLines": 44,
+      "sizeLines": 51,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/providers/registry/kimchi.js",
       "language": "javascript",
-      "sizeLines": 61,
-      "fileCategory": "code"
-    },
-    {
-      "path": "open-sse/providers/registry/kimi-coding.js",
-      "language": "javascript",
-      "sizeLines": 65,
+      "sizeLines": 60,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/providers/registry/kimi.js",
       "language": "javascript",
-      "sizeLines": 57,
+      "sizeLines": 89,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/providers/registry/kiro.js",
       "language": "javascript",
-      "sizeLines": 92,
+      "sizeLines": 127,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/providers/registry/linkup.js",
       "language": "javascript",
       "sizeLines": 34,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/llamagate.js",
+      "language": "javascript",
+      "sizeLines": 23,
       "fileCategory": "code"
     },
     {
@@ -2466,9 +2513,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/muse-spark-web.js",
+      "language": "javascript",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/nanobanana.js",
       "language": "javascript",
       "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/nanogpt.js",
+      "language": "javascript",
+      "sizeLines": 23,
       "fileCategory": "code"
     },
     {
@@ -2478,9 +2537,15 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/nscale.js",
+      "language": "javascript",
+      "sizeLines": 28,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/nvidia.js",
       "language": "javascript",
-      "sizeLines": 35,
+      "sizeLines": 40,
       "fileCategory": "code"
     },
     {
@@ -2520,6 +2585,18 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/ovhcloud.js",
+      "language": "javascript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/perplexity-agent.js",
+      "language": "javascript",
+      "sizeLines": 49,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/perplexity-web.js",
       "language": "javascript",
       "sizeLines": 33,
@@ -2535,6 +2612,18 @@
       "path": "open-sse/providers/registry/playht.js",
       "language": "javascript",
       "sizeLines": 36,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/predibase.js",
+      "language": "javascript",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/publicai.js",
+      "language": "javascript",
+      "sizeLines": 27,
       "fileCategory": "code"
     },
     {
@@ -2562,6 +2651,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/sambanova.js",
+      "language": "javascript",
+      "sizeLines": 27,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/sdwebui.js",
       "language": "javascript",
       "sizeLines": 20,
@@ -2576,7 +2671,7 @@
     {
       "path": "open-sse/providers/registry/searxng.js",
       "language": "javascript",
-      "sizeLines": 33,
+      "sizeLines": 35,
       "fileCategory": "code"
     },
     {
@@ -2589,6 +2684,12 @@
       "path": "open-sse/providers/registry/siliconflow.js",
       "language": "javascript",
       "sizeLines": 39,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/snowflake.js",
+      "language": "javascript",
+      "sizeLines": 24,
       "fileCategory": "code"
     },
     {
@@ -2610,6 +2711,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/tokenrouter.js",
+      "language": "javascript",
+      "sizeLines": 58,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/topaz.js",
       "language": "javascript",
       "sizeLines": 19,
@@ -2619,6 +2726,12 @@
       "path": "open-sse/providers/registry/tortoise.js",
       "language": "javascript",
       "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/registry/upstage.js",
+      "language": "javascript",
+      "sizeLines": 22,
       "fileCategory": "code"
     },
     {
@@ -2652,15 +2765,27 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/volcengine.js",
+      "language": "javascript",
+      "sizeLines": 27,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/voyage-ai.js",
       "language": "javascript",
       "sizeLines": 30,
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/wandb.js",
+      "language": "javascript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/registry/xai.js",
       "language": "javascript",
-      "sizeLines": 43,
+      "sizeLines": 47,
       "fileCategory": "code"
     },
     {
@@ -2672,7 +2797,7 @@
     {
       "path": "open-sse/providers/registry/xiaomi-tokenplan.js",
       "language": "javascript",
-      "sizeLines": 58,
+      "sizeLines": 63,
       "fileCategory": "code"
     },
     {
@@ -2688,6 +2813,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/providers/registry/zenmux.js",
+      "language": "javascript",
+      "sizeLines": 52,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/providers/schema.js",
       "language": "javascript",
       "sizeLines": 76,
@@ -2696,7 +2827,13 @@
     {
       "path": "open-sse/providers/shared.js",
       "language": "javascript",
-      "sizeLines": 67,
+      "sizeLines": 75,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/providers/thinkingLevels.js",
+      "language": "javascript",
+      "sizeLines": 48,
       "fileCategory": "code"
     },
     {
@@ -2708,7 +2845,7 @@
     {
       "path": "open-sse/rtk/autodetect.js",
       "language": "javascript",
-      "sizeLines": 111,
+      "sizeLines": 119,
       "fileCategory": "code"
     },
     {
@@ -2720,13 +2857,13 @@
     {
       "path": "open-sse/rtk/cavemanPrompts.js",
       "language": "javascript",
-      "sizeLines": 78,
+      "sizeLines": 110,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/rtk/constants.js",
       "language": "javascript",
-      "sizeLines": 59,
+      "sizeLines": 60,
       "fileCategory": "code"
     },
     {
@@ -2744,13 +2881,19 @@
     {
       "path": "open-sse/rtk/filters/find.js",
       "language": "javascript",
-      "sizeLines": 48,
+      "sizeLines": 50,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/rtk/filters/gitDiff.js",
       "language": "javascript",
       "sizeLines": 92,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/rtk/filters/gitLog.js",
+      "language": "javascript",
+      "sizeLines": 99,
       "fileCategory": "code"
     },
     {
@@ -2798,7 +2941,7 @@
     {
       "path": "open-sse/rtk/headroom.js",
       "language": "javascript",
-      "sizeLines": 195,
+      "sizeLines": 348,
       "fileCategory": "code"
     },
     {
@@ -2817,6 +2960,12 @@
       "path": "open-sse/rtk/ponytailPrompts.js",
       "language": "javascript",
       "sizeLines": 76,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/rtk/pxpipe.js",
+      "language": "javascript",
+      "sizeLines": 104,
       "fileCategory": "code"
     },
     {
@@ -2840,19 +2989,97 @@
     {
       "path": "open-sse/services/accountSemaphore.js",
       "language": "javascript",
-      "sizeLines": 221,
+      "sizeLines": 233,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravity429Engine.js",
+      "language": "javascript",
+      "sizeLines": 134,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityClientProfile.js",
+      "language": "javascript",
+      "sizeLines": 145,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityCredits.js",
+      "language": "javascript",
+      "sizeLines": 38,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityHeaders.js",
+      "language": "javascript",
+      "sizeLines": 97,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityHeaderScrub.js",
+      "language": "javascript",
+      "sizeLines": 59,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityIdentity.js",
+      "language": "javascript",
+      "sizeLines": 91,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityObfuscation.js",
+      "language": "javascript",
+      "sizeLines": 80,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityProjectBootstrap.js",
+      "language": "javascript",
+      "sizeLines": 103,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/antigravityVersion.js",
+      "language": "javascript",
+      "sizeLines": 154,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/clinepassModels.js",
+      "language": "javascript",
+      "sizeLines": 52,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/cloudCodeThinking.js",
+      "language": "javascript",
+      "sizeLines": 71,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/services/combo.js",
       "language": "javascript",
-      "sizeLines": 584,
+      "sizeLines": 669,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/services/copilotModels.js",
       "language": "javascript",
       "sizeLines": 155,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/cursorModels.js",
+      "language": "javascript",
+      "sizeLines": 187,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/grokCliModels.js",
+      "language": "javascript",
+      "sizeLines": 127,
       "fileCategory": "code"
     },
     {
@@ -2864,7 +3091,7 @@
     {
       "path": "open-sse/services/model.js",
       "language": "javascript",
-      "sizeLines": 136,
+      "sizeLines": 142,
       "fileCategory": "code"
     },
     {
@@ -2894,7 +3121,7 @@
     {
       "path": "open-sse/services/tokenRefresh.js",
       "language": "javascript",
-      "sizeLines": 252,
+      "sizeLines": 264,
       "fileCategory": "code"
     },
     {
@@ -2906,13 +3133,13 @@
     {
       "path": "open-sse/services/tokenRefresh/providers.js",
       "language": "javascript",
-      "sizeLines": 624,
+      "sizeLines": 670,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/services/usage.js",
       "language": "javascript",
-      "sizeLines": 58,
+      "sizeLines": 60,
       "fileCategory": "code"
     },
     {
@@ -2924,13 +3151,13 @@
     {
       "path": "open-sse/services/usage/codebuddy-cn.js",
       "language": "javascript",
-      "sizeLines": 131,
+      "sizeLines": 138,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/services/usage/codex.js",
       "language": "javascript",
-      "sizeLines": 145,
+      "sizeLines": 201,
       "fileCategory": "code"
     },
     {
@@ -2942,7 +3169,13 @@
     {
       "path": "open-sse/services/usage/google.js",
       "language": "javascript",
-      "sizeLines": 243,
+      "sizeLines": 241,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/services/usage/grok-cli.js",
+      "language": "javascript",
+      "sizeLines": 328,
       "fileCategory": "code"
     },
     {
@@ -3044,7 +3277,7 @@
     {
       "path": "open-sse/translator/concerns/paramSupport.js",
       "language": "javascript",
-      "sizeLines": 52,
+      "sizeLines": 81,
       "fileCategory": "code"
     },
     {
@@ -3068,7 +3301,7 @@
     {
       "path": "open-sse/translator/concerns/thinkingUnified.js",
       "language": "javascript",
-      "sizeLines": 278,
+      "sizeLines": 353,
       "fileCategory": "code"
     },
     {
@@ -3080,7 +3313,7 @@
     {
       "path": "open-sse/translator/concerns/usage.js",
       "language": "javascript",
-      "sizeLines": 60,
+      "sizeLines": 69,
       "fileCategory": "code"
     },
     {
@@ -3092,25 +3325,25 @@
     {
       "path": "open-sse/translator/formats/claude.js",
       "language": "javascript",
-      "sizeLines": 324,
+      "sizeLines": 368,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/formats/gemini.js",
       "language": "javascript",
-      "sizeLines": 378,
+      "sizeLines": 380,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/formats/maxTokens.js",
       "language": "javascript",
-      "sizeLines": 30,
+      "sizeLines": 34,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/formats/openai.js",
       "language": "javascript",
-      "sizeLines": 131,
+      "sizeLines": 142,
       "fileCategory": "code"
     },
     {
@@ -3122,7 +3355,7 @@
     {
       "path": "open-sse/translator/index.js",
       "language": "javascript",
-      "sizeLines": 266,
+      "sizeLines": 276,
       "fileCategory": "code"
     },
     {
@@ -3140,13 +3373,13 @@
     {
       "path": "open-sse/translator/request/claude-to-kiro.js",
       "language": "javascript",
-      "sizeLines": 463,
+      "sizeLines": 509,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/request/claude-to-openai.js",
       "language": "javascript",
-      "sizeLines": 246,
+      "sizeLines": 263,
       "fileCategory": "code"
     },
     {
@@ -3158,13 +3391,13 @@
     {
       "path": "open-sse/translator/request/openai-responses.js",
       "language": "javascript",
-      "sizeLines": 327,
+      "sizeLines": 390,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/request/openai-to-claude.js",
       "language": "javascript",
-      "sizeLines": 375,
+      "sizeLines": 388,
       "fileCategory": "code"
     },
     {
@@ -3182,13 +3415,13 @@
     {
       "path": "open-sse/translator/request/openai-to-gemini.js",
       "language": "javascript",
-      "sizeLines": 452,
+      "sizeLines": 442,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/translator/request/openai-to-kiro.js",
       "language": "javascript",
-      "sizeLines": 596,
+      "sizeLines": 637,
       "fileCategory": "code"
     },
     {
@@ -3206,7 +3439,7 @@
     {
       "path": "open-sse/translator/response/claude-to-openai.js",
       "language": "javascript",
-      "sizeLines": 176,
+      "sizeLines": 204,
       "fileCategory": "code"
     },
     {
@@ -3224,7 +3457,7 @@
     {
       "path": "open-sse/translator/response/gemini-to-openai.js",
       "language": "javascript",
-      "sizeLines": 143,
+      "sizeLines": 168,
       "fileCategory": "code"
     },
     {
@@ -3260,7 +3493,7 @@
     {
       "path": "open-sse/translator/response/openai-to-claude.js",
       "language": "javascript",
-      "sizeLines": 264,
+      "sizeLines": 265,
       "fileCategory": "code"
     },
     {
@@ -3296,19 +3529,19 @@
     {
       "path": "open-sse/utils/bypassHandler.js",
       "language": "javascript",
-      "sizeLines": 298,
+      "sizeLines": 313,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/utils/circuitBreaker.js",
       "language": "javascript",
-      "sizeLines": 233,
+      "sizeLines": 258,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/utils/classify429.js",
       "language": "javascript",
-      "sizeLines": 287,
+      "sizeLines": 331,
       "fileCategory": "code"
     },
     {
@@ -3336,6 +3569,18 @@
       "fileCategory": "code"
     },
     {
+      "path": "open-sse/utils/clinepassEnvelope.js",
+      "language": "javascript",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/utils/cookie.js",
+      "language": "javascript",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
       "path": "open-sse/utils/cooldownRetry.js",
       "language": "javascript",
       "sizeLines": 121,
@@ -3344,7 +3589,7 @@
     {
       "path": "open-sse/utils/cursorChecksum.js",
       "language": "javascript",
-      "sizeLines": 166,
+      "sizeLines": 150,
       "fileCategory": "code"
     },
     {
@@ -3362,7 +3607,7 @@
     {
       "path": "open-sse/utils/error.js",
       "language": "javascript",
-      "sizeLines": 173,
+      "sizeLines": 179,
       "fileCategory": "code"
     },
     {
@@ -3375,6 +3620,12 @@
       "path": "open-sse/utils/kimiToolParser.js",
       "language": "javascript",
       "sizeLines": 281,
+      "fileCategory": "code"
+    },
+    {
+      "path": "open-sse/utils/kiroSessionReplay.js",
+      "language": "javascript",
+      "sizeLines": 125,
       "fileCategory": "code"
     },
     {
@@ -3410,13 +3661,13 @@
     {
       "path": "open-sse/utils/responsesStreamHelpers.js",
       "language": "javascript",
-      "sizeLines": 49,
+      "sizeLines": 50,
       "fileCategory": "code"
     },
     {
       "path": "open-sse/utils/sessionManager.js",
       "language": "javascript",
-      "sizeLines": 231,
+      "sizeLines": 267,
       "fileCategory": "code"
     },
     {
@@ -3434,7 +3685,7 @@
     {
       "path": "open-sse/utils/stream.js",
       "language": "javascript",
-      "sizeLines": 600,
+      "sizeLines": 623,
       "fileCategory": "code"
     },
     {
@@ -3458,13 +3709,13 @@
     {
       "path": "open-sse/utils/usageTracking.js",
       "language": "javascript",
-      "sizeLines": 335,
+      "sizeLines": 431,
       "fileCategory": "code"
     },
     {
       "path": "package.json",
       "language": "json",
-      "sizeLines": 61,
+      "sizeLines": 67,
       "fileCategory": "config"
     },
     {
@@ -3519,6 +3770,12 @@
       "path": "public/i18n/literals/es.json",
       "language": "json",
       "sizeLines": 195,
+      "fileCategory": "config"
+    },
+    {
+      "path": "public/i18n/literals/fa.json",
+      "language": "json",
+      "sizeLines": 1391,
       "fileCategory": "config"
     },
     {
@@ -3626,7 +3883,7 @@
     {
       "path": "public/i18n/literals/th.json",
       "language": "json",
-      "sizeLines": 195,
+      "sizeLines": 1390,
       "fileCategory": "config"
     },
     {
@@ -3662,7 +3919,7 @@
     {
       "path": "public/i18n/literals/zh-CN.json",
       "language": "json",
-      "sizeLines": 773,
+      "sizeLines": 1391,
       "fileCategory": "config"
     },
     {
@@ -3670,6 +3927,852 @@
       "language": "json",
       "sizeLines": 195,
       "fileCategory": "config"
+    },
+    {
+      "path": "public/providers/agentrouter.webp",
+      "language": "webp",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/ai21.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/alibaba.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/alicode-intl.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/alicode.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/amp.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/anthropic-m.webp",
+      "language": "webp",
+      "sizeLines": 7,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/anthropic.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/antigravity.webp",
+      "language": "webp",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/assemblyai.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/aws-polly.webp",
+      "language": "webp",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/azure.webp",
+      "language": "webp",
+      "sizeLines": 8,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/baseten.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/black-forest-labs.webp",
+      "language": "webp",
+      "sizeLines": 7,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/blackbox.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/brave-search.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/byteplus.webp",
+      "language": "webp",
+      "sizeLines": 12,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/bytez.webp",
+      "language": "webp",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cartesia.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cerebras.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/chutes.webp",
+      "language": "webp",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/claude.webp",
+      "language": "webp",
+      "sizeLines": 17,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cline.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/clinepass.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cloudflare-ai.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/codebuddy-cn.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/codestral.webp",
+      "language": "webp",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/codex.webp",
+      "language": "webp",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cohere.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/comfyui.webp",
+      "language": "webp",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/commandcode.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/continue.webp",
+      "language": "webp",
+      "sizeLines": 59,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/copilot.webp",
+      "language": "webp",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/coqui.webp",
+      "language": "webp",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/cursor.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/databricks.webp",
+      "language": "webp",
+      "sizeLines": 63,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/deepgram.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/deepinfra.webp",
+      "language": "webp",
+      "sizeLines": 76,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/deepseek-tui.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/deepseek.webp",
+      "language": "webp",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/default.webp",
+      "language": "webp",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/droid.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/edge-tts.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/elevenlabs.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/exa.webp",
+      "language": "webp",
+      "sizeLines": 7,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/fal-ai.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/featherless.webp",
+      "language": "webp",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/firecrawl.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/fireworks.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/friendliai.webp",
+      "language": "webp",
+      "sizeLines": 33,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/galadriel.webp",
+      "language": "webp",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/gemini-cli.webp",
+      "language": "webp",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/gemini.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/gigachat.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/github.webp",
+      "language": "webp",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/gitlab.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/glm-cn.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/glm.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/google-pse.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/google-tts.webp",
+      "language": "webp",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/grok-cli.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/grok-web.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/groq.webp",
+      "language": "webp",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/hermes.webp",
+      "language": "webp",
+      "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/heroku.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/huggingface.webp",
+      "language": "webp",
+      "sizeLines": 32,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/hyperbolic.webp",
+      "language": "webp",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/iflow.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/inworld.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/jcode.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/jina-ai.webp",
+      "language": "webp",
+      "sizeLines": 17,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/jina-reader.webp",
+      "language": "webp",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/kilocode.webp",
+      "language": "webp",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/kimchi.webp",
+      "language": "webp",
+      "sizeLines": 84,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/kimi-coding.webp",
+      "language": "webp",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/kimi.webp",
+      "language": "webp",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/kiro.webp",
+      "language": "webp",
+      "sizeLines": 12,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/linkup.webp",
+      "language": "webp",
+      "sizeLines": 8,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/llamagate.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/local-device.webp",
+      "language": "webp",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/mimo-free.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/minimax-cn.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/minimax.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/mistral.webp",
+      "language": "webp",
+      "sizeLines": 7,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/mmf.webp",
+      "language": "webp",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/muse-spark-web.webp",
+      "language": "webp",
+      "sizeLines": 41,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/muse.webp",
+      "language": "webp",
+      "sizeLines": 41,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/nanobanana.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/nanogpt.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/nebius.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/nscale.webp",
+      "language": "webp",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/nvidia.webp",
+      "language": "webp",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/oai-cc.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/oai-r.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/ollama-local.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/ollama.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/openai.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/openclaw.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/opencode-go.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/opencode.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/openrouter.webp",
+      "language": "webp",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/ovhcloud.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/perplexity-agent.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/perplexity-web.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/perplexity.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/playht.webp",
+      "language": "webp",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/predibase.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/publicai.webp",
+      "language": "webp",
+      "sizeLines": 17,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/qoder.webp",
+      "language": "webp",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/qwen.webp",
+      "language": "webp",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/recraft.webp",
+      "language": "webp",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/roo.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/runwayml.webp",
+      "language": "webp",
+      "sizeLines": 7,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/sambanova.webp",
+      "language": "webp",
+      "sizeLines": 50,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/sdwebui.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/searchapi.webp",
+      "language": "webp",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/searxng.webp",
+      "language": "webp",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/serper.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/siliconflow.webp",
+      "language": "webp",
+      "sizeLines": 20,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/snowflake.webp",
+      "language": "webp",
+      "sizeLines": 37,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/stability-ai.webp",
+      "language": "webp",
+      "sizeLines": 29,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/tavily.webp",
+      "language": "webp",
+      "sizeLines": 2,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/together.webp",
+      "language": "webp",
+      "sizeLines": 27,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/tokenrouter.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/topaz.webp",
+      "language": "webp",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/tortoise.webp",
+      "language": "webp",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/upstage.webp",
+      "language": "webp",
+      "sizeLines": 8,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/venice.webp",
+      "language": "webp",
+      "sizeLines": 82,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/vercel-ai-gateway.webp",
+      "language": "webp",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/vertex-partner.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/vertex.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/volcengine-ark.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/volcengine.webp",
+      "language": "webp",
+      "sizeLines": 29,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/voyage-ai.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/wandb.webp",
+      "language": "webp",
+      "sizeLines": 42,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/xai.webp",
+      "language": "webp",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/xiaomi-mimo.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/xiaomi-tokenplan.webp",
+      "language": "webp",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/youcom.webp",
+      "language": "webp",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/zcode.webp",
+      "language": "webp",
+      "sizeLines": 9,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/providers/zenmux.webp",
+      "language": "webp",
+      "sizeLines": 10,
+      "fileCategory": "code"
     },
     {
       "path": "public/sw.js",
@@ -3680,7 +4783,7 @@
     {
       "path": "README.md",
       "language": "markdown",
-      "sizeLines": 753,
+      "sizeLines": 1497,
       "fileCategory": "docs"
     },
     {
@@ -3692,7 +4795,13 @@
     {
       "path": "scripts/build.js",
       "language": "javascript",
-      "sizeLines": 64,
+      "sizeLines": 178,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/fix-standalone-symlinks.cjs",
+      "language": "javascript",
+      "sizeLines": 82,
       "fileCategory": "code"
     },
     {
@@ -3726,15 +4835,15 @@
       "fileCategory": "code"
     },
     {
-      "path": "scripts/test-combo-autoswitch.mjs",
-      "language": "javascript",
-      "sizeLines": 84,
-      "fileCategory": "code"
-    },
-    {
       "path": "scripts/translate-readme.js",
       "language": "javascript",
       "sizeLines": 201,
+      "fileCategory": "code"
+    },
+    {
+      "path": "server",
+      "language": "unknown",
+      "sizeLines": 72251,
       "fileCategory": "code"
     },
     {
@@ -3777,6 +4886,12 @@
       "path": "skills/9router-tts/SKILL.md",
       "language": "markdown",
       "sizeLines": 80,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "skills/9router-video/SKILL.md",
+      "language": "markdown",
+      "sizeLines": 76,
       "fileCategory": "docs"
     },
     {
@@ -3824,7 +4939,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js",
       "language": "javascript",
-      "sizeLines": 181,
+      "sizeLines": 175,
       "fileCategory": "code"
     },
     {
@@ -3912,6 +5027,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/(dashboard)/dashboard/cli-tools/components/GrokBuildToolCard.js",
+      "language": "javascript",
+      "sizeLines": 383,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/(dashboard)/dashboard/cli-tools/components/HermesToolCard.js",
       "language": "javascript",
       "sizeLines": 322,
@@ -3920,7 +5041,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/cli-tools/components/index.js",
       "language": "javascript",
-      "sizeLines": 19,
+      "sizeLines": 20,
       "fileCategory": "code"
     },
     {
@@ -3938,7 +5059,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/cli-tools/components/MitmLinkCard.js",
       "language": "javascript",
-      "sizeLines": 40,
+      "sizeLines": 42,
       "fileCategory": "code"
     },
     {
@@ -3950,7 +5071,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/cli-tools/components/MitmToolCard.js",
       "language": "javascript",
-      "sizeLines": 335,
+      "sizeLines": 339,
       "fileCategory": "code"
     },
     {
@@ -3980,13 +5101,13 @@
     {
       "path": "src/app/(dashboard)/dashboard/combos/page.js",
       "language": "javascript",
-      "sizeLines": 683,
+      "sizeLines": 684,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/console-log/ConsoleLogClient.js",
       "language": "javascript",
-      "sizeLines": 96,
+      "sizeLines": 377,
       "fileCategory": "code"
     },
     {
@@ -4028,7 +5149,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/endpoint/EndpointPageClient.js",
       "language": "javascript",
-      "sizeLines": 2029,
+      "sizeLines": 2031,
       "fileCategory": "code"
     },
     {
@@ -4058,7 +5179,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/media-providers/[kind]/[id]/components/GenericExampleCard.js",
       "language": "javascript",
-      "sizeLines": 541,
+      "sizeLines": 549,
       "fileCategory": "code"
     },
     {
@@ -4094,7 +5215,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/media-providers/combo/[id]/page.js",
       "language": "javascript",
-      "sizeLines": 412,
+      "sizeLines": 414,
       "fileCategory": "code"
     },
     {
@@ -4136,7 +5257,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/providers/[id]/AddApiKeyModal.js",
       "language": "javascript",
-      "sizeLines": 365,
+      "sizeLines": 395,
       "fileCategory": "code"
     },
     {
@@ -4160,7 +5281,13 @@
     {
       "path": "src/app/(dashboard)/dashboard/providers/[id]/ConnectionRow.js",
       "language": "javascript",
-      "sizeLines": 275,
+      "sizeLines": 282,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js",
+      "language": "javascript",
+      "sizeLines": 17,
       "fileCategory": "code"
     },
     {
@@ -4184,7 +5311,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/providers/[id]/page.js",
       "language": "javascript",
-      "sizeLines": 1747,
+      "sizeLines": 1801,
       "fileCategory": "code"
     },
     {
@@ -4200,9 +5327,15 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/(dashboard)/dashboard/providers/components/CircuitBreakerBadge.js",
+      "language": "javascript",
+      "sizeLines": 32,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/(dashboard)/dashboard/providers/components/ConnectionsCard.js",
       "language": "javascript",
-      "sizeLines": 456,
+      "sizeLines": 459,
       "fileCategory": "code"
     },
     {
@@ -4214,7 +5347,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/providers/components/ModelsCard.js",
       "language": "javascript",
-      "sizeLines": 271,
+      "sizeLines": 267,
       "fileCategory": "code"
     },
     {
@@ -4226,19 +5359,31 @@
     {
       "path": "src/app/(dashboard)/dashboard/providers/page.js",
       "language": "javascript",
-      "sizeLines": 922,
+      "sizeLines": 953,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/providers/ProvidersClient.js",
       "language": "javascript",
-      "sizeLines": 1152,
+      "sizeLines": 1175,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/proxy-pools/page.js",
       "language": "javascript",
       "sizeLines": 1051,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/(dashboard)/dashboard/pxpipe/page.js",
+      "language": "javascript",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/(dashboard)/dashboard/pxpipe/PxpipeClient.js",
+      "language": "javascript",
+      "sizeLines": 283,
       "fileCategory": "code"
     },
     {
@@ -4262,7 +5407,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/token-saver/TokenSaverClient.js",
       "language": "javascript",
-      "sizeLines": 465,
+      "sizeLines": 1084,
       "fileCategory": "code"
     },
     {
@@ -4274,13 +5419,13 @@
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/OverviewCards.js",
       "language": "javascript",
-      "sizeLines": 32,
+      "sizeLines": 36,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js",
       "language": "javascript",
-      "sizeLines": 1293,
+      "sizeLines": 1469,
       "fileCategory": "code"
     },
     {
@@ -4292,19 +5437,19 @@
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js",
       "language": "javascript",
-      "sizeLines": 449,
+      "sizeLines": 535,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/ProviderTopology.js",
       "language": "javascript",
-      "sizeLines": 322,
+      "sizeLines": 509,
       "fileCategory": "code"
     },
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/RequestDetailsTab.js",
       "language": "javascript",
-      "sizeLines": 473,
+      "sizeLines": 515,
       "fileCategory": "code"
     },
     {
@@ -4316,7 +5461,7 @@
     {
       "path": "src/app/(dashboard)/dashboard/usage/components/UsageTable.js",
       "language": "javascript",
-      "sizeLines": 209,
+      "sizeLines": 212,
       "fileCategory": "code"
     },
     {
@@ -4388,7 +5533,7 @@
     {
       "path": "src/app/api/cli-tools/all-statuses/route.js",
       "language": "javascript",
-      "sizeLines": 46,
+      "sizeLines": 48,
       "fileCategory": "code"
     },
     {
@@ -4406,7 +5551,7 @@
     {
       "path": "src/app/api/cli-tools/claude-settings/route.js",
       "language": "javascript",
-      "sizeLines": 203,
+      "sizeLines": 249,
       "fileCategory": "code"
     },
     {
@@ -4458,6 +5603,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/api/cli-tools/grok-build-settings/route.js",
+      "language": "javascript",
+      "sizeLines": 152,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/api/cli-tools/hermes-settings/route.js",
       "language": "javascript",
       "sizeLines": 167,
@@ -4500,9 +5651,27 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/api/headroom/extras/route.js",
+      "language": "javascript",
+      "sizeLines": 46,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/headroom/proxy/[...path]/route.js",
+      "language": "javascript",
+      "sizeLines": 104,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/headroom/restart/route.js",
+      "language": "javascript",
+      "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/api/headroom/start/route.js",
       "language": "javascript",
-      "sizeLines": 31,
+      "sizeLines": 35,
       "fileCategory": "code"
     },
     {
@@ -4616,7 +5785,7 @@
     {
       "path": "src/app/api/models/route.js",
       "language": "javascript",
-      "sizeLines": 67,
+      "sizeLines": 76,
       "fileCategory": "code"
     },
     {
@@ -4634,7 +5803,7 @@
     {
       "path": "src/app/api/oauth/[provider]/[action]/route.js",
       "language": "javascript",
-      "sizeLines": 343,
+      "sizeLines": 354,
       "fileCategory": "code"
     },
     {
@@ -4734,15 +5903,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/api/providers/[id]/gcp-projects/route.js",
+      "language": "javascript",
+      "sizeLines": 60,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/api/providers/[id]/models/route.js",
       "language": "javascript",
-      "sizeLines": 525,
+      "sizeLines": 594,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/providers/[id]/route.js",
       "language": "javascript",
-      "sizeLines": 189,
+      "sizeLines": 193,
       "fileCategory": "code"
     },
     {
@@ -4754,13 +5929,25 @@
     {
       "path": "src/app/api/providers/[id]/test/route.js",
       "language": "javascript",
-      "sizeLines": 23,
+      "sizeLines": 32,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/providers/[id]/test/testUtils.js",
       "language": "javascript",
-      "sizeLines": 802,
+      "sizeLines": 898,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/providers/circuit-breakers/[name]/reset/route.js",
+      "language": "javascript",
+      "sizeLines": 66,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/providers/circuit-breakers/route.js",
+      "language": "javascript",
+      "sizeLines": 21,
       "fileCategory": "code"
     },
     {
@@ -4784,13 +5971,13 @@
     {
       "path": "src/app/api/providers/suggested-models/filters.js",
       "language": "javascript",
-      "sizeLines": 31,
+      "sizeLines": 63,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/providers/suggested-models/route.js",
       "language": "javascript",
-      "sizeLines": 32,
+      "sizeLines": 35,
       "fileCategory": "code"
     },
     {
@@ -4802,7 +5989,7 @@
     {
       "path": "src/app/api/providers/validate/route.js",
       "language": "javascript",
-      "sizeLines": 633,
+      "sizeLines": 653,
       "fileCategory": "code"
     },
     {
@@ -4842,6 +6029,54 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/app/api/pxpipe/health/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/install/route.js",
+      "language": "javascript",
+      "sizeLines": 20,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/logs/route.js",
+      "language": "javascript",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/restart/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/start/route.js",
+      "language": "javascript",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/stats/route.js",
+      "language": "javascript",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/status/route.js",
+      "language": "javascript",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/pxpipe/stop/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/app/api/settings/database/route.js",
       "language": "javascript",
       "sizeLines": 51,
@@ -4862,7 +6097,7 @@
     {
       "path": "src/app/api/settings/route.js",
       "language": "javascript",
-      "sizeLines": 106,
+      "sizeLines": 118,
       "fileCategory": "code"
     },
     {
@@ -4880,13 +6115,13 @@
     {
       "path": "src/app/api/translator/console-logs/route.js",
       "language": "javascript",
-      "sizeLines": 24,
+      "sizeLines": 43,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/translator/console-logs/stream/route.js",
       "language": "javascript",
-      "sizeLines": 90,
+      "sizeLines": 78,
       "fileCategory": "code"
     },
     {
@@ -4916,19 +6151,19 @@
     {
       "path": "src/app/api/tunnel/disable/route.js",
       "language": "javascript",
-      "sizeLines": 12,
+      "sizeLines": 17,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/tunnel/enable/route.js",
       "language": "javascript",
-      "sizeLines": 16,
+      "sizeLines": 21,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/tunnel/status/route.js",
       "language": "javascript",
-      "sizeLines": 13,
+      "sizeLines": 25,
       "fileCategory": "code"
     },
     {
@@ -4940,13 +6175,13 @@
     {
       "path": "src/app/api/tunnel/tailscale-disable/route.js",
       "language": "javascript",
-      "sizeLines": 12,
+      "sizeLines": 17,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/tunnel/tailscale-enable/route.js",
       "language": "javascript",
-      "sizeLines": 12,
+      "sizeLines": 17,
       "fileCategory": "code"
     },
     {
@@ -4958,13 +6193,13 @@
     {
       "path": "src/app/api/usage/[connectionId]/codex-reset-credits/route.js",
       "language": "javascript",
-      "sizeLines": 104,
+      "sizeLines": 156,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/usage/[connectionId]/route.js",
       "language": "javascript",
-      "sizeLines": 191,
+      "sizeLines": 93,
       "fileCategory": "code"
     },
     {
@@ -4988,7 +6223,7 @@
     {
       "path": "src/app/api/usage/providers/route.js",
       "language": "javascript",
-      "sizeLines": 42,
+      "sizeLines": 41,
       "fileCategory": "code"
     },
     {
@@ -5000,7 +6235,7 @@
     {
       "path": "src/app/api/usage/request-details/route.js",
       "language": "javascript",
-      "sizeLines": 76,
+      "sizeLines": 59,
       "fileCategory": "code"
     },
     {
@@ -5066,7 +6301,7 @@
     {
       "path": "src/app/api/v1/messages/count_tokens/route.js",
       "language": "javascript",
-      "sizeLines": 52,
+      "sizeLines": 93,
       "fileCategory": "code"
     },
     {
@@ -5078,7 +6313,7 @@
     {
       "path": "src/app/api/v1/models/[kind]/route.js",
       "language": "javascript",
-      "sizeLines": 95,
+      "sizeLines": 103,
       "fileCategory": "code"
     },
     {
@@ -5090,7 +6325,7 @@
     {
       "path": "src/app/api/v1/models/route.js",
       "language": "javascript",
-      "sizeLines": 507,
+      "sizeLines": 97,
       "fileCategory": "code"
     },
     {
@@ -5102,7 +6337,7 @@
     {
       "path": "src/app/api/v1/responses/route.js",
       "language": "javascript",
-      "sizeLines": 30,
+      "sizeLines": 46,
       "fileCategory": "code"
     },
     {
@@ -5115,6 +6350,30 @@
       "path": "src/app/api/v1/search/route.js",
       "language": "javascript",
       "sizeLines": 21,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/v1/videos/[id]/route.js",
+      "language": "javascript",
+      "sizeLines": 17,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/v1/videos/edits/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/v1/videos/extensions/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/app/api/v1/videos/generations/route.js",
+      "language": "javascript",
+      "sizeLines": 16,
       "fileCategory": "code"
     },
     {
@@ -5138,13 +6397,13 @@
     {
       "path": "src/app/api/version/route.js",
       "language": "javascript",
-      "sizeLines": 77,
+      "sizeLines": 62,
       "fileCategory": "code"
     },
     {
       "path": "src/app/api/version/shutdown/route.js",
       "language": "javascript",
-      "sizeLines": 15,
+      "sizeLines": 93,
       "fileCategory": "code"
     },
     {
@@ -5180,7 +6439,7 @@
     {
       "path": "src/app/globals.css",
       "language": "css",
-      "sizeLines": 510,
+      "sizeLines": 573,
       "fileCategory": "markup"
     },
     {
@@ -5234,13 +6493,13 @@
     {
       "path": "src/app/layout.js",
       "language": "javascript",
-      "sizeLines": 52,
+      "sizeLines": 53,
       "fileCategory": "code"
     },
     {
       "path": "src/app/login/page.js",
       "language": "javascript",
-      "sizeLines": 247,
+      "sizeLines": 252,
       "fileCategory": "code"
     },
     {
@@ -5270,7 +6529,7 @@
     {
       "path": "src/dashboardGuard.js",
       "language": "javascript",
-      "sizeLines": 294,
+      "sizeLines": 295,
       "fileCategory": "code"
     },
     {
@@ -5294,7 +6553,7 @@
     {
       "path": "src/instrumentation.js",
       "language": "javascript",
-      "sizeLines": 28,
+      "sizeLines": 38,
       "fileCategory": "code"
     },
     {
@@ -5330,7 +6589,7 @@
     {
       "path": "src/lib/dataDir.js",
       "language": "javascript",
-      "sizeLines": 39,
+      "sizeLines": 78,
       "fileCategory": "code"
     },
     {
@@ -5360,7 +6619,7 @@
     {
       "path": "src/lib/db/backup.js",
       "language": "javascript",
-      "sizeLines": 40,
+      "sizeLines": 75,
       "fileCategory": "code"
     },
     {
@@ -5390,13 +6649,13 @@
     {
       "path": "src/lib/db/index.js",
       "language": "javascript",
-      "sizeLines": 188,
+      "sizeLines": 176,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/db/migrate.js",
       "language": "javascript",
-      "sizeLines": 293,
+      "sizeLines": 297,
       "fileCategory": "code"
     },
     {
@@ -5408,13 +6667,25 @@
     {
       "path": "src/lib/db/migrations/002-fix-empty-allowed-lists.js",
       "language": "javascript",
-      "sizeLines": 13,
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/db/migrations/003-add-allowed-lists-columns.js",
+      "language": "javascript",
+      "sizeLines": 20,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/db/migrations/004-add-request-details-apikey.js",
+      "language": "javascript",
+      "sizeLines": 10,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/db/migrations/index.js",
       "language": "javascript",
-      "sizeLines": 11,
+      "sizeLines": 13,
       "fileCategory": "code"
     },
     {
@@ -5436,6 +6707,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/lib/db/repos/cachedModelsRepo.js",
+      "language": "javascript",
+      "sizeLines": 55,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/lib/db/repos/combosRepo.js",
       "language": "javascript",
       "sizeLines": 73,
@@ -5444,7 +6721,7 @@
     {
       "path": "src/lib/db/repos/connectionsRepo.js",
       "language": "javascript",
-      "sizeLines": 263,
+      "sizeLines": 261,
       "fileCategory": "code"
     },
     {
@@ -5474,7 +6751,7 @@
     {
       "path": "src/lib/db/repos/requestDetailsRepo.js",
       "language": "javascript",
-      "sizeLines": 202,
+      "sizeLines": 208,
       "fileCategory": "code"
     },
     {
@@ -5486,13 +6763,13 @@
     {
       "path": "src/lib/db/repos/usageRepo.js",
       "language": "javascript",
-      "sizeLines": 780,
+      "sizeLines": 774,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/db/schema.js",
       "language": "javascript",
-      "sizeLines": 163,
+      "sizeLines": 181,
       "fileCategory": "code"
     },
     {
@@ -5508,27 +6785,33 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/lib/grokBuildConfig.js",
+      "language": "javascript",
+      "sizeLines": 247,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/lib/headroom/detect.js",
       "language": "javascript",
-      "sizeLines": 102,
+      "sizeLines": 192,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/headroom/process.js",
       "language": "javascript",
-      "sizeLines": 128,
+      "sizeLines": 260,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/localDb.js",
       "language": "javascript",
-      "sizeLines": 21,
+      "sizeLines": 22,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/mcp/stdioSseBridge.js",
       "language": "javascript",
-      "sizeLines": 198,
+      "sizeLines": 183,
       "fileCategory": "code"
     },
     {
@@ -5564,7 +6847,7 @@
     {
       "path": "src/lib/oauth/constants/oauth.js",
       "language": "javascript",
-      "sizeLines": 136,
+      "sizeLines": 156,
       "fileCategory": "code"
     },
     {
@@ -5588,7 +6871,7 @@
     {
       "path": "src/lib/oauth/providers.js",
       "language": "javascript",
-      "sizeLines": 1632,
+      "sizeLines": 1921,
       "fileCategory": "code"
     },
     {
@@ -5642,13 +6925,37 @@
     {
       "path": "src/lib/oauth/utils/ui.js",
       "language": "javascript",
-      "sizeLines": 48,
+      "sizeLines": 55,
       "fileCategory": "code"
     },
     {
       "path": "src/lib/providerNormalization.js",
       "language": "javascript",
       "sizeLines": 45,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/pxpipe/events.js",
+      "language": "javascript",
+      "sizeLines": 125,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/pxpipe/install.js",
+      "language": "javascript",
+      "sizeLines": 123,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/pxpipe/loader.js",
+      "language": "javascript",
+      "sizeLines": 70,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/pxpipe/service.js",
+      "language": "javascript",
+      "sizeLines": 49,
       "fileCategory": "code"
     },
     {
@@ -5673,6 +6980,18 @@
       "path": "src/lib/requestDetailsDb.js",
       "language": "javascript",
       "sizeLines": 4,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/services/credentials.js",
+      "language": "javascript",
+      "sizeLines": 106,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/lib/systemLogFetcher.js",
+      "language": "javascript",
+      "sizeLines": 136,
       "fileCategory": "code"
     },
     {
@@ -5852,8 +7171,14 @@
     {
       "path": "src/mitm/manager.js",
       "language": "javascript",
-      "sizeLines": 877,
+      "sizeLines": 883,
       "fileCategory": "code"
+    },
+    {
+      "path": "src/mitm/package.json",
+      "language": "json",
+      "sizeLines": 3,
+      "fileCategory": "config"
     },
     {
       "path": "src/mitm/paths.js",
@@ -5930,7 +7255,7 @@
     {
       "path": "src/shared/components/ComboFormModal.js",
       "language": "javascript",
-      "sizeLines": 190,
+      "sizeLines": 192,
       "fileCategory": "code"
     },
     {
@@ -5942,7 +7267,7 @@
     {
       "path": "src/shared/components/DonateModal.js",
       "language": "javascript",
-      "sizeLines": 147,
+      "sizeLines": 157,
       "fileCategory": "code"
     },
     {
@@ -5954,7 +7279,7 @@
     {
       "path": "src/shared/components/EditConnectionModal.js",
       "language": "javascript",
-      "sizeLines": 264,
+      "sizeLines": 387,
       "fileCategory": "code"
     },
     {
@@ -5978,7 +7303,7 @@
     {
       "path": "src/shared/components/Header.js",
       "language": "javascript",
-      "sizeLines": 364,
+      "sizeLines": 365,
       "fileCategory": "code"
     },
     {
@@ -6002,7 +7327,7 @@
     {
       "path": "src/shared/components/index.js",
       "language": "javascript",
-      "sizeLines": 54,
+      "sizeLines": 55,
       "fileCategory": "code"
     },
     {
@@ -6032,7 +7357,7 @@
     {
       "path": "src/shared/components/LanguageSwitcher.js",
       "language": "javascript",
-      "sizeLines": 198,
+      "sizeLines": 221,
       "fileCategory": "code"
     },
     {
@@ -6044,7 +7369,7 @@
     {
       "path": "src/shared/components/layouts/DashboardLayout.js",
       "language": "javascript",
-      "sizeLines": 112,
+      "sizeLines": 119,
       "fileCategory": "code"
     },
     {
@@ -6086,7 +7411,7 @@
     {
       "path": "src/shared/components/ModelSelectModal.js",
       "language": "javascript",
-      "sizeLines": 539,
+      "sizeLines": 583,
       "fileCategory": "code"
     },
     {
@@ -6104,7 +7429,7 @@
     {
       "path": "src/shared/components/NineRemotePromoModal.js",
       "language": "javascript",
-      "sizeLines": 104,
+      "sizeLines": 110,
       "fileCategory": "code"
     },
     {
@@ -6116,7 +7441,7 @@
     {
       "path": "src/shared/components/OAuthModal.js",
       "language": "javascript",
-      "sizeLines": 699,
+      "sizeLines": 722,
       "fileCategory": "code"
     },
     {
@@ -6134,7 +7459,7 @@
     {
       "path": "src/shared/components/ProviderIcon.js",
       "language": "javascript",
-      "sizeLines": 44,
+      "sizeLines": 86,
       "fileCategory": "code"
     },
     {
@@ -6164,7 +7489,7 @@
     {
       "path": "src/shared/components/Sidebar.js",
       "language": "javascript",
-      "sizeLines": 433,
+      "sizeLines": 442,
       "fileCategory": "code"
     },
     {
@@ -6194,19 +7519,19 @@
     {
       "path": "src/shared/components/UsageStats.js",
       "language": "javascript",
-      "sizeLines": 547,
+      "sizeLines": 618,
       "fileCategory": "code"
     },
     {
       "path": "src/shared/constants/cliTools.js",
       "language": "javascript",
-      "sizeLines": 404,
+      "sizeLines": 427,
       "fileCategory": "code"
     },
     {
       "path": "src/shared/constants/config.js",
       "language": "javascript",
-      "sizeLines": 91,
+      "sizeLines": 109,
       "fileCategory": "code"
     },
     {
@@ -6222,7 +7547,7 @@
       "fileCategory": "code"
     },
     {
-      "path": "src/shared/constants/mitmToolHosts.js",
+      "path": "src/shared/constants/mitmToolHosts.cjs",
       "language": "javascript",
       "sizeLines": 12,
       "fileCategory": "code"
@@ -6270,6 +7595,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/shared/hooks/useCircuitBreakers.js",
+      "language": "javascript",
+      "sizeLines": 67,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/shared/hooks/useCopyToClipboard.js",
       "language": "javascript",
       "sizeLines": 43,
@@ -6278,7 +7609,7 @@
     {
       "path": "src/shared/hooks/useModelCaps.js",
       "language": "javascript",
-      "sizeLines": 44,
+      "sizeLines": 80,
       "fileCategory": "code"
     },
     {
@@ -6294,15 +7625,15 @@
       "fileCategory": "code"
     },
     {
-      "path": "src/shared/services/claudeAutoPing.js",
+      "path": "src/shared/services/initializeApp.js",
       "language": "javascript",
-      "sizeLines": 117,
+      "sizeLines": 330,
       "fileCategory": "code"
     },
     {
-      "path": "src/shared/services/initializeApp.js",
+      "path": "src/shared/services/quotaAutoPing.js",
       "language": "javascript",
-      "sizeLines": 282,
+      "sizeLines": 313,
       "fileCategory": "code"
     },
     {
@@ -6314,7 +7645,13 @@
     {
       "path": "src/shared/utils/apiKey.js",
       "language": "javascript",
-      "sizeLines": 104,
+      "sizeLines": 132,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/shared/utils/bulkAdd.js",
+      "language": "javascript",
+      "sizeLines": 94,
       "fileCategory": "code"
     },
     {
@@ -6338,13 +7675,13 @@
     {
       "path": "src/shared/utils/fetchCache.js",
       "language": "javascript",
-      "sizeLines": 51,
+      "sizeLines": 17,
       "fileCategory": "code"
     },
     {
       "path": "src/shared/utils/index.js",
       "language": "javascript",
-      "sizeLines": 32,
+      "sizeLines": 40,
       "fileCategory": "code"
     },
     {
@@ -6366,9 +7703,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "src/shared/utils/providerIcon.js",
+      "language": "javascript",
+      "sizeLines": 64,
+      "fileCategory": "code"
+    },
+    {
       "path": "src/shared/utils/providerModelsFetcher.js",
       "language": "javascript",
       "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/shared/utils/runtime.js",
+      "language": "javascript",
+      "sizeLines": 135,
       "fileCategory": "code"
     },
     {
@@ -6380,31 +7729,31 @@
     {
       "path": "src/sse/handlers/chat.js",
       "language": "javascript",
-      "sizeLines": 502,
+      "sizeLines": 544,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/handlers/embeddings.js",
       "language": "javascript",
-      "sizeLines": 177,
+      "sizeLines": 215,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/handlers/fetch.js",
       "language": "javascript",
-      "sizeLines": 249,
+      "sizeLines": 250,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/handlers/imageGeneration.js",
       "language": "javascript",
-      "sizeLines": 169,
+      "sizeLines": 170,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/handlers/search.js",
       "language": "javascript",
-      "sizeLines": 236,
+      "sizeLines": 237,
       "fileCategory": "code"
     },
     {
@@ -6416,19 +7765,25 @@
     {
       "path": "src/sse/handlers/tts.js",
       "language": "javascript",
-      "sizeLines": 141,
+      "sizeLines": 142,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/sse/handlers/videoGeneration.js",
+      "language": "javascript",
+      "sizeLines": 223,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/services/allowedModels.js",
       "language": "javascript",
-      "sizeLines": 476,
+      "sizeLines": 654,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/services/auth.js",
       "language": "javascript",
-      "sizeLines": 406,
+      "sizeLines": 430,
       "fileCategory": "code"
     },
     {
@@ -6440,7 +7795,7 @@
     {
       "path": "src/sse/services/kimchiQuotaReactivation.js",
       "language": "javascript",
-      "sizeLines": 54,
+      "sizeLines": 76,
       "fileCategory": "code"
     },
     {
@@ -6452,13 +7807,13 @@
     {
       "path": "src/sse/services/tokenRefresh.js",
       "language": "javascript",
-      "sizeLines": 325,
+      "sizeLines": 327,
       "fileCategory": "code"
     },
     {
       "path": "src/sse/utils/logger.js",
       "language": "javascript",
-      "sizeLines": 74,
+      "sizeLines": 117,
       "fileCategory": "code"
     },
     {
@@ -6488,17 +7843,11 @@
     {
       "path": "tests/__baseline__/alias-baseline.json",
       "language": "json",
-      "sizeLines": 234,
+      "sizeLines": 250,
       "fileCategory": "config"
     },
     {
       "path": "tests/__baseline__/baseline-results.json",
-      "language": "json",
-      "sizeLines": 0,
-      "fileCategory": "config"
-    },
-    {
-      "path": "tests/__baseline__/current.json",
       "language": "json",
       "sizeLines": 0,
       "fileCategory": "config"
@@ -6512,13 +7861,13 @@
     {
       "path": "tests/__baseline__/oauth-urls-baseline.json",
       "language": "json",
-      "sizeLines": 55,
+      "sizeLines": 56,
       "fileCategory": "config"
     },
     {
       "path": "tests/__baseline__/providers-baseline.json",
       "language": "json",
-      "sizeLines": 402,
+      "sizeLines": 883,
       "fileCategory": "config"
     },
     {
@@ -6530,7 +7879,7 @@
     {
       "path": "tests/__baseline__/verify-alias.mjs",
       "language": "javascript",
-      "sizeLines": 54,
+      "sizeLines": 55,
       "fileCategory": "code"
     },
     {
@@ -6542,7 +7891,7 @@
     {
       "path": "tests/__baseline__/verify-oauth-urls.mjs",
       "language": "javascript",
-      "sizeLines": 66,
+      "sizeLines": 70,
       "fileCategory": "code"
     },
     {
@@ -6554,7 +7903,7 @@
     {
       "path": "tests/helpers/server.js",
       "language": "javascript",
-      "sizeLines": 113,
+      "sizeLines": 145,
       "fileCategory": "code"
     },
     {
@@ -6578,13 +7927,13 @@
     {
       "path": "tests/translator/__snapshots__/golden-request.test.js.snap",
       "language": "snap",
-      "sizeLines": 317,
+      "sizeLines": 330,
       "fileCategory": "code"
     },
     {
       "path": "tests/translator/__snapshots__/golden-response-stream.test.js.snap",
       "language": "snap",
-      "sizeLines": 570,
+      "sizeLines": 585,
       "fileCategory": "code"
     },
     {
@@ -6596,7 +7945,7 @@
     {
       "path": "tests/translator/__snapshots__/golden-url-header.test.js.snap",
       "language": "snap",
-      "sizeLines": 1369,
+      "sizeLines": 2130,
       "fileCategory": "code"
     },
     {
@@ -6608,7 +7957,7 @@
     {
       "path": "tests/translator/bugs-antigravity.test.js",
       "language": "javascript",
-      "sizeLines": 160,
+      "sizeLines": 205,
       "fileCategory": "code"
     },
     {
@@ -6620,7 +7969,7 @@
     {
       "path": "tests/translator/bugs-codexCli-responses.test.js",
       "language": "javascript",
-      "sizeLines": 63,
+      "sizeLines": 77,
       "fileCategory": "code"
     },
     {
@@ -6632,7 +7981,7 @@
     {
       "path": "tests/translator/bugs-kiro.test.js",
       "language": "javascript",
-      "sizeLines": 45,
+      "sizeLines": 70,
       "fileCategory": "code"
     },
     {
@@ -6644,13 +7993,13 @@
     {
       "path": "tests/translator/bugs-toClaude-context.test.js",
       "language": "javascript",
-      "sizeLines": 87,
+      "sizeLines": 182,
       "fileCategory": "code"
     },
     {
       "path": "tests/translator/claude-kiro-direct.test.js",
       "language": "javascript",
-      "sizeLines": 178,
+      "sizeLines": 293,
       "fileCategory": "code"
     },
     {
@@ -6668,7 +8017,7 @@
     {
       "path": "tests/translator/golden-request.test.js",
       "language": "javascript",
-      "sizeLines": 64,
+      "sizeLines": 103,
       "fileCategory": "code"
     },
     {
@@ -6714,6 +8063,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/translator/real/nvidia-thinking.e2e.test.js",
+      "language": "javascript",
+      "sizeLines": 58,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/translator/real/provider-cases.real.test.js",
       "language": "javascript",
       "sizeLines": 168,
@@ -6746,7 +8101,7 @@
     {
       "path": "tests/translator/thinking-unified.test.js",
       "language": "javascript",
-      "sizeLines": 150,
+      "sizeLines": 180,
       "fileCategory": "code"
     },
     {
@@ -6758,7 +8113,7 @@
     {
       "path": "tests/unit/account-semaphore.test.js",
       "language": "javascript",
-      "sizeLines": 159,
+      "sizeLines": 171,
       "fileCategory": "code"
     },
     {
@@ -6788,13 +8143,25 @@
     {
       "path": "tests/unit/agentrouter.test.js",
       "language": "javascript",
-      "sizeLines": 79,
+      "sizeLines": 96,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/alicode-cache-control-2069.test.js",
+      "language": "javascript",
+      "sizeLines": 66,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/alicode-intl-endpoint-2591.test.js",
+      "language": "javascript",
+      "sizeLines": 35,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/all-endpoints-robust.test.js",
       "language": "javascript",
-      "sizeLines": 293,
+      "sizeLines": 307,
       "fileCategory": "code"
     },
     {
@@ -6818,7 +8185,13 @@
     {
       "path": "tests/unit/antigravity-retry-hook.test.js",
       "language": "javascript",
-      "sizeLines": 74,
+      "sizeLines": 101,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/antigravity-usage-headers.test.js",
+      "language": "javascript",
+      "sizeLines": 30,
       "fileCategory": "code"
     },
     {
@@ -6834,6 +8207,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/build-helpers.test.js",
+      "language": "javascript",
+      "sizeLines": 156,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/buildOutputFilter.test.js",
       "language": "javascript",
       "sizeLines": 232,
@@ -6843,6 +8222,24 @@
       "path": "tests/unit/buildOutputFilterAdversarial.test.js",
       "language": "javascript",
       "sizeLines": 357,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/bulk-add-names.test.js",
+      "language": "javascript",
+      "sizeLines": 113,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/cached-token-e2e.test.js",
+      "language": "javascript",
+      "sizeLines": 84,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/cached-token-usage.test.js",
+      "language": "javascript",
+      "sizeLines": 188,
       "fileCategory": "code"
     },
     {
@@ -6860,13 +8257,19 @@
     {
       "path": "tests/unit/capabilities.test.js",
       "language": "javascript",
-      "sizeLines": 12,
+      "sizeLines": 46,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/caveman-ponytail.test.js",
       "language": "javascript",
       "sizeLines": 200,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/chat-client-abort-fallback.test.js",
+      "language": "javascript",
+      "sizeLines": 301,
       "fileCategory": "code"
     },
     {
@@ -6884,7 +8287,7 @@
     {
       "path": "tests/unit/classify-429.test.js",
       "language": "javascript",
-      "sizeLines": 251,
+      "sizeLines": 325,
       "fileCategory": "code"
     },
     {
@@ -6894,15 +8297,51 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/claude-drop-foreign-thinking.test.js",
+      "language": "javascript",
+      "sizeLines": 109,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/claude-header-forwarding.test.js",
       "language": "javascript",
       "sizeLines": 437,
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/cli-xai-video.test.js",
+      "language": "javascript",
+      "sizeLines": 273,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/clinepass-provider.test.js",
+      "language": "javascript",
+      "sizeLines": 39,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/cloud-code-thinking.test.js",
+      "language": "javascript",
+      "sizeLines": 147,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/codebuddy-cn-bonus-recurring.test.js",
+      "language": "javascript",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/codebuddy-reasoning-optin.test.js",
       "language": "javascript",
       "sizeLines": 37,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/codex-fast-capacity.test.js",
+      "language": "javascript",
+      "sizeLines": 71,
       "fileCategory": "code"
     },
     {
@@ -6914,7 +8353,13 @@
     {
       "path": "tests/unit/codex-refresh-token.test.js",
       "language": "javascript",
-      "sizeLines": 172,
+      "sizeLines": 173,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/codex-reset-credits.test.js",
+      "language": "javascript",
+      "sizeLines": 198,
       "fileCategory": "code"
     },
     {
@@ -6932,7 +8377,7 @@
     {
       "path": "tests/unit/combo-error-paths.test.js",
       "language": "javascript",
-      "sizeLines": 145,
+      "sizeLines": 272,
       "fileCategory": "code"
     },
     {
@@ -6962,7 +8407,7 @@
     {
       "path": "tests/unit/compatible-provider-connections.test.js",
       "language": "javascript",
-      "sizeLines": 171,
+      "sizeLines": 169,
       "fileCategory": "code"
     },
     {
@@ -6972,15 +8417,27 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/cursor-agent-proto.test.js",
+      "language": "javascript",
+      "sizeLines": 282,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/cursor-composer-thinking.test.js",
       "language": "javascript",
       "sizeLines": 86,
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/cursor-models.test.js",
+      "language": "javascript",
+      "sizeLines": 103,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/daily-quota-detection.test.js",
       "language": "javascript",
-      "sizeLines": 118,
+      "sizeLines": 126,
       "fileCategory": "code"
     },
     {
@@ -6993,6 +8450,12 @@
       "path": "tests/unit/dashboard-guard.test.js",
       "language": "javascript",
       "sizeLines": 367,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/database-paths-verification.test.js",
+      "language": "javascript",
+      "sizeLines": 50,
       "fileCategory": "code"
     },
     {
@@ -7046,7 +8509,7 @@
     {
       "path": "tests/unit/eslint-react-hooks-regression.test.js",
       "language": "javascript",
-      "sizeLines": 71,
+      "sizeLines": 78,
       "fileCategory": "code"
     },
     {
@@ -7080,6 +8543,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/fix-standalone-symlinks.test.js",
+      "language": "javascript",
+      "sizeLines": 159,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/force-stream-config.test.js",
       "language": "javascript",
       "sizeLines": 154,
@@ -7110,6 +8579,42 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/grok-build-config.test.js",
+      "language": "javascript",
+      "sizeLines": 176,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/grok-cli-executor.test.js",
+      "language": "javascript",
+      "sizeLines": 495,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/grok-cli-expiresat-2546.test.js",
+      "language": "javascript",
+      "sizeLines": 57,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/grok-cli-models.test.js",
+      "language": "javascript",
+      "sizeLines": 80,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/grok-cli-oauth-probe.test.js",
+      "language": "javascript",
+      "sizeLines": 50,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/grok-cli-usage.test.js",
+      "language": "javascript",
+      "sizeLines": 251,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/handler-acl-enforcement.test.js",
       "language": "javascript",
       "sizeLines": 670,
@@ -7118,25 +8623,25 @@
     {
       "path": "tests/unit/headroom-chat-core.test.js",
       "language": "javascript",
-      "sizeLines": 253,
+      "sizeLines": 297,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/headroom-detect.test.js",
       "language": "javascript",
-      "sizeLines": 36,
+      "sizeLines": 107,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/headroom-responses-format.test.js",
       "language": "javascript",
-      "sizeLines": 50,
+      "sizeLines": 107,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/headroom.test.js",
       "language": "javascript",
-      "sizeLines": 73,
+      "sizeLines": 212,
       "fileCategory": "code"
     },
     {
@@ -7166,7 +8671,7 @@
     {
       "path": "tests/unit/kimchi-cli-config.test.js",
       "language": "javascript",
-      "sizeLines": 86,
+      "sizeLines": 79,
       "fileCategory": "code"
     },
     {
@@ -7178,7 +8683,7 @@
     {
       "path": "tests/unit/kimchi-quota-reactivation.test.js",
       "language": "javascript",
-      "sizeLines": 183,
+      "sizeLines": 178,
       "fileCategory": "code"
     },
     {
@@ -7206,15 +8711,39 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/kiro-idc-regional-url.test.js",
+      "language": "javascript",
+      "sizeLines": 57,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/kiro-model-slots.test.js",
       "language": "javascript",
-      "sizeLines": 30,
+      "sizeLines": 96,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/kiro-nonstream-error.test.js",
+      "language": "javascript",
+      "sizeLines": 64,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/kiro-profile-arn.test.js",
       "language": "javascript",
       "sizeLines": 63,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/kiro-terminal-integrity.test.js",
+      "language": "javascript",
+      "sizeLines": 778,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/kiro-thinking-strip.test.js",
+      "language": "javascript",
+      "sizeLines": 201,
       "fileCategory": "code"
     },
     {
@@ -7232,7 +8761,7 @@
     {
       "path": "tests/unit/mark-account-unavailable-429.test.js",
       "language": "javascript",
-      "sizeLines": 105,
+      "sizeLines": 106,
       "fileCategory": "code"
     },
     {
@@ -7280,7 +8809,7 @@
     {
       "path": "tests/unit/model-name-regex.test.js",
       "language": "javascript",
-      "sizeLines": 28,
+      "sizeLines": 50,
       "fileCategory": "code"
     },
     {
@@ -7310,7 +8839,7 @@
     {
       "path": "tests/unit/models-upstream-connection-re.test.js",
       "language": "javascript",
-      "sizeLines": 54,
+      "sizeLines": 56,
       "fileCategory": "code"
     },
     {
@@ -7320,27 +8849,51 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/muse-spark-provider.test.js",
+      "language": "javascript",
+      "sizeLines": 42,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/oauth-cursor-auto-import.test.js",
       "language": "javascript",
       "sizeLines": 161,
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/omniroute-ported-providers.test.js",
+      "language": "javascript",
+      "sizeLines": 89,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/openai-responses-multiturn.test.js",
+      "language": "javascript",
+      "sizeLines": 181,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/openai-responses-terminal-event.test.js",
       "language": "javascript",
-      "sizeLines": 83,
+      "sizeLines": 96,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/openai-to-claude-response-tools.test.js",
       "language": "javascript",
-      "sizeLines": 61,
+      "sizeLines": 101,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/openai-to-claude-tools-no-type.test.js",
+      "language": "javascript",
+      "sizeLines": 91,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/openai-to-claude.test.js",
       "language": "javascript",
-      "sizeLines": 214,
+      "sizeLines": 335,
       "fileCategory": "code"
     },
     {
@@ -7352,7 +8905,7 @@
     {
       "path": "tests/unit/openai-to-kiro.test.js",
       "language": "javascript",
-      "sizeLines": 365,
+      "sizeLines": 606,
       "fileCategory": "code"
     },
     {
@@ -7370,7 +8923,7 @@
     {
       "path": "tests/unit/param-support.test.js",
       "language": "javascript",
-      "sizeLines": 31,
+      "sizeLines": 55,
       "fileCategory": "code"
     },
     {
@@ -7388,13 +8941,19 @@
     {
       "path": "tests/unit/post-merge-verification.test.js",
       "language": "javascript",
-      "sizeLines": 205,
+      "sizeLines": 218,
       "fileCategory": "code"
     },
     {
       "path": "tests/unit/prefetch-images.test.js",
       "language": "javascript",
       "sizeLines": 58,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/provider-connections-pagination.test.js",
+      "language": "javascript",
+      "sizeLines": 179,
       "fileCategory": "code"
     },
     {
@@ -7434,6 +8993,12 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/provider-resilience-profiles.test.js",
+      "language": "javascript",
+      "sizeLines": 73,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/provider-test-models-routing.test.js",
       "language": "javascript",
       "sizeLines": 83,
@@ -7458,9 +9023,21 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/pxpipe.test.js",
+      "language": "javascript",
+      "sizeLines": 95,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/qoder.test.js",
       "language": "javascript",
       "sizeLines": 469,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/quota-auto-ping.test.js",
+      "language": "javascript",
+      "sizeLines": 372,
       "fileCategory": "code"
     },
     {
@@ -7473,6 +9050,12 @@
       "path": "tests/unit/reasoningContentInjector.test.js",
       "language": "javascript",
       "sizeLines": 160,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/request-details-tab.test.js",
+      "language": "javascript",
+      "sizeLines": 252,
       "fileCategory": "code"
     },
     {
@@ -7500,9 +9083,27 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/rtkFindWindows.test.js",
+      "language": "javascript",
+      "sizeLines": 62,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/unit/rtkKiro.test.js",
       "language": "javascript",
       "sizeLines": 291,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/runtime-detect.test.js",
+      "language": "javascript",
+      "sizeLines": 211,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/searxng-provider-config.test.js",
+      "language": "javascript",
+      "sizeLines": 30,
       "fileCategory": "code"
     },
     {
@@ -7520,7 +9121,7 @@
     {
       "path": "tests/unit/session-manager.test.js",
       "language": "javascript",
-      "sizeLines": 62,
+      "sizeLines": 226,
       "fileCategory": "code"
     },
     {
@@ -7539,6 +9140,18 @@
       "path": "tests/unit/termination-prompt.test.js",
       "language": "javascript",
       "sizeLines": 80,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/thinking-effort-openai-max-clamp.test.js",
+      "language": "javascript",
+      "sizeLines": 39,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/thinking-levels-gpt56-sol.test.js",
+      "language": "javascript",
+      "sizeLines": 21,
       "fileCategory": "code"
     },
     {
@@ -7614,14 +9227,26 @@
       "fileCategory": "code"
     },
     {
+      "path": "tests/unit/xai-video-core.test.js",
+      "language": "javascript",
+      "sizeLines": 301,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unit/xai-video-handler.test.js",
+      "language": "javascript",
+      "sizeLines": 221,
+      "fileCategory": "code"
+    },
+    {
       "path": "tests/vitest.config.js",
       "language": "javascript",
       "sizeLines": 32,
       "fileCategory": "code"
     }
   ],
-  "totalFiles": 1264,
-  "filteredByIgnore": 0,
+  "totalFiles": 1536,
+  "filteredByIgnore": 15,
   "estimatedComplexity": "very-large",
   "importMap": {
     ".dockerignore": [],
@@ -7646,8 +9271,8 @@
     ".env.example": [],
     ".github/dependabot.yml": [],
     ".github/workflows/build-matrix.yml": [],
-    ".github/workflows/docker-publish.yml": [],
     ".github/workflows/gitbook-pages.yml": [],
+    ".github/workflows/release.yml": [],
     ".kilo/plans/1782110937581-playful-cabin.md": [],
     ".kilo/plans/1782184554796-silent-falcon.md": [],
     ".kilocode/skills/cavecrew/SKILL.md": [],
@@ -7690,48 +9315,28 @@
     ".kilocode/skills/compress/scripts/detect.py": [],
     ".kilocode/skills/compress/scripts/validate.py": [],
     ".kilocode/skills/compress/SKILL.md": [],
-    ".kimchi/docs/audit-upstream.md": [],
-    ".kimchi/docs/ferment-handoff.md": [],
-    ".kimchi/docs/lighthouse-reports/combos.report.html": [],
-    ".kimchi/docs/lighthouse-reports/combos.report.json": [],
-    ".kimchi/docs/lighthouse-reports/combos.report.report.html": [],
-    ".kimchi/docs/lighthouse-reports/combos.report.report.json": [],
-    ".kimchi/docs/lighthouse-reports/dashboard.report.html": [],
-    ".kimchi/docs/lighthouse-reports/dashboard.report.json": [],
-    ".kimchi/docs/lighthouse-reports/dashboard.report.report.html": [],
-    ".kimchi/docs/lighthouse-reports/dashboard.report.report.json": [],
-    ".kimchi/docs/lighthouse-reports/providers.report.html": [],
-    ".kimchi/docs/lighthouse-reports/providers.report.json": [],
-    ".kimchi/docs/lighthouse-reports/providers.report.report.html": [],
-    ".kimchi/docs/lighthouse-reports/providers.report.report.json": [],
-    ".kimchi/docs/lighthouse-reports/settings_pricing.report.html": [],
-    ".kimchi/docs/lighthouse-reports/settings_pricing.report.json": [],
-    ".kimchi/docs/lighthouse-reports/settings_pricing.report.report.html": [],
-    ".kimchi/docs/lighthouse-reports/settings_pricing.report.report.json": [],
-    ".kimchi/docs/lighthouse-reports/usage.report.html": [],
-    ".kimchi/docs/lighthouse-reports/usage.report.json": [],
-    ".kimchi/docs/lighthouse-reports/usage.report.report.html": [],
-    ".kimchi/docs/lighthouse-reports/usage.report.report.json": [],
-    ".kimchi/docs/ponytail-audit-report.md": [],
-    ".kimchi/docs/remove-proptypes.js": [],
-    ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d.events.jsonl": [],
-    ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d.json": [],
-    ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/reviews/phase-phase-1-1.json": [],
-    ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/reviews/phase-phase-2-1.json": [],
-    ".kimchi/ferments/019f0acd-e208-735f-8f83-1d72390dae0d/runtime.json": [],
     ".kiro/settings/lsp.json": [],
     ".kiro/steering/project.md": [],
     ".npmignore": [],
     ".understand-anything/.understandignore": [],
+    ".understand-anything/fingerprints.json": [],
+    ".understand-anything/intermediate/scan-result.json": [],
+    ".understand-anything/knowledge-graph.json": [],
+    ".understand-anything/meta.json": [],
+    ".understand-anything/tmp/add-missing-nodes.cjs": [],
+    ".understand-anything/tmp/backend-nodes.json": [],
     "agent.md": [],
     "AGENTS.md": [],
+    "Caddyfile": [],
     "captain-definition": [],
     "CHANGELOG.md": [],
+    "CLAUDE.md": [],
     "cli/.npmignore": [],
     "cli/cli.js": [
       "cli/hooks/sqliteRuntime.js",
       "cli/hooks/trayRuntime.js",
       "cli/package.json",
+      "cli/src/cli/commands/xaiVideo.js",
       "cli/src/cli/terminalUI.js",
       "cli/src/cli/tray/autostart.js",
       "cli/src/cli/tray/tray.js",
@@ -7749,9 +9354,12 @@
     ],
     "cli/package.json": [],
     "cli/README.md": [],
-    "cli/scripts/build-cli.js": [],
+    "cli/scripts/build-cli.js": [
+      "scripts/fix-standalone-symlinks.cjs"
+    ],
     "cli/scripts/buildMitm.js": [],
     "cli/src/cli/api/client.js": [],
+    "cli/src/cli/commands/xaiVideo.js": [],
     "cli/src/cli/menus/apiKeys.js": [
       "cli/src/cli/api/client.js",
       "cli/src/cli/utils/clipboard.js",
@@ -7833,6 +9441,7 @@
     "DOCKER.md": [],
     "Dockerfile": [],
     "docs/ARCHITECTURE.md": [],
+    "docs/MIGRATION.md": [],
     "doctor.config.json": [],
     "eslint.config.mjs": [],
     "gitbook/app/[lang]/[...slug]/page.js": [],
@@ -7965,8 +9574,11 @@
     "gitbook/package.json": [],
     "gitbook/postcss.config.mjs": [],
     "gitbook/utils/markdown.js": [],
+    "handover.md": [],
+    "i18n/README.fa_IR.md": [],
     "i18n/README.ja-JP.md": [],
     "i18n/README.ru.md": [],
+    "i18n/README.th.md": [],
     "i18n/README.vi.md": [],
     "i18n/README.zh-CN.md": [],
     "jsconfig.json": [],
@@ -7974,15 +9586,19 @@
     "next.config.mjs": [],
     "open-sse/.npmignore": [],
     "open-sse/AGENTS.md": [],
+    "open-sse/config/antigravityModelAliases.js": [],
+    "open-sse/config/antigravityUpstream.js": [],
     "open-sse/config/appConstants.js": [
       "open-sse/config/providers.js",
-      "open-sse/utils/proxyFetch.js"
+      "open-sse/providers/shared.js",
+      "package.json"
     ],
     "open-sse/config/codexInstructions.js": [],
     "open-sse/config/constants.js": [],
     "open-sse/config/defaultThinkingSignature.js": [],
     "open-sse/config/errorConfig.js": [],
     "open-sse/config/googleTtsLanguages.js": [],
+    "open-sse/config/grokCli.js": [],
     "open-sse/config/kiroConstants.js": [
       "open-sse/translator/concerns/thinking.js",
       "open-sse/translator/concerns/thinkingUnified.js"
@@ -7996,6 +9612,9 @@
       "open-sse/providers/models/schema.js",
       "open-sse/providers/registry/index.js"
     ],
+    "open-sse/config/providerProfiles.js": [
+      "src/shared/constants/providers.js"
+    ],
     "open-sse/config/providers.js": [
       "open-sse/providers/index.js"
     ],
@@ -8003,15 +9622,21 @@
     "open-sse/config/ttsModels.js": [
       "open-sse/config/googleTtsLanguages.js"
     ],
+    "open-sse/executors/agentrouter.js": [
+      "open-sse/executors/default.js"
+    ],
     "open-sse/executors/antigravity.js": [
       "open-sse/config/appConstants.js",
+      "open-sse/config/defaultThinkingSignature.js",
       "open-sse/config/providers.js",
       "open-sse/config/runtimeConfig.js",
       "open-sse/executors/base.js",
+      "open-sse/services/cloudCodeThinking.js",
       "open-sse/translator/formats/gemini.js",
       "open-sse/utils/proxyFetch.js",
       "open-sse/utils/sessionManager.js"
     ],
+    "open-sse/executors/antigravity/sseCollect.js": [],
     "open-sse/executors/azure.js": [
       "open-sse/executors/default.js"
     ],
@@ -8059,6 +9684,7 @@
       "open-sse/config/appConstants.js",
       "open-sse/config/providers.js",
       "open-sse/executors/base.js",
+      "open-sse/providers/capabilities.js",
       "open-sse/providers/shared.js",
       "open-sse/shared/clineAuth.js",
       "open-sse/translator/concerns/paramSupport.js",
@@ -8084,9 +9710,21 @@
       "open-sse/utils/sseConstants.js",
       "open-sse/utils/streamHelpers.js"
     ],
+    "open-sse/executors/grok-cli.js": [
+      "open-sse/config/grokCli.js",
+      "open-sse/config/providerModels.js",
+      "open-sse/config/providers.js",
+      "open-sse/config/runtimeConfig.js",
+      "open-sse/executors/base.js",
+      "open-sse/services/oauthCredentialManager.js",
+      "open-sse/shared/machineId.js",
+      "open-sse/translator/formats/responsesApi.js",
+      "open-sse/utils/sessionManager.js"
+    ],
     "open-sse/executors/grok-web.js": [
       "open-sse/config/providers.js",
       "open-sse/executors/base.js",
+      "open-sse/utils/cookie.js",
       "open-sse/utils/sse.js",
       "open-sse/utils/sseConstants.js"
     ],
@@ -8095,6 +9733,7 @@
       "open-sse/executors/base.js"
     ],
     "open-sse/executors/index.js": [
+      "open-sse/executors/agentrouter.js",
       "open-sse/executors/antigravity.js",
       "open-sse/executors/azure.js",
       "open-sse/executors/codebuddy-cn.js",
@@ -8104,10 +9743,12 @@
       "open-sse/executors/default.js",
       "open-sse/executors/gemini-cli.js",
       "open-sse/executors/github.js",
+      "open-sse/executors/grok-cli.js",
       "open-sse/executors/grok-web.js",
       "open-sse/executors/iflow.js",
       "open-sse/executors/kiro.js",
       "open-sse/executors/mimo-free.js",
+      "open-sse/executors/muse-spark-web.js",
       "open-sse/executors/ollama-local.js",
       "open-sse/executors/opencode-go.js",
       "open-sse/executors/opencode.js",
@@ -8121,6 +9762,7 @@
     "open-sse/executors/kiro.js": [
       "open-sse/config/kiroConstants.js",
       "open-sse/config/providers.js",
+      "open-sse/config/runtimeConfig.js",
       "open-sse/executors/base.js",
       "open-sse/providers/capabilities.js",
       "open-sse/services/tokenRefresh.js",
@@ -8130,6 +9772,13 @@
       "open-sse/config/providers.js",
       "open-sse/executors/base.js",
       "open-sse/utils/proxyFetch.js"
+    ],
+    "open-sse/executors/muse-spark-web.js": [
+      "open-sse/config/providers.js",
+      "open-sse/executors/base.js",
+      "open-sse/utils/cookie.js",
+      "open-sse/utils/sse.js",
+      "open-sse/utils/sseConstants.js"
     ],
     "open-sse/executors/ollama-local.js": [
       "open-sse/config/providers.js",
@@ -8149,6 +9798,7 @@
     "open-sse/executors/perplexity-web.js": [
       "open-sse/config/providers.js",
       "open-sse/executors/base.js",
+      "open-sse/utils/cookie.js",
       "open-sse/utils/sse.js",
       "open-sse/utils/sseConstants.js"
     ],
@@ -8188,6 +9838,7 @@
       "open-sse/utils/reasoningContentInjector.js"
     ],
     "open-sse/handlers/chatCore.js": [
+      "open-sse/config/grokCli.js",
       "open-sse/config/providerModels.js",
       "open-sse/config/providers.js",
       "open-sse/config/runtimeConfig.js",
@@ -8202,11 +9853,13 @@
       "open-sse/rtk/headroom.js",
       "open-sse/rtk/index.js",
       "open-sse/rtk/ponytail.js",
+      "open-sse/rtk/pxpipe.js",
       "open-sse/rtk/terminationPrompt.js",
       "open-sse/services/provider.js",
       "open-sse/services/tokenRefresh.js",
       "open-sse/translator/concerns/modality.js",
       "open-sse/translator/concerns/prefetch.js",
+      "open-sse/translator/concerns/thinkingUnified.js",
       "open-sse/translator/formats.js",
       "open-sse/translator/formats/claude.js",
       "open-sse/translator/index.js",
@@ -8231,20 +9884,24 @@
       "open-sse/translator/index.js",
       "open-sse/translator/response/ollama-to-openai.js",
       "open-sse/utils/claudeCloaking.js",
+      "open-sse/utils/clinepassEnvelope.js",
       "open-sse/utils/error.js",
       "open-sse/utils/kimiToolParser.js",
       "open-sse/utils/usageTracking.js"
     ],
     "open-sse/handlers/chatCore/requestDetail.js": [
-      "open-sse/utils/stream.js"
+      "open-sse/utils/stream.js",
+      "open-sse/utils/usageTracking.js"
     ],
     "open-sse/handlers/chatCore/sseToJsonHandler.js": [
       "open-sse/config/providers.js",
       "open-sse/config/runtimeConfig.js",
+      "open-sse/handlers/chatCore/nonStreamingHandler.js",
       "open-sse/handlers/chatCore/requestDetail.js",
       "open-sse/transformer/streamToJsonConverter.js",
       "open-sse/translator/concerns/toolCall.js",
       "open-sse/translator/formats.js",
+      "open-sse/utils/claudeCloaking.js",
       "open-sse/utils/error.js"
     ],
     "open-sse/handlers/chatCore/streamingHandler.js": [
@@ -8414,6 +10071,12 @@
     "open-sse/handlers/ttsProviders/openrouter.js": [
       "open-sse/providers/index.js"
     ],
+    "open-sse/handlers/videoCore.js": [
+      "open-sse/config/runtimeConfig.js",
+      "open-sse/providers/index.js",
+      "open-sse/services/tokenRefresh.js",
+      "open-sse/utils/error.js"
+    ],
     "open-sse/index.js": [
       "open-sse/utils/proxyFetch.js"
     ],
@@ -8434,22 +10097,26 @@
     ],
     "open-sse/providers/pricing.js": [],
     "open-sse/providers/REGISTRY_TEMPLATE.js": [],
+    "open-sse/providers/registry/a6api.js": [],
     "open-sse/providers/registry/agentrouter.js": [],
+    "open-sse/providers/registry/ai21.js": [],
+    "open-sse/providers/registry/alibaba.js": [],
     "open-sse/providers/registry/alicode-intl.js": [],
     "open-sse/providers/registry/alicode.js": [],
-    "open-sse/providers/registry/anthropic.js": [
-      "open-sse/providers/shared.js"
-    ],
+    "open-sse/providers/registry/alims-intl.js": [],
+    "open-sse/providers/registry/anthropic.js": [],
     "open-sse/providers/registry/antigravity.js": [
       "open-sse/providers/shared.js"
     ],
     "open-sse/providers/registry/assemblyai.js": [],
     "open-sse/providers/registry/aws-polly.js": [],
     "open-sse/providers/registry/azure.js": [],
+    "open-sse/providers/registry/baseten.js": [],
     "open-sse/providers/registry/black-forest-labs.js": [],
     "open-sse/providers/registry/blackbox.js": [],
     "open-sse/providers/registry/brave-search.js": [],
     "open-sse/providers/registry/byteplus.js": [],
+    "open-sse/providers/registry/bytez.js": [],
     "open-sse/providers/registry/cartesia.js": [],
     "open-sse/providers/registry/cerebras.js": [],
     "open-sse/providers/registry/chutes.js": [],
@@ -8457,8 +10124,10 @@
       "open-sse/providers/shared.js"
     ],
     "open-sse/providers/registry/cline.js": [],
+    "open-sse/providers/registry/clinepass.js": [],
     "open-sse/providers/registry/cloudflare-ai.js": [],
     "open-sse/providers/registry/codebuddy-cn.js": [],
+    "open-sse/providers/registry/codestral.js": [],
     "open-sse/providers/registry/codex.js": [
       "open-sse/providers/models/helpers.js"
     ],
@@ -8467,7 +10136,9 @@
     "open-sse/providers/registry/commandcode.js": [],
     "open-sse/providers/registry/coqui.js": [],
     "open-sse/providers/registry/cursor.js": [],
+    "open-sse/providers/registry/databricks.js": [],
     "open-sse/providers/registry/deepgram.js": [],
+    "open-sse/providers/registry/deepinfra.js": [],
     "open-sse/providers/registry/deepseek.js": [
       "open-sse/providers/shared.js"
     ],
@@ -8475,14 +10146,18 @@
     "open-sse/providers/registry/elevenlabs.js": [],
     "open-sse/providers/registry/exa.js": [],
     "open-sse/providers/registry/fal-ai.js": [],
+    "open-sse/providers/registry/featherless.js": [],
     "open-sse/providers/registry/firecrawl.js": [],
     "open-sse/providers/registry/fireworks.js": [],
+    "open-sse/providers/registry/friendliai.js": [],
+    "open-sse/providers/registry/galadriel.js": [],
     "open-sse/providers/registry/gemini-cli.js": [
       "open-sse/providers/shared.js"
     ],
     "open-sse/providers/registry/gemini.js": [
       "open-sse/providers/shared.js"
     ],
+    "open-sse/providers/registry/gigachat.js": [],
     "open-sse/providers/registry/github.js": [],
     "open-sse/providers/registry/gitlab.js": [],
     "open-sse/providers/registry/glm-cn.js": [],
@@ -8491,55 +10166,75 @@
     ],
     "open-sse/providers/registry/google-pse.js": [],
     "open-sse/providers/registry/google-tts.js": [],
+    "open-sse/providers/registry/grok-cli.js": [
+      "open-sse/config/grokCli.js"
+    ],
     "open-sse/providers/registry/grok-web.js": [],
     "open-sse/providers/registry/groq.js": [],
+    "open-sse/providers/registry/heroku.js": [],
     "open-sse/providers/registry/huggingface.js": [],
     "open-sse/providers/registry/hyperbolic.js": [],
     "open-sse/providers/registry/iflow.js": [],
     "open-sse/providers/registry/index.js": [
+      "open-sse/providers/registry/a6api.js",
       "open-sse/providers/registry/agentrouter.js",
+      "open-sse/providers/registry/ai21.js",
+      "open-sse/providers/registry/alibaba.js",
       "open-sse/providers/registry/alicode-intl.js",
       "open-sse/providers/registry/alicode.js",
+      "open-sse/providers/registry/alims-intl.js",
       "open-sse/providers/registry/anthropic.js",
       "open-sse/providers/registry/antigravity.js",
       "open-sse/providers/registry/assemblyai.js",
       "open-sse/providers/registry/aws-polly.js",
       "open-sse/providers/registry/azure.js",
+      "open-sse/providers/registry/baseten.js",
       "open-sse/providers/registry/black-forest-labs.js",
       "open-sse/providers/registry/blackbox.js",
       "open-sse/providers/registry/brave-search.js",
       "open-sse/providers/registry/byteplus.js",
+      "open-sse/providers/registry/bytez.js",
       "open-sse/providers/registry/cartesia.js",
       "open-sse/providers/registry/cerebras.js",
       "open-sse/providers/registry/chutes.js",
       "open-sse/providers/registry/claude.js",
       "open-sse/providers/registry/cline.js",
+      "open-sse/providers/registry/clinepass.js",
       "open-sse/providers/registry/cloudflare-ai.js",
       "open-sse/providers/registry/codebuddy-cn.js",
+      "open-sse/providers/registry/codestral.js",
       "open-sse/providers/registry/codex.js",
       "open-sse/providers/registry/cohere.js",
       "open-sse/providers/registry/comfyui.js",
       "open-sse/providers/registry/commandcode.js",
       "open-sse/providers/registry/coqui.js",
       "open-sse/providers/registry/cursor.js",
+      "open-sse/providers/registry/databricks.js",
       "open-sse/providers/registry/deepgram.js",
+      "open-sse/providers/registry/deepinfra.js",
       "open-sse/providers/registry/deepseek.js",
       "open-sse/providers/registry/edge-tts.js",
       "open-sse/providers/registry/elevenlabs.js",
       "open-sse/providers/registry/exa.js",
       "open-sse/providers/registry/fal-ai.js",
+      "open-sse/providers/registry/featherless.js",
       "open-sse/providers/registry/firecrawl.js",
       "open-sse/providers/registry/fireworks.js",
+      "open-sse/providers/registry/friendliai.js",
+      "open-sse/providers/registry/galadriel.js",
       "open-sse/providers/registry/gemini-cli.js",
       "open-sse/providers/registry/gemini.js",
+      "open-sse/providers/registry/gigachat.js",
       "open-sse/providers/registry/github.js",
       "open-sse/providers/registry/gitlab.js",
       "open-sse/providers/registry/glm-cn.js",
       "open-sse/providers/registry/glm.js",
       "open-sse/providers/registry/google-pse.js",
       "open-sse/providers/registry/google-tts.js",
+      "open-sse/providers/registry/grok-cli.js",
       "open-sse/providers/registry/grok-web.js",
       "open-sse/providers/registry/groq.js",
+      "open-sse/providers/registry/heroku.js",
       "open-sse/providers/registry/huggingface.js",
       "open-sse/providers/registry/hyperbolic.js",
       "open-sse/providers/registry/iflow.js",
@@ -8548,18 +10243,21 @@
       "open-sse/providers/registry/jina-reader.js",
       "open-sse/providers/registry/kilocode.js",
       "open-sse/providers/registry/kimchi.js",
-      "open-sse/providers/registry/kimi-coding.js",
       "open-sse/providers/registry/kimi.js",
       "open-sse/providers/registry/kiro.js",
       "open-sse/providers/registry/linkup.js",
+      "open-sse/providers/registry/llamagate.js",
       "open-sse/providers/registry/local-device.js",
       "open-sse/providers/registry/mimo-free.js",
       "open-sse/providers/registry/minimax-cn.js",
       "open-sse/providers/registry/minimax.js",
       "open-sse/providers/registry/mistral.js",
       "open-sse/providers/registry/mmf.js",
+      "open-sse/providers/registry/muse-spark-web.js",
       "open-sse/providers/registry/nanobanana.js",
+      "open-sse/providers/registry/nanogpt.js",
       "open-sse/providers/registry/nebius.js",
+      "open-sse/providers/registry/nscale.js",
       "open-sse/providers/registry/nvidia.js",
       "open-sse/providers/registry/ollama-local.js",
       "open-sse/providers/registry/ollama.js",
@@ -8567,48 +10265,57 @@
       "open-sse/providers/registry/opencode-go.js",
       "open-sse/providers/registry/opencode.js",
       "open-sse/providers/registry/openrouter.js",
+      "open-sse/providers/registry/ovhcloud.js",
+      "open-sse/providers/registry/perplexity-agent.js",
       "open-sse/providers/registry/perplexity-web.js",
       "open-sse/providers/registry/perplexity.js",
       "open-sse/providers/registry/playht.js",
+      "open-sse/providers/registry/predibase.js",
+      "open-sse/providers/registry/publicai.js",
       "open-sse/providers/registry/qoder.js",
       "open-sse/providers/registry/qwen.js",
       "open-sse/providers/registry/recraft.js",
       "open-sse/providers/registry/runwayml.js",
+      "open-sse/providers/registry/sambanova.js",
       "open-sse/providers/registry/sdwebui.js",
       "open-sse/providers/registry/searchapi.js",
       "open-sse/providers/registry/searxng.js",
       "open-sse/providers/registry/serper.js",
       "open-sse/providers/registry/siliconflow.js",
+      "open-sse/providers/registry/snowflake.js",
       "open-sse/providers/registry/stability-ai.js",
       "open-sse/providers/registry/tavily.js",
       "open-sse/providers/registry/together.js",
+      "open-sse/providers/registry/tokenrouter.js",
       "open-sse/providers/registry/topaz.js",
       "open-sse/providers/registry/tortoise.js",
+      "open-sse/providers/registry/upstage.js",
       "open-sse/providers/registry/venice.js",
       "open-sse/providers/registry/vercel-ai-gateway.js",
       "open-sse/providers/registry/vertex-partner.js",
       "open-sse/providers/registry/vertex.js",
       "open-sse/providers/registry/volcengine-ark.js",
+      "open-sse/providers/registry/volcengine.js",
       "open-sse/providers/registry/voyage-ai.js",
+      "open-sse/providers/registry/wandb.js",
       "open-sse/providers/registry/xai.js",
       "open-sse/providers/registry/xiaomi-mimo.js",
       "open-sse/providers/registry/xiaomi-tokenplan.js",
       "open-sse/providers/registry/youcom.js",
-      "open-sse/providers/registry/zcode.js"
+      "open-sse/providers/registry/zcode.js",
+      "open-sse/providers/registry/zenmux.js"
     ],
     "open-sse/providers/registry/inworld.js": [],
     "open-sse/providers/registry/jina-ai.js": [],
     "open-sse/providers/registry/jina-reader.js": [],
     "open-sse/providers/registry/kilocode.js": [],
     "open-sse/providers/registry/kimchi.js": [],
-    "open-sse/providers/registry/kimi-coding.js": [
-      "open-sse/providers/shared.js"
-    ],
     "open-sse/providers/registry/kimi.js": [
       "open-sse/providers/shared.js"
     ],
     "open-sse/providers/registry/kiro.js": [],
     "open-sse/providers/registry/linkup.js": [],
+    "open-sse/providers/registry/llamagate.js": [],
     "open-sse/providers/registry/local-device.js": [],
     "open-sse/providers/registry/mimo-free.js": [],
     "open-sse/providers/registry/minimax-cn.js": [
@@ -8619,8 +10326,11 @@
     ],
     "open-sse/providers/registry/mistral.js": [],
     "open-sse/providers/registry/mmf.js": [],
+    "open-sse/providers/registry/muse-spark-web.js": [],
     "open-sse/providers/registry/nanobanana.js": [],
+    "open-sse/providers/registry/nanogpt.js": [],
     "open-sse/providers/registry/nebius.js": [],
+    "open-sse/providers/registry/nscale.js": [],
     "open-sse/providers/registry/nvidia.js": [],
     "open-sse/providers/registry/ollama-local.js": [],
     "open-sse/providers/registry/ollama.js": [],
@@ -8628,29 +10338,41 @@
     "open-sse/providers/registry/opencode-go.js": [],
     "open-sse/providers/registry/opencode.js": [],
     "open-sse/providers/registry/openrouter.js": [],
+    "open-sse/providers/registry/ovhcloud.js": [],
+    "open-sse/providers/registry/perplexity-agent.js": [],
     "open-sse/providers/registry/perplexity-web.js": [],
     "open-sse/providers/registry/perplexity.js": [],
     "open-sse/providers/registry/playht.js": [],
+    "open-sse/providers/registry/predibase.js": [],
+    "open-sse/providers/registry/publicai.js": [],
     "open-sse/providers/registry/qoder.js": [],
     "open-sse/providers/registry/qwen.js": [],
     "open-sse/providers/registry/recraft.js": [],
     "open-sse/providers/registry/runwayml.js": [],
+    "open-sse/providers/registry/sambanova.js": [],
     "open-sse/providers/registry/sdwebui.js": [],
     "open-sse/providers/registry/searchapi.js": [],
-    "open-sse/providers/registry/searxng.js": [],
+    "open-sse/providers/registry/searxng.js": [
+      "open-sse/config/runtimeConfig.js"
+    ],
     "open-sse/providers/registry/serper.js": [],
     "open-sse/providers/registry/siliconflow.js": [],
+    "open-sse/providers/registry/snowflake.js": [],
     "open-sse/providers/registry/stability-ai.js": [],
     "open-sse/providers/registry/tavily.js": [],
     "open-sse/providers/registry/together.js": [],
+    "open-sse/providers/registry/tokenrouter.js": [],
     "open-sse/providers/registry/topaz.js": [],
     "open-sse/providers/registry/tortoise.js": [],
+    "open-sse/providers/registry/upstage.js": [],
     "open-sse/providers/registry/venice.js": [],
     "open-sse/providers/registry/vercel-ai-gateway.js": [],
     "open-sse/providers/registry/vertex-partner.js": [],
     "open-sse/providers/registry/vertex.js": [],
     "open-sse/providers/registry/volcengine-ark.js": [],
+    "open-sse/providers/registry/volcengine.js": [],
     "open-sse/providers/registry/voyage-ai.js": [],
+    "open-sse/providers/registry/wandb.js": [],
     "open-sse/providers/registry/xai.js": [],
     "open-sse/providers/registry/xiaomi-mimo.js": [
       "open-sse/providers/shared.js"
@@ -8662,10 +10384,15 @@
     "open-sse/providers/registry/zcode.js": [
       "open-sse/providers/shared.js"
     ],
+    "open-sse/providers/registry/zenmux.js": [],
     "open-sse/providers/schema.js": [
       "open-sse/config/runtimeConfig.js"
     ],
     "open-sse/providers/shared.js": [],
+    "open-sse/providers/thinkingLevels.js": [
+      "open-sse/providers/capabilities.js",
+      "open-sse/providers/pricing.js"
+    ],
     "open-sse/rtk/applyFilter.js": [],
     "open-sse/rtk/autodetect.js": [
       "open-sse/rtk/constants.js",
@@ -8673,6 +10400,7 @@
       "open-sse/rtk/filters/dedupLog.js",
       "open-sse/rtk/filters/find.js",
       "open-sse/rtk/filters/gitDiff.js",
+      "open-sse/rtk/filters/gitLog.js",
       "open-sse/rtk/filters/gitStatus.js",
       "open-sse/rtk/filters/grep.js",
       "open-sse/rtk/filters/ls.js",
@@ -8695,6 +10423,9 @@
       "open-sse/rtk/constants.js"
     ],
     "open-sse/rtk/filters/gitDiff.js": [
+      "open-sse/rtk/constants.js"
+    ],
+    "open-sse/rtk/filters/gitLog.js": [
       "open-sse/rtk/constants.js"
     ],
     "open-sse/rtk/filters/gitStatus.js": [
@@ -8733,6 +10464,9 @@
       "open-sse/rtk/systemInject.js"
     ],
     "open-sse/rtk/ponytailPrompts.js": [],
+    "open-sse/rtk/pxpipe.js": [
+      "open-sse/translator/formats.js"
+    ],
     "open-sse/rtk/systemInject.js": [
       "open-sse/translator/formats.js"
     ],
@@ -8741,11 +10475,38 @@
     ],
     "open-sse/services/accountFallback.js": [
       "open-sse/config/errorConfig.js",
+      "open-sse/config/providerProfiles.js",
       "open-sse/utils/circuitBreaker.js",
       "open-sse/utils/classify429.js"
     ],
     "open-sse/services/accountSemaphore.js": [],
+    "open-sse/services/antigravity429Engine.js": [],
+    "open-sse/services/antigravityClientProfile.js": [
+      "open-sse/services/antigravityHeaders.js",
+      "open-sse/services/antigravityIdentity.js",
+      "open-sse/services/antigravityVersion.js"
+    ],
+    "open-sse/services/antigravityCredits.js": [
+      "open-sse/services/antigravity429Engine.js"
+    ],
+    "open-sse/services/antigravityHeaders.js": [
+      "open-sse/services/antigravityVersion.js"
+    ],
+    "open-sse/services/antigravityHeaderScrub.js": [],
+    "open-sse/services/antigravityIdentity.js": [],
+    "open-sse/services/antigravityObfuscation.js": [],
+    "open-sse/services/antigravityProjectBootstrap.js": [
+      "open-sse/config/antigravityUpstream.js",
+      "open-sse/services/antigravityClientProfile.js",
+      "open-sse/services/antigravityHeaders.js"
+    ],
+    "open-sse/services/antigravityVersion.js": [],
+    "open-sse/services/clinepassModels.js": [
+      "open-sse/shared/clineAuth.js"
+    ],
+    "open-sse/services/cloudCodeThinking.js": [],
     "open-sse/services/combo.js": [
+      "open-sse/config/runtimeConfig.js",
       "open-sse/providers/capabilities.js",
       "open-sse/services/accountFallback.js",
       "open-sse/translator/formats/gemini.js",
@@ -8754,6 +10515,16 @@
     "open-sse/services/copilotModels.js": [
       "open-sse/config/appConstants.js",
       "open-sse/services/tokenRefresh.js",
+      "open-sse/utils/proxyFetch.js"
+    ],
+    "open-sse/services/cursorModels.js": [
+      "open-sse/providers/index.js",
+      "open-sse/utils/cursorChecksum.js",
+      "open-sse/utils/cursorProtobuf.js"
+    ],
+    "open-sse/services/grokCliModels.js": [
+      "open-sse/config/grokCli.js",
+      "open-sse/services/oauthCredentialManager.js",
       "open-sse/utils/proxyFetch.js"
     ],
     "open-sse/services/kiroModels.js": [
@@ -8797,6 +10568,7 @@
       "open-sse/services/usage/codex.js",
       "open-sse/services/usage/github.js",
       "open-sse/services/usage/google.js",
+      "open-sse/services/usage/grok-cli.js",
       "open-sse/services/usage/kiro.js",
       "open-sse/services/usage/minimax.js",
       "open-sse/services/usage/misc.js"
@@ -8824,6 +10596,11 @@
       "open-sse/config/appConstants.js",
       "open-sse/providers/shared.js",
       "open-sse/services/usage/shared.js"
+    ],
+    "open-sse/services/usage/grok-cli.js": [
+      "open-sse/config/grokCli.js",
+      "open-sse/services/usage/shared.js",
+      "open-sse/utils/proxyFetch.js"
     ],
     "open-sse/services/usage/kiro.js": [
       "open-sse/config/kiroConstants.js",
@@ -8866,7 +10643,9 @@
     "open-sse/translator/concerns/modality.js": [
       "open-sse/translator/formats.js"
     ],
-    "open-sse/translator/concerns/paramSupport.js": [],
+    "open-sse/translator/concerns/paramSupport.js": [
+      "open-sse/providers/capabilities.js"
+    ],
     "open-sse/translator/concerns/prefetch.js": [
       "open-sse/translator/concerns/image.js",
       "open-sse/translator/formats.js"
@@ -8957,7 +10736,9 @@
       "open-sse/config/kiroConstants.js",
       "open-sse/translator/formats.js",
       "open-sse/translator/index.js",
-      "open-sse/translator/schema/index.js"
+      "open-sse/translator/schema/index.js",
+      "open-sse/utils/kiroSessionReplay.js",
+      "open-sse/utils/sessionManager.js"
     ],
     "open-sse/translator/request/claude-to-openai.js": [
       "open-sse/translator/concerns/image.js",
@@ -8983,6 +10764,7 @@
     ],
     "open-sse/translator/request/openai-to-claude.js": [
       "open-sse/config/appConstants.js",
+      "open-sse/providers/capabilities.js",
       "open-sse/translator/concerns/image.js",
       "open-sse/translator/concerns/json.js",
       "open-sse/translator/formats.js",
@@ -9004,7 +10786,6 @@
       "open-sse/translator/schema/index.js"
     ],
     "open-sse/translator/request/openai-to-gemini.js": [
-      "open-sse/config/appConstants.js",
       "open-sse/config/defaultThinkingSignature.js",
       "open-sse/translator/formats.js",
       "open-sse/translator/formats/gemini.js",
@@ -9019,6 +10800,7 @@
       "open-sse/translator/formats.js",
       "open-sse/translator/registry.js",
       "open-sse/translator/schema/index.js",
+      "open-sse/utils/kiroSessionReplay.js",
       "open-sse/utils/sessionManager.js"
     ],
     "open-sse/translator/request/openai-to-ollama.js": [
@@ -9131,15 +10913,21 @@
     "open-sse/utils/claudeHeaderCache.js": [],
     "open-sse/utils/claudeSignature.js": [],
     "open-sse/utils/clientDetector.js": [],
+    "open-sse/utils/clinepassEnvelope.js": [],
+    "open-sse/utils/cookie.js": [],
     "open-sse/utils/cooldownRetry.js": [],
     "open-sse/utils/cursorChecksum.js": [],
     "open-sse/utils/cursorProtobuf.js": [],
     "open-sse/utils/debugLog.js": [],
     "open-sse/utils/error.js": [
-      "open-sse/config/errorConfig.js"
+      "open-sse/config/errorConfig.js",
+      "open-sse/utils/clinepassEnvelope.js"
     ],
     "open-sse/utils/errorLog.js": [],
     "open-sse/utils/kimiToolParser.js": [],
+    "open-sse/utils/kiroSessionReplay.js": [
+      "open-sse/config/runtimeConfig.js"
+    ],
     "open-sse/utils/loopGuard.js": [],
     "open-sse/utils/ollamaTransform.js": [],
     "open-sse/utils/proxyFetch.js": [
@@ -9190,6 +10978,7 @@
     "public/i18n/literals/de.json": [],
     "public/i18n/literals/el.json": [],
     "public/i18n/literals/es.json": [],
+    "public/i18n/literals/fa.json": [],
     "public/i18n/literals/fi.json": [],
     "public/i18n/literals/fr.json": [],
     "public/i18n/literals/he.json": [],
@@ -9215,17 +11004,161 @@
     "public/i18n/literals/vi.json": [],
     "public/i18n/literals/zh-CN.json": [],
     "public/i18n/literals/zh-TW.json": [],
+    "public/providers/agentrouter.webp": [],
+    "public/providers/ai21.webp": [],
+    "public/providers/alibaba.webp": [],
+    "public/providers/alicode-intl.webp": [],
+    "public/providers/alicode.webp": [],
+    "public/providers/amp.webp": [],
+    "public/providers/anthropic-m.webp": [],
+    "public/providers/anthropic.webp": [],
+    "public/providers/antigravity.webp": [],
+    "public/providers/assemblyai.webp": [],
+    "public/providers/aws-polly.webp": [],
+    "public/providers/azure.webp": [],
+    "public/providers/baseten.webp": [],
+    "public/providers/black-forest-labs.webp": [],
+    "public/providers/blackbox.webp": [],
+    "public/providers/brave-search.webp": [],
+    "public/providers/byteplus.webp": [],
+    "public/providers/bytez.webp": [],
+    "public/providers/cartesia.webp": [],
+    "public/providers/cerebras.webp": [],
+    "public/providers/chutes.webp": [],
+    "public/providers/claude.webp": [],
+    "public/providers/cline.webp": [],
+    "public/providers/clinepass.webp": [],
+    "public/providers/cloudflare-ai.webp": [],
+    "public/providers/codebuddy-cn.webp": [],
+    "public/providers/codestral.webp": [],
+    "public/providers/codex.webp": [],
+    "public/providers/cohere.webp": [],
+    "public/providers/comfyui.webp": [],
+    "public/providers/commandcode.webp": [],
+    "public/providers/continue.webp": [],
+    "public/providers/copilot.webp": [],
+    "public/providers/coqui.webp": [],
+    "public/providers/cursor.webp": [],
+    "public/providers/databricks.webp": [],
+    "public/providers/deepgram.webp": [],
+    "public/providers/deepinfra.webp": [],
+    "public/providers/deepseek-tui.webp": [],
+    "public/providers/deepseek.webp": [],
+    "public/providers/default.webp": [],
+    "public/providers/droid.webp": [],
+    "public/providers/edge-tts.webp": [],
+    "public/providers/elevenlabs.webp": [],
+    "public/providers/exa.webp": [],
+    "public/providers/fal-ai.webp": [],
+    "public/providers/featherless.webp": [],
+    "public/providers/firecrawl.webp": [],
+    "public/providers/fireworks.webp": [],
+    "public/providers/friendliai.webp": [],
+    "public/providers/galadriel.webp": [],
+    "public/providers/gemini-cli.webp": [],
+    "public/providers/gemini.webp": [],
+    "public/providers/gigachat.webp": [],
+    "public/providers/github.webp": [],
+    "public/providers/gitlab.webp": [],
+    "public/providers/glm-cn.webp": [],
+    "public/providers/glm.webp": [],
+    "public/providers/google-pse.webp": [],
+    "public/providers/google-tts.webp": [],
+    "public/providers/grok-cli.webp": [],
+    "public/providers/grok-web.webp": [],
+    "public/providers/groq.webp": [],
+    "public/providers/hermes.webp": [],
+    "public/providers/heroku.webp": [],
+    "public/providers/huggingface.webp": [],
+    "public/providers/hyperbolic.webp": [],
+    "public/providers/iflow.webp": [],
+    "public/providers/inworld.webp": [],
+    "public/providers/jcode.webp": [],
+    "public/providers/jina-ai.webp": [],
+    "public/providers/jina-reader.webp": [],
+    "public/providers/kilocode.webp": [],
+    "public/providers/kimchi.webp": [],
+    "public/providers/kimi-coding.webp": [],
+    "public/providers/kimi.webp": [],
+    "public/providers/kiro.webp": [],
+    "public/providers/linkup.webp": [],
+    "public/providers/llamagate.webp": [],
+    "public/providers/local-device.webp": [],
+    "public/providers/mimo-free.webp": [],
+    "public/providers/minimax-cn.webp": [],
+    "public/providers/minimax.webp": [],
+    "public/providers/mistral.webp": [],
+    "public/providers/mmf.webp": [],
+    "public/providers/muse-spark-web.webp": [],
+    "public/providers/muse.webp": [],
+    "public/providers/nanobanana.webp": [],
+    "public/providers/nanogpt.webp": [],
+    "public/providers/nebius.webp": [],
+    "public/providers/nscale.webp": [],
+    "public/providers/nvidia.webp": [],
+    "public/providers/oai-cc.webp": [],
+    "public/providers/oai-r.webp": [],
+    "public/providers/ollama-local.webp": [],
+    "public/providers/ollama.webp": [],
+    "public/providers/openai.webp": [],
+    "public/providers/openclaw.webp": [],
+    "public/providers/opencode-go.webp": [],
+    "public/providers/opencode.webp": [],
+    "public/providers/openrouter.webp": [],
+    "public/providers/ovhcloud.webp": [],
+    "public/providers/perplexity-agent.webp": [],
+    "public/providers/perplexity-web.webp": [],
+    "public/providers/perplexity.webp": [],
+    "public/providers/playht.webp": [],
+    "public/providers/predibase.webp": [],
+    "public/providers/publicai.webp": [],
+    "public/providers/qoder.webp": [],
+    "public/providers/qwen.webp": [],
+    "public/providers/recraft.webp": [],
+    "public/providers/roo.webp": [],
+    "public/providers/runwayml.webp": [],
+    "public/providers/sambanova.webp": [],
+    "public/providers/sdwebui.webp": [],
+    "public/providers/searchapi.webp": [],
+    "public/providers/searxng.webp": [],
+    "public/providers/serper.webp": [],
+    "public/providers/siliconflow.webp": [],
+    "public/providers/snowflake.webp": [],
+    "public/providers/stability-ai.webp": [],
+    "public/providers/tavily.webp": [],
+    "public/providers/together.webp": [],
+    "public/providers/tokenrouter.webp": [],
+    "public/providers/topaz.webp": [],
+    "public/providers/tortoise.webp": [],
+    "public/providers/upstage.webp": [],
+    "public/providers/venice.webp": [],
+    "public/providers/vercel-ai-gateway.webp": [],
+    "public/providers/vertex-partner.webp": [],
+    "public/providers/vertex.webp": [],
+    "public/providers/volcengine-ark.webp": [],
+    "public/providers/volcengine.webp": [],
+    "public/providers/voyage-ai.webp": [],
+    "public/providers/wandb.webp": [],
+    "public/providers/xai.webp": [],
+    "public/providers/xiaomi-mimo.webp": [],
+    "public/providers/xiaomi-tokenplan.webp": [],
+    "public/providers/youcom.webp": [],
+    "public/providers/zcode.webp": [],
+    "public/providers/zenmux.webp": [],
     "public/sw.js": [],
     "README.md": [],
     "README.zh-CN.md": [],
-    "scripts/build.js": [],
+    "scripts/build.js": [
+      "scripts/fix-standalone-symlinks.cjs"
+    ],
+    "scripts/fix-standalone-symlinks.cjs": [],
     "scripts/injectDisplayToRegistry.mjs": [],
     "scripts/lint-reacthooks.cjs": [],
     "scripts/lint-undef.cjs": [],
     "scripts/migrate-registry.mjs": [],
     "scripts/start.js": [],
-    "scripts/test-combo-autoswitch.mjs": [],
     "scripts/translate-readme.js": [],
+    "server": [],
     "server.js": [],
     "skills-lock.json": [],
     "skills/9router-chat/SKILL.md": [],
@@ -9233,6 +11166,7 @@
     "skills/9router-image/SKILL.md": [],
     "skills/9router-stt/SKILL.md": [],
     "skills/9router-tts/SKILL.md": [],
+    "skills/9router-video/SKILL.md": [],
     "skills/9router-web-fetch/SKILL.md": [],
     "skills/9router-web-search/SKILL.md": [],
     "skills/9router/SKILL.md": [],
@@ -9245,19 +11179,7 @@
       "src/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js"
     ],
     "src/app/(dashboard)/dashboard/cli-tools/[toolId]/ToolDetailClient.js": [
-      "src/app/(dashboard)/dashboard/cli-tools/components/ClaudeToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/ClineToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/CodexToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/CopilotToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/CoworkToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/DeepSeekTuiToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/DefaultToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/DroidToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/HermesToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/JcodeToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/KiloToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/OpenClawToolCard.js",
-      "src/app/(dashboard)/dashboard/cli-tools/components/OpenCodeToolCard.js"
+      "src/app/(dashboard)/dashboard/cli-tools/components/index.js"
     ],
     "src/app/(dashboard)/dashboard/cli-tools/CLIToolsPageClient.js": [
       "src/app/(dashboard)/dashboard/cli-tools/components/MitmLinkCard.js",
@@ -9305,6 +11227,11 @@
       "src/app/(dashboard)/dashboard/cli-tools/components/cliEndpointMatch.js"
     ],
     "src/app/(dashboard)/dashboard/cli-tools/components/EndpointPresetControl.js": [],
+    "src/app/(dashboard)/dashboard/cli-tools/components/GrokBuildToolCard.js": [
+      "src/app/(dashboard)/dashboard/cli-tools/components/ApiKeySelect.js",
+      "src/app/(dashboard)/dashboard/cli-tools/components/BaseUrlSelect.js",
+      "src/app/(dashboard)/dashboard/cli-tools/components/cliEndpointMatch.js"
+    ],
     "src/app/(dashboard)/dashboard/cli-tools/components/HermesToolCard.js": [
       "src/app/(dashboard)/dashboard/cli-tools/components/ApiKeySelect.js",
       "src/app/(dashboard)/dashboard/cli-tools/components/BaseUrlSelect.js",
@@ -9404,6 +11331,7 @@
     "src/app/(dashboard)/dashboard/providers/[id]/ConnectionRow.js": [
       "src/app/(dashboard)/dashboard/providers/[id]/CooldownTimer.js"
     ],
+    "src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js": [],
     "src/app/(dashboard)/dashboard/providers/[id]/CooldownTimer.js": [],
     "src/app/(dashboard)/dashboard/providers/[id]/EditCompatibleNodeModal.js": [],
     "src/app/(dashboard)/dashboard/providers/[id]/ModelRow.js": [],
@@ -9413,24 +11341,31 @@
       "src/app/(dashboard)/dashboard/providers/[id]/BulkImportCodexModal.js",
       "src/app/(dashboard)/dashboard/providers/[id]/CompatibleModelsSection.js",
       "src/app/(dashboard)/dashboard/providers/[id]/ConnectionRow.js",
+      "src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js",
       "src/app/(dashboard)/dashboard/providers/[id]/EditCompatibleNodeModal.js",
       "src/app/(dashboard)/dashboard/providers/[id]/ModelRow.js",
       "src/app/(dashboard)/dashboard/providers/[id]/PassthroughModelsSection.js"
     ],
     "src/app/(dashboard)/dashboard/providers/[id]/PassthroughModelsSection.js": [],
     "src/app/(dashboard)/dashboard/providers/components/AddCompatibleModal.js": [],
+    "src/app/(dashboard)/dashboard/providers/components/CircuitBreakerBadge.js": [],
     "src/app/(dashboard)/dashboard/providers/components/ConnectionsCard.js": [],
     "src/app/(dashboard)/dashboard/providers/components/ModelAvailabilityBadge.js": [],
     "src/app/(dashboard)/dashboard/providers/components/ModelsCard.js": [],
     "src/app/(dashboard)/dashboard/providers/new/page.js": [],
     "src/app/(dashboard)/dashboard/providers/page.js": [
       "src/app/(dashboard)/dashboard/providers/components/AddCompatibleModal.js",
+      "src/app/(dashboard)/dashboard/providers/components/CircuitBreakerBadge.js",
       "src/app/(dashboard)/dashboard/providers/components/ModelAvailabilityBadge.js"
     ],
     "src/app/(dashboard)/dashboard/providers/ProvidersClient.js": [
       "src/app/(dashboard)/dashboard/providers/components/ModelAvailabilityBadge.js"
     ],
     "src/app/(dashboard)/dashboard/proxy-pools/page.js": [],
+    "src/app/(dashboard)/dashboard/pxpipe/page.js": [
+      "src/app/(dashboard)/dashboard/pxpipe/PxpipeClient.js"
+    ],
+    "src/app/(dashboard)/dashboard/pxpipe/PxpipeClient.js": [],
     "src/app/(dashboard)/dashboard/quota/page.js": [
       "src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"
     ],
@@ -9476,6 +11411,7 @@
       "src/app/api/cli-tools/cowork-settings/route.js",
       "src/app/api/cli-tools/deepseek-tui-settings/route.js",
       "src/app/api/cli-tools/droid-settings/route.js",
+      "src/app/api/cli-tools/grok-build-settings/route.js",
       "src/app/api/cli-tools/hermes-settings/route.js",
       "src/app/api/cli-tools/jcode-settings/route.js",
       "src/app/api/cli-tools/kilo-settings/route.js",
@@ -9493,6 +11429,7 @@
     "src/app/api/cli-tools/cowork-settings/route.js": [],
     "src/app/api/cli-tools/deepseek-tui-settings/route.js": [],
     "src/app/api/cli-tools/droid-settings/route.js": [],
+    "src/app/api/cli-tools/grok-build-settings/route.js": [],
     "src/app/api/cli-tools/hermes-settings/route.js": [],
     "src/app/api/cli-tools/jcode-settings/route.js": [],
     "src/app/api/cli-tools/kilo-settings/route.js": [],
@@ -9500,6 +11437,9 @@
     "src/app/api/cli-tools/opencode-settings/route.js": [],
     "src/app/api/combos/[id]/route.js": [],
     "src/app/api/combos/route.js": [],
+    "src/app/api/headroom/extras/route.js": [],
+    "src/app/api/headroom/proxy/[...path]/route.js": [],
+    "src/app/api/headroom/restart/route.js": [],
     "src/app/api/headroom/start/route.js": [],
     "src/app/api/headroom/status/route.js": [],
     "src/app/api/headroom/stop/route.js": [],
@@ -9541,6 +11481,9 @@
     "src/app/api/provider-nodes/[id]/route.js": [],
     "src/app/api/provider-nodes/route.js": [],
     "src/app/api/provider-nodes/validate/route.js": [],
+    "src/app/api/providers/[id]/gcp-projects/route.js": [
+      "src/app/api/providers/[id]/test/testUtils.js"
+    ],
     "src/app/api/providers/[id]/models/route.js": [],
     "src/app/api/providers/[id]/route.js": [],
     "src/app/api/providers/[id]/test-models/route.js": [],
@@ -9548,6 +11491,8 @@
       "src/app/api/providers/[id]/test/testUtils.js"
     ],
     "src/app/api/providers/[id]/test/testUtils.js": [],
+    "src/app/api/providers/circuit-breakers/[name]/reset/route.js": [],
+    "src/app/api/providers/circuit-breakers/route.js": [],
     "src/app/api/providers/client/route.js": [],
     "src/app/api/providers/kilo/free-models/route.js": [],
     "src/app/api/providers/route.js": [],
@@ -9565,6 +11510,14 @@
     "src/app/api/proxy-pools/deno-deploy/route.js": [],
     "src/app/api/proxy-pools/route.js": [],
     "src/app/api/proxy-pools/vercel-deploy/route.js": [],
+    "src/app/api/pxpipe/health/route.js": [],
+    "src/app/api/pxpipe/install/route.js": [],
+    "src/app/api/pxpipe/logs/route.js": [],
+    "src/app/api/pxpipe/restart/route.js": [],
+    "src/app/api/pxpipe/start/route.js": [],
+    "src/app/api/pxpipe/stats/route.js": [],
+    "src/app/api/pxpipe/status/route.js": [],
+    "src/app/api/pxpipe/stop/route.js": [],
     "src/app/api/settings/database/route.js": [],
     "src/app/api/settings/proxy-test/route.js": [],
     "src/app/api/settings/require-login/route.js": [],
@@ -9613,6 +11566,10 @@
     "src/app/api/v1/responses/route.js": [],
     "src/app/api/v1/route.js": [],
     "src/app/api/v1/search/route.js": [],
+    "src/app/api/v1/videos/[id]/route.js": [],
+    "src/app/api/v1/videos/edits/route.js": [],
+    "src/app/api/v1/videos/extensions/route.js": [],
+    "src/app/api/v1/videos/generations/route.js": [],
     "src/app/api/v1/web/fetch/route.js": [],
     "src/app/api/v1beta/models/[...path]/route.js": [],
     "src/app/api/v1beta/models/route.js": [],
@@ -9712,11 +11669,17 @@
       "src/lib/db/schema.js"
     ],
     "src/lib/db/migrations/002-fix-empty-allowed-lists.js": [],
+    "src/lib/db/migrations/003-add-allowed-lists-columns.js": [],
+    "src/lib/db/migrations/004-add-request-details-apikey.js": [],
     "src/lib/db/migrations/index.js": [
       "src/lib/db/migrations/001-initial.js",
-      "src/lib/db/migrations/002-fix-empty-allowed-lists.js"
+      "src/lib/db/migrations/002-fix-empty-allowed-lists.js",
+      "src/lib/db/migrations/003-add-allowed-lists-columns.js",
+      "src/lib/db/migrations/004-add-request-details-apikey.js"
     ],
-    "src/lib/db/paths.js": [],
+    "src/lib/db/paths.js": [
+      "src/lib/dataDir.js"
+    ],
     "src/lib/db/repos/aliasRepo.js": [
       "src/lib/db/driver.js",
       "src/lib/db/helpers/jsonCol.js",
@@ -9724,6 +11687,10 @@
     ],
     "src/lib/db/repos/apiKeysRepo.js": [
       "src/lib/db/driver.js"
+    ],
+    "src/lib/db/repos/cachedModelsRepo.js": [
+      "src/lib/db/driver.js",
+      "src/lib/db/helpers/jsonCol.js"
     ],
     "src/lib/db/repos/combosRepo.js": [
       "src/lib/db/driver.js",
@@ -9766,6 +11733,7 @@
     "src/lib/db/schema.js": [],
     "src/lib/db/version.js": [],
     "src/lib/disabledModelsDb.js": [],
+    "src/lib/grokBuildConfig.js": [],
     "src/lib/headroom/detect.js": [],
     "src/lib/headroom/process.js": [
       "src/lib/headroom/detect.js"
@@ -9824,10 +11792,23 @@
     "src/lib/providerNormalization.js": [
       "src/shared/constants/providers.js"
     ],
+    "src/lib/pxpipe/events.js": [
+      "src/lib/pxpipe/install.js"
+    ],
+    "src/lib/pxpipe/install.js": [],
+    "src/lib/pxpipe/loader.js": [
+      "src/lib/pxpipe/install.js"
+    ],
+    "src/lib/pxpipe/service.js": [
+      "src/lib/pxpipe/install.js",
+      "src/lib/pxpipe/loader.js"
+    ],
     "src/lib/qoder/constants.js": [],
     "src/lib/qoder/cosy.js": [],
     "src/lib/qoder/encoding.js": [],
     "src/lib/requestDetailsDb.js": [],
+    "src/lib/services/credentials.js": [],
+    "src/lib/systemLogFetcher.js": [],
     "src/lib/tunnel/cloudflare/cloudflared.js": [
       "src/lib/tunnel/cloudflare/pid.js"
     ],
@@ -9884,7 +11865,7 @@
     "src/mitm/dns/dnsConfig.js": [
       "src/mitm/logger.js",
       "src/mitm/winElevated.js",
-      "src/shared/constants/mitmToolHosts.js"
+      "src/shared/constants/mitmToolHosts.cjs"
     ],
     "src/mitm/handlers/antigravity.js": [
       "src/mitm/config.js",
@@ -9918,6 +11899,7 @@
       "src/mitm/paths.js",
       "src/mitm/winElevated.js"
     ],
+    "src/mitm/package.json": [],
     "src/mitm/paths.js": [],
     "src/mitm/server.js": [
       "src/mitm/antigravityIdeVersion.js",
@@ -10047,7 +12029,7 @@
     ],
     "src/shared/constants/coworkPlugins.js": [],
     "src/shared/constants/locales.js": [],
-    "src/shared/constants/mitmToolHosts.js": [],
+    "src/shared/constants/mitmToolHosts.cjs": [],
     "src/shared/constants/models.js": [
       "src/shared/constants/providers.js"
     ],
@@ -10057,16 +12039,18 @@
     "src/shared/constants/suggestedModels.js": [],
     "src/shared/constants/ttsProviders.js": [],
     "src/shared/hooks/index.js": [],
+    "src/shared/hooks/useCircuitBreakers.js": [],
     "src/shared/hooks/useCopyToClipboard.js": [],
     "src/shared/hooks/useModelCaps.js": [],
     "src/shared/hooks/useTheme.js": [],
     "src/shared/services/bootstrap.js": [
       "src/shared/services/initializeApp.js"
     ],
-    "src/shared/services/claudeAutoPing.js": [],
     "src/shared/services/initializeApp.js": [],
+    "src/shared/services/quotaAutoPing.js": [],
     "src/shared/utils/api.js": [],
     "src/shared/utils/apiKey.js": [],
+    "src/shared/utils/bulkAdd.js": [],
     "src/shared/utils/clineAuth.js": [],
     "src/shared/utils/cn.js": [],
     "src/shared/utils/connectionStatus.js": [],
@@ -10077,7 +12061,9 @@
     ],
     "src/shared/utils/machineId.js": [],
     "src/shared/utils/providerCustomModels.js": [],
+    "src/shared/utils/providerIcon.js": [],
     "src/shared/utils/providerModelsFetcher.js": [],
+    "src/shared/utils/runtime.js": [],
     "src/shared/utils/ssrfGuard.js": [],
     "src/sse/handlers/chat.js": [
       "src/sse/services/allowedModels.js",
@@ -10124,6 +12110,12 @@
       "src/sse/services/model.js",
       "src/sse/utils/logger.js"
     ],
+    "src/sse/handlers/videoGeneration.js": [
+      "src/sse/services/auth.js",
+      "src/sse/services/model.js",
+      "src/sse/services/tokenRefresh.js",
+      "src/sse/utils/logger.js"
+    ],
     "src/sse/services/allowedModels.js": [],
     "src/sse/services/auth.js": [
       "src/sse/utils/logger.js"
@@ -10144,7 +12136,6 @@
     "start.sh": [],
     "tests/__baseline__/alias-baseline.json": [],
     "tests/__baseline__/baseline-results.json": [],
-    "tests/__baseline__/current.json": [],
     "tests/__baseline__/known-fails.txt": [],
     "tests/__baseline__/oauth-urls-baseline.json": [],
     "tests/__baseline__/providers-baseline.json": [],
@@ -10266,6 +12257,9 @@
       "src/sse/services/auth.js",
       "src/sse/services/tokenRefresh.js"
     ],
+    "tests/translator/real/nvidia-thinking.e2e.test.js": [
+      "src/lib/db/repos/apiKeysRepo.js"
+    ],
     "tests/translator/real/provider-cases.real.test.js": [
       "open-sse/config/providerModels.js",
       "open-sse/handlers/chatCore.js",
@@ -10334,7 +12328,16 @@
       "open-sse/translator/concerns/thinkingUnified.js"
     ],
     "tests/unit/agentrouter.test.js": [
-      "open-sse/providers/registry/agentrouter.js"
+      "open-sse/executors/index.js",
+      "open-sse/providers/registry/agentrouter.js",
+      "open-sse/services/accountFallback.js"
+    ],
+    "tests/unit/alicode-cache-control-2069.test.js": [
+      "open-sse/translator/formats/openai.js"
+    ],
+    "tests/unit/alicode-intl-endpoint-2591.test.js": [
+      "open-sse/providers/registry/alicode-intl.js",
+      "open-sse/providers/registry/alims-intl.js"
     ],
     "tests/unit/all-endpoints-robust.test.js": [
       "tests/helpers/server.js"
@@ -10349,10 +12352,15 @@
     ],
     "tests/unit/antigravity-oauth-client.test.js": [],
     "tests/unit/antigravity-retry-hook.test.js": [
-      "open-sse/executors/antigravity.js"
+      "open-sse/executors/antigravity.js",
+      "open-sse/providers/registry/antigravity.js"
     ],
+    "tests/unit/antigravity-usage-headers.test.js": [],
     "tests/unit/apikey-acl-security.test.js": [],
     "tests/unit/base-executor-retry.test.js": [],
+    "tests/unit/build-helpers.test.js": [
+      "cli/scripts/build-cli.js"
+    ],
     "tests/unit/buildOutputFilter.test.js": [
       "open-sse/rtk/autodetect.js",
       "open-sse/rtk/filters/buildOutput.js",
@@ -10366,6 +12374,17 @@
       "open-sse/rtk/filters/gitDiff.js",
       "open-sse/rtk/filters/gitStatus.js",
       "open-sse/rtk/index.js"
+    ],
+    "tests/unit/bulk-add-names.test.js": [
+      "src/shared/utils/bulkAdd.js"
+    ],
+    "tests/unit/cached-token-e2e.test.js": [
+      "open-sse/utils/usageTracking.js"
+    ],
+    "tests/unit/cached-token-usage.test.js": [
+      "open-sse/providers/pricing.js",
+      "open-sse/translator/concerns/usage.js",
+      "open-sse/utils/usageTracking.js"
     ],
     "tests/unit/capabilities-opus-context.test.js": [
       "open-sse/providers/capabilities.js"
@@ -10384,6 +12403,7 @@
       "open-sse/rtk/systemInject.js",
       "open-sse/translator/formats.js"
     ],
+    "tests/unit/chat-client-abort-fallback.test.js": [],
     "tests/unit/chat-pre-credential-retry-after.test.js": [],
     "tests/unit/circuit-breaker.test.js": [
       "open-sse/utils/circuitBreaker.js"
@@ -10393,15 +12413,35 @@
       "open-sse/config/appConstants.js",
       "open-sse/utils/claudeCloaking.js"
     ],
+    "tests/unit/claude-drop-foreign-thinking.test.js": [
+      "open-sse/config/defaultThinkingSignature.js",
+      "open-sse/translator/formats/claude.js"
+    ],
     "tests/unit/claude-header-forwarding.test.js": [],
+    "tests/unit/cli-xai-video.test.js": [
+      "cli/src/cli/commands/xaiVideo.js"
+    ],
+    "tests/unit/clinepass-provider.test.js": [
+      "open-sse/providers/capabilities.js",
+      "open-sse/providers/registry/clinepass.js",
+      "open-sse/providers/registry/index.js"
+    ],
+    "tests/unit/cloud-code-thinking.test.js": [
+      "open-sse/services/cloudCodeThinking.js"
+    ],
+    "tests/unit/codebuddy-cn-bonus-recurring.test.js": [],
     "tests/unit/codebuddy-reasoning-optin.test.js": [
       "open-sse/executors/codebuddy-cn.js"
+    ],
+    "tests/unit/codex-fast-capacity.test.js": [
+      "open-sse/executors/codex.js"
     ],
     "tests/unit/codex-image-fetch.test.js": [
       "open-sse/executors/codex.js",
       "open-sse/utils/proxyFetch.js"
     ],
     "tests/unit/codex-refresh-token.test.js": [],
+    "tests/unit/codex-reset-credits.test.js": [],
     "tests/unit/codex-tool-normalization.test.js": [
       "open-sse/executors/codex.js"
     ],
@@ -10423,13 +12463,21 @@
     ],
     "tests/unit/compatible-provider-connections.test.js": [],
     "tests/unit/cooldown-aware-retry.test.js": [],
+    "tests/unit/cursor-agent-proto.test.js": [
+      "open-sse/executors/cursor.js",
+      "open-sse/utils/cursorProtobuf.js"
+    ],
     "tests/unit/cursor-composer-thinking.test.js": [
       "open-sse/executors/cursor.js",
       "open-sse/utils/cursorProtobuf.js"
     ],
+    "tests/unit/cursor-models.test.js": [
+      "open-sse/services/cursorModels.js"
+    ],
     "tests/unit/daily-quota-detection.test.js": [],
     "tests/unit/daily-quota-model-lock-filter.test.js": [],
     "tests/unit/dashboard-guard.test.js": [],
+    "tests/unit/database-paths-verification.test.js": [],
     "tests/unit/db-benchmark.test.js": [],
     "tests/unit/db-concurrent.test.js": [],
     "tests/unit/db-driver-chain.test.js": [],
@@ -10464,6 +12512,9 @@
       "open-sse/translator/concerns/finishReason.js",
       "open-sse/translator/schema/finishReasons.js"
     ],
+    "tests/unit/fix-standalone-symlinks.test.js": [
+      "scripts/fix-standalone-symlinks.cjs"
+    ],
     "tests/unit/force-stream-config.test.js": [],
     "tests/unit/gemini-native-endpoint.test.js": [],
     "tests/unit/gemini-tts.test.js": [
@@ -10476,6 +12527,34 @@
     ],
     "tests/unit/github-responses-routing.test.js": [
       "open-sse/executors/github.js"
+    ],
+    "tests/unit/grok-build-config.test.js": [
+      "src/lib/grokBuildConfig.js"
+    ],
+    "tests/unit/grok-cli-executor.test.js": [
+      "open-sse/config/providerModels.js",
+      "open-sse/executors/grok-cli.js",
+      "open-sse/executors/index.js",
+      "open-sse/providers/index.js",
+      "open-sse/services/model.js",
+      "src/shared/constants/providers.js"
+    ],
+    "tests/unit/grok-cli-expiresat-2546.test.js": [],
+    "tests/unit/grok-cli-models.test.js": [
+      "open-sse/services/grokCliModels.js",
+      "open-sse/services/oauthCredentialManager.js"
+    ],
+    "tests/unit/grok-cli-oauth-probe.test.js": [
+      "open-sse/providers/index.js",
+      "src/app/api/providers/[id]/test/testUtils.js"
+    ],
+    "tests/unit/grok-cli-usage.test.js": [
+      "open-sse/providers/index.js",
+      "open-sse/services/usage.js",
+      "open-sse/services/usage/grok-cli.js",
+      "open-sse/utils/proxyFetch.js",
+      "src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js",
+      "src/shared/constants/providers.js"
     ],
     "tests/unit/handler-acl-enforcement.test.js": [],
     "tests/unit/headroom-chat-core.test.js": [],
@@ -10519,11 +12598,21 @@
       "open-sse/utils/proxyFetch.js"
     ],
     "tests/unit/kiro-external-idp.test.js": [],
+    "tests/unit/kiro-idc-regional-url.test.js": [
+      "open-sse/executors/kiro.js"
+    ],
     "tests/unit/kiro-model-slots.test.js": [
+      "open-sse/config/providerModels.js",
       "src/shared/constants/cliTools.js"
     ],
+    "tests/unit/kiro-nonstream-error.test.js": [],
     "tests/unit/kiro-profile-arn.test.js": [
       "src/lib/oauth/services/kiro.js"
+    ],
+    "tests/unit/kiro-terminal-integrity.test.js": [],
+    "tests/unit/kiro-thinking-strip.test.js": [
+      "open-sse/executors/kiro.js",
+      "tests/translator/registerAll.js"
     ],
     "tests/unit/loop-guard-wiring.test.js": [
       "open-sse/handlers/chatCore.js",
@@ -10573,7 +12662,21 @@
       "open-sse/translator/formats/gemini.js",
       "open-sse/translator/request/openai-to-claude.js"
     ],
+    "tests/unit/muse-spark-provider.test.js": [
+      "open-sse/executors/index.js",
+      "open-sse/providers/index.js",
+      "open-sse/providers/registry/index.js"
+    ],
     "tests/unit/oauth-cursor-auto-import.test.js": [],
+    "tests/unit/omniroute-ported-providers.test.js": [
+      "open-sse/providers/index.js",
+      "open-sse/providers/registry/index.js"
+    ],
+    "tests/unit/openai-responses-multiturn.test.js": [
+      "open-sse/executors/grok-cli.js",
+      "open-sse/translator/index.js",
+      "open-sse/translator/request/openai-responses.js"
+    ],
     "tests/unit/openai-responses-terminal-event.test.js": [
       "open-sse/translator/formats.js",
       "open-sse/utils/stream.js"
@@ -10581,9 +12684,14 @@
     "tests/unit/openai-to-claude-response-tools.test.js": [
       "open-sse/translator/response/openai-to-claude.js"
     ],
+    "tests/unit/openai-to-claude-tools-no-type.test.js": [
+      "open-sse/translator/request/openai-to-claude.js"
+    ],
     "tests/unit/openai-to-claude.test.js": [
+      "open-sse/handlers/chatCore/nonStreamingHandler.js",
       "open-sse/translator/request/openai-to-claude.js",
-      "open-sse/translator/response/openai-to-claude.js"
+      "open-sse/translator/response/openai-to-claude.js",
+      "open-sse/utils/claudeCloaking.js"
     ],
     "tests/unit/openai-to-commandcode.test.js": [
       "open-sse/translator/request/openai-to-commandcode.js"
@@ -10611,6 +12719,9 @@
       "open-sse/translator/concerns/prefetch.js",
       "open-sse/translator/formats.js"
     ],
+    "tests/unit/provider-connections-pagination.test.js": [
+      "src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js"
+    ],
     "tests/unit/provider-custom-models.test.js": [],
     "tests/unit/provider-display-split.test.js": [],
     "tests/unit/provider-models-minimax-m3.test.js": [
@@ -10620,6 +12731,11 @@
     "tests/unit/provider-nodes-validate.test.js": [],
     "tests/unit/provider-pricing-minimax-m3.test.js": [
       "open-sse/providers/pricing.js"
+    ],
+    "tests/unit/provider-resilience-profiles.test.js": [
+      "open-sse/config/providerProfiles.js",
+      "open-sse/services/accountFallback.js",
+      "open-sse/utils/circuitBreaker.js"
     ],
     "tests/unit/provider-test-models-routing.test.js": [],
     "tests/unit/provider-thinking-config.test.js": [
@@ -10632,6 +12748,9 @@
       "open-sse/utils/circuitBreaker.js",
       "src/lib/network/connectionProxy.js"
     ],
+    "tests/unit/pxpipe.test.js": [
+      "open-sse/rtk/pxpipe.js"
+    ],
     "tests/unit/qoder.test.js": [
       "open-sse/config/providerModels.js",
       "open-sse/executors/qoder.js",
@@ -10640,6 +12759,7 @@
       "src/lib/qoder/cosy.js",
       "src/lib/qoder/encoding.js"
     ],
+    "tests/unit/quota-auto-ping.test.js": [],
     "tests/unit/reasoning-content-nvidia.test.js": [
       "open-sse/utils/reasoningContentInjector.js"
     ],
@@ -10647,6 +12767,7 @@
       "open-sse/executors/opencode.js",
       "open-sse/utils/reasoningContentInjector.js"
     ],
+    "tests/unit/request-details-tab.test.js": [],
     "tests/unit/responses-abort-terminal.test.js": [
       "open-sse/utils/responsesStreamHelpers.js",
       "open-sse/utils/streamHandler.js"
@@ -10668,9 +12789,16 @@
       "open-sse/rtk/filters/tree.js",
       "open-sse/rtk/index.js"
     ],
+    "tests/unit/rtkFindWindows.test.js": [
+      "open-sse/rtk/autodetect.js",
+      "open-sse/rtk/filters/find.js",
+      "open-sse/rtk/filters/grep.js"
+    ],
     "tests/unit/rtkKiro.test.js": [
       "open-sse/rtk/index.js"
     ],
+    "tests/unit/runtime-detect.test.js": [],
+    "tests/unit/searxng-provider-config.test.js": [],
     "tests/unit/security-audit.test.js": [],
     "tests/unit/selected-connection-header.test.js": [],
     "tests/unit/session-manager.test.js": [
@@ -10685,6 +12813,13 @@
       "open-sse/handlers/chatCore.js",
       "open-sse/rtk/terminationPrompt.js",
       "open-sse/translator/formats.js"
+    ],
+    "tests/unit/thinking-effort-openai-max-clamp.test.js": [
+      "open-sse/translator/concerns/thinkingUnified.js",
+      "open-sse/translator/formats.js"
+    ],
+    "tests/unit/thinking-levels-gpt56-sol.test.js": [
+      "open-sse/providers/thinkingLevels.js"
     ],
     "tests/unit/token-refresh-dispatch.test.js": [],
     "tests/unit/token-savers-matrix.test.js": [
@@ -10723,6 +12858,8 @@
     "tests/unit/web-cookie-validation.test.js": [],
     "tests/unit/xai-oauth-service.test.js": [],
     "tests/unit/xai-tokenRefresh.test.js": [],
+    "tests/unit/xai-video-core.test.js": [],
+    "tests/unit/xai-video-handler.test.js": [],
     "tests/vitest.config.js": []
   }
 }
