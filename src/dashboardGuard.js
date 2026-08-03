@@ -231,10 +231,17 @@ export async function proxy(request) {
     return NextResponse.redirect(new URL("/masuk", request.url));
   }
 
-  // / - redirect to dashboard if authenticated, otherwise return JSON welcome
+  // / - redirect to dashboard if authenticated, otherwise:
+  //   - browser visits (Accept: text/html) -> send to /masuk login page
+  //   - API clients / programmatic requests -> JSON welcome (preserves gateway behavior)
   if (pathname === "/") {
     if (await isAuthenticated(request)) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    const accept = request.headers.get("accept") || "";
+    if (accept.includes("text/html")) {
+      return NextResponse.redirect(new URL("/masuk", request.url));
     }
 
     const host = request.headers.get("host") || "api.bevansatria.my.id";
