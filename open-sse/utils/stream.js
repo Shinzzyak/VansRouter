@@ -125,6 +125,19 @@ export function createSSEStream(options = {}) {
   let openAIResponsesDoneSent = false;
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
 
+  // Guard so onStreamComplete (which records usage) fires exactly once — whether
+  // the stream ends normally (flush) OR the client disconnects early (cancel).
+  // Hermes/OpenAI SDK often close the connection right after the full response
+  // arrives, before flush() runs, which previously dropped usage tracking.
+  let streamCompleteFired = false;
+  const fireStreamComplete = () => {
+    if (streamCompleteFired) return;
+    streamCompleteFired = true;
+    if (onStreamComplete) {
+      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking }, usage, ttftAt);
+    }
+  };
+
   return new TransformStream({
     transform(chunk, controller) {
       if (!ttftAt) ttftAt = Date.now();
@@ -485,10 +498,7 @@ export function createSSEStream(options = {}) {
           }
 
           if (onStreamComplete) {
-            onStreamComplete({
-              content: accumulatedContent,
-              thinking: accumulatedThinking
-            }, usage, ttftAt);
+            fireStreamComplete();
           }
           return;
         }
@@ -579,14 +589,19 @@ export function createSSEStream(options = {}) {
         }
         
         if (onStreamComplete) {
-          onStreamComplete({
-            content: accumulatedContent,
-            thinking: accumulatedThinking
-          }, state?.usage, ttftAt);
+          fireStreamComplete();
         }
       } catch (error) {
         console.log("Error in flush:", error);
       }
+    },
+
+    // Client disconnected / stream aborted before flush() ran. Fire onStreamComplete
+    // here so usage + request detail are still recorded (Hermes closes the socket
+    // as soon as the full response arrives, skipping flush).
+    cancel(reason) {
+      dbg("SSE", `${provider || "unknown"}/${model || "unknown"} | stream cancelled (${reason || "client"}) — recording usage`);
+      fireStreamComplete();
     }
   });
 }

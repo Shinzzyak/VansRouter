@@ -88,7 +88,14 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Log request endpoint and model
   const url = new URL(request.url);
-  const modelStr = body.model;
+  let modelStr = body.model;
+
+  // Accept an explicit "combo/" prefix (e.g. combo/smart-fallback, as exposed by
+  // /v1/models) and strip it so combo resolution works. The bare combo name is
+  // what's stored/resolved; the prefix is only a discovery convenience.
+  if (typeof modelStr === "string" && modelStr.startsWith("combo/")) {
+    modelStr = modelStr.slice("combo/".length);
+  }
 
   // Count messages (support both messages[] and input[] formats)
   const msgCount = body.messages?.length || body.input?.length || 0;
