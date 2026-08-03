@@ -1,8 +1,10 @@
 import { ANTIGRAVITY_IDE_BASE_URL, ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_OAUTH_CLIENT } from "../shared.js";
 
 // Inline IDE User-Agent (cannot import from appConstants — circular dependency)
-const _p = platform() === "win32" ? "windows" : platform();
-const _a = arch() === "x64" ? "amd64" : arch();
+// `process` is a global in the Next.js/ESLint env; use it (not node:os, which
+// cannot be bundled into client components that import this provider registry).
+const _p = process.platform === "win32" ? "windows" : process.platform;
+const _a = process.arch === "x64" ? "amd64" : process.arch;
 const AG_IDE_UA = `antigravity/ide/2.1.1 ${_p}/${_a}`;
 
 export default {
