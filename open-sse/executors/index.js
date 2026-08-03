@@ -22,6 +22,8 @@ import { ZcodeExecutor } from "./zcode.js";
 import { CodeBuddyExecutor } from "./codebuddy-cn.js";
 import { AgentRouterExecutor } from "./agentrouter.js";
 import { MuseSparkWebExecutor } from "./muse-spark-web.js";
+import { DevinCliExecutor } from "./devin-cli.js";
+import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -55,6 +57,8 @@ const executors = {
   "codebuddy-cn": new CodeBuddyExecutor(),
   agentrouter: new AgentRouterExecutor(),
   "muse-spark-web": new MuseSparkWebExecutor(),
+  "devin-cli": new DevinCliExecutor(),
+  "codebuddy-intl": new CodeBuddyIntlExecutor(),
 };
 
 const defaultCache = new Map();
@@ -94,3 +98,5 @@ export { MimoFreeExecutor } from "./mimo-free.js";
 export { ZcodeExecutor } from "./zcode.js";
 export { CodeBuddyExecutor } from "./codebuddy-cn.js";
 export { MuseSparkWebExecutor } from "./muse-spark-web.js";
+export { DevinCliExecutor } from "./devin-cli.js";
+export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";

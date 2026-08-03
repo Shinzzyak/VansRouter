@@ -27,7 +27,8 @@ import { FORMATS } from "../formats.js";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
 import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
 import {
-  resolveKiroModel,
+  resolveKiroModelIntent,
+  applyKiroThinkingOverride,
   resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
   KIRO_AGENTIC_SYSTEM_PROMPT,
@@ -37,6 +38,7 @@ import {
 } from "../../config/kiroConstants.js";
 import { DEFAULT_IMAGE_MIME } from "../schema/index.js";
 import { ROLE, CLAUDE_BLOCK } from "../schema/index.js";
+import { canonicalizeKiroConversation, normalizeKiroToolSpecs } from "../concerns/kiroConversation.js";
 
 /** Stringify a tool_use input as a readable line. */
 function toolUseToText(name, input) {
@@ -208,7 +210,7 @@ function convertClaudeMessagesToKiro(messages, tools, model) {
             }
             pendingToolResults.push({
               toolUseId: block.tool_use_id,
-              status: "success",
+              status: block.is_error ? "error" : "success",
               content: [{ text: resultContent }],
             });
           }
@@ -382,33 +384,21 @@ function extractClaudeSystemText(system) {
  * Build a Kiro payload directly from a Claude Messages API request body.
  */
 export function claudeToKiroRequest(model, body, stream, credentials) {
-  let messages = Array.isArray(body.messages) ? body.messages : [];
+  const messages = Array.isArray(body.messages) ? body.messages : [];
   const tools = Array.isArray(body.tools) ? body.tools : [];
-  const clientProvidedTools = tools.length > 0;
   const maxTokens = body.max_tokens || 32000;
   const temperature = body.temperature;
   const topP = body.top_p;
 
-  const { upstream: upstreamModel, agentic } = resolveKiroModel(model);
-  const thinkingBudget = resolveKiroThinkingBudget(body, credentials?.rawHeaders, model);
-  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(body, upstreamModel);
-  const usesNativeGptEffort = usesKiroNativeGptEffort(body, upstreamModel);
+  const modelIntent = resolveKiroModelIntent(model);
+  const { upstream: upstreamModel, agentic } = modelIntent;
+  const thinkingBody = applyKiroThinkingOverride(body, modelIntent.thinkingOverride);
+  const thinkingBudget = resolveKiroThinkingBudget(thinkingBody, credentials?.rawHeaders, modelIntent.model);
+  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
+  const usesNativeGptEffort = usesKiroNativeGptEffort(thinkingBody, upstreamModel);
 
-  // Guard 1: no client tools → flatten all tool interactions to text.
-  if (!clientProvidedTools) {
-    messages = flattenClaudeToolInteractions(messages);
-  }
-
-  const { history, currentMessage } = convertClaudeMessagesToKiro(
-    messages,
-    tools,
-    upstreamModel
-  );
-
-  // Guard 2: tools present → reconcile dangling tool_results.
-  if (clientProvidedTools) {
-    reconcileOrphanedToolResults(history, currentMessage);
-  }
+  const { specs: toolSpecs, nameMap } = normalizeKiroToolSpecs(tools);
+  const { history, currentMessage } = convertClaudeMessagesToKiro(messages, tools, upstreamModel);
 
   // api_key / idc / external_idp must never use the shared default ARN (belongs
   // to another account → 403 "bearer token invalid"); OAuth/social fall back to it.
@@ -457,7 +447,14 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     history,
     currentMessage,
   });
-  const replayCurrent = replay.currentMessage?.userInputMessage || {};
+  const canonical = canonicalizeKiroConversation({
+    history: replay.history,
+    currentMessage: replay.currentMessage,
+    modelId: upstreamModel,
+    toolSpecs,
+    nameMap,
+  });
+  const replayCurrent = canonical.currentMessage.userInputMessage;
   const userInputMessage = {
     content: replayCurrent.content || "",
     modelId: upstreamModel,
@@ -479,7 +476,7 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
       currentMessage: {
         userInputMessage,
       },
-      history: replay.history,
+      history: canonical.history,
     },
     agentMode: "vibe",
   };

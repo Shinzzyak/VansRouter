@@ -9,7 +9,8 @@ import { randomUUID } from "node:crypto";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
 import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
 import {
-  resolveKiroModel,
+  resolveKiroModelIntent,
+  applyKiroThinkingOverride,
   resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
   KIRO_AGENTIC_SYSTEM_PROMPT,
@@ -20,6 +21,7 @@ import {
 import { parseDataUri } from "../concerns/image.js";
 import { DEFAULT_IMAGE_MIME } from "../schema/index.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
+import { canonicalizeKiroConversation, normalizeKiroToolSpecs } from "../concerns/kiroConversation.js";
 
 /** Render a single tool call as a readable text line. */
 function toolCallToText(name, input) {
@@ -327,7 +329,7 @@ function convertMessages(messages, tools, model) {
 
             pendingToolResults.push({
               toolUseId: block.tool_use_id,
-              status: "success",
+              status: block.is_error ? "error" : "success",
               content: [{ text: text }]
             });
           });
@@ -339,7 +341,7 @@ function convertMessages(messages, tools, model) {
         const toolContent = typeof msg.content === "string" ? msg.content : "";
         pendingToolResults.push({
           toolUseId: msg.tool_call_id,
-          status: "success",
+          status: msg.is_error || msg.status === "error" ? "error" : "success",
           content: [{ text: toolContent }]
         });
       } else if (content) {
@@ -525,11 +527,14 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
   const temperature = body.temperature;
   const topP = body.top_p;
 
-  const { upstream: upstreamModel, agentic } = resolveKiroModel(model);
-  const thinkingBudget = resolveKiroThinkingBudget(body, credentials?.rawHeaders, model);
-  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(body, upstreamModel);
-  const usesNativeGptEffort = usesKiroNativeGptEffort(body, upstreamModel);
+  const modelIntent = resolveKiroModelIntent(model);
+  const { upstream: upstreamModel, agentic } = modelIntent;
+  const thinkingBody = applyKiroThinkingOverride(body, modelIntent.thinkingOverride);
+  const thinkingBudget = resolveKiroThinkingBudget(thinkingBody, credentials?.rawHeaders, modelIntent.model);
+  const additionalModelRequestFields = buildKiroAdditionalModelRequestFieldsForModel(thinkingBody, upstreamModel);
+  const usesNativeGptEffort = usesKiroNativeGptEffort(thinkingBody, upstreamModel);
 
+  const { specs: toolSpecs, nameMap } = normalizeKiroToolSpecs(tools);
   const { history, currentMessage } = convertMessages(messages, tools, upstreamModel);
 
   // API-key (headless) auth uses a raw CodeWhisperer credential whose profile is
@@ -584,7 +589,14 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     history,
     currentMessage,
   });
-  const replayCurrent = replay.currentMessage?.userInputMessage || {};
+  const canonical = canonicalizeKiroConversation({
+    history: replay.history,
+    currentMessage: replay.currentMessage,
+    modelId: upstreamModel,
+    toolSpecs,
+    nameMap,
+  });
+  const replayCurrent = canonical.currentMessage.userInputMessage;
 
   const payload = {
     conversationState: {
@@ -605,7 +617,7 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
           })
         }
       },
-      history: replay.history
+      history: canonical.history
     },
     agentMode: "vibe",
   };

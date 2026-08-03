@@ -783,6 +783,25 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = !!(data && data.user);
         return { valid, error: valid ? null : "Session expired — re-paste cookie" };
       }
+      case "qoder": {
+        const raw = connection.apiKey || "";
+        const pat = raw.startsWith("pt-") ? raw : `pt-${raw}`;
+        const exRes = await fetchWithConnectionProxy(
+          "https://openapi.qoder.sh/api/v1/jobToken/exchange",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "Cosy-Version": "1.0.1",
+              "Cosy-ClientType": "5",
+            },
+            body: JSON.stringify({ personal_token: pat }),
+          },
+          effectiveProxy,
+        );
+        return { valid: exRes.ok, error: exRes.ok ? null : "Invalid Personal Access Token" };
+      }
       case "opencode-go": {
         const res = await fetchWithConnectionProxy("https://opencode.ai/zen/go/v1/chat/completions", {
           method: "POST",
