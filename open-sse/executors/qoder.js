@@ -327,7 +327,21 @@ function wrapQoderSSE(response, model) {
 
 const PAT_PREFIX = "pt-";
 const PAT_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const PAT_CACHE_MAX = 100;
 const patJobCache = new Map();
+
+function patCacheKey(pat) {
+  return createHash("sha256").update(pat).digest("hex");
+}
+
+function prunePatJobCache(now = Date.now()) {
+  for (const [key, entry] of patJobCache) {
+    if (entry.expiresAt <= now) patJobCache.delete(key);
+  }
+  while (patJobCache.size > PAT_CACHE_MAX) {
+    patJobCache.delete(patJobCache.keys().next().value);
+  }
+}
 
 export function isQoderPat(token) {
   return typeof token === "string" && token.startsWith(PAT_PREFIX);
@@ -356,8 +370,8 @@ async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
   if (data.expires_at) {
     const parsed = Date.parse(data.expires_at);
     if (!Number.isNaN(parsed)) expiresAt = parsed;
-  } else if (typeof data.expires_in === "number" && data.expires_in > 0) {
-    expiresAt = Date.now() + data.expires_in;
+  } else if (typeof data.expires_in === "number" && data.expires_in >= 0) {
+    expiresAt = Date.now() + data.expires_in * 1000;
   }
   return { jobToken: data.token, expiresAt };
 }
@@ -377,11 +391,16 @@ async function fetchUserIdForJobToken(jobToken, proxyOptions = null, signal = nu
 }
 
 async function resolvePatCredential(pat, proxyOptions = null, signal = null) {
-  const cached = patJobCache.get(pat);
-  if (cached && cached.expiresAt - Date.now() > PAT_REFRESH_BUFFER_MS) return cached;
+  const key = patCacheKey(pat);
+  const now = Date.now();
+  prunePatJobCache(now);
+  const cached = patJobCache.get(key);
+  if (cached && cached.expiresAt - now > PAT_REFRESH_BUFFER_MS) return cached;
+  if (cached) patJobCache.delete(key);
   const { jobToken, expiresAt } = await exchangeJobToken(pat, proxyOptions, signal);
   const entry = { accessToken: jobToken, userId: await fetchUserIdForJobToken(jobToken, proxyOptions, signal), expiresAt };
-  patJobCache.set(pat, entry);
+  patJobCache.set(key, entry);
+  prunePatJobCache();
   return entry;
 }
 

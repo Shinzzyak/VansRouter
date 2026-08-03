@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "node:path";
 import process from "node:process";
-import { DevinCliExecutor } from "../../open-sse/executors/devin-cli.js";
+import { DevinCliExecutor, resolveDevinBin } from "../../open-sse/executors/devin-cli.js";
 
 const fixture = path.resolve("tests/fixtures/fake-devin-acp.mjs");
 const envNames = ["CLI_DEVIN_BIN", "DEVIN_CLI_TIMEOUT_MS", "WINDSURF_API_KEY", "SECRET_ENV", "FAKE_DEVIN_HANG"];
@@ -20,7 +20,7 @@ async function run(options = {}) {
   process.env.FAKE_DEVIN_HANG = options.hang ? "1" : "";
   const result = await new DevinCliExecutor().execute({
     model: "fake-model",
-    body: { messages: [{ role: "user", content: options.hang ? "hang" : "hello" }] },
+    body: { messages: [{ role: "user", content: options.hang ? "hang" : options.prompt || "hello" }] },
     credentials: options.credentials,
     signal: options.signal,
     log: { debug: (_scope, message) => logs.push(message) },
@@ -43,6 +43,14 @@ afterEach(() => {
 });
 
 describe("DevinCliExecutor", () => {
+  it("honors CLI_DEVIN_BIN through the shared server-safe resolver", () => {
+    const previous = process.env.CLI_DEVIN_BIN;
+    process.env.CLI_DEVIN_BIN = "/custom/devin";
+    expect(resolveDevinBin()).toBe("/custom/devin");
+    if (previous === undefined) delete process.env.CLI_DEVIN_BIN;
+    else process.env.CLI_DEVIN_BIN = previous;
+  });
+
   it("uses an allowlisted environment and dedicated cwd", async () => {
     const { logs } = await run({ credentials: { apiKey: "request-secret" } });
     const observation = logs.filter((line) => line.includes("FAKE_DEVIN_OBSERVED")).join("\n");
@@ -59,6 +67,14 @@ describe("DevinCliExecutor", () => {
     expect(events.filter((event) => event === "[DONE]")).toHaveLength(1);
     expect(events.map((event) => event.choices?.[0]?.delta?.content).filter(Boolean).join(""))
       .toBe("fragmented");
+    expect(events.at(-2).choices[0].finish_reason).toBe("stop");
+  });
+
+  it("handles a correlated session/prompt result", async () => {
+    const { events } = await run({ prompt: "correlated" });
+    expect(events.filter((event) => event === "[DONE]")).toHaveLength(1);
+    expect(events.map((event) => event.choices?.[0]?.delta?.content).filter(Boolean).join(""))
+      .toBe("correlated result");
     expect(events.at(-2).choices[0].finish_reason).toBe("stop");
   });
 

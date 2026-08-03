@@ -599,21 +599,22 @@ export async function POST(request) {
         }
 
         default: {
-          // Generic probe for OpenAI-compatible providers (config-driven from PROVIDERS)
+          // Generic probe from the registry transport. Registry metadata is the
+          // canonical provider contract; do not require a second legacy config entry.
           const cfg = PROVIDERS[provider];
-          if (!cfg || cfg.format !== "openai" || !cfg.baseUrl) {
+          if (!cfg || !cfg.baseUrl) {
             return NextResponse.json({ error: "Provider validation not supported" }, { status: 400 });
           }
           if (cfg.noAuth) {
             isValid = true;
             break;
           }
-          // Build auth headers based on cfg.authHeader (default: bearer)
+          // Build auth headers based on registry metadata (default: bearer).
           const headers = { "Content-Type": "application/json", ...(cfg.headers || {}) };
           if (cfg.authHeader === "x-api-key") headers["X-API-Key"] = apiKey;
           else headers["Authorization"] = `Bearer ${apiKey}`;
-          // Try /models first (fast GET), fallback to chat probe on ambiguous response
-          const modelsUrl = cfg.baseUrl.replace(/\/chat\/completions$/, "/models").replace(/\/chatbot$/, "/models");
+          // Prefer an explicit registry validation URL; derive the common path otherwise.
+          const modelsUrl = cfg.validateUrl || cfg.baseUrl.replace(/\/chat\/completions$/, "/models").replace(/\/chatbot$/, "/models");
           let probeOk = null;
           try {
             const probeRes = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(8000) });

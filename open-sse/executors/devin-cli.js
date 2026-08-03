@@ -10,8 +10,8 @@
  *   4. Emit deltas as OpenAI-compatible SSE chunks.
  *   5. Kill subprocess on [DONE] or error.
  *
- * Auth: credentials.apiKey / accessToken → WINDSURF_API_KEY env var passed to
- * devin. If unset, devin falls back to credentials stored by `devin auth login`.
+ * Auth: only server-side WINDSURF_API_KEY is passed when configured. If unset,
+ * devin uses credentials stored by `devin auth login`.
  *
  * Binary discovery: CLI_DEVIN_BIN env → PATH lookup → platform installer paths.
  */
@@ -21,36 +21,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { BaseExecutor } from "./base.js";
-
-// ─── Binary discovery ────────────────────────────────────────────────────────
-
-function resolveDevinBin() {
-  // 1. Explicit override
-  const envBin = process.env.CLI_DEVIN_BIN?.trim();
-  if (envBin) return envBin;
-
-  // 2. Common name (PATH lookup handled by spawn shell option)
-  const isWin = process.platform === "win32";
-
-  // 3. Windows installer default: %LOCALAPPDATA%\devin\cli\bin\devin.exe
-  if (isWin) {
-    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-    const winPath = path.join(localAppData, "devin", "cli", "bin", "devin.exe");
-    if (fs.existsSync(winPath)) return winPath;
-  }
-
-  // 4. Linux/macOS installer paths
-  const home = os.homedir();
-  for (const candidate of [
-    path.join(home, ".local", "share", "devin", "bin", "devin"),
-    path.join(home, ".devin", "bin", "devin"),
-  ]) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  // Fallback — rely on PATH
-  return isWin ? "devin.exe" : "devin";
-}
+import { resolveDevinBin } from "../shared/cliResolver.js";
 
 // ─── ACP JSON-RPC helper ────────────────────────────────────────────────────
 
@@ -113,17 +84,19 @@ export class DevinCliExecutor extends BaseExecutor {
     const b = body ?? {};
     const messages = Array.isArray(b.messages) ? b.messages : [];
     const promptText = buildPromptText(messages);
-    const auth = credentials ?? {};
-    const apiKey =
-      auth.apiKey || auth.accessToken || process.env.WINDSURF_API_KEY || "";
+    const apiKey = process.env.WINDSURF_API_KEY || "";
     const devinBin = resolveDevinBin();
 
     log?.info?.("DEVIN", `devin acp → model=${model}, bin=${devinBin}`);
 
+    let cancelStream;
     const sseStream = new ReadableStream({
       start(controller) {
         const enc = new TextEncoder();
-        const emit = (data) => controller.enqueue(enc.encode(data));
+        let controllerClosed = false;
+        const emit = (data) => {
+          if (!controllerClosed) controller.enqueue(enc.encode(data));
+        };
         const safeEnv = [
           "PATH", "HOME", "USERPROFILE", "TMPDIR", "TMP", "TEMP", "SystemRoot", "WINDIR",
           "LANG", "LC_ALL", "XDG_CONFIG_HOME", "DEVIN_API_KEY", "WINDSURF_API_KEY",
@@ -164,19 +137,26 @@ export class DevinCliExecutor extends BaseExecutor {
         let initDone = false;
         let sessionCreated = false;
         let promptSent = false;
+        const pending = new Map();
         const responseId = `chatcmpl-devin-${Date.now()}`;
         const created = Math.floor(Date.now() / 1000);
         let roleEmitted = false;
         let totalText = "";
         let finished = false;
+        const closeController = () => {
+          if (controllerClosed) return;
+          controllerClosed = true;
+          try { controller.close(); } catch { /* already closed */ }
+        };
 
         const sendRpc = (method, params) => {
-          if (stdinClosed || child.stdin.destroyed) return;
+          if (stdinClosed || child.stdin.destroyed) return null;
           const id = idCounter++;
+          pending.set(id, method);
           try {
             child.stdin.write(rpc(method, params, id));
           } catch {
-            /* ignore write errors after close */
+            pending.delete(id);
           }
           return id;
         };
@@ -184,6 +164,7 @@ export class DevinCliExecutor extends BaseExecutor {
         const cleanup = () => {
           clearTimeout(timeoutTimer);
           clearTimeout(killTimer);
+          pending.clear();
           try { fs.rmSync(tempCwd, { recursive: true, force: true }); } catch { /* best effort */ }
         };
 
@@ -236,7 +217,7 @@ export class DevinCliExecutor extends BaseExecutor {
 
           terminate();
           cleanup();
-          controller.close();
+          closeController();
         };
 
         child.on("error", (err) => {
@@ -272,38 +253,64 @@ export class DevinCliExecutor extends BaseExecutor {
               continue; // ignore non-JSON lines (banner text, etc.)
             }
 
-            // ── Initialize response ───────────────────────────────────────
-            if (!initDone && msg.result !== undefined && !msg.method) {
-              initDone = true;
-              // Create session: send session/new with model and a temp cwd
-              sendRpc("session/new", {
-                cwd: tempCwd,
-                model: model || undefined,
-              });
-              continue;
-            }
-
-            // ── session/new response → get sessionId ──────────────────────
-            if (initDone && !sessionCreated && msg.result !== undefined && !msg.method) {
-              const res = msg.result || {};
-              sessionId = res.sessionId || null;
-              if (!sessionId) {
-                finish("Devin ACP: session/new returned no sessionId");
+            // ── Correlated JSON-RPC responses ─────────────────────────────
+            if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined) && !msg.method) {
+              const method = pending.get(msg.id);
+              if (!method) {
+                finish(`Devin ACP: unknown response id ${String(msg.id)}`);
                 return;
               }
-              sessionCreated = true;
-              // Send the prompt
-              promptSent = true;
-              sendRpc("session/prompt", {
-                sessionId,
-                content: [{ type: "text", text: promptText }],
-              });
-              continue;
-            }
-
-            // ── session/prompt response (ack) ─────────────────────────────
-            if (sessionCreated && promptSent && msg.result !== undefined && !msg.method) {
-              // Acknowledged — streaming notifications will follow
+              pending.delete(msg.id);
+              if (msg.error) {
+                finish(`Devin ACP ${method} failed: ${msg.error.message || "protocol error"}`);
+                return;
+              }
+              if (method === "session/prompt") {
+                const res = msg.result || {};
+                if (!roleEmitted) {
+                  const content = extractResultText(res);
+                  if (content) {
+                    emit(
+                      `data: ${JSON.stringify({
+                        id: responseId,
+                        object: "chat.completion.chunk",
+                        created,
+                        model,
+                        choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
+                      })}\n\n`
+                    );
+                    roleEmitted = true;
+                    totalText = content;
+                    emit(
+                      `data: ${JSON.stringify({
+                        id: responseId,
+                        object: "chat.completion.chunk",
+                        created,
+                        model,
+                        choices: [{ index: 0, delta: { content }, finish_reason: null }],
+                      })}\n\n`
+                    );
+                  }
+                }
+                const stopReason = res.stopReason || res.stop_reason;
+                if (stopReason !== "cancelled" || stopReason === undefined) finish();
+              } else if (method === "initialize") {
+                initDone = true;
+                sendRpc("session/new", { cwd: tempCwd, model: model || undefined });
+              } else if (method === "session/new") {
+                const res = msg.result || {};
+                sessionId = res.sessionId || null;
+                if (!sessionId) {
+                  finish("Devin ACP: session/new returned no sessionId");
+                  return;
+                }
+                sessionCreated = true;
+                promptSent = true;
+                sendRpc("session/prompt", {
+                  sessionId,
+                  content: [{ type: "text", text: promptText }],
+                });
+              }
               continue;
             }
 
@@ -420,12 +427,17 @@ export class DevinCliExecutor extends BaseExecutor {
           cleanup();
         });
 
+        cancelStream = () => finish("Devin CLI request cancelled");
+
         // ── Send initialize ───────────────────────────────────────────────
         sendRpc("initialize", {
           protocolVersion: "0.3",
           clientInfo: { name: "9router", version: "1.0" },
           capabilities: {},
         });
+      },
+      cancel() {
+        cancelStream?.();
       },
     });
 
@@ -440,7 +452,7 @@ export class DevinCliExecutor extends BaseExecutor {
       }),
       url: "devin://acp/stdio",
       headers: {},
-      transformedBody: { model, promptLength: body?.messages },
+      transformedBody: { model, promptLength: promptText.length },
     };
   }
 }
@@ -467,4 +479,5 @@ function extractResultText(result) {
   return "";
 }
 
+export { resolveDevinBin };
 export default DevinCliExecutor;

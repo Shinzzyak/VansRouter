@@ -31,6 +31,10 @@ rl.on("line", (line) => {
     prompt = true;
     process.stderr.write(`FAKE_DEVIN_OBSERVED ${methods.join(",")}\n`);
     if (request.params?.content?.[0]?.text === "[User]\nhang") return;
+    if (request.params?.content?.[0]?.text === "[User]\ncorrelated") {
+      setTimeout(() => writeJson({ jsonrpc: "2.0", id: request.id, result: { text: "correlated result", stopReason: "end_turn" } }), 5);
+      return;
+    }
     const update = (type, text) => writeJson({ jsonrpc: "2.0", method: "session/update", params: { type, text } }, true);
     update("text_delta", "frag");
     setTimeout(() => update("text_delta", "mented"), 5);
