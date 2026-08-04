@@ -97,6 +97,12 @@ function getConnectionErrorTag(connection) {
 
 const APIKEY_INITIAL_VISIBLE = 20;
 
+function dualAuthTypes(provider, providerId) {
+  if (providerId === "kiro") return ["oauth", "apikey", "api_key"];
+  if (provider?.oauth && provider?.apiKey) return ["oauth", "apikey", "api_key"];
+  return provider?.oauth ? "oauth" : "apikey";
+}
+
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
