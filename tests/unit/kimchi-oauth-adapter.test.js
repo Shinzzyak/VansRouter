@@ -43,6 +43,15 @@ describe("Kimchi OAuth adapter", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects missing validation configuration explicitly", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    await expect(kimchi.exchangeToken({}, "token"))
+      .rejects.toThrow("Kimchi validation URL is not configured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("validates the token and returns the exchange contract", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ providers: [] }));
     globalThis.fetch = fetchMock;

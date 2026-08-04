@@ -20,6 +20,7 @@ import {
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
 import { validateAgentRouterConnection } from "open-sse/executors/agentrouter.js";
+import { getKimchiUserAgent } from "open-sse/utils/kimchiUserAgent.js";
 
 // OAuth provider test endpoints
 const OAUTH_TEST_CONFIG = {
@@ -95,13 +96,13 @@ const OAUTH_TEST_CONFIG = {
   },
   "codebuddy-cn": { tokenExists: true },
   kimchi: {
-    url: KIMCHI_CONFIG.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers",
+    url: KIMCHI_CONFIG.validationUrl,
     method: "GET",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
     extraHeaders: {
       Accept: "application/json",
-      "User-Agent": "kimchi/0.1.40",
+      "User-Agent": getKimchiUserAgent(),
     },
     refreshable: false,
   },
