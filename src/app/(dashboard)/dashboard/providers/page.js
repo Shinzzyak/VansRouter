@@ -10,6 +10,7 @@ import {
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderAuthTypes } from "@/shared/utils/providerAuth";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -96,12 +97,6 @@ function getConnectionErrorTag(connection) {
 }
 
 const APIKEY_INITIAL_VISIBLE = 20;
-
-function dualAuthTypes(provider, providerId) {
-  if (providerId === "kiro") return ["oauth", "apikey", "api_key"];
-  if (provider?.oauth && provider?.apiKey) return ["oauth", "apikey", "api_key"];
-  return provider?.oauth ? "oauth" : "apikey";
-}
 
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
@@ -294,9 +289,8 @@ export default function ProvidersPage() {
   const freeEntries = Object.entries(FREE_PROVIDERS)
     .filter(([, info]) => !info.hidden && matchSearch(info.name))
     .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
-  // Free Tier cards may be oauth-only (e.g. kimchi) or dual-auth, so count via
-  // dualAuthTypes per provider instead of a fixed "apikey" — otherwise oauth
-  // connections are invisible here (mismatch with the detail page).
+  // Free Tier cards may be OAuth-only (e.g. Kimchi) or dual-auth. Use the
+  // registry auth modes instead of assuming every card is API-key-only.
   const freeTierEntries = Object.entries(FREE_TIER_PROVIDERS)
     .filter(
       ([, info]) =>
@@ -310,8 +304,8 @@ export default function ProvidersPage() {
       if (pa !== pb) return pa - pb;
       const noAuthDiff = (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0);
       if (noAuthDiff !== 0) return noAuthDiff;
-      const ca = getProviderStats(ka, dualAuthTypes(a, ka)).connected > 0 ? 0 : 1;
-      const cb = getProviderStats(kb, dualAuthTypes(b, kb)).connected > 0 ? 0 : 1;
+      const ca = getProviderStats(ka, getProviderAuthTypes(a, ka)).connected > 0 ? 0 : 1;
+      const cb = getProviderStats(kb, getProviderAuthTypes(b, kb)).connected > 0 ? 0 : 1;
       if (ca !== cb) return ca - cb;
       return (a.name || "").localeCompare(b.name || "");
     });
@@ -527,7 +521,7 @@ export default function ProvidersPage() {
             );
           })}
           {freeTierEntries.map(([key, info]) => {
-            const freeAuthTypes = dualAuthTypes(info, key);
+            const freeAuthTypes = getProviderAuthTypes(info, key);
             return (
               <ApiKeyProviderCard
                 key={key}
