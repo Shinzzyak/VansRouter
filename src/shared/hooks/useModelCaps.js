@@ -60,6 +60,8 @@ export function useModelCaps() {
 
   useEffect(() => {
     if (cache) {
+      // Intentional synchronization with the shared module cache.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setByFull(cache.byFull);
       setById(cache.byId);
       return;

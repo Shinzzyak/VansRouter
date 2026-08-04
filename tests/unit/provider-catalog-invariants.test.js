@@ -6,8 +6,8 @@ const PROTECTED = {
   kimchi: {
     category: "freeTier",
     authType: "apikey",
-    hasOAuth: false,
-    authModes: ["apikey"],
+    hasOAuth: true,
+    authModes: ["apikey", "oauth"],
     serviceKinds: ["llm", "webSearch"],
     modelIds: ["kimi-k2.7", "minimax-m3", "nemotron-3-ultra-fp4", "deepseek-v4-flash"],
   },
