@@ -7,7 +7,8 @@ import {
   wrapConnectRPCFrame,
   decodeMessage,
   parseConnectRPCFrame,
-  extractTextFromResponse
+  extractTextFromResponse,
+  encodeMcpTools
 } from "../utils/cursorProtobuf.js";
 import { buildCursorHeaders } from "../utils/cursorChecksum.js";
 import { estimateUsage } from "../utils/usageTracking.js";
@@ -70,6 +71,14 @@ function textFromContent(content) {
     .join("\n");
 }
 
+export function isAgentCapableRequest(body) {
+  return Array.isArray(body?.messages) && body.messages.every((message) => {
+    if (message?.role === "tool" || message?.tool_calls?.length) return true;
+    return typeof message?.content === "string"
+      || Array.isArray(message?.content) && message.content.every((part) => part?.type === "text");
+  });
+}
+
 function isAgentTextRequest(body) {
   // Many compatible clients always attach their built-in tool schemas, even
   // for a normal text turn. Cursor's retired ChatService rejects those
@@ -95,7 +104,7 @@ function encodeHistoryMessage(message) {
   return agentMessage(1, agentMessage(1, agentMessage(1, text)));
 }
 
-function buildAgentRunFrame(messages, model) {
+export function buildAgentRunFrame(messages, model, tools = []) {
   const system = messages
     .filter((message) => message?.role === "system")
     .map((message) => textFromContent(message.content))
@@ -129,6 +138,7 @@ function buildAgentRunFrame(messages, model) {
     agentMessage(1, new Uint8Array()),
     agentMessage(2, conversationAction),
     ...(system ? [agentString(8, system)] : []),
+    ...(tools.length ? [agentMessage(4, encodeMcpTools(tools))] : []),
     agentMessage(9, requestedModel),
   );
 
@@ -493,7 +503,7 @@ export class CursorExecutor extends BaseExecutor {
     let session;
     try {
       session = this.openAgentHttp2Stream(url, headers, requestController.signal);
-      session.write(buildAgentRunFrame(body.messages || [], model));
+      session.write(buildAgentRunFrame(body.messages || [], model, body.tools || []));
     } catch (error) {
       throw new Error(`Cursor AgentService request failed: ${error.message}`);
     }
