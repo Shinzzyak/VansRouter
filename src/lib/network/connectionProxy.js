@@ -186,3 +186,21 @@ export function getProxyHash(providerSpecificData = {}) {
   if (poolId) return `pool-${djb2(poolId)}`;
   return "direct";
 }
+
+// Pick a proxy pool id from a list of active pools based on the configured
+// rotation strategy. Mirrors the account fallback strategy semantics:
+//   "round-robin" cycles through pools, "random" picks uniformly,
+//   anything else (default "fill-first") prefers the first pool.
+const rrCursor = new Map();
+export function pickProxyPoolId(poolIds = [], strategy = "none", providerId = null) {
+  const ids = Array.isArray(poolIds) ? poolIds.filter(Boolean) : [];
+  if (ids.length === 0) return null;
+  if (strategy === "random") return ids[Math.floor(Math.random() * ids.length)];
+  if (strategy === "round-robin") {
+    const key = providerId || "default";
+    const idx = (rrCursor.get(key) || 0) % ids.length;
+    rrCursor.set(key, idx + 1);
+    return ids[idx];
+  }
+  return ids[0];
+}
