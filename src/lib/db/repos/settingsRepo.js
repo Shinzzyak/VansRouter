@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS = {
   cavemanLevel: "full",
   ponytailEnabled: false,
   ponytailLevel: "full",
+  godmodeEnabled: false,
+  godmodeLevel: "lite",
 };
 
 async function readRaw() {
