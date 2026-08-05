@@ -26,6 +26,7 @@ import { dedupeTools } from "../utils/toolDeduper.js";
 import { detectLoop } from "../utils/loopGuard.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
+import { injectGodmode } from "../rtk/godmode.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
@@ -101,7 +102,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -291,6 +292,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
     injectPonytail(translatedBody, finalFormat, ponytailLevel);
     log?.debug?.("PONYTAIL", `${ponytailLevel} | ${finalFormat}`);
+  }
+
+  // Godmode: inject uncensoring system prompt (always-on, level from config)
+  if (godmodeEnabled) {
+    injectGodmode(translatedBody, finalFormat, godmodeLevel || "lite");
+    log?.debug?.("GODMODE", `${godmodeLevel || "lite"} | ${finalFormat}`);
   }
 
   if (TOOL_PROTOCOL_PROMPT_PROVIDERS.has(provider)) {
