@@ -131,6 +131,13 @@ export class BaseExecutor {
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
+      // The executor decides streaming (forceStream / coercion), not the client body.
+      // Always mirror the effective stream flag into the upstream body so providers
+      // that key off body.stream (e.g. cline: stream:false → JSON envelope, stream:true → SSE)
+      // return the transport shape the handler pipeline expects.
+      if (transformedBody && typeof transformedBody === "object" && !Array.isArray(transformedBody)) {
+        transformedBody.stream = stream;
+      }
       const headers = this.buildHeaders(credentials, stream);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
