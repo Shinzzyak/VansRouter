@@ -159,8 +159,19 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     return { ok: false, latencyMs, error: `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`, status: res.status };
   }
 
-  const providerStatus = parsed?.status;
-  const providerMsg = parsed?.msg || parsed?.message;
+  // cline/clinepass upstream wraps non-streaming responses in {data:{...}} / {success,data}
+  // envelopes — unwrap before checking choices so the dashboard test isn't fooled.
+  let body = parsed;
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    if (body.data && typeof body.data === "object" && !Array.isArray(body.data) && "choices" in body.data) {
+      body = body.data;
+    } else if (body.success === true && body.data && typeof body.data === "object" && !Array.isArray(body.data)) {
+      body = body.data;
+    }
+  }
+
+  const providerStatus = body?.status;
+  const providerMsg = body?.msg || body?.message;
   const hasProviderErrorStatus = providerStatus !== undefined
     && providerStatus !== null
     && String(providerStatus) !== "200"
@@ -174,8 +185,8 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     };
   }
 
-  if (parsed?.error) {
-    const providerError = parsed?.error?.message || parsed?.error || "Provider returned an error";
+  if (body?.error) {
+    const providerError = body?.error?.message || body?.error || "Provider returned an error";
     return {
       ok: false,
       latencyMs,
@@ -184,7 +195,7 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     };
   }
 
-  const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
+  const hasChoices = Array.isArray(body?.choices) && body.choices.length > 0;
   if (!hasChoices) {
     return {
       ok: false,
