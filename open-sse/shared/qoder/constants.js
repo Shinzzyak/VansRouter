@@ -10,7 +10,7 @@
 
 export const QODER_OPENAPI_BASE = "https://openapi.qoder.sh";
 export const QODER_CENTER_BASE = "https://center.qoder.sh";
-export const QODER_CHAT_BASE = "https://api3.qoder.sh";
+export const QODER_CHAT_BASE = "https://api2.qoder.sh";
 
 export const QODER_LOGIN_URL = "https://qoder.com/device/selectAccounts";
 
@@ -28,11 +28,11 @@ export const QODER_MODEL_LIST_URL = `${QODER_CHAT_BASE}/algo/api/v2/model/list`;
 
 // COSY header constants. These are not arbitrary — the upstream signature
 // validation matches them against the values used at signing time.
-export const QODER_IDE_VERSION = "1.0.0";
+export const QODER_IDE_VERSION = "1.1.14";
 export const QODER_CLIENT_TYPE = "5";
-export const QODER_DATA_POLICY = "disagree";
+export const QODER_DATA_POLICY = "agree";
 export const QODER_LOGIN_VERSION = "v2";
-export const QODER_MACHINE_OS = "x86_64_windows";
+export const QODER_MACHINE_OS = "x86_64_linux";
 export const QODER_MACHINE_TYPE = "5";
 
 // Canonical model identifiers. Identity map — keep as a map so callers can
