@@ -11,8 +11,6 @@ export default {
     notice: {
       signupUrl: "https://qoder.com",
     },
-    deprecated: true,
-    deprecationNotice: "RISK_NOTICE",
   },
   category: "free",
   transport: {
@@ -30,13 +28,13 @@ export default {
     // { id: "performance", name: "Qoder Performance" },
     // { id: "efficient", name: "Qoder Efficient" },
     // { id: "lite", name: "Qoder Lite" },
-    // { id: "qmodel", name: "Qwen 3.6 Plus (Qoder)" },
+    { id: "qmodel", name: "Qwen 3.6 Plus (Qoder)" },
     { id: "qmodel_latest", name: "Qoder Qwen 3.7 Max" },
-    // { id: "dmodel", name: "DeepSeek V4 Pro (Qoder)" },
-    // { id: "dfmodel", name: "DeepSeek V4 Flash (Qoder)" },
-    // { id: "gm51model", name: "GLM 5.1 (Qoder)" },
-    // { id: "kmodel", name: "Kimi K2.6 (Qoder)" },
-    // { id: "mmodel", name: "MiniMax M2.7 (Qoder)" },
+    { id: "dmodel", name: "DeepSeek V4 Pro (Qoder)" },
+    { id: "dfmodel", name: "DeepSeek V4 Flash (Qoder)" },
+    { id: "gm51model", name: "GLM 5.1 (Qoder)" },
+    { id: "kmodel", name: "Kimi K2.6 (Qoder)" },
+    { id: "mmodel", name: "MiniMax M2.7 (Qoder)" },
   ],
   oauth: {
     openApiBaseUrl: "https://openapi.qoder.sh",
