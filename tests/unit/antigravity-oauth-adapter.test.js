@@ -77,6 +77,16 @@ describe("Antigravity OAuth adapter", () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     expect(fetchMock.mock.calls[2][0]).toBe(antigravity.config.onboardUserEndpoint);
     expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({ tierId: "tier-default" });
+    for (const call of fetchMock.mock.calls.slice(1)) {
+      expect(call[1].headers).toMatchObject({
+        Authorization: "Bearer access",
+        "Content-Type": "application/json",
+        "User-Agent": antigravity.config.loadCodeAssistUserAgent,
+        "x-request-source": "local",
+      });
+      expect(call[1].headers).not.toHaveProperty("X-Goog-Api-Client");
+      expect(call[1].headers).not.toHaveProperty("Client-Metadata");
+    }
   });
 
   it("maps tokens and extracted metadata", () => {

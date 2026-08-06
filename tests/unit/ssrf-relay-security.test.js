@@ -40,6 +40,8 @@ describe("assertPublicUrl", () => {
     "http://169.254.169.254/latest/meta-data/",
     "http://metadata.google.internal/",
     "http://service.local/",
+    "http://100.64.0.1/",
+    "http://224.0.0.1/",
   ])("rejects internal IPv4 or metadata target %s", (url) => {
     expectBlocked(url);
   });

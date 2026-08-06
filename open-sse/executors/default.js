@@ -54,7 +54,7 @@ const HEADER_HOOKS = {
         const staticBetaStr = h[titleKey] || h[lcKey] || "";
         const flags = new Set(staticBetaStr.split(",").map(f => f.trim()).filter(Boolean));
         for (const f of cached[lcKey].split(",").map(f => f.trim()).filter(Boolean)) flags.add(f);
-        cached[lcKey] = Array.from(flags).join(",");
+        h[titleKey] = Array.from(flags).join(",");
       }
       if (titleKey !== lcKey && h[titleKey] !== undefined) delete h[titleKey];
     }

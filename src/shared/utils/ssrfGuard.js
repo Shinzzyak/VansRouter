@@ -26,6 +26,8 @@ const BLOCKED_V4_RANGES = [
   [ipv4ToInt("169.254.0.0"), 16],
   [ipv4ToInt("172.16.0.0"), 12],
   [ipv4ToInt("192.168.0.0"), 16],
+  [ipv4ToInt("100.64.0.0"), 10],
+  [ipv4ToInt("224.0.0.0"), 4],
 ];
 
 function isBlockedIpv4(host) {
