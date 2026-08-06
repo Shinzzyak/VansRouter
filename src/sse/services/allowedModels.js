@@ -173,25 +173,16 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       rawModels = data;
     } else if (Array.isArray(data?.data)) {
       rawModels = data.data;
-    } else if (typeof data?.models === "object" && data.models !== null && !Array.isArray(data.models)) {
-      // { models: { modelId: {...} } }
+    } else if (data?.models && typeof data.models === "object" && !Array.isArray(data.models)) {
       rawModels = Object.values(data.models);
-    } else if (data && typeof data === "object" && !Array.isArray(data)) {
-      // models.dev top-level shape: { provider: { models: { modelId: {...} } } }.
-      // Resolve by the requested provider ID/alias, NOT the first object value,
-      // so multi-provider payloads pick the right catalog.
+    } else if (data && typeof data === "object") {
       const providerKey = providerInfo?.id || providerId;
       const aliasKey = providerInfo?.alias || providerInfo?.uiAlias;
-      const entry =
-        data[providerKey] ||
-        data[aliasKey] ||
-        (providerId in data ? data[providerId] : null);
+      const entry = data[providerKey] || data[aliasKey] || data[providerId];
       const models = entry?.models;
-      if (models && typeof models === "object" && !Array.isArray(models)) {
-        rawModels = Object.values(models);
-      } else {
-        rawModels = [];
-      }
+      rawModels = models && typeof models === "object" && !Array.isArray(models)
+        ? Object.values(models)
+        : [];
     } else {
       rawModels = data?.models || data?.results || [];
     }

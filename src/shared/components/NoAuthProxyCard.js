@@ -141,7 +141,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
           ) : (
             <div className="flex flex-col justify-end pb-1.5">
               <span className="text-xs text-text-muted italic">
-                Using connection-level proxy settings. Select specific proxies on connections below or click "Apply Proxy".
+                Using connection-level proxy settings. Select specific proxies on connections below or click &quot;Apply Proxy&quot;.
               </span>
             </div>
           )

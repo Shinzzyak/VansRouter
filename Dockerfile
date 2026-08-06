@@ -45,12 +45,8 @@ ENV PORT=20128
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
-# API_KEY_SECRET is required by src/shared/utils/apiKey.js (generateCrc uses it
-# as the HMAC secret for API keys). Provide a sensible default so GHCR installs
-# work out-of-the-box; override at runtime with
-#   -e API_KEY_SECRET="$(openssl rand -hex 32)"
-# for production deployments to invalidate keys minted by the default.
-ENV API_KEY_SECRET=vansrouter-dev-default-change-me-in-production
+# API_KEY_SECRET is optional; src/shared/utils/apiKey.js persists a random secret
+# under DATA_DIR when no runtime secret is provided.
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/static ./.next/static
@@ -71,6 +67,7 @@ RUN mkdir -p /app/data && chown -R node:node /app && \
   mkdir -p /app/data-home && chown node:node /app/data-home && \
   ln -sf /app/data-home /root/.9router 2>/dev/null || true
 
+# Fix permissions at runtime (handles mounted volumes)
 # Tailscale Funnel requires CAP_NET_ADMIN for TUN mode; keep su-exec for dropping privileges.
 # When using host socket mode (TAILSCALE_USE_HOST_SOCKET=true), no extra capability is needed.
 RUN apk --no-cache upgrade && apk --no-cache add su-exec ip6tables iptables && \

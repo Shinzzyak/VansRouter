@@ -34,10 +34,9 @@ export async function POST(request) {
       return NextResponse.json({ error: "Name can only contain letters, numbers, -, _ and ." }, { status: 400 });
     }
 
-    // Validate context_length if provided (positive int, within bound)
     let contextLength = null;
-    if ("context_length" in body && body.context_length !== undefined && body.context_length !== null) {
-      const v = validateContextLength(body.context_length);
+    if ("context_length" in body && context_length !== undefined && context_length !== null) {
+      const v = validateContextLength(context_length);
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
       contextLength = v.value;
     }

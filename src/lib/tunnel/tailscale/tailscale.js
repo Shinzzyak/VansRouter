@@ -10,21 +10,18 @@ import { DATA_DIR } from "@/lib/dataDir.js";
 const execAsync = promisify(exec);
 
 const BIN_DIR = path.join(DATA_DIR, "bin");
-const TAILSCALE_BIN_DIR = path.join(BIN_DIR, "tailscale");
 const BUNDLED_TAILSCALE_BIN_DIR = "/usr/local/bin";
 const IS_MAC = os.platform() === "darwin";
 const IS_LINUX = os.platform() === "linux";
 const IS_WINDOWS = os.platform() === "win32";
-const TAILSCALE_BIN = path.join(TAILSCALE_BIN_DIR, IS_WINDOWS ? "tailscale.exe" : "tailscale");
-const TAILSCALED_BIN = path.join(TAILSCALE_BIN_DIR, IS_WINDOWS ? "tailscaled.exe" : "tailscaled");
+const TAILSCALE_BIN = path.join(BIN_DIR, IS_WINDOWS ? "tailscale.exe" : "tailscale");
+const TAILSCALED_BIN = path.join(BIN_DIR, IS_WINDOWS ? "tailscaled.exe" : "tailscaled");
 const BUNDLED_TAILSCALE_BIN = path.join(BUNDLED_TAILSCALE_BIN_DIR, IS_WINDOWS ? "tailscale.exe" : "tailscale");
 const BUNDLED_TAILSCALED_BIN = path.join(BUNDLED_TAILSCALE_BIN_DIR, IS_WINDOWS ? "tailscaled.exe" : "tailscaled");
 
 // Custom socket for userspace-networking mode (no root required)
 const TAILSCALE_DIR = path.join(DATA_DIR, "tailscale");
 export const TAILSCALE_SOCKET = path.join(TAILSCALE_DIR, "tailscaled.sock");
-
-// When TAILSCALE_USE_HOST_SOCKET=true, reuse the host's tailscaled via a mounted socket.
 const USE_HOST_SOCKET = process.env.TAILSCALE_USE_HOST_SOCKET === "true";
 const HOST_TAILSCALE_SOCKET = process.env.TAILSCALE_HOST_SOCKET || "/var/run/tailscale/tailscaled.sock";
 export const ACTIVE_TAILSCALE_SOCKET = USE_HOST_SOCKET ? HOST_TAILSCALE_SOCKET : TAILSCALE_SOCKET;
@@ -303,7 +300,7 @@ export async function installTailscale(sudoPassword, hostname, onProgress) {
   return startLogin(hostname);
 }
 
-const EXTENDED_PATH = `${BUNDLED_TAILSCALE_BIN_DIR}:${TAILSCALE_BIN_DIR}:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/usr/bin:/bin:/snap/bin:${process.env.PATH || ""}`;
+const EXTENDED_PATH = `${BUNDLED_TAILSCALE_BIN_DIR}:${BIN_DIR}:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/usr/bin:/bin:/snap/bin:${process.env.PATH || ""}`;
 
 function hasBrew() {
   try { execSync("which brew", { stdio: "ignore", windowsHide: true, env: { ...process.env, PATH: EXTENDED_PATH } }); return true; } catch { return false; }
@@ -585,7 +582,6 @@ export async function startDaemonWithPassword(sudoPassword) {
     return;
   }
 
-  // When using host socket, never spawn our own daemon.
   if (USE_HOST_SOCKET) {
     console.log("[Tailscale] TAILSCALE_USE_HOST_SOCKET enabled — skipping local daemon spawn");
     return;
