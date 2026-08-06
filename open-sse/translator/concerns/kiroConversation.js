@@ -8,7 +8,7 @@ const TOOL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const TOOL_NAME_PATTERN = /[^a-zA-Z0-9_-]/g;
 
 function clone(value) {
-  return value == null ? value : JSON.parse(JSON.stringify(value));
+  return value == null ? value : structuredClone(value);
 }
 
 function text(value) {

@@ -72,44 +72,6 @@ function toolResultBlockToText(content) {
 }
 
 /**
- * When the client sent no tools, rewrite every tool_use (assistant) and
- * tool_result (user) content block into plain text. Keeps text + images.
- * Returns a new messages array; never mutates the input.
- */
-function flattenClaudeToolInteractions(messages) {
-  const out = [];
-  for (const msg of messages) {
-    if (!msg) continue;
-
-    if (msg.role === ROLE.ASSISTANT && Array.isArray(msg.content)) {
-      const parts = [];
-      for (const block of msg.content) {
-        if (block.type === CLAUDE_BLOCK.TEXT && block.text) {
-          parts.push(block.text);
-        } else if (block.type === CLAUDE_BLOCK.TOOL_USE) {
-          parts.push(toolUseToText(block.name, block.input));
-        }
-      }
-      out.push({ ...msg, content: parts.join("\n") });
-      continue;
-    }
-
-    if (msg.role === ROLE.USER && Array.isArray(msg.content)) {
-      const newContent = msg.content.map((block) =>
-        block.type === CLAUDE_BLOCK.TOOL_RESULT
-          ? { type: CLAUDE_BLOCK.TEXT, text: toolResultBlockToText(block.content) }
-          : block
-      );
-      out.push({ ...msg, content: newContent });
-      continue;
-    }
-
-    out.push(msg);
-  }
-  return out;
-}
-
-/**
  * Convert Claude messages to Kiro history + currentMessage.
  * Kiro requires alternating user/assistant turns; consecutive same-role
  * messages are merged.
