@@ -168,7 +168,33 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
     if (!response.ok) return [];
 
     const data = await response.json();
-    const rawModels = Array.isArray(data) ? data : (data?.data || data?.models || data?.results || []);
+    let rawModels;
+    if (Array.isArray(data)) {
+      rawModels = data;
+    } else if (Array.isArray(data?.data)) {
+      rawModels = data.data;
+    } else if (typeof data?.models === "object" && data.models !== null && !Array.isArray(data.models)) {
+      // { models: { modelId: {...} } }
+      rawModels = Object.values(data.models);
+    } else if (data && typeof data === "object" && !Array.isArray(data)) {
+      // models.dev top-level shape: { provider: { models: { modelId: {...} } } }.
+      // Resolve by the requested provider ID/alias, NOT the first object value,
+      // so multi-provider payloads pick the right catalog.
+      const providerKey = providerInfo?.id || providerId;
+      const aliasKey = providerInfo?.alias || providerInfo?.uiAlias;
+      const entry =
+        data[providerKey] ||
+        data[aliasKey] ||
+        (providerId in data ? data[providerId] : null);
+      const models = entry?.models;
+      if (models && typeof models === "object" && !Array.isArray(models)) {
+        rawModels = Object.values(models);
+      } else {
+        rawModels = [];
+      }
+    } else {
+      rawModels = data?.models || data?.results || [];
+    }
 
     let ids;
     if (fetcher.type === "opencode-free") {
