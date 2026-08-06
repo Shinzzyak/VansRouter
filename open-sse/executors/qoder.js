@@ -331,8 +331,9 @@ export class QoderExecutor extends BaseExecutor {
 
   // Override execute entirely — Qoder needs:
   //   - body built from translated chat completion payload
-  //   - body encoded with QoderEncodeBody before signing
-  //   - COSY headers built from the *encoded* body bytes
+  //   - body encoded with QoderEncodeBody before sending
+  //   - COSY headers built from the *encoded* body bytes (server validates
+  //     the signature against the exact bytes on the wire)
   //   - response stream re-wrapped from {statusCodeValue, body} to OpenAI SSE
   async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
     const url = this.buildUrl();
