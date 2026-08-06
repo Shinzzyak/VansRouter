@@ -6,6 +6,11 @@
 }
 
 :80 {
+    # Strip spoofable internal headers from untrusted external requests
+    header_up -x-9r-real-ip
+    header_up -x-9r-via-proxy
+    header_up -X-9r-Cli-Token
+
     # Public model list used by the dashboard.
     handle /api/models {
         rewrite * /models

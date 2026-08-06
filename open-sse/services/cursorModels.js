@@ -157,7 +157,13 @@ async function fetchCursorCatalog(credentials, signal) {
     // Node fetch may not negotiate Cursor's HTTP/2-only endpoint.
   }
 
-  const response = await http2PostProto(url, headers, body, signal, FETCH_TIMEOUT_MS);
+  const response = await http2PostProto(
+    url,
+    headers,
+    body,
+    signal || AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    FETCH_TIMEOUT_MS
+  );
   if (response.status !== 200) {
     const error = new Error(`Cursor GetUsableModels returned ${response.status}`);
     error.status = response.status;

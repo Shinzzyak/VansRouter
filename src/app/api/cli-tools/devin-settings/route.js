@@ -29,7 +29,9 @@ const execFileAsync = promisify(execFile);
 
 const readDevinVersion = async (bin) => {
   try {
-    const { stdout } = await execFileAsync(bin, ["--version"], { windowsHide: true });
+    const cmd = bin === "path" ? "devin" : bin;
+    if (!cmd) return null;
+    const { stdout } = await execFileAsync(cmd, ["--version"], { windowsHide: true });
     return stdout.trim().split("\n")[0] || null;
   } catch {
     return null;
