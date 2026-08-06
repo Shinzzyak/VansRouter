@@ -59,13 +59,7 @@ export function useModelCaps() {
   const [byId, setById] = useState(() => cache?.byId || {});
 
   useEffect(() => {
-    if (cache) {
-      // Intentional synchronization with the shared module cache.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setByFull(cache.byFull);
-      setById(cache.byId);
-      return;
-    }
+    if (cache) return;
     let alive = true;
     loadModelCaps().then((maps) => {
       if (alive) { setByFull(maps.byFull); setById(maps.byId); }
