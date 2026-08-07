@@ -172,8 +172,10 @@ jobs:
               rm -rf "${DEPLOY}/node_modules/open-sse" "${DEPLOY}/node_modules/@"
               mkdir -p "${DEPLOY}/node_modules/@"
               cp -r "${DEPLOY}/open-sse" "${DEPLOY}/node_modules/open-sse"
-              cp -r "${DEPLOY}/src" "${DEPLOY}/node_modules/@/lib"
-              cp -r "${DEPLOY}/src" "${DEPLOY}/node_modules/src"
+              # Copy src from the freshly-extracted STANDALONE (the deploy
+              # root src/ is stale 0.9.80-era and lacks oauth/providers/).
+              cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/@/lib"
+              cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/src"
               cp "${DEPLOY}/package.json" "${DEPLOY}/node_modules/package.json"
               echo "=== open-sse refreshed from standalone (FreeBuff + rtk/promptInjectors included) ==="
             fi
