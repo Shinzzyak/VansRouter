@@ -979,18 +979,33 @@ export default function ProviderDetailPage() {
                   onToggle: (on) => handleAutoPingConnection(conn.id, on),
                   provider: providerId,
                 } : null}
-                onUpdateProxy={async (proxyPoolId) => {
+                onUpdateProxy={async (proxySelection) => {
                   try {
+                    const body = typeof proxySelection === "object"
+                      ? proxySelection
+                      : { proxyPoolId: proxySelection || null };
                     const res = await fetch(`/api/providers/${conn.id}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ proxyPoolId: proxyPoolId || null }),
+                      body: JSON.stringify(body),
                     });
                     if (res.ok) {
+                      const nextProviderSpecificData = { ...conn.providerSpecificData };
+                      if (body.proxyPoolIds) {
+                        nextProviderSpecificData.proxyPoolIds = body.proxyPoolIds;
+                        nextProviderSpecificData.proxyRotationStrategy = body.proxyRotationStrategy;
+                        delete nextProviderSpecificData.proxyPoolId;
+                      } else if (body.proxyPoolId) {
+                        nextProviderSpecificData.proxyPoolId = body.proxyPoolId;
+                        delete nextProviderSpecificData.proxyPoolIds;
+                        delete nextProviderSpecificData.proxyRotationStrategy;
+                      } else {
+                        delete nextProviderSpecificData.proxyPoolId;
+                        delete nextProviderSpecificData.proxyPoolIds;
+                        delete nextProviderSpecificData.proxyRotationStrategy;
+                      }
                       setConnections(prev => prev.map(c =>
-                        c.id === conn.id
-                          ? { ...c, providerSpecificData: { ...c.providerSpecificData, proxyPoolId: proxyPoolId || null } }
-                          : c
+                        c.id === conn.id ? { ...c, providerSpecificData: nextProviderSpecificData } : c
                       ));
                     }
                   } catch (error) {

@@ -24,6 +24,7 @@ import { AgentRouterExecutor } from "./agentrouter.js";
 import { MuseSparkWebExecutor } from "./muse-spark-web.js";
 import { DevinCliExecutor } from "./devin-cli.js";
 import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
+import FreebuffExecutor from "./freebuff.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -59,6 +60,7 @@ const executors = {
   "muse-spark-web": new MuseSparkWebExecutor(),
   "devin-cli": new DevinCliExecutor(),
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
+  freebuff: new FreebuffExecutor(),
 };
 
 const defaultCache = new Map();
@@ -100,3 +102,4 @@ export { CodeBuddyExecutor } from "./codebuddy-cn.js";
 export { MuseSparkWebExecutor } from "./muse-spark-web.js";
 export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
+export { FreebuffExecutor } from "./freebuff.js";

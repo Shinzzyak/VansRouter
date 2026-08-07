@@ -1,4 +1,5 @@
 import { getProxyPoolById } from "@/models";
+import { fitPoolIds, loadPoolFitness } from "open-sse/services/proxyPoolFitness.js";
 
 // Safely normalize any value into a trimmed string.
 function normalizeString(value) {
@@ -37,16 +38,25 @@ function normalizeLegacyProxy(providerSpecificData = {}) {
  * 3. No Proxy
  */
 export async function resolveConnectionProxyConfig(
-  providerSpecificData = {}
+  providerSpecificData = {},
+  connectionId = null,
+  excludePoolIds = null
 ) {
   try {
     const proxyPoolIdRaw = normalizeString(
       providerSpecificData?.proxyPoolId
     );
 
-    // "__none__" means explicitly disabled
-    const proxyPoolId =
-      proxyPoolIdRaw === "__none__" ? "" : proxyPoolIdRaw;
+    const proxyPoolId = proxyPoolIdRaw === "__none__" ? "" : proxyPoolIdRaw;
+    const proxyPoolIds = Array.isArray(providerSpecificData?.proxyPoolIds) ? providerSpecificData.proxyPoolIds : [];
+    const strategy = providerSpecificData?.proxyRotationStrategy || "none";
+    const scope = providerSpecificData?.proxyPoolScope || null;
+    if (strategy === "smart" && scope) {
+      await Promise.all(proxyPoolIds.map((id) => loadPoolFitness(id)));
+    }
+    const selectedPoolId = proxyPoolIds.length
+      ? pickProxyPoolId(proxyPoolIds, strategy, connectionId || "", providerSpecificData?.targetProxyPoolIds || [], { scope, excludeIds: excludePoolIds || [] })
+      : proxyPoolId;
 
     const legacy = normalizeLegacyProxy(providerSpecificData);
 
@@ -55,8 +65,8 @@ export async function resolveConnectionProxyConfig(
      * Proxy Pool Resolution
      * -----------------------------
      */
-    if (proxyPoolId) {
-      const proxyPool = await getProxyPoolById(proxyPoolId);
+    if (selectedPoolId) {
+      const proxyPool = await getProxyPoolById(selectedPoolId);
 
       const proxyUrl = normalizeString(proxyPool?.proxyUrl);
       const noProxy = normalizeString(proxyPool?.noProxy);
@@ -75,7 +85,7 @@ export async function resolveConnectionProxyConfig(
           return {
             source: proxyPool.type,
 
-            proxyPoolId,
+            proxyPoolId: selectedPoolId,
             proxyPool,
 
             connectionProxyEnabled: false,
@@ -94,7 +104,7 @@ export async function resolveConnectionProxyConfig(
         return {
           source: "pool",
 
-          proxyPoolId,
+          proxyPoolId: selectedPoolId,
           proxyPool,
 
           connectionProxyEnabled: true,
@@ -118,7 +128,7 @@ export async function resolveConnectionProxyConfig(
       return {
         source: "legacy",
 
-        proxyPoolId: proxyPoolId || null,
+        proxyPoolId: selectedPoolId || null,
         proxyPool: null,
 
         ...legacy,
@@ -182,7 +192,10 @@ export function getProxyHash(providerSpecificData = {}) {
   const enabled = providerSpecificData?.connectionProxyEnabled === true;
   const url = enabled ? normalizeString(providerSpecificData?.connectionProxyUrl) : "";
   if (url) return `proxy-${djb2(url)}`;
-  const poolId = normalizeString(providerSpecificData?.proxyPoolId);
+  const poolId = normalizeString(providerSpecificData?.proxyPoolId)
+    || (Array.isArray(providerSpecificData?.proxyPoolIds)
+      ? normalizeString(providerSpecificData.proxyPoolIds[0])
+      : "");
   if (poolId) return `pool-${djb2(poolId)}`;
   return "direct";
 }
@@ -217,14 +230,26 @@ export function filterTargetProxyPoolIds(poolIds, targetProxyPoolIds = []) {
  * @param {string[]} targetProxyPoolIds optional selected subset
  * @returns {string|null} chosen pool id, or null when pool/subset is empty
  */
-export function pickProxyPoolId(poolIds, strategy, providerId = "", targetProxyPoolIds = []) {
-  const eligiblePoolIds = filterTargetProxyPoolIds(poolIds, targetProxyPoolIds);
-  if (eligiblePoolIds.length === 0) return null;
+export function pickProxyPoolId(poolIds, strategy, providerId = "", targetProxyPoolIds = [], options = {}) {
+  if (!Array.isArray(targetProxyPoolIds)) {
+    options = targetProxyPoolIds || {};
+    targetProxyPoolIds = [];
+  }
+  let eligiblePoolIds = filterTargetProxyPoolIds(poolIds, targetProxyPoolIds);
   const strat = String(strategy || "").toLowerCase();
+  const { scope = null, excludeIds = [] } = options || {};
+  eligiblePoolIds = eligiblePoolIds.filter((id) => !excludeIds.includes(id));
+  const fitnessApplied = strat === "smart" && !!scope;
+  if (fitnessApplied) eligiblePoolIds = fitPoolIds(eligiblePoolIds, scope);
+  if (eligiblePoolIds.length === 0 && !fitnessApplied) {
+    eligiblePoolIds = filterTargetProxyPoolIds(poolIds, targetProxyPoolIds)
+      .filter((id) => !excludeIds.includes(id));
+  }
+  if (eligiblePoolIds.length === 0) return null;
 
   if (strat === "fill-first") return eligiblePoolIds[0];
 
-  if (strat === "round-robin") {
+  if (strat === "round-robin" || strat === "smart") {
     const key = `${providerId}:${strat}:${eligiblePoolIds.join(",")}`;
     const idx = (_poolCursors.get(key) ?? 0) % eligiblePoolIds.length;
     _poolCursors.set(key, (idx + 1) % eligiblePoolIds.length);
@@ -235,5 +260,5 @@ export function pickProxyPoolId(poolIds, strategy, providerId = "", targetProxyP
     return eligiblePoolIds[Math.floor(Math.random() * eligiblePoolIds.length)];
   }
 
-  return null;
+  return eligiblePoolIds[0];
 }

@@ -137,6 +137,7 @@ import p135 from "./kilo-gateway.js";
 import p136 from "./llm7.js";
 import p137 from "./morph.js";
 import p138 from "./tencent.js";
+import p139 from "./freebuff.js";
 
 export default [
   p0,
@@ -277,5 +278,6 @@ export default [
   p135,
   p136,
   p137,
-  p138
+  p138,
+  p139
 ];

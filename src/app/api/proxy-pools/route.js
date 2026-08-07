@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool, getProviderConnections, getProxyPools } from "@/models";
+import { getPoolGeo } from "open-sse/services/poolGeo.js";
 
 function toBoolean(value) {
   if (value === "true") return true;
@@ -32,10 +33,14 @@ function buildUsageMap(connections = []) {
   const usageMap = new Map();
 
   for (const connection of connections) {
-    const proxyPoolId = connection?.providerSpecificData?.proxyPoolId;
-    if (!proxyPoolId) continue;
-
-    usageMap.set(proxyPoolId, (usageMap.get(proxyPoolId) || 0) + 1);
+    const data = connection?.providerSpecificData;
+    const proxyPoolIds = [
+      data?.proxyPoolId,
+      ...(Array.isArray(data?.proxyPoolIds) ? data.proxyPoolIds : []),
+    ].filter(Boolean);
+    for (const proxyPoolId of new Set(proxyPoolIds)) {
+      usageMap.set(proxyPoolId, (usageMap.get(proxyPoolId) || 0) + 1);
+    }
   }
 
   return usageMap;
@@ -65,6 +70,7 @@ export async function GET(request) {
     const enrichedProxyPools = proxyPools.map((pool) => ({
       ...pool,
       boundConnectionCount: usageMap.get(pool.id) || 0,
+      egress: getPoolGeo(pool.id) || null,
     }));
 
     return NextResponse.json({ proxyPools: enrichedProxyPools });
