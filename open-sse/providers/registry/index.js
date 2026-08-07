@@ -126,6 +126,24 @@ import p124 from "./a6api.js";
 import p125 from "./alims-intl.js";
 import p126 from "./zenmux.js";
 import p127 from "./tokenrouter.js";
+import p128 from "./poolside.js";
+import p129 from "./devin-cli.js";
+import p130 from "./codebuddy-intl.js";
+import p131 from "./api-airforce.js";
+import p132 from "./baidu.js";
+import p133 from "./bazaarlink.js";
+import p134 from "./bluesminds.js";
+import p135 from "./kilo-gateway.js";
+import p136 from "./llm7.js";
+import p137 from "./morph.js";
+import p138 from "./tencent.js";
+import p139 from "./freebuff.js";
+import p140 from "./selfhosted-embedding.js";
+import p141 from "./selfhosted-stt.js";
+import p142 from "./selfhosted-tts.js";
+import p143 from "./trae.js";
+import p144 from "./zed.js";
+import p145 from "./windsurf.js";
 
 export default [
   p0,
@@ -255,5 +273,23 @@ export default [
   p124,
   p125,
   p126,
-  p127
+  p127,
+  p128,
+  p129,
+  p130,
+  p131,
+  p132,
+  p133,
+  p134,
+  p135,
+  p136,
+  p137,
+  p138,
+  p139,
+  p140,
+  p141,
+  p142,
+  p143,
+  p144,
+  p145
 ];
