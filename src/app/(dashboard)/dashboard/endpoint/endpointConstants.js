@@ -30,3 +30,10 @@ export const PONYTAIL_LEVELS = [
   { id: "full", label: "Full", desc: "Ladder enforced: stdlib/native first" },
   { id: "ultra", label: "Ultra", desc: "YAGNI extremist, deletion first" },
 ];
+
+// Godmode injector levels (mirror open-sse/rtk/godmode.js GODMODE_LEVELS)
+export const GODMODE_LEVELS = [
+  { id: "lite", label: "Lite", desc: "Direct answers, no refusals" },
+  { id: "full", label: "Full", desc: "Answer fully, caveat in one line" },
+  { id: "ultra", label: "Ultra", desc: "Never refuse, no disclaimers" },
+];

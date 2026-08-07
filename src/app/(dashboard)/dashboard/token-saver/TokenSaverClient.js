@@ -11,6 +11,7 @@ import {
   WENYAN_LOCALES,
   CAVEMAN_LEVELS,
   PONYTAIL_LEVELS,
+  GODMODE_LEVELS,
 } from "../endpoint/endpointConstants";
 
 export default function TokenSaverClient() {
@@ -21,6 +22,8 @@ export default function TokenSaverClient() {
   const [cavemanLevel, setCavemanLevel] = useState("full");
   const [ponytailEnabled, setPonytailEnabled] = useState(false);
   const [ponytailLevel, setPonytailLevel] = useState("full");
+  const [godmodeEnabled, setGodmodeEnabled] = useState(false);
+  const [godmodeLevel, setGodmodeLevel] = useState("lite");
   const [codeAware, setCodeAware] = useState(false);
   const [kompress, setKompress] = useState(true);
   const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
@@ -144,6 +147,16 @@ export default function TokenSaverClient() {
     patchSetting({ ponytailLevel: level });
   };
 
+  const handleGodmodeEnabled = (value) => {
+    setGodmodeEnabled(value);
+    patchSetting({ godmodeEnabled: value });
+  };
+
+  const handleGodmodeLevel = (level) => {
+    setGodmodeLevel(level);
+    patchSetting({ godmodeLevel: level });
+  };
+
   const togglePendingExtra = (extra) => {
     setPendingExtras((current) =>
       current.includes(extra)
@@ -197,6 +210,8 @@ export default function TokenSaverClient() {
           setCavemanLevel(data.cavemanLevel || "full");
           setPonytailEnabled(!!data.ponytailEnabled);
           setPonytailLevel(data.ponytailLevel || "full");
+          setGodmodeEnabled(!!data.godmodeEnabled);
+          setGodmodeLevel(data.godmodeLevel || "lite");
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
           setGuards({
@@ -279,6 +294,11 @@ export default function TokenSaverClient() {
         handlePonytailLevel={handlePonytailLevel}
         ponytailLevel={ponytailLevel}
         handlePonytailEnabled={handlePonytailEnabled}
+        godmodeEnabled={godmodeEnabled}
+        godmodeLevels={GODMODE_LEVELS}
+        handleGodmodeLevel={handleGodmodeLevel}
+        godmodeLevel={godmodeLevel}
+        handleGodmodeEnabled={handleGodmodeEnabled}
         pxpipeChipClass={pxpipeChipClass}
         pxpipeStatusLabel={pxpipeStatusLabel}
         setShowPxpipeModal={setShowPxpipeModal}
