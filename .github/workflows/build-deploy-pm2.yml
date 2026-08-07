@@ -174,6 +174,10 @@ jobs:
               cp -r "${DEPLOY}/open-sse" "${DEPLOY}/node_modules/open-sse"
               # Copy src from the freshly-extracted STANDALONE (the deploy
               # root src/ is stale 0.9.80-era and lacks oauth/providers/).
+              # rm first: cp -r into an existing dir would merge and keep
+              # stale files (e.g. old src without oauth/providers/).
+              rm -rf "${DEPLOY}/node_modules/src" "${DEPLOY}/node_modules/@/lib"
+              mkdir -p "${DEPLOY}/node_modules/@"
               cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/@/lib"
               cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/src"
               cp "${DEPLOY}/package.json" "${DEPLOY}/node_modules/package.json"
