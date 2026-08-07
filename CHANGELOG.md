@@ -7,19 +7,83 @@ VansRouter 0.9.91 republishes the corrected CLI package version after the initia
 
 # v0.9.90 (2026-08-07)
 
-VansRouter 0.9.90 hardens OpenCode CLI configuration compatibility, makes the `VansRoute` contract authoritative, preserves migration support for legacy `9router` configs, and fixes Cursor model-catalog fallback timeouts.
+VansRouter 0.9.90 is a large compatibility, provider, security, proxy, CLI-tool, usage-tracking, and runtime-hardening release. It incorporates the validated upstream/runtime work accumulated after `v0.9.80`, then adds the VansRouter-specific OpenCode contract fix and release-pipeline corrections.
 
-## Fixed
-- **OpenCode dashboard detection** — Fixed the UI/API field mismatch where the dashboard read `hasVansRoute` while the route returned only `has9Router`, causing configured OpenCode installations to appear as "Not configured".
-- **VansRoute config contract** — Restored `VansRoute` as the canonical OpenCode provider key and model prefix. Legacy `9router` provider entries and model prefixes remain readable and migrate automatically on the next save.
-- **OpenCode model reset** — Made PATCH and DELETE handle both canonical and legacy provider/model prefixes, including explorer subagent configuration.
-- **OpenCode config safety** — Added HTTP(S)/model input validation and atomic temp-file replacement to avoid leaving `opencode.json` truncated after an interrupted write.
-- **Cursor model catalog timeout** — Non-success HTTP responses now fail fast instead of incorrectly falling through to a real HTTP/2 request that could hang for the test timeout.
+## New features
 
-## Tests
-- Added OpenCode route contract coverage for canonical detection, legacy migration, validation, reset, and deletion.
-- Verified full Vitest suite: 223 files passed, 13 skipped; 2,713 tests passed, 19 expected failures, 82 skipped.
-- Verified cross-platform GitHub Actions build matrix: Ubuntu, macOS, and Windows on Node 22 and Node 24 passed.
+### Provider and model support
+- **Antigravity native image generation** — Added native image-generation capability and model registrations, including capability metadata and request handling for image models (`7dd8d755f`, `3ef88f1`).
+- **Xiaomi MiMo TTS** — Added Xiaomi MiMo text-to-speech provider registration, model metadata, executor integration, handler routing, and unit coverage (`c570fe3`, `3f6f007`).
+- **Claude Opus 5 for Kiro** — Added Claude Opus 5 model definitions and Kiro capability mappings (`bca5e75`, `a8a9960`).
+- **New provider registry entries** — Added or synchronized API-compatible providers including `api-airforce`, `baidu`, `bazaarlink`, `bluesminds`, `codebuddy-intl`, `kilo-gateway`, `llm7`, `morph`, `poolside`, and `tencent`; refreshed provider registry generation and capability metadata (`de2da19`, `9c40604`, `13d5e1a`).
+- **Provider catalog cleanup** — Removed stale/unreachable NVIDIA NIM models, refreshed AgentRouter model entries, added `kimi-k3` and `gpt-5.6-sol`, and removed obsolete `claude-opus-4-7` catalog data (`07c3dda`, `761056e`, `6c85974`).
+- **Combo context-length controls** — Added configurable context-length settings for combos and wired the value through API, persistence, dashboard, and tests (`cbd6233`, `ca14053`).
+- **No-auth provider rotation** — Added provider proxy-pool selector and rotation UI, including providers that have no configured connections, plus pure proxy-pool selection helpers (`f25d2b5`, `f6c8adf`, `18a8949`).
+- **Named tunnels** — Added named Cloudflare tunnel configuration for custom domains, with persistence, lifecycle management, PID handling, and tests (`ccc9c66`, `e45bd73`).
+- **Devin CLI** — Added Devin CLI provider support through an ACP stdio executor, CLI resolution, configuration route, provider icon, dashboard card, fixture, and executor tests (`72ec06a`, `d27d164`, `76edb83`).
+- **Qoder PAT authentication** — Added end-to-end Personal Access Token connections, validation, PAT exchange deduplication, model refresh, and Qoder executor support (`9c9dd7b`, `d433c0b`, `1eb37db`).
+- **Token saver controls** — Added token-saver settings, headroom reporting, PXPIPE integration hooks, and effective payload-savings reporting (`e42bac8`, `da8691f`).
+
+### CLI tools and dashboard
+- **OpenCode VansRoute contract** — Restored `VansRoute` as the canonical OpenCode provider key and model prefix. Legacy `9router` provider entries and model prefixes remain readable and migrate automatically on save.
+- **OpenCode detection** — Fixed the dashboard/API mismatch where the card read `hasVansRoute` while the GET route only returned `has9Router`, making configured installations appear as "Not configured".
+- **OpenCode reset and deletion** — PATCH and DELETE now recognize canonical and legacy provider/model prefixes, including explorer subagent configuration.
+- **OpenCode safe writes** — Added HTTP(S) and model validation plus atomic temporary-file replacement, preventing an interrupted write from leaving `opencode.json` truncated (`96497a0`).
+- **CLI lifecycle reuse** — Added shared CLI-tool lifecycle handling and updated Claude, Cline, Codex, Kilo, and OpenCode cards to share status/configuration behavior instead of duplicating lifecycle logic.
+- **Dynamic compatible providers** — Restored the Apply flow for dynamically configured OpenAI- and Anthropic-compatible providers.
+- **Claude Code context setting** — Added configurable maximum context-token support for Claude Code.
+- **Provider statistics** — Restored dual-auth statistics, counted free-tier OAuth connections, and derived provider auth modes from the registry rather than duplicated UI assumptions (`ed4d033`, `d651415`, `0ea8105`).
+- **Provider and endpoint UI** — Improved provider pages, model selectors, ACL provider lists, proxy-pool controls, quota rows, request details, TTS examples, and endpoint integration behavior.
+
+## Runtime and provider fixes
+
+### Cursor, Kiro, Antigravity, Kimchi, and Codex
+- **Cursor model catalog fallback** — Non-success catalog responses now fail fast instead of falling through to a real HTTP/2 request that could hang until the test timeout.
+- **Cursor transport resilience** — Adopted the upstream HTTP/2/Connect-RPC and model-resolution compatibility fixes, including safer protobuf handling, tool error handling, model refresh, and retry behavior (`0e9657f`, `9c40604`).
+- **Kiro conversation canonicalization** — Added shared conversation normalization, tool-history handling, reasoning-effort mappings, thinking-level support, terminal-stream validation, and safer direct/API-key routing (`open-sse/translator/concerns/kiroConversation.js`, `open-sse/kiroEventStream.js`).
+- **Kiro model compatibility** — Added and normalized Claude Opus 5 and GPT-5.6 model families, including dashed model identifiers and context-window metadata.
+- **Kiro authentication** — Hardened hybrid authentication, canonical metadata, OAuth expiry handling, and regional/IdC session behavior (`1a2910e`, `471672d`, `13d5e1a`).
+- **Antigravity request safety** — Removed unsupported `parametersJsonSchema` and stream-only fields before `v1internal` requests, preserved tool/message indexes, and hardened native image and OAuth flows (`cc229bc`, `27bcef3`, `0e9657f`).
+- **Antigravity usage accounting** — Parsed Gemini/Antigravity SSE usage metadata, preserved cached tokens, counted tool calls toward completion usage, and fixed forced-SSE-to-JSON accounting paths (`27bcef3`, `41606a3`).
+- **Kimchi OAuth and metadata** — Hardened hybrid auth, canonicalized user-agent/metadata handling, and added OAuth adapter coverage (`1a2910e`, `kimchi` test updates).
+- **Codex compatibility** — Updated client-version headers, added refresh-aware model synchronization, preserved Responses formatting, handled fast-tier/capacity SSE, and retained GPT-5.6 Max/Ultra overrides.
+
+### Translators, streaming, and usage
+- **Translator cleanup** — Removed dead helpers, replaced unsafe/manual cloning with `structuredClone`, expanded thinking-pattern mappings, and centralized Kiro conversation handling (`eb0982e3`).
+- **Claude translation** — Preserved image-only messages and tool/content structures, removed global header caching, and gated `anthropic-beta` by model.
+- **Gemini translation** — Removed unsupported JSON Schema keywords, filled empty tool schemas after `$ref` removal, and preserved compatible tool/message payloads.
+- **Streaming correctness** — Fixed stream passthrough parameters, zero-completion streams, tool-call-only usage, non-JSON SSE handling, duplicate terminal markers, and forced streaming for JSON clients.
+- **Usage persistence** — Added or expanded DeepSeek, Grok CLI, Kimi, Antigravity, embedding, and stream usage handlers; preserved cached-token accounting and tool-call completion counts.
+- **Grok quota handling** — Added quota-frame parsing and distinguished subscription free-usage exhaustion from short-lived rate limiting, preventing incorrect retry behavior.
+- **Responses Lite tools** — Preserved Responses Lite tool payloads when routing through Chat-compatible providers.
+
+## Security and boundary hardening
+- **SSRF protection** — Hardened relay/proxy validation, including IPv6-mapped IPv4 handling, private-network checks, URL normalization, and safer proxy deployment routes (`ae8df6f`, `8ac631d`, `src/shared/utils/ssrfGuard.js`).
+- **Reverse-proxy headers** — Sanitized forwarded host/protocol headers and restricted public API-host handling to configured values (`81babc9`, `0b26f3d`).
+- **CLI resolution** — Guarded Devin/Qoder CLI resolution against unsafe or invalid executable paths and improved signal/timeout handling.
+- **OAuth callback safety** — Preserved external `open` behavior on Windows so xAI/Grok refresh flows continue to work without unsafe local resolution.
+- **API-key and ACL boundaries** — Included no-auth providers in ACL provider lists where appropriate, cached API-key validation safely, and retained provider/model access restrictions.
+- **Input validation** — Strengthened provider validation, model lookup inputs, public-host configuration, and OpenCode URL/model inputs.
+
+## Database, persistence, and infrastructure
+- **Database schema version 4** — Bumped schema version, removed a duplicate column, added date-parsing guards, and introduced the combo context-length migration (`c2139f7`, `dc3a1de`).
+- **Migration reliability** — Updated migration registration and SQLite/lowdb compatibility tests; preserved request-log configuration through `ENABLE_REQUEST_LOGS`.
+- **Docker standalone output** — Updated Docker/Compose packaging, standalone asset copying, Tailscale binary bundling, host-socket support, and deployment proxy configuration (`f93abd9`, `786b301`).
+- **Tailscale and Cloudflare lifecycle** — Improved process/PID management, successor process handling, named tunnels, and deployment configuration.
+- **Performance** — Cached `validateApiKey` and proxy-pool lookups, replaced the UUID dependency with native `randomUUID`, and reduced avoidable dashboard/provider requests (`44af73e`).
+- **Environment documentation** — Expanded `.env.example` for newly supported runtime, tunnel, proxy, and provider settings.
+
+## Tests and engineering quality
+- Added regression coverage for OpenCode settings, Xiaomi MiMo TTS, Antigravity OAuth, Kiro conversation canonicalization, Kimchi OAuth, Devin executor behavior, SSRF relay security, public hosts, ACL provider lists, provider catalog invariants, usage accounting, stream edge cases, combo context length, named tunnels, and DB migrations.
+- Updated Vitest configuration so the repository test script always uses the project configuration, tuned concurrency, and decoupled UI-token tests from environment-specific values (`ca14053`).
+- Removed dead translator helpers and stale provider artifacts; tightened no-undef and React Hooks lint coverage.
+- Local verification recorded for this release: **223 test files passed, 13 skipped; 2,713 tests passed, 19 expected failures, 82 skipped**. Targeted OpenCode route tests: **4 passed**. No-undef and React Hooks lint: **clean**. Production build: **compiled successfully**.
+- Cross-platform GitHub Actions matrix verified on **Ubuntu, macOS, and Windows with Node 22 and Node 24**.
+
+## Release and compatibility notes
+- The application and CLI package were aligned to the release version. The follow-up `0.9.91` release corrected the CLI package version exposed by the npm workflow after `0.9.90` (`7835afc`, `19b176f`).
+- Existing installs retain their local SQLite data and config files. Legacy OpenCode `9router` entries remain readable; saving from the dashboard migrates them to the canonical `VansRoute` contract.
+
 
 # v0.9.80 (2026-07-22)
 
