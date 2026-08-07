@@ -8,6 +8,9 @@ import Tooltip from "@/shared/components/Tooltip";
 import {
   parseQuotaData,
   calculatePercentage,
+  filterQuotasByVisibility,
+  getHiddenQuotaRows,
+  getQuotaVisibilityKey,
   getConnectionLabel,
   getConnectionQuotaRemaining,
   sortVisibleConnections,
@@ -24,10 +27,6 @@ import {
   reconcileConnectionsPage,
   getQuotaCache,
   setQuotaCache,
-  getModelOptionsForProvider,
-  isMultiModelProvider,
-  getQuotaModelKey,
-  filterQuotasByModel,
   QUOTA_CACHE_KEY,
   REFRESH_INTERVAL_MS,
   CLAUDE_REFRESH_INTERVAL_MS,
@@ -148,9 +147,9 @@ export default function ProviderLimits() {
   const [proxyPools, setProxyPools] = useState([]);
   const [providerFilter, setProviderFilter] = useState("all");
   const [providerOptions, setProviderOptions] = useState([]);
-  const [modelFilter, setModelFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
   const [quotaSortMode, setQuotaSortMode] = useState("default");
+  const [quotaVisibility, setQuotaVisibility] = useState({});
   const [expiringFirst, setExpiringFirst] = useState(false);
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const [bulkToggling, setBulkToggling] = useState(false);
@@ -541,10 +540,13 @@ export default function ProviderLimits() {
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : {}))
-      .then((s) => setAutoPingMaps({
-        claude: s?.claudeAutoPing?.connections || {},
-        codex: s?.codexAutoPing?.connections || {},
-      }))
+      .then((s) => {
+        setAutoPingMaps({
+          claude: s?.claudeAutoPing?.connections || {},
+          codex: s?.codexAutoPing?.connections || {},
+        });
+        setQuotaVisibility(s?.quotaVisibility || {});
+      })
       .catch(() => {});
   }, []);
 
@@ -569,6 +571,57 @@ export default function ProviderLimits() {
       setAutoPingMaps(previous);
     }
   }, [autoPingMaps]);
+
+  const updateQuotaVisibility = useCallback(async (nextVisibility, previousVisibility) => {
+    setQuotaVisibility(nextVisibility);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotaVisibility: nextVisibility }),
+      });
+      if (!response.ok) throw new Error("Failed to update quota visibility");
+    } catch (error) {
+      console.error("Error updating quota visibility:", error);
+      setQuotaVisibility(previousVisibility);
+    }
+  }, []);
+
+  const handleHideQuota = useCallback((provider, quota) => {
+    const key = getQuotaVisibilityKey(quota);
+    if (!provider || !key) return;
+
+    const previous = quotaVisibility;
+    const providerVisibility = previous[provider] || {};
+    const hidden = new Set(providerVisibility.hidden || []);
+    hidden.add(key);
+    const next = {
+      ...previous,
+      [provider]: {
+        ...providerVisibility,
+        hidden: [...hidden],
+      },
+    };
+    updateQuotaVisibility(next, previous);
+  }, [quotaVisibility, updateQuotaVisibility]);
+
+  const handleShowQuota = useCallback((provider, quota) => {
+    const key = getQuotaVisibilityKey(quota);
+    if (!provider || !key) return;
+
+    const previous = quotaVisibility;
+    const providerVisibility = previous[provider] || {};
+    const hidden = new Set(providerVisibility.hidden || []);
+    hidden.delete(key);
+    const next = {
+      ...previous,
+      [provider]: {
+        ...providerVisibility,
+        hidden: [...hidden],
+      },
+    };
+    updateQuotaVisibility(next, previous);
+  }, [quotaVisibility, updateQuotaVisibility]);
 
   // Auto-refresh interval
   useEffect(() => {
@@ -629,16 +682,6 @@ export default function ProviderLimits() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [autoRefresh, refreshAll, hasHydratedAutoRefresh]);
-
-  // Reset per-model filter when the provider filter changes or no longer supports it.
-  useEffect(() => {
-    setModelFilter("all");
-  }, [providerFilter]);
-
-  const modelOptions = useMemo(
-    () => getModelOptionsForProvider(providerFilter),
-    [providerFilter],
-  );
 
   const sortedConnections = useMemo(
     () =>
@@ -771,7 +814,7 @@ export default function ProviderLimits() {
                   </span>
                 ) : (
                   <ProviderIcon
-                    src={`/providers/${providerFilter}.webp`}
+                    src={`/providers/${providerFilter}.png`}
                     alt={providerFilter}
                     size={18}
                     className="size-[18px] rounded object-contain"
@@ -795,7 +838,7 @@ export default function ProviderLimits() {
                   aria-label="Close provider filter"
                   onClick={() => setProviderMenuOpen(false)}
                 />
-                <div className="absolute left-0 z-40 mt-1.5 w-52 overflow-hidden rounded-xl border border-black/10 bg-surface/95 p-1 shadow-lg shadow-black/10 backdrop-blur dark:border-white/10 dark:bg-surface/95 sm:w-60">
+                <div className="absolute left-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-black/10 bg-surface/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur dark:border-white/10 dark:bg-surface/95 sm:w-72">
                   <button
                     type="button"
                     onClick={() => {
@@ -805,20 +848,20 @@ export default function ProviderLimits() {
                       setProviderFilter("all");
                       setProviderMenuOpen(false);
                     }}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${providerFilter === "all" ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${providerFilter === "all" ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">
+                    <span className="material-symbols-outlined text-[22px]">
                       apps
                     </span>
                     <span className="font-medium">All providers</span>
                     {providerFilter === "all" && (
-                      <span className="material-symbols-outlined ml-auto text-[16px]">
+                      <span className="material-symbols-outlined ml-auto text-[20px]">
                         check
                       </span>
                     )}
                   </button>
                   <div className="my-1 h-px bg-black/10 dark:bg-white/10" />
-                  <div className="max-h-60 overflow-y-auto pr-0.5">
+                  <div className="max-h-72 overflow-y-auto pr-1">
                     {providerOptions.map((provider) => (
                       <button
                         key={provider}
@@ -830,20 +873,20 @@ export default function ProviderLimits() {
                           setProviderFilter(provider);
                           setProviderMenuOpen(false);
                         }}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${providerFilter === provider ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${providerFilter === provider ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
                       >
                         <ProviderIcon
-                          src={`/providers/${provider}.webp`}
+                          src={`/providers/${provider}.png`}
                           alt={provider}
-                          size={18}
-                          className="size-[18px] rounded object-contain"
+                          size={24}
+                          className="size-6 rounded-md object-contain"
                           fallbackText={provider.slice(0, 2).toUpperCase()}
                         />
                         <span className="font-medium capitalize">
                           {provider}
                         </span>
                         {providerFilter === provider && (
-                          <span className="material-symbols-outlined ml-auto text-[16px]">
+                          <span className="material-symbols-outlined ml-auto text-[20px]">
                             check
                           </span>
                         )}
@@ -883,22 +926,6 @@ export default function ProviderLimits() {
               {QUOTA_SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {isMultiModelProvider(providerFilter) && modelOptions.length > 0 && (
-            <select
-              value={modelFilter}
-              onChange={(event) => setModelFilter(event.target.value)}
-              className="h-8 rounded-lg border border-black/10 bg-black/[0.02] px-2 text-xs text-text-primary outline-none transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/10"
-              aria-label="Filter quotas by model"
-            >
-              <option value="all">All models</option>
-              {modelOptions.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
                 </option>
               ))}
             </select>
@@ -1004,6 +1031,9 @@ export default function ProviderLimits() {
           const resetCreditCount = getCodexResetCreditCount(quota);
           const isResettingLimit = resettingLimitId === conn.id;
           const rowBusy = deletingId === conn.id || togglingId === conn.id || isResettingLimit;
+          const rawQuotas = quota?.quotas || [];
+          const visibleQuotas = filterQuotasByVisibility(conn.provider, rawQuotas, quotaVisibility);
+          const hiddenQuotaRows = getHiddenQuotaRows(conn.provider, rawQuotas, quotaVisibility);
 
           return (
             <Card
@@ -1016,7 +1046,7 @@ export default function ProviderLimits() {
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
                       <ProviderIcon
-                        src={`/providers/${conn.provider}.webp`}
+                        src={`/providers/${conn.provider}.png`}
                         alt={conn.provider}
                         size={32}
                         className="object-contain"
@@ -1225,13 +1255,35 @@ export default function ProviderLimits() {
                   </div>
                 ) : (
                   <QuotaTable
-                    quotas={filterQuotasByModel(quota?.quotas, modelFilter)}
+                    quotas={visibleQuotas}
                     compact
                     sortMode="default"
                     showSortLabel={
                       conn.provider === "codex" && quotaSortMode !== "default"
                     }
+                    onHideQuota={(quotaRow) => handleHideQuota(conn.provider, quotaRow)}
                   />
+                )}
+                {hiddenQuotaRows.length > 0 && (
+                  <div className="mt-2 flex min-w-0 items-center gap-1 border-t border-black/5 pt-2 text-[10px] text-text-muted dark:border-white/5">
+                    <span className="material-symbols-outlined shrink-0 text-[14px]">
+                      visibility_off
+                    </span>
+                    <span className="shrink-0">Hidden:</span>
+                    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap pb-2">
+                      {hiddenQuotaRows.map((quotaRow) => (
+                        <button
+                          key={getQuotaVisibilityKey(quotaRow)}
+                          type="button"
+                          onClick={() => handleShowQuota(conn.provider, quotaRow)}
+                          className="shrink-0 rounded-md border border-black/10 px-1.5 py-0.5 transition-colors hover:bg-black/5 hover:text-text-primary dark:border-white/10 dark:hover:bg-white/5"
+                          title="Show this quota row"
+                        >
+                          {quotaRow.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </Card>

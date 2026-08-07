@@ -1,32 +1,5 @@
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 
-// Providers whose usage endpoint returns per-model quota rows.
-// The model filter dropdown is shown only for these providers.
-export const MULTI_MODEL_PROVIDERS = new Set([
-  "antigravity",
-  "gemini-cli",
-]);
-
-/**
- * Build model filter options for a given provider.
- * @param {string} provider - Provider id
- * @returns {Array<{id: string, name: string}>}
- */
-export function getModelOptionsForProvider(provider) {
-  if (!provider || !MULTI_MODEL_PROVIDERS.has(provider)) return [];
-  const models = getModelsByProviderId(provider);
-  return models.map((m) => ({ id: m.id, name: m.name || m.id }));
-}
-
-/**
- * Check whether a provider supports per-model quota filtering.
- * @param {string} provider - Provider id
- * @returns {boolean}
- */
-export function isMultiModelProvider(provider) {
-  return MULTI_MODEL_PROVIDERS.has(provider);
-}
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
@@ -185,30 +158,6 @@ export function getSafePagination(pagination, fallbackPageSize) {
   );
 }
 
-/**
- * Determine the model identifier for a normalized quota row.
- * Falls back to the quota name when no explicit modelKey is present.
- * @param {Object} quota - Normalized quota row
- * @returns {string}
- */
-export function getQuotaModelKey(quota) {
-  if (!quota) return "";
-  return quota.modelKey || quota.name || "";
-}
-
-/**
- * Filter normalized quota rows by a selected model id.
- * @param {Array<Object>} quotas - Normalized quota rows
- * @param {string} modelFilter - Selected model id or "all"
- * @returns {Array<Object>}
- */
-export function filterQuotasByModel(quotas, modelFilter) {
-  if (!Array.isArray(quotas) || modelFilter === "all" || !modelFilter) {
-    return quotas || [];
-  }
-  return quotas.filter((q) => getQuotaModelKey(q) === modelFilter);
-}
-
 export function getSafeTotals(totals, fallbackTotal = 0) {
   return (
     totals || {
@@ -298,6 +247,27 @@ export function formatResetTime(date) {
   }
 }
 
+/**
+ * Get Tailwind color class based on percentage
+ * @param {number} percentage - Remaining percentage (0-100)
+ * @returns {string} Color name: "green" | "yellow" | "red"
+ */
+export function getStatusColor(percentage) {
+  if (percentage > 70) return "green";
+  if (percentage >= 30) return "yellow";
+  return "red"; // 0-29% including 0% (out of quota) - show red
+}
+
+/**
+ * Get status emoji based on percentage
+ * @param {number} percentage - Remaining percentage (0-100)
+ * @returns {string} Emoji: "🟢" | "🟡" | "🔴"
+ */
+export function getStatusEmoji(percentage) {
+  if (percentage > 70) return "🟢";
+  if (percentage >= 30) return "🟡";
+  return "🔴"; // 0-29% including 0% (out of quota) - show red
+}
 
 /**
  * Calculate remaining percentage
@@ -328,6 +298,30 @@ export function getRemainingPercentage(quota) {
   }
 
   return calculatePercentage(quota?.used, quota?.total);
+}
+
+export function getQuotaVisibilityKey(quota) {
+  if (!quota || typeof quota !== "object") return "";
+  return String(quota.modelKey || quota.name || "").trim();
+}
+
+function getProviderHiddenQuotaSet(provider, quotaVisibility) {
+  const hidden = quotaVisibility?.[provider]?.hidden;
+  return new Set(Array.isArray(hidden) ? hidden.map(String) : []);
+}
+
+export function filterQuotasByVisibility(provider, quotas = [], quotaVisibility = {}) {
+  if (!Array.isArray(quotas) || quotas.length === 0) return [];
+  const hidden = getProviderHiddenQuotaSet(provider, quotaVisibility);
+  if (hidden.size === 0) return quotas;
+  return quotas.filter((quota) => !hidden.has(getQuotaVisibilityKey(quota)));
+}
+
+export function getHiddenQuotaRows(provider, quotas = [], quotaVisibility = {}) {
+  if (!Array.isArray(quotas) || quotas.length === 0) return [];
+  const hidden = getProviderHiddenQuotaSet(provider, quotaVisibility);
+  if (hidden.size === 0) return [];
+  return quotas.filter((quota) => hidden.has(getQuotaVisibilityKey(quota)));
 }
 
 /**
@@ -481,8 +475,10 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
-      case "kimi":
-      case "deepseek":
+      case "grok-cli":
+        // Grok Build credits (on-demand window + prepaid balance).
+        // Do NOT forward absolute `remaining` — getRemainingPercentage treats
+        // it as a 0–100 percentage (same as Qoder). Use remainingPercentage.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -496,10 +492,39 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
-      case "grok-cli":
-        // Grok Build credits (on-demand window + prepaid balance).
-        // Do NOT forward absolute `remaining` — getRemainingPercentage treats
-        // it as a 0–100 percentage (same as Qoder). Use remainingPercentage.
+      case "kimi":
+        // Weekly / Ratelimit from /v1/usages. Prefer remainingPercentage only.
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              remainingPercentage: quota.remainingPercentage,
+            });
+          });
+        }
+        break;
+
+      case "deepseek":
+        // Credit balance — remainingPercentage only (no absolute remaining).
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              remainingPercentage: quota.remainingPercentage,
+            });
+          });
+        }
+        break;
+
+      case "ollama":
+        // Session (5h) / Weekly (7d) usage % from ollama.com/api/usage.
+        // remainingPercentage only — no absolute remaining (UI treats remaining as %).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
