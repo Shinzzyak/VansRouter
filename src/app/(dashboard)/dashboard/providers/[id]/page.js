@@ -979,17 +979,39 @@ export default function ProviderDetailPage() {
                   onToggle: (on) => handleAutoPingConnection(conn.id, on),
                   provider: providerId,
                 } : null}
-                onUpdateProxy={async (proxyPoolId) => {
+                onUpdateProxy={async (proxyConfig) => {
                   try {
+                    // Support both new format (object) and legacy format (string/null)
+                    const updatePayload = typeof proxyConfig === 'object' && proxyConfig !== null
+                      ? {
+                          proxyPoolIds: proxyConfig.proxyPoolIds || [],
+                          proxyRotationStrategy: proxyConfig.proxyRotationStrategy || "none",
+                        }
+                      : {
+                          // Legacy single-proxy format
+                          proxyPoolId: proxyConfig || null,
+                        };
+
                     const res = await fetch(`/api/providers/${conn.id}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ proxyPoolId: proxyPoolId || null }),
+                      body: JSON.stringify(updatePayload),
                     });
                     if (res.ok) {
                       setConnections(prev => prev.map(c =>
                         c.id === conn.id
-                          ? { ...c, providerSpecificData: { ...c.providerSpecificData, proxyPoolId: proxyPoolId || null } }
+                          ? { 
+                              ...c, 
+                              providerSpecificData: { 
+                                ...c.providerSpecificData, 
+                                ...(updatePayload.proxyPoolIds !== undefined ? {
+                                  proxyPoolIds: updatePayload.proxyPoolIds,
+                                  proxyRotationStrategy: updatePayload.proxyRotationStrategy,
+                                } : {
+                                  proxyPoolId: updatePayload.proxyPoolId,
+                                })
+                              } 
+                            }
                           : c
                       ));
                     }

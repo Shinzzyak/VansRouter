@@ -33,7 +33,29 @@ function normalizeProxyConfig(body = {}) {
   };
 }
 
-async function normalizeProxyPoolUpdate(proxyPoolIdInput) {
+async function normalizeProxyPoolUpdate(body) {
+  // Handle new multi-proxy format
+  if (body.proxyPoolIds !== undefined) {
+    const proxyPoolIds = Array.isArray(body.proxyPoolIds) ? body.proxyPoolIds : [];
+    const proxyRotationStrategy = body.proxyRotationStrategy || "none";
+
+    // Validate all proxy pool IDs exist
+    for (const poolId of proxyPoolIds) {
+      const pool = await getProxyPoolById(poolId);
+      if (!pool) {
+        return { hasProxyPoolField: true, error: `Proxy pool ${poolId} not found` };
+      }
+    }
+
+    return {
+      hasProxyPoolField: true,
+      proxyPoolIds: proxyPoolIds.filter(Boolean),
+      proxyRotationStrategy,
+    };
+  }
+
+  // Handle legacy single proxy format
+  const proxyPoolIdInput = body.proxyPoolId;
   if (proxyPoolIdInput === undefined) {
     return { hasProxyPoolField: false, proxyPoolId: null };
   }
@@ -113,7 +135,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
     }
 
-    const proxyPoolResult = await normalizeProxyPoolUpdate(body.proxyPoolId);
+    const proxyPoolResult = await normalizeProxyPoolUpdate(body);
     if (proxyPoolResult.error) {
       return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
     }
@@ -151,10 +173,18 @@ export async function PUT(request, { params }) {
       }
 
       if (proxyPoolResult.hasProxyPoolField) {
-        if (proxyPoolResult.proxyPoolId === null) {
+        // Handle new multi-proxy format
+        if (proxyPoolResult.proxyPoolIds !== undefined) {
+          updateData.providerSpecificData.proxyPoolIds = proxyPoolResult.proxyPoolIds;
+          updateData.providerSpecificData.proxyRotationStrategy = proxyPoolResult.proxyRotationStrategy;
           delete updateData.providerSpecificData.proxyPoolId;
         } else {
-          updateData.providerSpecificData.proxyPoolId = proxyPoolResult.proxyPoolId;
+          // Handle legacy single-proxy format
+          if (proxyPoolResult.proxyPoolId === null) {
+            delete updateData.providerSpecificData.proxyPoolId;
+          } else {
+            updateData.providerSpecificData.proxyPoolId = proxyPoolResult.proxyPoolId;
+          }
         }
       }
     }

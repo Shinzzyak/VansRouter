@@ -1,10 +1,19 @@
 import { getProxyPoolById } from "@/models";
+import { fitPoolIds } from "open-sse/services/proxyPoolFitness.js";
 
 // Safely normalize any value into a trimmed string.
 function normalizeString(value) {
   if (value === undefined || value === null) return "";
   return String(value).trim();
 }
+
+// ─── Proxy pool rotation state (in-memory) ─────────────────────────
+const rotateState = new Map(); // providerId → { index }
+
+// NOTE: pickProxyPoolId is defined at the bottom of this file as
+// pickProxyPoolIdFromActive (handles both MIBP opts shape and noAuth
+// targetProxyPoolIds array shape). The MIBP-era standalone implementation
+// was merged into it to avoid duplicate exports.
 
 /**
  * Normalize legacy proxy configuration.
@@ -32,75 +41,109 @@ function normalizeLegacyProxy(providerSpecificData = {}) {
  * Resolve final proxy configuration.
  *
  * Priority:
- * 1. Proxy Pool
- * 2. Legacy Proxy
- * 3. No Proxy
+ * 1. Multi-Proxy Pool (new format with rotation)
+ * 2. Single Proxy Pool (legacy)
+ * 3. Legacy Proxy
+ * 4. No Proxy
  */
 export async function resolveConnectionProxyConfig(
-  providerSpecificData = {}
+  providerSpecificData = {},
+  connectionId = null,
+  excludePoolIds = null
 ) {
   try {
-    const proxyPoolIdRaw = normalizeString(
-      providerSpecificData?.proxyPoolId
-    );
+    // Handle new multi-proxy format
+    const proxyPoolIds = providerSpecificData?.proxyPoolIds || [];
+    const proxyRotationStrategy = providerSpecificData?.proxyRotationStrategy || "none";
 
-    // "__none__" means explicitly disabled
-    const proxyPoolId =
-      proxyPoolIdRaw === "__none__" ? "" : proxyPoolIdRaw;
+    // Handle legacy single-proxy format
+    const legacyProxyPoolId = normalizeString(providerSpecificData?.proxyPoolId);
+    const proxyPoolIdRaw = legacyProxyPoolId === "__none__" ? "" : legacyProxyPoolId;
 
     const legacy = normalizeLegacyProxy(providerSpecificData);
 
     /**
      * -----------------------------
-     * Proxy Pool Resolution
+     * Multi-Proxy Pool Resolution (NEW)
      * -----------------------------
      */
-    if (proxyPoolId) {
-      const proxyPool = await getProxyPoolById(proxyPoolId);
+    if (proxyPoolIds.length > 0) {
+      const scope = providerSpecificData?.proxyPoolScope || null;
+      const selectedPoolId = pickProxyPoolId(proxyPoolIds, proxyRotationStrategy, connectionId, { scope, excludeIds: excludePoolIds });
 
+      if (selectedPoolId) {
+        const proxyPool = await getProxyPoolById(selectedPoolId);
+        const proxyUrl = normalizeString(proxyPool?.proxyUrl);
+        const noProxy = normalizeString(proxyPool?.noProxy);
+
+        const isValidPool = proxyPool && proxyPool.isActive === true && proxyUrl;
+
+        if (isValidPool) {
+          /**
+           * Vercel/Cloudflare relay proxies use base URL rewriting
+           * instead of HTTP_PROXY environment variables.
+           */
+          if (proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno") {
+            return {
+              source: proxyPool.type,
+              proxyPoolId: selectedPoolId,
+              proxyPool,
+              connectionProxyEnabled: false,
+              connectionProxyUrl: "",
+              connectionNoProxy: noProxy,
+              strictProxy: proxyPool.strictProxy === true,
+              vercelRelayUrl: proxyUrl,
+            };
+          }
+
+          /**
+           * Standard proxy pool
+           */
+          return {
+            source: "pool",
+            proxyPoolId: selectedPoolId,
+            proxyPool,
+            connectionProxyEnabled: true,
+            connectionProxyUrl: proxyUrl,
+            connectionNoProxy: noProxy,
+            strictProxy: proxyPool.strictProxy === true,
+          };
+        }
+      }
+    }
+
+    /**
+     * -----------------------------
+     * Single Proxy Pool Resolution (LEGACY)
+     * -----------------------------
+     */
+    if (proxyPoolIdRaw) {
+      const proxyPool = await getProxyPoolById(proxyPoolIdRaw);
       const proxyUrl = normalizeString(proxyPool?.proxyUrl);
       const noProxy = normalizeString(proxyPool?.noProxy);
-
-      const isValidPool =
-        proxyPool &&
-        proxyPool.isActive === true &&
-        proxyUrl;
+      const isValidPool = proxyPool && proxyPool.isActive === true && proxyUrl;
 
       if (isValidPool) {
-        /**
-         * Vercel/Cloudflare relay proxies use base URL rewriting
-         * instead of HTTP_PROXY environment variables.
-         */
         if (proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno") {
           return {
             source: proxyPool.type,
-
-            proxyPoolId,
+            proxyPoolId: proxyPoolIdRaw,
             proxyPool,
-
             connectionProxyEnabled: false,
             connectionProxyUrl: "",
             connectionNoProxy: noProxy,
-
             strictProxy: proxyPool.strictProxy === true,
-
-            vercelRelayUrl: proxyUrl, // Still mapped to vercelRelayUrl in the unified payload since they use the exact same header spec
+            vercelRelayUrl: proxyUrl,
           };
         }
 
-        /**
-         * Standard proxy pool
-         */
         return {
           source: "pool",
-
-          proxyPoolId,
+          proxyPoolId: proxyPoolIdRaw,
           proxyPool,
-
           connectionProxyEnabled: true,
           connectionProxyUrl: proxyUrl,
           connectionNoProxy: noProxy,
-
           strictProxy: proxyPool.strictProxy === true,
         };
       }
@@ -118,8 +161,7 @@ export async function resolveConnectionProxyConfig(
       return {
         source: "legacy",
 
-        proxyPoolId: proxyPoolId || null,
-        proxyPool: null,
+        proxyPoolId: proxyPoolIdRaw || null,
 
         ...legacy,
       };
@@ -133,8 +175,7 @@ export async function resolveConnectionProxyConfig(
     return {
       source: "none",
 
-      proxyPoolId: proxyPoolId || null,
-      proxyPool: null,
+      proxyPoolId: proxyPoolIdRaw || null,
 
       ...legacy,
     };
@@ -148,7 +189,6 @@ export async function resolveConnectionProxyConfig(
       source: "error",
 
       proxyPoolId: null,
-      proxyPool: null,
 
       connectionProxyEnabled: false,
       connectionProxyUrl: "",
@@ -187,6 +227,16 @@ export function getProxyHash(providerSpecificData = {}) {
   return "direct";
 }
 
+/**
+ * Stable djb2-based pool hash — used to group accounts by multi-proxy rotation
+ * selection when proxyPoolIds is set.
+ */
+export function getProxyPoolHash(providerSpecificData = {}) {
+  const poolIds = Array.isArray(providerSpecificData?.proxyPoolIds) ? providerSpecificData.proxyPoolIds : [];
+  if (poolIds.length === 0) return getProxyHash(providerSpecificData);
+  return `pool-${djb2(poolIds.join(","))}`;
+}
+
 // In-memory counters for round-robin / fill-first proxy pool rotation.
 // Keyed by `${providerId}:${strategy}:${poolIds}` so different providers,
 // strategies, and selected pool subsets keep independent cursors.
@@ -207,24 +257,44 @@ export function filterTargetProxyPoolIds(poolIds, targetProxyPoolIds = []) {
 
 /**
  * Pick a proxy pool id from active pool ids using the configured strategy.
- * Empty targetProxyPoolIds means all active pools. Non-empty targets filter the
- * rotation subset; if every target is inactive/missing, returns null so callers
- * can fall back safely instead of silently using an unselected pool.
  *
- * @param {string[]} poolIds active proxy pool ids with a proxyUrl
- * @param {string} strategy rotation strategy from providerStrategies override
- * @param {string} providerId provider id for per-provider cursor isolation
- * @param {string[]} targetProxyPoolIds optional selected subset
+ * Supports two call shapes:
+ * 1. MIBP multi-proxy: pickProxyPoolId(poolIds, strategy, connectionId, { scope, excludeIds })
+ * 2. 0.9.91 noAuth:    pickProxyPoolId(poolIds, strategy, providerId, targetProxyPoolIds[])
+ *
+ * @param {string[]} poolIds active proxy pool ids
+ * @param {string} strategy rotation strategy
+ * @param {string} providerId provider/connection id for cursor isolation
+ * @param {string[]|object} targetProxyPoolIdsOrOpts optional subset or opts object
  * @returns {string|null} chosen pool id, or null when pool/subset is empty
  */
-export function pickProxyPoolId(poolIds, strategy, providerId = "", targetProxyPoolIds = []) {
-  const eligiblePoolIds = filterTargetProxyPoolIds(poolIds, targetProxyPoolIds);
-  if (eligiblePoolIds.length === 0) return null;
+export function pickProxyPoolIdFromActive(poolIds, strategy, providerId = "", targetProxyPoolIdsOrOpts = []) {
+  let eligiblePoolIds = poolIds;
+  let scope = null;
+  let excludeIds = [];
+
+  if (targetProxyPoolIdsOrOpts && typeof targetProxyPoolIdsOrOpts === "object" && !Array.isArray(targetProxyPoolIdsOrOpts)) {
+    // MIBP shape: opts = { scope, excludeIds }
+    scope = targetProxyPoolIdsOrOpts.scope || null;
+    excludeIds = targetProxyPoolIdsOrOpts.excludeIds || [];
+  } else {
+    // 0.9.91 shape: array of target pool ids
+    eligiblePoolIds = filterTargetProxyPoolIds(poolIds, targetProxyPoolIdsOrOpts);
+    if (eligiblePoolIds.length === 0) return null;
+  }
+
+  eligiblePoolIds = eligiblePoolIds.filter((id) => !excludeIds.includes(id));
+  if (strategy === "smart" && scope) eligiblePoolIds = fitPoolIds(eligiblePoolIds, scope);
+
+  if (eligiblePoolIds.length === 0) {
+    eligiblePoolIds = poolIds.filter((id) => !excludeIds.includes(id));
+    if (eligiblePoolIds.length === 0) return null;
+  }
+  if (eligiblePoolIds.length === 1) return eligiblePoolIds[0];
+
   const strat = String(strategy || "").toLowerCase();
 
-  if (strat === "fill-first") return eligiblePoolIds[0];
-
-  if (strat === "round-robin") {
+  if (strat === "round-robin" || strat === "smart") {
     const key = `${providerId}:${strat}:${eligiblePoolIds.join(",")}`;
     const idx = (_poolCursors.get(key) ?? 0) % eligiblePoolIds.length;
     _poolCursors.set(key, (idx + 1) % eligiblePoolIds.length);
@@ -235,5 +305,13 @@ export function pickProxyPoolId(poolIds, strategy, providerId = "", targetProxyP
     return eligiblePoolIds[Math.floor(Math.random() * eligiblePoolIds.length)];
   }
 
-  return null;
+  if (strat === "fill-first") return eligiblePoolIds[0];
+
+  return eligiblePoolIds[0];
 }
+
+// Alias: MIBP callers use pickProxyPoolId with opts shape; noAuth callers use
+// pickProxyPoolId with targetProxyPoolIds array. Both land here.
+export const pickProxyPoolId = pickProxyPoolIdFromActive;
+
+export const __test__ = { rotateState, djb2, normalizeTargetPoolIds };

@@ -19,6 +19,7 @@ import {
   getXaiSessionStatus,
   clearXaiSession,
 } from "@/lib/oauth/utils/server";
+import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;
@@ -130,6 +131,15 @@ export async function GET(request, { params }) {
       if (provider === "xai") stopXaiProxy();
       else stopCodexProxy();
       return NextResponse.json({ success: true });
+    }
+
+    if (action === "ide-status") {
+      // Detect whether the IDE is installed locally (used by import-token UX).
+      if (provider !== "trae" && provider !== "windsurf") {
+        return NextResponse.json({ error: "ide-status only supported for trae/windsurf" }, { status: 400 });
+      }
+      const status = await detectIdeInstalled(provider);
+      return NextResponse.json(status);
     }
 
     if (action === "device-code") {

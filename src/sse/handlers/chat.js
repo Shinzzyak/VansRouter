@@ -28,7 +28,7 @@ import {
   resolveAccountSemaphoreMaxConcurrency,
   isSemaphoreCapacityError,
 } from "open-sse/services/accountSemaphore.js";
-import { getProxyHash } from "@/lib/network/connectionProxy.js";
+import { getProxyHash, resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 import { updateProviderConnection, getProviderConnections } from "@/lib/localDb";
 import { isModelAllowed } from "../services/allowedModels.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
@@ -468,6 +468,23 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       godmodeLevel: chatSettings.godmodeLevel || "lite",
       loopGuardEnabled: chatSettings.loopGuardEnabled !== false && chatSettings.loopGuardEnabled !== 0,
       providerThinking,
+      // Pool-scoped failure recovery: re-resolve proxy config excluding the
+      // failed pool so the request retries via another pool, not a dead end.
+      resolveProxyConfig: async (creds, excludePoolIds = []) => {
+        const psd = { ...(creds?.providerSpecificData || {}) };
+        if (psd.proxyPoolIds?.length) psd.proxyPoolScope = `${provider}::${model}`;
+        const resolved = await resolveConnectionProxyConfig(psd, creds?.connectionId || creds?.id, excludePoolIds);
+        if (!resolved?.proxyPoolId) return null;
+        return {
+          connectionProxyEnabled: resolved.connectionProxyEnabled,
+          connectionProxyUrl: resolved.connectionProxyUrl,
+          connectionNoProxy: resolved.connectionNoProxy,
+          connectionProxyPoolId: resolved.proxyPoolId || null,
+          vercelRelayUrl: resolved.vercelRelayUrl || "",
+          proxyPoolId: resolved.proxyPoolId || null,
+          strictProxy: resolved.strictProxy === true,
+        };
+      },
       clientSignal,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,

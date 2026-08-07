@@ -25,6 +25,7 @@ import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.j
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { detectLoop } from "../utils/loopGuard.js";
 import { applyPromptInjectors } from "../rtk/promptInjectors.js";
+import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
@@ -100,7 +101,26 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
   */
- export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null }) {
+ // Pool-scoped failure retry: when an executor tags an error as belonging to a
+ // proxy pool (region gate, dead proxy, per-IP limit), mark the pool unfit and
+ // re-resolve the proxy config excluding it, then retry instead of failing the
+ // whole account. resolveProxyConfig is injected by the SSE handler; when absent
+ // (e.g. direct callers) the retry path degrades to the original behavior.
+ const MAX_POOL_RETRIES = 2;
+
+ // Build proxy options from resolved provider-specific data. `strictProxy` is
+ // forced for freebuff so a dead/limited pool can never leak the request to the
+ // caller's real IP (the freebuff session tier is per-egress-IP).
+ const buildProxyOptions = (psd = {}, provider = "") => ({
+   connectionProxyEnabled: psd?.connectionProxyEnabled === true,
+   connectionProxyUrl: psd?.connectionProxyUrl || "",
+   connectionNoProxy: psd?.connectionNoProxy || "",
+   vercelRelayUrl: psd?.vercelRelayUrl || "",
+   strictProxy: psd?.strictProxy === true || provider === "freebuff",
+   proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
+ });
+
+ export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const sourceFormat = sourceFormatOverride || detectFormat(body);
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
@@ -409,13 +429,59 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     log?.debug?.("PROXY", `${provider.toUpperCase()} | ${model} | conn=${connectionName} | no_proxy=${proxyOptions.connectionNoProxy}`);
   }
 
-  // Execute request
+  // Execute request — with pool-scoped retry: a failed pool (region gate,
+  // per-IP limit, dead proxy) is marked unfit and the request retried via
+  // another pool instead of failing the account. Covers both thrown errors
+  // (executor.execute) and non-ok responses declared poolScoped via
+  // parseError — poolId/scope are completed here from proxyOptions.
+  const proxyScope = `${provider}::${model}`;
+
+  const tryNextPool = async (poolScoped, reasonMsg) => {
+    const failed = {
+      poolId: poolScoped?.poolId || proxyOptions.proxyPoolId || null,
+      scope: poolScoped?.scope || proxyScope,
+      reason: poolScoped?.reason || "pool-scoped",
+    };
+    markPoolUnfit(failed.poolId, failed.scope, undefined, failed.reason);
+    log?.warn?.("PROXY", `${provider.toUpperCase()} | pool ${failed.poolId || "?"} unfit for ${failed.scope} (${failed.reason}) — retry with another pool. ${reasonMsg || ""}`);
+    try {
+      const resolved = await resolveProxyConfig(credentials, [failed.poolId]);
+      if (resolved?.proxyPoolId) {
+        credentials.providerSpecificData = { ...(credentials.providerSpecificData || {}), ...resolved };
+        proxyOptions = buildProxyOptions(credentials.providerSpecificData, provider);
+        return true;
+      }
+    } catch (resolverError) {
+      // A resolver failure must not mask the original pool error.
+      log?.warn?.("PROXY", `${provider.toUpperCase()} | pool re-resolve failed: ${resolverError.message}`);
+    }
+    return false;
+  };
+
+  const executeWithPoolFallback = async (attempt = 0) => {
+    let result;
+    try {
+      result = await executor.execute({ model, body: translatedBody, stream: upstreamStream, credentials, signal: streamController.signal, log, proxyOptions, accountCount });
+    } catch (error) {
+      if (error?.poolScoped && typeof resolveProxyConfig === "function" && attempt < MAX_POOL_RETRIES) {
+        if (await tryNextPool(error.poolScoped, error.message)) return executeWithPoolFallback(attempt + 1);
+      }
+      throw error;
+    }
+    // Non-ok response that the executor declared pool/IP-scoped (e.g. opencode
+    // EAI codes, freebuff limited-IP) — same retry path.
+    if (result && result.response && !result.response.ok && result.poolScoped && attempt < MAX_POOL_RETRIES) {
+      if (await tryNextPool(result.poolScoped, `HTTP ${result.response.status}`)) return executeWithPoolFallback(attempt + 1);
+    }
+    return result;
+  };
+
   let providerResponse, providerUrl, providerHeaders, finalBody;
   // Most executors return their registry format. Cursor AgentService is an
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
   try {
-    const result = await executor.execute({ model, body: translatedBody, stream: upstreamStream, credentials, signal: streamController.signal, log, proxyOptions, accountCount });
+    const result = await executeWithPoolFallback();
     providerResponse = result.response;
     providerUrl = result.url;
     providerHeaders = result.headers;
