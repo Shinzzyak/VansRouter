@@ -1,3 +1,23 @@
+# v0.9.94 (2026-08-08)
+
+VansRouter 0.9.94 hardens provider response identity, Kiro system-prompt injection, and Issue #98 security consistency.
+
+## Provider and compatibility fixes
+
+- **Client model echo** — Preserved the client-requested model through all response handlers instead of exposing only the upstream model ID.
+- **Kiro token-saver prompts** — Injected default, Caveman, and Ponytail prompts into Kiro's native top-level `systemPrompt` field without rewriting conversation messages.
+- **Stream compatibility** — Retained existing tool-call cleanup, zero-completion repair, and Gemini/Antigravity response parsing.
+
+## Security and consistency
+
+- **Issue #98** — Retained proxy-pool route authentication, DNS-aware SSRF validation, async validation contracts, forced-SSE usage handling, and no-login compatibility.
+
+## Verification
+
+- Full Vitest suite: **230 test files passed; 2,778 tests passed; 13 skipped; 19 expected failures**.
+- Focused provider/Kiro suite: **4 test files passed; 233 tests passed**.
+- `lint:undef`, `lint:reacthooks`, and production build passed.
+
 # v0.9.93 (2026-08-08)
 
 VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting, and settings-cache consistency.
@@ -7,6 +27,9 @@ VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting
 - **Proxy-pool route authentication** — Added consistent dashboard authentication before database, credential, deployment, fitness, and outbound work across all proxy-pool handlers.
 - **Forced-SSE usage fallback** — Preserved explicit zero token counts while accepting provider-style prompt/completion usage fields.
 - **Cross-process settings invalidation** — Added durable `_meta` revision tracking with transaction-safe rollback behavior for settings updates and database imports.
+- **DNS-aware SSRF validation** — Added async DNS resolution, private/mapped IP rejection, and pinned `guardedFetch` for server-side user-configured upstream model discovery. Edge relay guards remain dependency-free.
+- **Async validation contract** — Updated SSRF callers and regression tests to await validation failures correctly.
+- **No-login compatibility** — Route-level proxy-pool defense-in-depth preserves the configured `requireLogin=false` dashboard mode.
 
 ## Verification
 
