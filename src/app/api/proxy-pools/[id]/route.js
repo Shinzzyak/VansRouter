@@ -5,6 +5,11 @@ import {
   getProxyPoolById,
   updateProxyPool,
 } from "@/models";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
+
+async function authorized(request) {
+  return requireDashboardAuth(request);
+}
 
 function normalizeProxyPoolUpdate(body = {}) {
   const updates = {};
@@ -55,6 +60,7 @@ function countBoundConnections(connections = [], proxyPoolId) {
 
 // GET /api/proxy-pools/[id] - Get proxy pool
 export async function GET(request, { params }) {
+  if (!await authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
     const proxyPool = await getProxyPoolById(id);
@@ -72,6 +78,7 @@ export async function GET(request, { params }) {
 
 // PUT /api/proxy-pools/[id] - Update proxy pool
 export async function PUT(request, { params }) {
+  if (!await authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
     const existing = await getProxyPoolById(id);
@@ -97,6 +104,7 @@ export async function PUT(request, { params }) {
 
 // DELETE /api/proxy-pools/[id] - Delete proxy pool
 export async function DELETE(request, { params }) {
+  if (!await authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
     const existing = await getProxyPoolById(id);

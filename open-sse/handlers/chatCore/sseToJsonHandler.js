@@ -12,6 +12,14 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
 import { saveRequestDetail, appendRequestLog } from "@/lib/usageDb.js";
 
+export function responsesUsageToOpenAI(usage = {}) {
+  return {
+    prompt_tokens: usage.input_tokens ?? usage.prompt_tokens ?? 0,
+    completion_tokens: usage.output_tokens ?? usage.completion_tokens ?? 0,
+    total_tokens: usage.total_tokens ?? ((usage.input_tokens ?? usage.prompt_tokens ?? 0) + (usage.output_tokens ?? usage.completion_tokens ?? 0)),
+  };
+}
+
 function textFromResponsesMessageItem(item) {
   if (!item?.content || !Array.isArray(item.content)) return "";
   const byType = item.content.find((c) => c.type === "output_text");
@@ -178,8 +186,9 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       if (onRequestSuccess) await onRequestSuccess();
 
       const usage = jsonResponse.usage || {};
-      appendLog({ tokens: usage, status: "200 OK" });
-      saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, comboName });
+      const normalizedUsage = responsesUsageToOpenAI(usage);
+      appendLog({ tokens: normalizedUsage, status: "200 OK" });
+      saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, comboName });
 
       const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
       const totalLatency = Date.now() - requestStartTime;
@@ -187,7 +196,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       saveRequestDetail(buildRequestDetail({
         ...ctx,
         latency: { ttft: totalLatency, total: totalLatency },
-        tokens: { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0 },
+        tokens: normalizedUsage,
         response: { content: textContent, thinking: null, finish_reason: jsonResponse.status || "unknown" },
         status: "success"
       }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
@@ -198,8 +207,8 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       }
 
       // Build client-format response
-      const inTokens = usage.input_tokens || 0;
-      const outTokens = usage.output_tokens || 0;
+      const inTokens = normalizedUsage.prompt_tokens;
+      const outTokens = normalizedUsage.completion_tokens;
       let finalResp;
 
       // Extract tool calls from Responses API output (function_call items)

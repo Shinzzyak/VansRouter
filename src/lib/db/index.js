@@ -5,6 +5,7 @@ import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
 // Settings
 export {
   getSettings, updateSettings, isCloudEnabled, getCloudUrl, exportSettings,
+  bumpSettingsRevision, invalidateSettingsCache,
 } from "./repos/settingsRepo.js";
 
 // Provider connections
@@ -111,6 +112,7 @@ export async function importDb(payload) {
     throw new Error("Invalid database payload");
   }
   const db = await getAdapter();
+  const { bumpSettingsRevision, invalidateSettingsCache } = await import("./repos/settingsRepo.js");
 
   db.transaction(() => {
     // Wipe all tables (keep _meta)
@@ -180,8 +182,10 @@ export async function importDb(payload) {
     for (const [provider, models] of Object.entries(payload.pricing || {})) {
       db.run(`INSERT OR REPLACE INTO kv(scope, key, value) VALUES('pricing', ?, ?)`, [provider, stringifyJson(models || {})]);
     }
+    bumpSettingsRevision(db);
   });
 
+  invalidateSettingsCache();
   return await exportDb();
 }
 

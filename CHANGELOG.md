@@ -1,3 +1,18 @@
+# v0.9.93 (2026-08-08)
+
+VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting, and settings-cache consistency.
+
+## Security and consistency
+
+- **Proxy-pool route authentication** — Added consistent dashboard authentication before database, credential, deployment, fitness, and outbound work across all proxy-pool handlers.
+- **Forced-SSE usage fallback** — Preserved explicit zero token counts while accepting provider-style prompt/completion usage fields.
+- **Cross-process settings invalidation** — Added durable `_meta` revision tracking with transaction-safe rollback behavior for settings updates and database imports.
+
+## Verification
+
+- Focused issue #98 suite: **10 test files passed; 91 tests passed**.
+- `git diff --check`: existing trailing-whitespace findings remain in pre-existing/issue-scope files; no whitespace cleanup performed.
+
 # v0.9.92 (2026-08-07)
 
 VansRouter 0.9.92 adds FreeBuff support and production-safe single-node proxy-pool fitness persistence.
