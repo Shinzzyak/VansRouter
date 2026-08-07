@@ -176,7 +176,7 @@ jobs:
               # If INITIAL_PASSWORD is absent/unset, skip the auth probe —
               # the health check (HTTP 200 on /masuk) already proves the
               # server is serving; a DB-backed password is out of CI's scope.
-              DEPLOY_PW="$(grep -E '^INITIAL_PASSWORD=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed -E 's/^[\"'\\''\"]|[\"'\\''\"]$//g')"
+              DEPLOY_PW="$(grep -E '^INITIAL_PASSWORD=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | xargs echo)"
               DEPLOY_PW="${DEPLOY_PW:-}"
               if [ -n "$DEPLOY_PW" ]; then
                 LOGIN_BODY=$(curl -s --max-time 10 -X POST "http://localhost:${PORT}/api/auth/login" \
