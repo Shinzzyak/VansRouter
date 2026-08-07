@@ -171,20 +171,29 @@ jobs:
               # Verify the configured password actually authenticates (not just
               # the page rendering). Read INITIAL_PASSWORD from the VPS .env
               # (the same source the launcher loads), not the CI runner env.
-              DEPLOY_PW="$(grep -E '^INITIAL_PASSWORD=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed -E 's/^["'\''"]|["'\''"]$//g')"
-              DEPLOY_PW="${DEPLOY_PW:-123456}"
-              LOGIN_BODY=$(curl -s --max-time 10 -X POST "http://localhost:${PORT}/api/auth/login" \
-                -H "Content-Type: application/json" \
-                -d "{\"password\":\"${DEPLOY_PW}\"}")
-              if echo "$LOGIN_BODY" | grep -q '"success":true'; then
-                echo "✅ Auth check passed (configured password accepted)"
+              # Note: from schema v4 the effective password may live in the
+              # SQLite DB (set via dashboard) rather than INITIAL_PASSWORD.
+              # If INITIAL_PASSWORD is absent/unset, skip the auth probe —
+              # the health check (HTTP 200 on /masuk) already proves the
+              # server is serving; a DB-backed password is out of CI's scope.
+              DEPLOY_PW="$(grep -E '^INITIAL_PASSWORD=' "${DEPLOY}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | sed -E 's/^[\"'\\''\"]|[\"'\\''\"]$//g')"
+              DEPLOY_PW="${DEPLOY_PW:-}"
+              if [ -n "$DEPLOY_PW" ]; then
+                LOGIN_BODY=$(curl -s --max-time 10 -X POST "http://localhost:${PORT}/api/auth/login" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"password\":\"${DEPLOY_PW}\"}")
+                if echo "$LOGIN_BODY" | grep -q '"success":true'; then
+                  echo "✅ Auth check passed (configured password accepted)"
+                else
+                  echo "❌ Auth check FAILED: $LOGIN_BODY"
+                  echo "=== pm2 describe ==="
+                  pm2 describe "${PM2_NAME}" 2>&1 | head -30
+                  echo "=== pm2 error log (last 40) ==="
+                  pm2 logs "${PM2_NAME}" --lines 40 --nostream --err 2>&1
+                  exit 1
+                fi
               else
-                echo "❌ Auth check FAILED: $LOGIN_BODY"
-                echo "=== pm2 describe ==="
-                pm2 describe "${PM2_NAME}" 2>&1 | head -30
-                echo "=== pm2 error log (last 40) ==="
-                pm2 logs "${PM2_NAME}" --lines 40 --nostream --err 2>&1
-                exit 1
+                echo "ℹ️ INITIAL_PASSWORD unset in .env — skipping auth probe (DB-backed password out of CI scope)"
               fi
               rm -f "${TARBALL}"
             else
