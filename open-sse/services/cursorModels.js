@@ -153,7 +153,13 @@ async function fetchCursorCatalog(credentials, signal) {
       signal: signal || AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (response.status === 200) return parseCursorUsableModels(new Uint8Array(await response.arrayBuffer()));
-  } catch {
+    if (response.status > 0) {
+      const error = new Error(`Cursor GetUsableModels returned ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+  } catch (error) {
+    if (error?.status) throw error;
     // Node fetch may not negotiate Cursor's HTTP/2-only endpoint.
   }
 
