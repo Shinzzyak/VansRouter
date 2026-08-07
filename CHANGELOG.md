@@ -1,3 +1,10 @@
+# v0.9.91 (2026-08-07)
+
+VansRouter 0.9.91 republishes the corrected CLI package version after the initial 0.9.90 release workflow exposed a package-version mismatch.
+
+## Fixed
+- **CLI release version alignment** — Synchronized `cli/package.json` with the application version so the GitHub Release workflow publishes `vansrouter@0.9.91` instead of attempting to republish an existing npm version.
+
 # v0.9.90 (2026-08-07)
 
 VansRouter 0.9.90 hardens OpenCode CLI configuration compatibility, makes the `VansRoute` contract authoritative, preserves migration support for legacy `9router` configs, and fixes Cursor model-catalog fallback timeouts.
