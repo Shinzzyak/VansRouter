@@ -4,6 +4,28 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
+// Paste-token providers (Trae/Windsurf): user grabs a token from the IDE or
+// DevTools and pastes it straight into /exchange. IDE detection helps the UI
+// tell them which path is available.
+const PASTE_TOKEN_PROVIDERS = {
+  trae: {
+    label: "Cloud-IDE-JWT",
+    instructions:
+      "Sign in at trae.ai (or solo.trae.ai), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime).",
+    placeholder: "Paste Cloud-IDE-JWT here...",
+    ideName: "Trae",
+    ideOptional: true, // token can be grabbed from DevTools without the IDE
+  },
+  windsurf: {
+    label: "Windsurf API key",
+    instructions:
+      "In the Windsurf/VS Code IDE, run the \"Windsurf: Provide Auth Token\" command, then copy the displayed sk-ws-... key.",
+    placeholder: "Paste sk-ws-... key here...",
+    ideName: "Windsurf",
+    ideOptional: false,
+  },
+};
+
 /**
  * OAuth Modal Component
  * - Localhost: Auto callback via popup message
@@ -17,6 +39,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [isDeviceCode, setIsDeviceCode] = useState(false);
   const [deviceData, setDeviceData] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [authMode, setAuthMode] = useState("browser"); // browser | paste-token
+  const [pasteToken, setPasteToken] = useState("");
+  const [ideStatus, setIdeStatus] = useState(null);
   const popupRef = useRef(null);
   const pollingAbortRef = useRef(false);
   const openedRef = useRef(false);
@@ -346,6 +371,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     setIsDeviceCode(false);
     setDeviceData(null);
     setPolling(false);
+    setAuthMode("browser");
+    setPasteToken("");
+    setIdeStatus(null);
   }, []);
 
   // Reset state and start OAuth when modal opens
@@ -360,6 +388,13 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       openedRef.current = true;
       resetOAuthState();
       pollingAbortRef.current = false;
+      // Best-effort IDE detection for paste-token providers (Trae/Windsurf)
+      if (PASTE_TOKEN_PROVIDERS[provider]) {
+        fetch(`/api/oauth/${provider}/ide-status`)
+          .then((r) => r.json())
+          .then((data) => setIdeStatus(data))
+          .catch(() => setIdeStatus({ installed: false, path: null }));
+      }
       startOAuthFlow();
     } else if (justClosed) {
       pollingAbortRef.current = true;
@@ -502,6 +537,22 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     try {
       setError(null);
 
+      // Paste-token mode (Trae/Windsurf): token goes straight to /exchange
+      if (authMode === "paste-token" && PASTE_TOKEN_PROVIDERS[provider]) {
+        const token = pasteToken.trim();
+        if (!token) throw new Error("Missing token");
+        const res = await fetch(`/api/oauth/${provider}/exchange`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: token }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setStep("success");
+        onSuccessRef.current?.();
+        return;
+      }
+
       const input = callbackUrl.trim();
 
       // Detect raw JWT access token (starts with eyJ) — skip URL parsing
@@ -572,6 +623,56 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {/* Waiting + Manual Input combined (non-device-code) */}
         {(step === "waiting" || step === "input") && !isDeviceCode && (
           <>
+            {/* Mode tabs: browser vs paste-token (only for Trae/Windsurf) */}
+            {PASTE_TOKEN_PROVIDERS[provider] && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("browser"); setError(null); setStep("waiting"); startOAuthFlow(); }}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${authMode === "browser" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                >
+                  🌐 Sign in with browser
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${authMode === "paste-token" ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
+                >
+                  🔑 Paste token
+                </button>
+              </div>
+            )}
+
+            {authMode === "paste-token" && PASTE_TOKEN_PROVIDERS[provider] && (
+              <div className="space-y-3">
+                {ideStatus && !ideStatus.installed && (
+                  <div className={`px-3 py-2 rounded-lg text-sm ${PASTE_TOKEN_PROVIDERS[provider].ideOptional ? "bg-blue-500/10 text-blue-700 dark:text-blue-300" : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"}`}>
+                    {PASTE_TOKEN_PROVIDERS[provider].ideName} IDE not detected.
+                    {PASTE_TOKEN_PROVIDERS[provider].ideOptional
+                      ? " You can still grab the token from DevTools."
+                      : ` Install ${PASTE_TOKEN_PROVIDERS[provider].ideName} IDE to get the token, or use "Sign in with browser".`}
+                  </div>
+                )}
+                <p className="text-sm text-text-muted">{PASTE_TOKEN_PROVIDERS[provider].instructions}</p>
+                <Input
+                  value={pasteToken}
+                  onChange={(e) => setPasteToken(e.target.value)}
+                  placeholder={PASTE_TOKEN_PROVIDERS[provider].placeholder}
+                  className="font-mono text-xs"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleManualSubmit} fullWidth disabled={!pasteToken.trim()}>
+                    Connect
+                  </Button>
+                  <Button onClick={handleClose} variant="ghost" fullWidth>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {authMode === "browser" && (
+              <>
             {/* Option A: Auto via popup */}
             <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
               <span className="material-symbols-outlined text-base text-primary animate-spin">
@@ -629,6 +730,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 Cancel
               </Button>
             </div>
+              </>
+            )}
           </>
         )}
 
