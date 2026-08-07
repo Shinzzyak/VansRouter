@@ -1,3 +1,19 @@
+# v0.9.90 (2026-08-07)
+
+VansRouter 0.9.90 hardens OpenCode CLI configuration compatibility, makes the `VansRoute` contract authoritative, preserves migration support for legacy `9router` configs, and fixes Cursor model-catalog fallback timeouts.
+
+## Fixed
+- **OpenCode dashboard detection** — Fixed the UI/API field mismatch where the dashboard read `hasVansRoute` while the route returned only `has9Router`, causing configured OpenCode installations to appear as "Not configured".
+- **VansRoute config contract** — Restored `VansRoute` as the canonical OpenCode provider key and model prefix. Legacy `9router` provider entries and model prefixes remain readable and migrate automatically on the next save.
+- **OpenCode model reset** — Made PATCH and DELETE handle both canonical and legacy provider/model prefixes, including explorer subagent configuration.
+- **OpenCode config safety** — Added HTTP(S)/model input validation and atomic temp-file replacement to avoid leaving `opencode.json` truncated after an interrupted write.
+- **Cursor model catalog timeout** — Non-success HTTP responses now fail fast instead of incorrectly falling through to a real HTTP/2 request that could hang for the test timeout.
+
+## Tests
+- Added OpenCode route contract coverage for canonical detection, legacy migration, validation, reset, and deletion.
+- Verified full Vitest suite: 223 files passed, 13 skipped; 2,713 tests passed, 19 expected failures, 82 skipped.
+- Verified cross-platform GitHub Actions build matrix: Ubuntu, macOS, and Windows on Node 22 and Node 24 passed.
+
 # v0.9.80 (2026-07-22)
 
 VansRouter 0.9.80 incorporates merged Pull Requests (#55, #56, #57) adding Gemini 3.6 Flash / Flash-Lite / Pro support via Google Cloud Code host, classifying Grok CLI free-usage-exhausted 429s as daily quota, unwrapping Antigravity non-stream usage metadata, and optimizing code quality & timers.
