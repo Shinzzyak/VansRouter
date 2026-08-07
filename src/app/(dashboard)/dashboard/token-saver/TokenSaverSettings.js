@@ -35,6 +35,11 @@ export default function TokenSaverSettings({
   handlePonytailLevel,
   ponytailLevel,
   handlePonytailEnabled,
+  godmodeEnabled,
+  godmodeLevels,
+  handleGodmodeLevel,
+  godmodeLevel,
+  handleGodmodeEnabled,
   pxpipeChipClass,
   pxpipeStatusLabel,
   setShowPxpipeModal,
@@ -301,6 +306,50 @@ export default function TokenSaverSettings({
           <Toggle
             checked={ponytailEnabled}
             onChange={() => handlePonytailEnabled(!ponytailEnabled)}
+          />
+        </div>
+      </div>
+      {/* GODMODE — uncensoring system-prompt injector (custom, not upstream) */}
+      <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">
+            Godmode{" "}
+            <span className="text-xs font-normal text-text-muted">
+              (uncensored system prompt)
+            </span>
+          </p>
+          <p className="text-sm text-text-muted">
+            Injects an unrestricted-assistant directive into the system prompt —
+            no refusals, no disclaimers, direct answers
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {godmodeEnabled && (
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5">
+                {godmodeLevels.map((lvl) => (
+                  <button
+                    key={lvl.id}
+                    onClick={() => handleGodmodeLevel(lvl.id)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                      godmodeLevel === lvl.id
+                        ? "bg-primary text-white border-primary"
+                        : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                    }`}
+                    title={lvl.desc}
+                  >
+                    {lvl.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-primary">
+                {godmodeLevels.find((lvl) => lvl.id === godmodeLevel)?.desc}
+              </p>
+            </div>
+          )}
+          <Toggle
+            checked={godmodeEnabled}
+            onChange={() => handleGodmodeEnabled(!godmodeEnabled)}
           />
         </div>
       </div>

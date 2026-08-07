@@ -112,6 +112,16 @@ async function runHeavyStartup() {
       .then(({ startQuotaAutoPing }) => startQuotaAutoPing())
       .catch((e) => console.log("[AutoPing] scheduler start failed:", e.message));
   }
+
+  // Pool egress geo probe — fills the Proxy Fitness / Proxy Pools egress column.
+  import("@/lib/network/poolEgressProbe.js")
+    .then(({ startPoolEgressProbe }) => startPoolEgressProbe())
+    .catch((e) => console.log("[PoolEgressProbe] scheduler start failed:", e.message));
+
+  // Periodic in-memory state sweeper — prunes expired fitness/geo/session state.
+  import("@/lib/network/stateSweeper.js")
+    .then(({ startStateSweeper }) => startStateSweeper())
+    .catch((e) => console.log("[StateSweeper] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {

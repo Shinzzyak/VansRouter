@@ -67,7 +67,9 @@ jobs:
           # targets reliably in this artifact.
           mkdir -p .next/standalone/node_modules/@
           cp -r open-sse .next/standalone/node_modules/open-sse
-          cp -r src .next/standalone/node_modules/@/lib
+          # @/* = ./src/* (jsconfig) — mirror the whole src tree so @/lib,
+          # @/sse, @/models, @/shared etc all resolve at runtime.
+          cp -r src .next/standalone/node_modules/@
           # open-sse/services/tokenRefresh/providers.js imports
           # "../../../src/lib/..." which, from node_modules/open-sse/services/
           # tokenRefresh/, resolves to node_modules/src/lib/... — mirror src.
@@ -172,13 +174,14 @@ jobs:
               rm -rf "${DEPLOY}/node_modules/open-sse" "${DEPLOY}/node_modules/@"
               mkdir -p "${DEPLOY}/node_modules/@"
               cp -r "${DEPLOY}/open-sse" "${DEPLOY}/node_modules/open-sse"
-              # Copy src from the freshly-extracted STANDALONE (the deploy
-              # root src/ is stale 0.9.80-era and lacks oauth/providers/).
+              # @/* = ./src/* (jsconfig) — mirror the whole src tree.
+              cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/@"
+              # open-sse/services/tokenRefresh/providers.js imports
+              # "../../../src/lib/..." which, from node_modules/open-sse/services/
+              # tokenRefresh/, resolves to node_modules/src/lib/... — mirror src.
               # rm first: cp -r into an existing dir would merge and keep
               # stale files (e.g. old src without oauth/providers/).
-              rm -rf "${DEPLOY}/node_modules/src" "${DEPLOY}/node_modules/@/lib"
-              mkdir -p "${DEPLOY}/node_modules/@"
-              cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/@/lib"
+              rm -rf "${DEPLOY}/node_modules/src"
               cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/src"
               cp "${DEPLOY}/package.json" "${DEPLOY}/node_modules/package.json"
               echo "=== open-sse refreshed from standalone (FreeBuff + rtk/promptInjectors included) ==="
