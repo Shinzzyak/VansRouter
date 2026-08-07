@@ -1,4 +1,4 @@
-import { machineIdSync } from "node-machine-id";
+import machineId from "node-machine-id";
 import crypto from "node:crypto";
 
 let cachedRawId = null;
@@ -6,7 +6,7 @@ let cachedRawId = null;
 function loadRawMachineId() {
   if (cachedRawId) return cachedRawId;
   try {
-    cachedRawId = machineIdSync();
+    cachedRawId = machineId.machineIdSync();
   } catch {
     cachedRawId = crypto.randomUUID();
   }

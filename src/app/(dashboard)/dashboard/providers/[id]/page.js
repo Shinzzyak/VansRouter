@@ -454,6 +454,8 @@ export default function ProviderDetailPage() {
   };
 
   useEffect(() => {
+    // Intentional initial synchronization with provider APIs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchConnections();
     fetchAliases();
     fetchCustomModels();
@@ -465,6 +467,8 @@ export default function ProviderDetailPage() {
   // registry remains the fallback while the request is pending or unavailable.
   useEffect(() => {
     if (providerId !== "cursor") {
+      // Intentional reset when leaving the Cursor provider.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLiveModels([]);
       return;
     }
@@ -871,6 +875,8 @@ export default function ProviderDetailPage() {
   };
 
   useEffect(() => {
+    // Intentional reconciliation with the current connection list.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedConnectionIds((prev) => prev.filter((id) => connections.some((conn) => conn.id === id)));
   }, [connections]);
 

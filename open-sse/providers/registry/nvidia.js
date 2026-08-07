@@ -15,6 +15,8 @@ export default {
     },
   },
   category: "freeTier",
+  authType: "apikey",
+  authModes: ["apikey"],
   modelsFetcher: { url: "https://integrate.api.nvidia.com/v1/models", type: "nvidia-free" },
   transport: {
     baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",

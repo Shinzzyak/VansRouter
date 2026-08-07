@@ -153,4 +153,68 @@ export const PROVIDERS = {
   ZCODE: "zcode",
   KIMCHI: "kimchi",
   GROK_CLI: "grok-cli",
+  FREEBUFF: "freebuff",
+  TRAE: "trae",
+  WINDSURF: "windsurf",
+  ZED: "zed",
+};
+
+// Freebuff OAuth Configuration (Device Code Flow)
+export const FREEBUFF_CONFIG = { ...PROVIDER_OAUTH["freebuff"] };
+
+// Trae (ByteDance marscode) OAuth — authorization_code flow with local callback.
+export const TRAE_CONFIG = {
+  clientId: "ono9krqynydwx5",
+  clientSecret: "-",
+  loginGuidanceUrls: [
+    "https://api.marscode.com/cloudide/api/v3/trae/GetLoginGuidance",
+    "https://api.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
+    "https://www.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
+  ],
+  apiOrigins: [
+    "https://api.marscode.com",
+    "https://api.trae.ai",
+    "https://www.trae.ai",
+    "https://www.marscode.com",
+  ],
+  exchangeTokenPath: "/cloudide/api/v3/trae/oauth/ExchangeToken",
+  getUserInfoPath: "/cloudide/api/v3/trae/GetUserInfo",
+  authorizationPath: "/authorization",
+  callbackPath: "/callback",
+  minAppVersion: "3.5.54",
+  defaultAppVersion: "3.5.54",
+  defaultAppType: "stable",
+  defaultPluginVersion: "local",
+  defaultDeviceId: "0",
+  userAgent: "Trae/1.0.0 antigravity-cockpit-tools",
+  webUrl: "https://www.trae.ai",
+  authScheme: "Cloud-IDE-JWT",
+  tokenLifetimeDays: 14,
+  oauthTimeoutMs: 600_000,
+};
+
+// Windsurf OAuth — authorization_code (implicit) flow with local callback.
+export const WINDSURF_CONFIG = {
+  clientId: "3GUryQ7ldAeKEuD2obYnppsnmj58eP5u",
+  authBaseUrl: "https://www.windsurf.com",
+  signInPath: "/windsurf/signin",
+  registerApiBaseUrl: "https://register.windsurf.com",
+  registerPath: "/exa.seat_management_pb.SeatManagementService/RegisterUser",
+  oneTimeAuthPath: "/exa.seat_management_pb.SeatManagementService/GetOneTimeAuthToken",
+  currentUserPath: "/exa.seat_management_pb.SeatManagementService/GetCurrentUser",
+  planStatusPath: "/exa.seat_management_pb.SeatManagementService/GetPlanStatus",
+  userStatusPath: "/exa.seat_management_pb.SeatManagementService/GetUserStatus",
+  defaultApiServerUrl: "https://server.codeium.com",
+  callbackPath: "/windsurf-auth-callback",
+  userAgent: "antigravity-cockpit-tools",
+  oauthTimeoutMs: 600_000,
+};
+
+// Zed hosted LLM aggregator — RSA keypair native-app auth (NOT OAuth).
+export const ZED_HOSTED_CONFIG = {
+  webBaseUrl: "https://zed.dev",
+  cloudBaseUrl: "https://cloud.zed.dev",
+  llmBaseUrl: "https://cloud.zed.dev",
+  defaultNativeAppPort: 58443,
+  oauthTimeoutMs: 600_000,
 };

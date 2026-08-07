@@ -170,9 +170,11 @@ describe("Post-merge: xiaomi-tokenplan.js upstream fix taken", () => {
 
 describe("Post-merge: ponytail still wired in chatCore", () => {
   const src = read("open-sse/handlers/chatCore.js");
+  const registry = read("open-sse/rtk/promptInjectors.js");
 
-  it("imports injectPonytail", () => {
-    expect(src).toContain("injectPonytail");
+  it("routes injectors through the promptInjectors registry", () => {
+    expect(src).toContain("applyPromptInjectors");
+    expect(src).toContain("promptInjectors.js");
   });
 
   it("has ponytailEnabled parameter", () => {
@@ -183,9 +185,10 @@ describe("Post-merge: ponytail still wired in chatCore", () => {
     expect(src).toContain("ponytailLevel");
   });
 
-  it("calls injectPonytail when enabled", () => {
-    expect(src).toMatch(/if\s*\(.*ponytailEnabled.*ponytailLevel\)/);
-    expect(src).toContain("injectPonytail(translatedBody, finalFormat, ponytailLevel)");
+  it("registry applies ponytail injector when enabled", () => {
+    expect(registry).toMatch(/ponytailEnabled/);
+    expect(registry).toContain("injectPonytail");
+    expect(registry).toMatch(/ponytailLevel/);
   });
 });
 
