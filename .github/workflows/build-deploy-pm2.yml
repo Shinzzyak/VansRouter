@@ -52,6 +52,34 @@ jobs:
         run: |
           cp -r public .next/standalone/public
           cp -r .next/static .next/standalone/.next/static
+          # open-sse/ is imported via bare specifier ("open-sse/...") which
+          # Next.js does NOT trace into the standalone output. Without it the
+          # production server cannot resolve providers/executors (FreeBuff,
+          # qoder, cline, godmode injectors, ...). Copy the whole tree into
+          # the standalone root so `require("open-sse/...")` resolves from
+          # the standalone cwd (same layout as the repo root).
+          cp -r open-sse .next/standalone/open-sse
+          # Node bare-specifier resolution only searches node_modules/, so
+          # copy open-sse + the @/lib alias into the standalone node_modules.
+          # (open-sse internally imports "@/lib/usageDb.js", undici, uuid,
+          # node-machine-id — all missing from the standalone trace.)
+          # NOTE: real copies, not symlinks — tar does not preserve symlink
+          # targets reliably in this artifact.
+          mkdir -p .next/standalone/node_modules/@
+          cp -r open-sse .next/standalone/node_modules/open-sse
+          cp -r src .next/standalone/node_modules/@/lib
+          # open-sse/services/tokenRefresh/providers.js imports
+          # "../../../src/lib/..." which, from node_modules/open-sse/services/
+          # tokenRefresh/, resolves to node_modules/src/lib/... — mirror src.
+          cp -r src .next/standalone/node_modules/src
+          # open-sse/shared/clineAuth.js imports "../../package.json" which,
+          # from node_modules/open-sse/shared/, resolves to node_modules/package.json.
+          cp package.json .next/standalone/node_modules/package.json
+          # -L: pnpm keeps these as symlinks into .pnpm/; dereference so the
+          # tarball carries real files (symlinks break across tar extract).
+          cp -rL node_modules/undici .next/standalone/node_modules/undici
+          cp -rL node_modules/uuid .next/standalone/node_modules/uuid
+          cp -rL node_modules/node-machine-id .next/standalone/node_modules/node-machine-id
           # Bundle the root launcher (server.js) into the standalone tarball as
           # launcher.js. The standalone dir already has its own server.js (the
           # Next server), so rename ours to avoid clobbering it. The deploy step
@@ -127,6 +155,28 @@ jobs:
             # Preserve .env (it lives at project root, not in standalone)
             echo "=== .env exists? ==="
             ls -la "${DEPLOY}/.env" 2>/dev/null || echo "WARNING: .env not found"
+
+            # --- OPEN-SSE RUNTIME ------------------------------------------
+            # The router resolves "open-sse/..." as a bare specifier from the
+            # deploy root (legacy layout: PM2 exec cwd=/home/ubuntu, module
+            # search walks up to ${DEPLOY}/open-sse). The standalone tarball
+            # carries open-sse/ too (build step copies it), but the legacy
+            # root copy must be refreshed as well or old files (0.9.80-era,
+            # no FreeBuff / no rtk/promptInjectors.js) keep being used.
+            if [ -d "${DEPLOY}/.next/standalone/open-sse" ]; then
+              rm -rf "${DEPLOY}/open-sse"
+              cp -r "${DEPLOY}/.next/standalone/open-sse" "${DEPLOY}/open-sse"
+              # Mirror the standalone node_modules copies so bare-specifier
+              # resolution also works when the process cwd is the deploy root
+              # (PM2 exec cwd=/home/ubuntu walks up to ${DEPLOY}).
+              rm -rf "${DEPLOY}/node_modules/open-sse" "${DEPLOY}/node_modules/@"
+              mkdir -p "${DEPLOY}/node_modules/@"
+              cp -r "${DEPLOY}/open-sse" "${DEPLOY}/node_modules/open-sse"
+              cp -r "${DEPLOY}/src" "${DEPLOY}/node_modules/@/lib"
+              cp -r "${DEPLOY}/src" "${DEPLOY}/node_modules/src"
+              cp "${DEPLOY}/package.json" "${DEPLOY}/node_modules/package.json"
+              echo "=== open-sse refreshed from standalone (FreeBuff + rtk/promptInjectors included) ==="
+            fi
 
             # --- DATA SAFETY -------------------------------------------------
             # The SQLite DB (custom providers, settings, keys, usage) lives in
