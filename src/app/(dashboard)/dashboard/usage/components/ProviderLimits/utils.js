@@ -481,6 +481,21 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "kimi":
+      case "deepseek":
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              remainingPercentage: quota.remainingPercentage,
+            });
+          });
+        }
+        break;
+
       case "grok-cli":
         // Grok Build credits (on-demand window + prepaid balance).
         // Do NOT forward absolute `remaining` — getRemainingPercentage treats

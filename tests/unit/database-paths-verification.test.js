@@ -3,7 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import yaml from "js-yaml";
+import { load as yamlLoad } from "js-yaml";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (p) => readFileSync(resolve(ROOT, p), "utf8");
@@ -28,7 +28,7 @@ describe("Database location & fallback path rules", () => {
 
   it("docker-compose.yml must preserve the 9router-data volume configuration", () => {
     const composeContent = read("docker-compose.yml");
-    const compose = yaml.load(composeContent);
+    const compose = yamlLoad(composeContent);
 
     // Ensure the main service mounts to the volume exactly as '9router-data:/app/data'
     const serviceName = Object.keys(compose.services)[0];

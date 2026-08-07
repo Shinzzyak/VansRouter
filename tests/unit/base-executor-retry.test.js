@@ -88,11 +88,11 @@ describe("BaseExecutor.execute — computeRetryDelay hook veto", () => {
   it("only invokes computeRetryDelay when status has retry config", async () => {
     const ex = makeExec({ baseUrl: "https://x/api", retry: { 503: { attempts: 1, delayMs: 0 } } });
     ex.computeRetryDelay = vi.fn().mockResolvedValue(0);
-    fetchMock.mockResolvedValueOnce(res(500));
+    fetchMock.mockResolvedValue(res(503));
     const out = await ex.execute({ model: "m", body: {}, stream: false, credentials: creds });
-    expect(out.response.status).toBe(500);
-    expect(ex.computeRetryDelay).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(out.response.status).toBe(503);
+    expect(ex.computeRetryDelay).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("hook returning false skips retry (uses fallback path)", async () => {
