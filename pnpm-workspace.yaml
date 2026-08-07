@@ -3,6 +3,7 @@ packages:
 
 allowBuilds:
   better-sqlite3: true
+  inotify: set this to true or false
   sharp: true
   unrs-resolver: true
 

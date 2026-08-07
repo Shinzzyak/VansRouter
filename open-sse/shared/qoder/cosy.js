@@ -161,6 +161,7 @@ export function buildCosyHeaders(body, requestUrl, creds) {
     "Cosy-Machinetype": QODER_MACHINE_TYPE,
     "Cosy-Machineos": QODER_MACHINE_OS,
     "Cosy-Clienttype": QODER_CLIENT_TYPE,
+    "Cosy-Clientip": "127.0.0.1",
     "Cosy-Bodyhash": bodyHash,
     "Cosy-Bodylength": bodyLength,
     "Cosy-Sigpath": sigPath,

@@ -24,9 +24,7 @@ import { buildCoercedSSEResponse } from "./chatCore/coercedSseHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { detectLoop } from "../utils/loopGuard.js";
-import { injectCaveman } from "../rtk/caveman.js";
-import { injectPonytail } from "../rtk/ponytail.js";
-import { injectGodmode } from "../rtk/godmode.js";
+import { applyPromptInjectors } from "../rtk/promptInjectors.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
@@ -101,12 +99,11 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.modelInfo - { provider, model }
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
- */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true }) {
+  */
+ export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null }) {
+  const sourceFormat = sourceFormatOverride || detectFormat(body);
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
-
-  const sourceFormat = sourceFormatOverride || detectFormat(body);
 
   // Check for bypass patterns (warmup, skip, cc naming)
   const bypassResponse = handleBypassRequest(body, model, userAgent, ccFilterNaming);
@@ -282,23 +279,22 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }
   } else if (tokenSaverEnabled && headroomEnabled) log?.warn?.("HEADROOM", `skipped: ${headroomDiagnostics.reason || "compression unavailable"}${headroomDiagnostics.endpoint ? ` (${headroomDiagnostics.endpoint})` : ""}`);
 
-  // Caveman: inject terse-style system prompt
-  if (tokenSaverEnabled && cavemanEnabled && cavemanLevel) {
-    injectCaveman(translatedBody, finalFormat, cavemanLevel);
-    log?.debug?.("CAVEMAN", `${cavemanLevel} | ${finalFormat}`);
-  }
-
-  // Ponytail: inject lazy-senior-dev system prompt
-  if (tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
-    injectPonytail(translatedBody, finalFormat, ponytailLevel);
-    log?.debug?.("PONYTAIL", `${ponytailLevel} | ${finalFormat}`);
-  }
-
-  // Godmode: inject uncensoring system prompt (always-on, level from config)
-  if (godmodeEnabled) {
-    injectGodmode(translatedBody, finalFormat, godmodeLevel || "lite");
-    log?.debug?.("GODMODE", `${godmodeLevel || "lite"} | ${finalFormat}`);
-  }
+  // Prompt injectors: default system prompt + token-saver styles (caveman/
+  // ponytail) + godmode — applied through a single registry call so future
+  // upstream merges touch one call site, not four.
+  applyPromptInjectors({
+    body: translatedBody,
+    format: finalFormat,
+    log,
+    tokenSaverEnabled,
+    systemPrompt,
+    cavemanEnabled,
+    cavemanLevel,
+    ponytailEnabled,
+    ponytailLevel,
+    godmodeEnabled,
+    godmodeLevel,
+  });
 
   if (TOOL_PROTOCOL_PROMPT_PROVIDERS.has(provider)) {
     injectToolProtocolPrompt(translatedBody, finalFormat, extractToolNames(translatedBody.tools));
@@ -452,7 +448,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Handle 401/403 - try token refresh (skip for noAuth providers)
   if (!executor.noAuth && (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN)) {
     try {
-      const newCredentials = await refreshWithRetry(() => executor.refreshCredentials(credentials, log), 3, log);
+      // Mutate credentials after each successful refresh: rotating refresh_token
+      // providers (xAI/grok-cli) issue a new RT on every refresh; without this,
+      // refreshWithRetry's 2nd/3rd attempt reuses the already-consumed RT →
+      // invalid_grant → auth_failed retryable=false.
+      const newCredentials = await refreshWithRetry(async () => {
+        const result = await executor.refreshCredentials(credentials, log);
+        if (result?.refreshToken && result.refreshToken !== credentials.refreshToken) {
+          if (result.accessToken) credentials.accessToken = result.accessToken;
+          credentials.refreshToken = result.refreshToken;
+        }
+        return result;
+      }, 3, log);
       if (newCredentials?.accessToken || newCredentials?.copilotToken) {
         log?.info?.("TOKEN", `${provider.toUpperCase()} | refreshed`);
         Object.assign(credentials, newCredentials);
@@ -497,7 +504,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyName, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
