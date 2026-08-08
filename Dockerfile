@@ -9,7 +9,7 @@ RUN apk add --no-cache python3 make g++ linux-headers
 
 COPY package.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm install
+  npm install --include=optional --no-audit --no-fund
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -55,10 +55,17 @@ COPY --from=builder /app/custom-server.js ./custom-server.js
 COPY --from=builder /app/open-sse ./open-sse
 # Next file tracing can omit sibling files; MITM runs server.js as a separate process.
 COPY --from=builder /app/src/mitm ./src/mitm
-# Standalone node_modules may omit deps only required by the MITM child process.
+# Standalone tracing may omit packages loaded through dynamic imports.
 COPY --from=builder /app/node_modules/node-forge ./node_modules/node-forge
+# SQLite is loaded dynamically by src/lib/db/driver.js; keep the native driver
+# and its runtime dependency tree in the final image. This prevents production
+# from silently falling back to the single-process sql.js adapter.
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
+COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 # Ensure `next` is available at runtime in case tracing did not include it.
 COPY --from=builder /app/node_modules/next ./node_modules/next
+RUN node -e "const Database = require('better-sqlite3'); const db = new Database(':memory:'); db.prepare('SELECT 1').get(); db.close(); console.log('SQLite native driver: better-sqlite3')"
 # Bundle Tailscale binaries into /usr/local/bin so they survive the /app/data volume mount.
 COPY --from=tailscale /out/tailscale /usr/local/bin/tailscale
 COPY --from=tailscale /out/tailscaled /usr/local/bin/tailscaled
