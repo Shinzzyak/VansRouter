@@ -512,7 +512,6 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
 
   const executeWithPoolFallback = async (attempt = 0) => {
     let result;
-    let parsedNonOk = null;
     try {
       result = await executor.execute({ model, body: translatedBody, stream: upstreamStream, credentials, signal: streamController.signal, log, proxyOptions, accountCount });
     } catch (error) {
@@ -604,7 +603,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = parsedNonOk || await parseUpstreamError(providerResponse, executor);
+    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,
