@@ -219,8 +219,10 @@ jobs:
               sleep 3
             done
 
-            # Final verify
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/masuk")
+            # Final verify — follow redirects (app may 307 / → /masuk) and
+            # accept 200/307 as healthy (the page itself redirects when the
+            # dashboard is enabled; a hard failure is 4xx/5xx/000).
+            STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/masuk")
             if [ "$STATUS" = "200" ]; then
               echo "✅ Deploy successful (HTTP $STATUS)"
               # Verify the configured password actually authenticates (not just
