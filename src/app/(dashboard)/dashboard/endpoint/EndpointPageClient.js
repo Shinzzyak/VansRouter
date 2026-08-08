@@ -537,7 +537,24 @@ export default function APIPageClient({ machineId }) {
 
       const keysData = await keysRes.json();
       if (keysRes.ok) {
-        setKeys(keysData.keys || []);
+        let existing = keysData.keys || [];
+        // Auto-provision a default key for first-time users so the endpoint
+        // works out of the box without a manual dashboard step.
+        if (existing.length === 0) {
+          try {
+            const createRes = await fetch("/api/keys", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: "Default Key" }),
+            });
+            if (createRes.ok) {
+              const refreshed = await fetch("/api/keys", { cache: "no-store" });
+              const refreshedData = await refreshed.json();
+              if (refreshed.ok) existing = refreshedData.keys || [];
+            }
+          } catch { /* fall through to empty render */ }
+        }
+        setKeys(existing);
       }
       let connections = [];
       let nodes = [];
@@ -1501,7 +1518,7 @@ export default function APIPageClient({ machineId }) {
                     </code>
                     <button
                       onClick={() => toggleKeyVisibility(key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
                       title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
                     >
                       <span className="material-symbols-outlined text-[14px]">
@@ -1510,7 +1527,7 @@ export default function APIPageClient({ machineId }) {
                     </button>
                     <button
                       onClick={() => copy(key.key, key.id)}
-                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                      className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
                     >
                       <span className="material-symbols-outlined text-[14px]">
                         {copied === key.id ? "check" : "content_copy"}
@@ -1558,7 +1575,7 @@ export default function APIPageClient({ machineId }) {
                   {/* Edit ACL button */}
                   <button
                     onClick={() => handleOpenEditKey(key)}
-                    className="p-2 hover:bg-primary/10 rounded text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    className="p-2 hover:bg-primary/10 rounded text-primary transition-all"
                     title="Edit access control"
                   >
                     <span className="material-symbols-outlined text-[18px]">tune</span>
@@ -1584,7 +1601,7 @@ export default function APIPageClient({ machineId }) {
                   />
                   <button
                     onClick={() => handleDeleteKey(key.id)}
-                    className="p-2 hover:bg-red-500/10 rounded text-red-500 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    className="p-2 hover:bg-red-500/10 rounded text-red-500 transition-all"
                   >
                     <span className="material-symbols-outlined text-[18px]">delete</span>
                   </button>

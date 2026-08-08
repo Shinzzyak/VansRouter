@@ -487,6 +487,10 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
       || capabilitiesFromServiceKind(customKind || liveKind)
       || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
     if (caps) entry.capabilities = caps;
+    // Advertise the context window for clients that read it from /v1/models
+    // (OpenAI-compatible convention; opencode's generic adapter ignores it
+    // and needs limit.context declared client-side).
+    if (caps?.contextWindow) entry.context_window = caps.contextWindow;
 
     entries.push(entry);
   }
@@ -607,6 +611,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     };
     if (entry.kind) model.kind = entry.kind;
     if (entry.capabilities) model.capabilities = entry.capabilities;
+    if (entry.context_window) model.context_window = entry.context_window;
     dedupedModels.push(model);
   }
 

@@ -212,6 +212,16 @@ function stripAll(body) {
   if (body.request?.generationConfig) delete body.request.generationConfig.thinkingConfig;
 }
 
+// OpenAI's reasoning_effort enum caps at "xhigh" (no "max"); TokenRouter's
+// enum supports low/medium/high/xhigh/max natively. Clamp to the provider's
+// supported set instead of hardcoding "max → xhigh".
+function normalizeOpenAILevel(level, supportedLevels) {
+  if (level !== "max" && level !== "ultra") return level;
+  if (supportedLevels?.includes(level)) return level;
+  if (level === "ultra" && supportedLevels?.includes("max")) return "max";
+  return "xhigh";
+}
+
 // Apply unified thinking config to body in the resolved provider-native format.
 function applyFormat(fmt, body, cfg, caps) {
   const none = cfg.mode === "none";
@@ -224,7 +234,16 @@ function applyFormat(fmt, body, cfg, caps) {
       if (none && canDisable) { body.reasoning_effort = "none"; break; }
       const level = toLevel(eff);
       // OpenAI reasoning_effort enum caps at "xhigh" (no "max"); clamp Claude Code's "max".
-      if (level) body.reasoning_effort = level === "max" ? "xhigh" : level;
+      if (level) body.reasoning_effort = normalizeOpenAILevel(level, null);
+      break;
+    }
+    case "tokenrouter": {
+      // TokenRouter's reasoning_effort enum is low/medium/high/xhigh/max — it rejects
+      // "none"/"auto" with a 400 and supports "max" natively (no clamp like openai).
+      // "none" → omit the field so the upstream default applies; pass levels through.
+      if (none || eff.mode === "auto") break;
+      const level = toLevel(eff);
+      if (level) body.reasoning_effort = level;
       break;
     }
     case "claude-adaptive": {

@@ -77,7 +77,6 @@ const createOpenAIModelsConfig = (url) => ({
 });
 
 const resolveQwenModelsUrl = (connection) => {
-  const fallback = "https://portal.qwen.ai/v1/models";
   const raw = connection?.providerSpecificData?.resourceUrl;
   if (!raw || typeof raw !== "string") return fallback;
   const value = raw.trim();
@@ -145,14 +144,6 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authQuery: "key", // Use query param for API key
     parseResponse: (data) => data.models || []
-  },
-  qwen: {
-    url: "https://portal.qwen.ai/v1/models",
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    authHeader: "Authorization",
-    authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || []
   },
   codex: {
     customResolver: buildOAuthResolver({
@@ -555,9 +546,6 @@ export async function GET(request, { params }) {
 
     // Build request URL
     let url = config.url;
-    if (connection.provider === "qwen") {
-      url = resolveQwenModelsUrl(connection);
-    }
     if (config.authQuery) {
       url += `?${config.authQuery}=${token}`;
     }

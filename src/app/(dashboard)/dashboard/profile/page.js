@@ -19,6 +19,16 @@ function getLocaleFromCookie() {
   return normalizeLocale(value);
 }
 
+function memoryLine(m) {
+  if (!m) return "";
+  const fb = m.inMemory?.freebuff || {};
+  return [
+    `DB: ${m.dbPath || "-"} (${m.dbSizeMB || "-"})`,
+    `Data dir: ${m.dataDirSizeMB || "-"}`,
+    `In-memory: fitness=${m.inMemory?.fitnessPools ?? 0} pool(s) · geo=${m.inMemory?.geoPools ?? 0} pool(s) · freebuff sessions=${fb.sessions ?? 0}, locks=${fb.modelLocks ?? 0}, pool-limits=${fb.poolLimits ?? 0}`,
+  ].join("\n");
+}
+
 export default function ProfilePage() {
   const { theme, setTheme, isDark } = useTheme();
   const [locale, setLocale] = useState("en");
@@ -32,6 +42,8 @@ export default function ProfilePage() {
   const [passLoading, setPassLoading] = useState(false);
   const [dbLoading, setDbLoading] = useState(false);
   const [dbStatus, setDbStatus] = useState({ type: "", message: "" });
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryInfo, setMemoryInfo] = useState(null);
   const [dbAuth, setDbAuth] = useState({ open: false, mode: "", password: "" });
   const pendingImportRef = useRef(null);
   const [oidcForm, setOidcForm] = useState({
@@ -555,6 +567,19 @@ export default function ProfilePage() {
 
   const observabilityEnabled = settings.enableObservability === true;
 
+  const handleMemoryCheck = async () => {
+    setMemoryLoading(true);
+    try {
+      const res = await fetch("/api/system/memory", { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setMemoryInfo(await res.json());
+    } catch (err) {
+      setMemoryInfo({ error: err.message });
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
   const handleShutdown = async () => {
     setIsShuttingDown(true);
     try {
@@ -639,6 +664,15 @@ export default function ProfilePage() {
               >
                 Import Backup
               </Button>
+              <Button
+                variant="outline"
+                icon="memory"
+                onClick={handleMemoryCheck}
+                loading={memoryLoading}
+                className="w-full sm:w-auto"
+              >
+                Check Size Memory
+              </Button>
               <input
                 ref={importFileRef}
                 type="file"
@@ -651,6 +685,13 @@ export default function ProfilePage() {
               <p className={`text-sm ${dbStatus.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
                 {dbStatus.message}
               </p>
+            )}
+            {memoryInfo && (
+              <pre className="text-[11px] font-mono text-text-muted whitespace-pre-wrap break-all">
+                {memoryInfo.error
+                  ? `Error: ${memoryInfo.error}`
+                  : memoryLine(memoryInfo)}
+              </pre>
             )}
           </div>
         </Card>
