@@ -56,18 +56,30 @@ export async function GET(request) {
   return NextResponse.json({ ok: true, domains });
 }
 
-// POST /api/yyds/create — create a fresh inbox (requires YYDS_JWT)
+// POST /api/yyds/create — create a fresh inbox on an OWNED domain
+// (requires an API key with domainScope=own — 'Herm' key; no account JWT needed)
 export async function POST(req) {
   const auth = await requireDashboardAuth(req);
   if (!auth) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const { apiKey, jwt } = await getYydsCredentials();
-  if (!jwt) {
+  let body = {};
+  try {
+    body = await req.json();
+  } catch {
+    // empty body allowed
+  }
+  const domain = typeof body?.domain === "string" && body.domain.trim() ? body.domain.trim() : "";
+  const address = typeof body?.address === "string" && body.address.trim() ? body.address.trim() : "";
+  if (!apiKey) {
     return NextResponse.json(
-      { ok: false, error: "YYDS_JWT not configured — set it in .env (account JWT from mail.215.im login)" },
+      { ok: false, error: "YYDS API key not configured — set it in Profile → YYDS Temp Mail" },
       { status: 400 },
     );
   }
-  const r = await runPython(["create", "--jwt", jwt], { YYDS_JWT: jwt });
+  const args = ["create-owned", "--api-key", apiKey];
+  if (domain) args.push("--domain", domain);
+  if (address) args.push("--address", address);
+  const r = await runPython(args, { YYDS_API_KEY: apiKey, YYDS_JWT: jwt });
   if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 502 });
   const addr = r.stdout.match(/ADDRESS=(.+)/)?.[1] || "";
   const tok = r.stdout.match(/TOKEN=(.+)/)?.[1] || "";
