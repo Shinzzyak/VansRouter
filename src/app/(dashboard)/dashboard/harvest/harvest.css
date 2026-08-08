@@ -1,0 +1,272 @@
+/* Harvest console — scoped liquid-glass dark theme.
+   Scoped under .harvest-root so it never leaks into the light Vans dashboard. */
+
+.harvest-root {
+  --harvest-bg: #060608;
+  --harvest-card: #101014;
+  --harvest-border: #1e1e26;
+  --harvest-accent: #5e5ce6;
+  --harvest-text: #e8e8ec;
+  --harvest-muted: #9a9aa5;
+  --harvest-ok: #34c759;
+  --harvest-bad: #ff453a;
+  --harvest-radius: 12px;
+  background: var(--harvest-bg);
+  color: var(--harvest-text);
+  min-height: 100vh;
+  padding: 16px;
+  font-size: 14px;
+}
+
+.harvest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.harvest-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.harvest-sse {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--harvest-muted);
+  font-size: 12px;
+}
+
+.harvest-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--harvest-muted);
+}
+.harvest-dot.live { background: var(--harvest-ok); box-shadow: 0 0 6px var(--harvest-ok); }
+.harvest-dot.connecting { background: #ffd60a; }
+.harvest-dot.dead { background: var(--harvest-bad); }
+
+.harvest-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.harvest-tab {
+  background: transparent;
+  border: 1px solid var(--harvest-border);
+  color: var(--harvest-muted);
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.harvest-tab.active {
+  background: var(--harvest-accent);
+  border-color: var(--harvest-accent);
+  color: #fff;
+}
+
+.harvest-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.harvest-card {
+  background: var(--harvest-card);
+  border: 1px solid var(--harvest-border);
+  border-radius: var(--harvest-radius);
+  padding: 14px;
+}
+
+.harvest-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.harvest-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.harvest-card-head h3 { margin: 0; }
+
+.harvest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.harvest-btn {
+  background: #1c1c24;
+  border: 1px solid var(--harvest-border);
+  color: var(--harvest-text);
+  border-radius: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 36px;
+}
+.harvest-btn:hover { border-color: var(--harvest-accent); }
+.harvest-btn.primary { background: var(--harvest-accent); border-color: var(--harvest-accent); color: #fff; }
+.harvest-btn.danger { background: transparent; border-color: var(--harvest-bad); color: var(--harvest-bad); }
+.harvest-btn.sm { padding: 4px 10px; min-height: 30px; font-size: 12px; }
+.harvest-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.harvest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.harvest-table th, .harvest-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--harvest-border);
+}
+.harvest-table th { color: var(--harvest-muted); font-weight: 500; }
+.harvest-mono { font-family: ui-monospace, monospace; font-size: 12px; }
+
+.harvest-kind {
+  margin: 12px 0 4px;
+  color: var(--harvest-accent);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.harvest-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #1c1c24;
+  border: 1px solid var(--harvest-border);
+  font-size: 12px;
+}
+.harvest-pill.ok { border-color: var(--harvest-ok); color: var(--harvest-ok); }
+.harvest-pill.bad { border-color: var(--harvest-bad); color: var(--harvest-bad); }
+
+.harvest-error {
+  background: rgba(255, 69, 58, 0.12);
+  border: 1px solid var(--harvest-bad);
+  color: var(--harvest-bad);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.harvest-status {
+  background: #0a0a0e;
+  border: 1px solid var(--harvest-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  overflow-x: auto;
+  max-height: 200px;
+  margin-top: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.harvest-sys { color: var(--harvest-muted); font-size: 12px; margin-top: 8px; }
+
+.harvest-textarea {
+  width: 100%;
+  background: #0a0a0e;
+  border: 1px solid var(--harvest-border);
+  color: var(--harvest-text);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.harvest-console {
+  background: #0a0a0e;
+  border: 1px solid var(--harvest-border);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.harvest-line {
+  padding: 2px 0;
+  border-bottom: 1px solid #14141a;
+  word-break: break-word;
+}
+.harvest-line:last-child { border-bottom: none; }
+.harvest-line-type {
+  display: inline-block;
+  color: var(--harvest-accent);
+  margin-right: 6px;
+  font-size: 11px;
+}
+.harvest-line.harvest_error .harvest-line-type, .harvest-line.harvest_error { color: var(--harvest-bad); }
+.harvest-line.harvest_done .harvest-line-type { color: var(--harvest-ok); }
+
+.harvest-console-empty, .harvest-empty {
+  color: var(--harvest-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.harvest-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.harvest-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.harvest-config-row input[type="text"],
+.harvest-config-row input[type="number"] {
+  background: #0a0a0e;
+  border: 1px solid var(--harvest-border);
+  color: var(--harvest-text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 55%;
+}
+
+/* mobile hardening: td labels + tap targets */
+@media (max-width: 640px) {
+  .harvest-table thead { display: none; }
+  .harvest-table tr {
+    display: block;
+    border-bottom: 1px solid var(--harvest-border);
+    padding: 8px 0;
+  }
+  .harvest-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border: none;
+    padding: 4px 10px;
+  }
+  .harvest-table td::before {
+    content: attr(data-label);
+    color: var(--harvest-muted);
+    font-size: 12px;
+  }
+  .harvest-table td:not([data-label])::before { display: none; }
+  .harvest-btn { min-height: 44px; }
+}
