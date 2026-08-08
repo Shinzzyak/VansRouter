@@ -104,13 +104,6 @@ const poolLimitCooldowns = fbState.poolLimitCooldowns;
 const MODEL_LOCK_COOLDOWN_MS = 10 * 60 * 1000; // session bound to another model (~1h) — re-check every 10 min
 const POOL_LIMITED_COOLDOWN_MS = 5 * 60 * 1000; // IP tier refuses this model — try a different pool/relay
 
-// Limited-tier IPs only admit these models — used for auto-switch so a
-// limited-IP gate never hard-fails the request (the CLI errors, we route).
-const LIMITED_TIER_MODELS = [
-  "deepseek/deepseek-v4-flash",
-  "mimo/mimo-v2.5",
-];
-
 // Cooldown maps need pruning: expired entries are cleared on write (sweep) and
 // on read, so long-running servers don't accumulate one entry per (account,model)
 // / (proxy,model) forever.
@@ -169,41 +162,48 @@ function classifySessionGate(code, message, currentModel) {
   return { kind: "stale" }; // 428/410/unknown → reclaim
 }
 
+// Freebuff limited-tier model allowlist (Indonesia IPs get refused for anything else).
+const LIMITED_TIER_MODELS = [
+  "deepseek/deepseek-v4-flash",
+  "mimo/mimo-v2.5",
+];
+
+// Session gate → optional auto-switch. model_locked → switch to the session's
+// current model; limited_ip → switch to a limited-tier model. Returns null when
+// the caller should throw normally (no fallback exists).
+function resolveSessionGate(gate, { model, log }) {
+  if (gate.kind === "model_locked" && gate.currentModel && gate.currentModel !== model) {
+    log?.warn?.("AUTH", `Freebuff model_locked — auto-switching to session model "${gate.currentModel}"`);
+    return { fallbackModel: gate.currentModel };
+  }
+  if (gate.kind === "limited_ip" && !LIMITED_TIER_MODELS.includes(model)) {
+    log?.warn?.("AUTH", `Freebuff limited-IP — auto-switching to "${LIMITED_TIER_MODELS[0]}"`);
+    return { fallbackModel: LIMITED_TIER_MODELS[0] };
+  }
+  return null;
+}
+
 // Applies cooldowns and throws for non-reclaimable gates. Never returns for them.
-// Returns a fallback model when the gate is recoverable by switching model
-// (model_locked → the session's active model; limited_ip → a limited-tier model).
-function resolveSessionGate(gate, { token, model, proxyKey, poolId, log }) {
+async function throwSessionGateError(gate, { token, model, proxyKey, poolId, log }) {
   if (gate.kind === "model_locked") {
     const until = Date.now() + MODEL_LOCK_COOLDOWN_MS;
     setCooldown(modelLockCooldowns, `${token}::${model}`, until);
     const label = gate.currentModel ? `"${gate.currentModel}"` : "another model";
-    log?.warn?.("AUTH", `Freebuff model_locked (session=${label}, requested=${model}) — model cooldown ${MODEL_LOCK_COOLDOWN_MS / 60000}min`);
-    // Auto-switch to the model the session is actually bound to — the free tier
-    // allows ONE model per session, so requesting a different one is a gate,
-    // not an error. Routing to the bound model makes the account usable
-    // immediately instead of erroring for up to an hour.
-    if (gate.currentModel && gate.currentModel !== model) {
-      return { fallbackModel: gate.currentModel };
-    }
     const err = new Error(
       `Freebuff session is locked to ${label} — it cannot serve ${model}. End the session on freebuff.com or wait for it to expire (~1h).`,
     );
     err.status = 409;
     err.resetsAtMs = until;
+    log?.warn?.("AUTH", `Freebuff model_locked (session=${label}, requested=${model}) — model cooldown ${MODEL_LOCK_COOLDOWN_MS / 60000}min`);
     throw err;
   }
   if (gate.kind === "limited_ip") {
     const until = Date.now() + POOL_LIMITED_COOLDOWN_MS;
     setCooldown(poolLimitCooldowns, `${proxyKey}::${model}`, until);
     const scope = `freebuff::${model}`;
-    if (poolId) markPoolUnfit(poolId, scope, until, "limited_ip");
+    if (poolId) await markPoolUnfit(poolId, scope, until, "limited_ip");
     // Pool-scoped, not account-scoped: the caller retries via another pool
     // instead of locking the account (resetsAtMs intentionally absent).
-    // Limited-tier IPs only admit DeepSeek V4 Flash / MiMo 2.5 — auto-switch
-    // to the first one instead of failing the request.
-    if (LIMITED_TIER_MODELS.length > 0 && !LIMITED_TIER_MODELS.includes(model)) {
-      return { fallbackModel: LIMITED_TIER_MODELS[0] };
-    }
     const err = new Error(
       `Freebuff limited-mode IP rejected ${model} — this IP only allows DeepSeek V4 Flash / MiMo 2.5. Use a full-access proxy or a different model.`,
     );
@@ -212,7 +212,6 @@ function resolveSessionGate(gate, { token, model, proxyKey, poolId, log }) {
     log?.warn?.("AUTH", `Freebuff limited-IP refused ${model} (proxy=${proxyKey.slice(0, 40)}…) — cooldown ${POOL_LIMITED_COOLDOWN_MS / 60000}min`);
     throw err;
   }
-  return null;
 }
 
 function sessionOrigin() {
@@ -462,16 +461,6 @@ export class FreebuffExecutor extends BaseExecutor {
     if (!token) {
       throw new Error("Freebuff requires a connected Freebuff login (no access token found)");
     }
-    // Guard against runaway model-switch recursion (session gates resolving to
-    // the same fallback repeatedly). Two hops is the max legitimate path
-    // (requested → bound/limited-tier model), beyond that something is broken.
-    if (_depth > 2) {
-      const err = new Error(`Freebuff model-switch recursion exceeded (depth ${_depth}) — giving up`);
-      err.status = 409;
-      throw err;
-    }
-    const retrySwitched = (fallbackModel) =>
-      this.execute({ model: fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
 
     // Fail fast while a known-dead (account,model) / (proxy,model) pair is in
     // cooldown — no session claim, no run registration, no upstream spam.
@@ -499,8 +488,11 @@ export class FreebuffExecutor extends BaseExecutor {
     } catch (error) {
       const gate = sessionGateFromError(error);
       if (gate) {
-        const resolved = resolveSessionGate(gate, { token, model, proxyKey, poolId, log });
-        if (resolved?.fallbackModel) return retrySwitched(resolved.fallbackModel);
+        const resolved = resolveSessionGate(gate, { model, log });
+        if (resolved?.fallbackModel && _depth < 2) {
+          return this.execute({ model: resolved.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
+        }
+        await throwSessionGateError(gate, { token, model, proxyKey, poolId, log });
       }
       log?.error?.("AUTH", `Freebuff session failed: ${error.message}`);
       throw error;
@@ -605,10 +597,11 @@ export class FreebuffExecutor extends BaseExecutor {
         const gate = sessionGateFromText(text);
         if (gate.kind === "model_locked" || gate.kind === "limited_ip") {
           markFinished("cancelled");
-          const resolved = resolveSessionGate(gate, { token, model, proxyKey, poolId, log });
-          if (resolved?.fallbackModel) {
-            return retrySwitched(resolved.fallbackModel);
+          const resolved = resolveSessionGate(gate, { model, log });
+          if (resolved?.fallbackModel && _depth < 2) {
+            return this.execute({ model: resolved.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
           }
+          await throwSessionGateError(gate, { token, model, proxyKey, poolId, log });
         }
 
         log?.debug?.("AUTH", `Freebuff ${response.status} session gate — re-claiming session`);
@@ -620,10 +613,11 @@ export class FreebuffExecutor extends BaseExecutor {
         } catch (error) {
           const gate2 = sessionGateFromError(error);
           if (gate2) {
-            const resolved2 = resolveSessionGate(gate2, { token, model, proxyKey, poolId, log });
-            if (resolved2?.fallbackModel) {
-              return retrySwitched(resolved2.fallbackModel);
+            const resolved2 = resolveSessionGate(gate2, { model, log });
+            if (resolved2?.fallbackModel && _depth < 2) {
+              return this.execute({ model: resolved2.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
             }
+            await throwSessionGateError(gate2, { token, model, proxyKey, poolId, log });
           }
           log?.error?.("AUTH", `Freebuff session re-claim failed: ${error.message}`);
           throw error;
@@ -634,10 +628,11 @@ export class FreebuffExecutor extends BaseExecutor {
           const text2 = await response.text().catch(() => "");
           const gate3 = sessionGateFromText(text2);
           if (gate3.kind === "model_locked" || gate3.kind === "limited_ip") {
-            const resolved3 = resolveSessionGate(gate3, { token, model, proxyKey, poolId, log });
-            if (resolved3?.fallbackModel) {
-              return retrySwitched(resolved3.fallbackModel);
+            const resolved3 = resolveSessionGate(gate3, { model, log });
+            if (resolved3?.fallbackModel && _depth < 2) {
+              return this.execute({ model: resolved3.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
             }
+            await throwSessionGateError(gate3, { token, model, proxyKey, poolId, log });
           }
           const err = new Error(
             `Freebuff session gate refused (${response.status}) — another freebuff instance may be holding the session. ${text2.slice(0, 160)}`,
@@ -651,7 +646,7 @@ export class FreebuffExecutor extends BaseExecutor {
       if (response.ok) {
         modelLockCooldowns.delete(`${token}::${model}`);
         poolLimitCooldowns.delete(`${proxyKey}::${model}`);
-        if (poolId) clearPoolUnfit(poolId, scope);
+        if (poolId) await clearPoolUnfit(poolId, scope);
       }
 
       // The authToken has no refresh path — when it dies, the user re-logs in.

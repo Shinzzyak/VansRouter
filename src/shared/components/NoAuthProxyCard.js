@@ -123,6 +123,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
             { value: "none", label: "None (Direct / Static)" },
             { value: "round-robin", label: "Round-Robin (Rotate active pools)" },
             { value: "random", label: "Random (Rotate active pools)" },
+            { value: "smart", label: "Smart (Skip unfit pools)" },
           ]}
         />
 

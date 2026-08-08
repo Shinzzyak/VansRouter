@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
 import { RELAY_TARGET_GUARD_SOURCE } from "@/shared/utils/ssrfGuard.js";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const DENO_V2_API = "https://api.deno.com/v2";
 
@@ -53,6 +54,7 @@ const DENO_RELAY_CODE = `Deno.serve(async (request) => {
 });`;
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
     const denoToken = body.denoToken?.trim();

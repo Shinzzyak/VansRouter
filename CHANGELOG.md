@@ -1,3 +1,74 @@
+# v0.9.94 (2026-08-08)
+
+VansRouter 0.9.94 hardens provider response identity, Kiro system-prompt injection, and Issue #98 security consistency.
+
+## Provider and compatibility fixes
+
+- **Client model echo** — Preserved the client-requested model through all response handlers instead of exposing only the upstream model ID.
+- **Kiro token-saver prompts** — Injected default, Caveman, and Ponytail prompts into Kiro's native top-level `systemPrompt` field without rewriting conversation messages.
+- **Stream compatibility** — Retained existing tool-call cleanup, zero-completion repair, and Gemini/Antigravity response parsing.
+
+## Security and consistency
+
+- **Issue #98** — Retained proxy-pool route authentication, DNS-aware SSRF validation, async validation contracts, forced-SSE usage handling, and no-login compatibility.
+
+## Verification
+
+- Full Vitest suite: **230 test files passed; 2,778 tests passed; 13 skipped; 19 expected failures**.
+- Focused provider/Kiro suite: **4 test files passed; 233 tests passed**.
+- `lint:undef`, `lint:reacthooks`, and production build passed.
+
+# v0.9.93 (2026-08-08)
+
+VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting, and settings-cache consistency.
+
+## Security and consistency
+
+- **Proxy-pool route authentication** — Added consistent dashboard authentication before database, credential, deployment, fitness, and outbound work across all proxy-pool handlers.
+- **Forced-SSE usage fallback** — Preserved explicit zero token counts while accepting provider-style prompt/completion usage fields.
+- **Cross-process settings invalidation** — Added durable `_meta` revision tracking with transaction-safe rollback behavior for settings updates and database imports.
+- **DNS-aware SSRF validation** — Added async DNS resolution, private/mapped IP rejection, and pinned `guardedFetch` for server-side user-configured upstream model discovery. Edge relay guards remain dependency-free.
+- **Async validation contract** — Updated SSRF callers and regression tests to await validation failures correctly.
+- **No-login compatibility** — Route-level proxy-pool defense-in-depth preserves the configured `requireLogin=false` dashboard mode.
+
+## Verification
+
+- Focused issue #98 suite: **10 test files passed; 91 tests passed**.
+- `git diff --check`: existing trailing-whitespace findings remain in pre-existing/issue-scope files; no whitespace cleanup performed.
+
+# v0.9.92 (2026-08-07)
+
+VansRouter 0.9.92 adds FreeBuff support and production-safe single-node proxy-pool fitness persistence.
+
+## New features
+
+- **FreeBuff provider** — Added device-code login, FreeBuff model registry, executor, usage reporting, provider UI integration, icon, and regression coverage.
+- **Smart proxy-pool rotation** — Added provider/model-scoped pool fitness, cooldown-based failover, wildcard provider scopes, multi-pool selection, dashboard visibility, and manual clear controls.
+- **Proxy transport coverage** — Preserved HTTP, Vercel, Cloudflare, and Deno proxy contracts while extending rotation and strict-proxy handling.
+
+## Persistence and production hardening
+
+- **Atomic fitness persistence** — Stored `(poolId, scope)` fitness records in a dedicated SQLite table with upsert/delete/clear operations instead of full JSON snapshot writes.
+- **Restart-safe state** — Fitness state reloads from SQLite, survives process restarts, participates in database export/import, and is removed when a pool is deleted.
+- **Single-node production contract** — Production now requires a native SQLite driver. Docker documentation defines one PM2 fork instance per persistent database volume; horizontal scaling requires shared database/backend support.
+- **Awaited state transitions** — FreeBuff pool cooldown marks and clears complete before request retry/rotation decisions continue.
+
+## Sources
+
+- FreeBuff login host: <https://freebuff.com>
+- FreeBuff session/usage endpoint: <https://www.codebuff.com/api/v1/freebuff/session>
+- Implementation: `open-sse/executors/freebuff.js`, `src/lib/oauth/providers/freebuff.js`
+- Proxy fitness implementation: `open-sse/services/proxyPoolFitness.js`, `src/lib/db/repos/proxyPoolFitnessRepo.js`
+- Deployment contract: `DOCKER.md`, `.env.example`
+
+## Verification
+
+- Full project suite: **227 test files passed, 13 skipped; 2,768 tests passed, 19 expected failures, 82 skipped**.
+- Targeted FreeBuff/proxy/DB tests: **31 tests passed**.
+- `lint:undef`: clean.
+- `lint:reacthooks`: clean.
+- Production build: compiled successfully.
+
 # v0.9.91 (2026-08-07)
 
 VansRouter 0.9.91 republishes the corrected CLI package version after the initial 0.9.90 release workflow exposed a package-version mismatch.

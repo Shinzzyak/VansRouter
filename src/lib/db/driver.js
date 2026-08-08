@@ -62,7 +62,12 @@ async function initAdapter() {
   let adapter = await tryBunSqlite();
   if (!adapter) adapter = await tryBetterSqlite();
   if (!adapter) adapter = await tryNodeSqlite();
-  if (!adapter) adapter = await trySqlJs();
+  if (!adapter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("[DB] Native SQLite driver required in production; sql.js fallback is single-process only");
+    }
+    adapter = await trySqlJs();
+  }
   if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js all failed)");
 
   if (!state.logged) {

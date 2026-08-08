@@ -91,7 +91,7 @@ export async function handleFetch(request) {
 
   // SSRF guard: reject internal/private/metadata targets
   try {
-    assertPublicUrl(targetUrl);
+    await assertPublicUrl(targetUrl);
   } catch (err) {
     log.warn("FETCH", "Blocked URL", { url: targetUrl });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, err.message);

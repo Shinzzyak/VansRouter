@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
 import { RELAY_TARGET_GUARD_SOURCE } from "@/shared/utils/ssrfGuard.js";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const VERCEL_API = "https://api.vercel.com";
 
@@ -69,6 +70,7 @@ async function pollDeployment(deploymentId, token, maxMs = 120000) {
 
 // POST /api/proxy-pools/vercel-deploy
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await request.json();
     const vercelToken = body.vercelToken;

@@ -10,15 +10,15 @@ const relayRoutes = [
   "src/app/api/proxy-pools/deno-deploy/route.js",
 ];
 
-function expectBlocked(url) {
-  expect(() => assertPublicUrl(url)).toThrow(/Blocked URL|Invalid URL/);
+async function expectBlocked(url) {
+  await expect(assertPublicUrl(url)).rejects.toThrow(/Blocked URL|Invalid URL/);
 }
 
 describe("assertPublicUrl", () => {
   it.each(["https://example.com/models", "http://example.com/"])(
     "accepts public URL %s",
-    (url) => {
-      expect(() => assertPublicUrl(url)).not.toThrow();
+    async (url) => {
+      await expect(assertPublicUrl(url)).resolves.toMatchObject({ url: expect.any(URL), addresses: expect.any(Array) });
     }
   );
 
@@ -59,8 +59,8 @@ describe("assertPublicUrl", () => {
 
   it.each(["not a URL", "https://", "//example.com/path", ""]) (
     "rejects malformed URL %j",
-    (url) => {
-      expectBlocked(url);
+    async (url) => {
+      await expectBlocked(url);
     }
   );
 });
