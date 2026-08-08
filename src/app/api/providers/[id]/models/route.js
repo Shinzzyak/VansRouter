@@ -76,17 +76,6 @@ const createOpenAIModelsConfig = (url) => ({
   parseResponse: parseOpenAIStyleModels
 });
 
-const resolveQwenModelsUrl = (connection) => {
-  const raw = connection?.providerSpecificData?.resourceUrl;
-  if (!raw || typeof raw !== "string") return fallback;
-  const value = raw.trim();
-  if (!value) return fallback;
-  if (value.startsWith("http://") || value.startsWith("https://")) {
-    return `${value.replace(/\/$/, "")}/models`;
-  }
-  return `https://${value.replace(/\/$/, "")}/v1/models`;
-};
-
 // Generic custom resolver for OAuth providers that need refresh-on-401 + token persist.
 // Receives a `fetchFn(token)` and returns parsed models or throws.
 const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => async (connection) => {
