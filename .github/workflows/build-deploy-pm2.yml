@@ -87,6 +87,8 @@ jobs:
           # Next server), so rename ours to avoid clobbering it. The deploy step
           # copies launcher.js -> $DEPLOY/server.js so the .env loader fix ships.
           cp server.js .next/standalone/launcher.js
+          # Bundle runtime Python scripts (YYDS temp-mail client) into standalone
+          cp -r scripts .next/standalone/scripts
 
       - name: Create deployment tarball
         run: |
