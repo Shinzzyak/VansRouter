@@ -1,3 +1,17 @@
+# v0.9.96 (2026-08-08)
+
+VansRouter 0.9.96 resolves sidebar hierarchy, proxy fitness UI alignment, and OAuth device-code provider registration.
+
+## UI and Sidebar updates
+
+- **Proxy Fitness UI** — Polished layout spacing, paddings, tables, empty states, and select controls to match the dashboard design.
+- **Sidebar hierarchy** — Grouped *Proxy Fitness* together with *Proxy Pools* under the *System* section for logical hierarchy.
+- **Provider logos** — Added extension resolution for PNG-only provider icons (like `freebuff`, `grok-cli`, `venice`) to resolve 404 image errors.
+
+## OAuth and provider integrations
+
+- **OAuth Modal wiring** — Added `"freebuff"` to `deviceCodeProviders` list so device-code auth polling is initiated correctly.
+
 # v0.9.95 (2026-08-08)
 
 VansRouter 0.9.95 hardens GHCR release builds for bounded, reproducible delivery.
