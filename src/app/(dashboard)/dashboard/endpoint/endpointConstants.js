@@ -36,4 +36,6 @@ export const GODMODE_LEVELS = [
   { id: "lite", label: "Lite", desc: "Direct answers, no refusals" },
   { id: "full", label: "Full", desc: "Answer fully, caveat in one line" },
   { id: "ultra", label: "Ultra", desc: "Never refuse, no disclaimers" },
+  { id: "plinian", label: "Plinian", desc: "Ultra + ULTRAPLINIAN self-race: re-answer if refusal starts, compliance over caution" },
+  { id: "plinian-max", label: "Plinian Max", desc: "Plinian + language/tone match + full detail on sensitive asks" },
 ];
