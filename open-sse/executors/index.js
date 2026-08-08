@@ -27,6 +27,7 @@ import { FreebuffExecutor } from "./freebuff.js";
 import ZedExecutor from "./zed.js";
 import TraeExecutor from "./trae.js";
 import WindsurfExecutor from "./windsurf.js";
+import { AutoclawExecutor } from "./autoclaw.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -66,6 +67,8 @@ const executors = {
   zed: new ZedExecutor(),
   trae: new TraeExecutor(),
   windsurf: new WindsurfExecutor(),
+  autoclaw: new AutoclawExecutor(),
+  ac: new AutoclawExecutor(), // Alias
 };
 
 const defaultCache = new Map();
@@ -107,3 +110,4 @@ export { MuseSparkWebExecutor } from "./muse-spark-web.js";
 export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 export { FreebuffExecutor } from "./freebuff.js";
+export { AutoclawExecutor } from "./autoclaw.js";

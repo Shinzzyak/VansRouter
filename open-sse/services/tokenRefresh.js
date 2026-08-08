@@ -14,6 +14,7 @@ import {
   refreshCodebuddyToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
+import { refreshAutoclawToken } from "./tokenRefresh/autoclaw.js";
 
 // Re-export all provider refresh functions (preserves public API for all consumers)
 export {
@@ -135,6 +136,7 @@ const REFRESH_HANDLERS = {
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
+  autoclaw: (c, log) => refreshAutoclawToken(c, log),
   // Kimi Code OAuth (merged into id `kimi`); legacy id still routes here
   kimi: (c, log) => refreshKimiToken(c.refreshToken, c, log),
   "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),

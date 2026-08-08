@@ -142,7 +142,8 @@ import p141 from "./selfhosted-stt.js";
 import p142 from "./selfhosted-tts.js";
 import p143 from "./trae.js";
 import p144 from "./zed.js";
-import p145 from "./windsurf.js";
+import p145 from "./autoclaw.js";
+import p146 from "./windsurf.js";
 
 export default [
   p0,
@@ -289,5 +290,6 @@ export default [
   p142,
   p143,
   p144,
-  p145
+  p145,
+  p146
 ];
