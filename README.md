@@ -656,6 +656,7 @@ Seamless translation between formats:
 - ☁️ **VPS/Cloud** - Share across devices
 - 🐳 **Docker** - One-command deployment
 - 🚀 **Cloudflare Workers** - Global edge network
+- 📧 **CF Email-Inbox Worker** - Catch-all temp inbox via Cloudflare Email Routing + KV (`cf-workers/`, see [`cf-workers/README.md`](./cf-workers/README.md))
 
 </details>
 

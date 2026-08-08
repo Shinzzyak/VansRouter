@@ -1,0 +1,21 @@
+{
+	"$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+	"name": "vansrouter-email-inbox",
+	"main": "email-inbox-worker.js",
+	"compatibility_date": "2025-01-01",
+	"observability": {
+		"enabled": true
+	},
+	"kv_namespaces": [
+		{
+			"binding": "INBOX",
+			"id": "REPLACE_WITH_KV_NAMESPACE_ID",
+			"preview_id": "REPLACE_WITH_KV_NAMESPACE_ID"
+		}
+	],
+	"vars": {
+		// Single fallback domain when /api/address is called without ?domain=
+		// Multi-domain: pass each domain via ?domain= or dashboard mailDomains list.
+		"DOMAIN": "yourdomain.com"
+	}
+}
