@@ -184,10 +184,16 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
       const totalLatency = Date.now() - requestStartTime;
 
+      // Cache-inclusive prompt total for the recorded detail: cache-capable
+      // upstreams report input_tokens EXCLUDING cached tokens, so summing the
+      // cache counters in keeps the DB and the client-facing usage honest.
+      const inTokensForLog = (usage.input_tokens || 0)
+        + (usage.cache_read_input_tokens || usage.cached_tokens || 0)
+        + (usage.cache_creation_input_tokens || 0);
       saveRequestDetail(buildRequestDetail({
         ...ctx,
         latency: { ttft: totalLatency, total: totalLatency },
-        tokens: { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0 },
+        tokens: { prompt_tokens: inTokensForLog, completion_tokens: usage.output_tokens || 0 },
         response: { content: textContent, thinking: null, finish_reason: jsonResponse.status || "unknown" },
         status: "success"
       }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
@@ -197,9 +203,18 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         return { success: true, response: new Response(JSON.stringify(jsonResponse), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
       }
 
-      // Build client-format response
-      const inTokens = usage.input_tokens || 0;
+      // Build client-format response. Fold cache counters into the prompt
+      // total and keep them visible in prompt_tokens_details so a client can
+      // tell a cache hit from a small prompt.
+      const cacheRead = usage.cache_read_input_tokens || usage.cached_tokens || 0;
+      const cacheCreate = usage.cache_creation_input_tokens || 0;
+      const inTokens = (usage.input_tokens || 0) + cacheRead + cacheCreate;
       const outTokens = usage.output_tokens || 0;
+      const cacheDetails = (cacheRead > 0 || cacheCreate > 0)
+        ? { prompt_tokens_details: {
+              ...(cacheRead > 0 ? { cached_tokens: cacheRead } : {}),
+              ...(cacheCreate > 0 ? { cache_creation_tokens: cacheCreate } : {}) } }
+        : {};
       let finalResp;
 
       // Extract tool calls from Responses API output (function_call items)
@@ -233,7 +248,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
             message: { role: "assistant", content: textContent || (hasToolCalls ? null : "") },
             finish_reason: hasToolCalls ? "tool_calls" : "stop"
           }],
-          usage: { prompt_tokens: inTokens, completion_tokens: outTokens }
+          usage: { prompt_tokens: inTokens, completion_tokens: outTokens, ...cacheDetails }
         };
         if (hasToolCalls) openaiBody.choices[0].message.tool_calls = toolCalls;
         const reversed = openaiToClaudeNonStreaming(openaiBody, model);
@@ -249,7 +264,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
           created: jsonResponse.created_at || Math.floor(Date.now() / 1000),
           model: jsonResponse.model || model,
           choices: [{ index: 0, message, finish_reason: finishReason }],
-          usage: { prompt_tokens: inTokens, completion_tokens: outTokens, total_tokens: inTokens + outTokens }
+          usage: { prompt_tokens: inTokens, completion_tokens: outTokens, total_tokens: inTokens + outTokens, ...cacheDetails }
         };
       }
 
