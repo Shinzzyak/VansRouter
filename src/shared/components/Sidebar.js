@@ -36,6 +36,7 @@ const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
   { href: "/dashboard/proxy-fitness", label: "Proxy Fitness", icon: "network_check" },
   { href: "/dashboard/yyds", label: "YYDS Mail", icon: "mail" },
+  { href: "/dashboard/harvest", label: "Harvest", icon: "agriculture" },
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
 
