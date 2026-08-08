@@ -64,7 +64,9 @@ async function initAdapter() {
   if (!adapter) adapter = await tryNodeSqlite();
   if (!adapter) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("[DB] Native SQLite driver required in production; sql.js fallback is single-process only");
+      throw new Error(
+        "[DB] Native SQLite driver unavailable. Run `npm install --include=optional` with Node >=22.5.0, then restart 9router. Existing database was not modified.",
+      );
     }
     adapter = await trySqlJs();
   }

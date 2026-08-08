@@ -1,3 +1,18 @@
+# v0.9.97 (2026-08-08)
+
+VansRouter 0.9.97 hardens production SQLite packaging and provider display resolution.
+
+## Runtime reliability
+
+- **Native SQLite in Docker** — Explicitly includes `better-sqlite3` and its runtime dependencies in the final image, preserving native multi-process SQLite instead of an unavailable production fallback.
+- **Build-time SQLite smoke test** — The image build now fails immediately if the native driver cannot load and execute a query.
+- **Release image verification** — CI verifies the published multi-platform manifest and runs a native SQLite query inside the pushed image.
+- **Optional dependency install** — Docker builder explicitly installs optional dependencies required by native SQLite.
+
+## UI consistency
+
+- **Risk notice resolution** — Provider registry `RISK_NOTICE` tokens now resolve to the complete warning text on provider pages.
+
 # v0.9.96 (2026-08-08)
 
 VansRouter 0.9.96 resolves sidebar hierarchy, proxy fitness UI alignment, and OAuth device-code provider registration.
