@@ -7,7 +7,8 @@ import { COLORS } from "../utils/stream.js";
 import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
-import { extractThinking } from "../translator/concerns/thinkingUnified.js";
+import { extractThinking, applyThinking } from "../translator/concerns/thinkingUnified.js";
+import { resolveSessionId } from "../utils/sessionManager.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
@@ -108,6 +109,27 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  // (e.g. direct callers) the retry path degrades to the original behavior.
  const MAX_POOL_RETRIES = 2;
 
+ /**
+  * Remove translator-internal continuity fields from the outbound upstream
+  * body: the Responses→Chat request translator stashes reasoning continuity
+  * (`encrypted_content` / `reasoning_encrypted_content`) on assistant messages
+  * so a later openai→responses round-trip can restore the store=false
+  * continuity blob; that stash must never reach an upstream provider.
+  * Chat-native proxies reject the unknown assistant-message field and answer
+  * every turn with a literal "400" body (observed with multi-turn Codex
+  * sessions via OpenAI-compatible nodes).
+  */
+ export function stripContinuityFields(body) {
+   if (!body || !Array.isArray(body.messages)) return body;
+   for (const msg of body.messages) {
+     if (msg && typeof msg === "object") {
+       delete msg.encrypted_content;
+       delete msg.reasoning_encrypted_content;
+     }
+   }
+   return body;
+ }
+
  // Build proxy options from resolved provider-specific data. `strictProxy` is
  // forced for freebuff so a dead/limited pool can never leak the request to the
  // caller's real IP (the freebuff session tier is per-egress-IP).
@@ -121,7 +143,16 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  });
 
  export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
-  const sourceFormat = sourceFormatOverride || detectFormat(body);
+   // Stable per-session color so all lines of one CLI conversation share a tag
+   const sessionSeed = (() => {
+     try {
+       return resolveSessionId({ headers: clientRawRequest?.headers, body, connectionId, scope: provider });
+     } catch {
+       return connectionId || "";
+     }
+   })();
+   const reqTag = log?.tagForSession ? log.tagForSession(sessionSeed) : (log?.nextTag ? log.nextTag() : "");
+   const sourceFormat = sourceFormatOverride || detectFormat(body);
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -220,6 +251,18 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   if (passthrough) {
     log?.debug?.("PASSTHROUGH", `${clientTool} → ${provider} | native lossless`);
     translatedBody = { ...body, model: upstreamModel };
+    if (provider === "codex") {
+      const suffixThinking = {};
+      applyThinking(sourceFormat, upstreamModel, suffixThinking, provider);
+      if (suffixThinking.reasoning_effort) {
+        const reasoning = translatedBody.reasoning;
+        translatedBody.reasoning = {
+          ...(reasoning && typeof reasoning === "object" && !Array.isArray(reasoning) ? reasoning : {}),
+          effort: suffixThinking.reasoning_effort,
+        };
+        delete translatedBody.reasoning_effort;
+      }
+    }
     // Normalize newer Cowork/CC beta shapes (adaptive thinking, mid-conversation system) the API rejects
     if (clientTool === "claude") normalizeClaudePassthrough(translatedBody, upstreamModel);
   } else {
@@ -232,6 +275,12 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     delete translatedBody._toolNameMap;
     translatedBody.model = upstreamModel;
   }
+
+  // Never leak translator-internal continuity stash (encrypted_content /
+  // reasoning_encrypted_content) to an upstream provider — chat-native proxies
+  // reject the unknown field with a literal 400 (Codex sessions via
+  // OpenAI-compatible nodes).
+  stripContinuityFields(translatedBody);
 
   // NVIDIA NIM-hosted Kimi-k2.6/k2.7: ensure upstream body also has stream:false
   if (shouldCoerceStream) {
