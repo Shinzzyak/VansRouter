@@ -10,7 +10,17 @@ import { matchKnownEndpoint } from "./cliEndpointMatch";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-function ClaudeExpandedSection({ applying, apiKeys, ccFilterNaming, checkingClaude, cloudEnabled, claudeStatus, customBaseUrl, getDisplayUrl, handleApplySettings, handleCcFilterNamingToggle, handleResetSettings, hasActiveProviders, message, modelMappings, onModelMappingChange, openModelSelector, restoring, selectedApiKey, setCustomBaseUrl, setSelectedApiKey, setShowInstallGuide, setShowManualConfigModal, showInstallGuide, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
+// Context window presets. UI shows the round number; the value written is nudged
+// down 2K to stay safely under the upstream hard cap.
+const CONTEXT_OPTIONS = [
+  { label: "Default", value: "" },
+  { label: "200K", value: "198000" },
+  { label: "300K", value: "298000" },
+  { label: "500K", value: "498000" },
+  { label: "1M", value: "998000" },
+];
+
+function ClaudeExpandedSection({ applying, apiKeys, ccFilterNaming, checkingClaude, cloudEnabled, claudeStatus, customBaseUrl, getDisplayUrl, handleApplySettings, handleCcFilterNamingToggle, handleResetSettings, hasActiveProviders, maxContextTokens, message, modelMappings, onModelMappingChange, openModelSelector, restoring, selectedApiKey, setCustomBaseUrl, setMaxContextTokens, setSelectedApiKey, setShowInstallGuide, setShowManualConfigModal, showInstallGuide, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
         <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checkingClaude && (
@@ -105,6 +115,17 @@ function ClaudeExpandedSection({ applying, apiKeys, ccFilterNaming, checkingClau
                   </div>
                 ))}
 
+                {/* Context Window */}
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
+                  <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Context window</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <select value={maxContextTokens} onChange={(e) => setMaxContextTokens(e.target.value)} className="w-full min-w-0 px-2 py-2 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 sm:py-1.5">
+                    {CONTEXT_OPTIONS.map((opt) => (
+                      <option key={opt.label} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* CC Filter Naming */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Filter naming</span>
@@ -178,6 +199,7 @@ export default function ClaudeToolCard({
   const [currentEditingAlias, setCurrentEditingAlias] = useState(null);
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
   const [ccFilterNaming, setCcFilterNaming] = useState(false);
+  const [maxContextTokens, setMaxContextTokens] = useState("");
   const hasInitializedModels = useRef(false);
 
   const getConfigStatus = () => {
@@ -221,6 +243,13 @@ export default function ClaudeToolCard({
       });
     }
   }, [claudeStatus, tool.defaultModels, onModelMappingChange]);
+  useEffect(() => {
+    const v = claudeStatus?.settings?.env?.CLAUDE_CODE_MAX_CONTEXT_TOKENS;
+    if (v !== maxContextTokens) {
+      const t = setTimeout(() => setMaxContextTokens(v || ""), 0);
+      return () => clearTimeout(t);
+    }
+  }, [claudeStatus?.settings?.env?.CLAUDE_CODE_MAX_CONTEXT_TOKENS, maxContextTokens]);
   const handleApplySettings = async () => {
     dispatch({ type: "APPLY_START" });
     try {
@@ -239,10 +268,13 @@ export default function ClaudeToolCard({
         const targetModel = modelMappings[model.alias];
         if (targetModel && model.envKey) env[model.envKey] = targetModel;
       });
+      if (maxContextTokens) {
+        env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = maxContextTokens;
+      }
       const res = await fetch("/api/cli-tools/claude-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ env }),
+        body: JSON.stringify({ env, maxContextTokens }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -292,6 +324,9 @@ export default function ClaudeToolCard({
       const targetModel = modelMappings[model.alias];
       if (targetModel && model.envKey) env[model.envKey] = targetModel;
     });
+    if (maxContextTokens) {
+      env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = maxContextTokens;
+    }
 
     return [
       {
@@ -334,6 +369,7 @@ export default function ClaudeToolCard({
         handleCcFilterNamingToggle={handleCcFilterNamingToggle}
         handleResetSettings={handleResetSettings}
         hasActiveProviders={hasActiveProviders}
+        maxContextTokens={maxContextTokens}
         message={message}
         modelMappings={modelMappings}
         onModelMappingChange={onModelMappingChange}
@@ -341,6 +377,7 @@ export default function ClaudeToolCard({
         restoring={restoring}
         selectedApiKey={selectedApiKey}
         setCustomBaseUrl={setCustomBaseUrl}
+        setMaxContextTokens={setMaxContextTokens}
         setSelectedApiKey={setSelectedApiKey}
         setShowInstallGuide={setShowInstallGuide}
         setShowManualConfigModal={setShowManualConfigModal}
