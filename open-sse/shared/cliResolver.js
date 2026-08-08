@@ -22,6 +22,8 @@ export function resolveDevinBin() {
   const candidates = process.platform === "win32"
     ? [path.join(process.env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "devin", "cli", "bin", "devin.exe")]
     : [
+        path.join(home, ".local", "bin", "devin"),
+        path.join(home, ".local", "share", "devin", "cli", "_versions", "current", "bin", "devin"),
         path.join(home, ".local", "share", "devin", "bin", "devin"),
         path.join(home, ".devin", "bin", "devin"),
       ];
