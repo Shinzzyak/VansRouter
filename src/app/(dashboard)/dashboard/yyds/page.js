@@ -7,6 +7,7 @@ import { useNotificationStore } from "@/store/notificationStore";
 export default function YydsPage() {
   const [loading, setLoading] = useState(true);
   const [domains, setDomains] = useState([]);
+  const [selectedDomain, setSelectedDomain] = useState("");
   const [settings, setSettings] = useState(null);
   const [inbox, setInbox] = useState(null); // { address, token }
   const [creating, setCreating] = useState(false);
@@ -45,7 +46,7 @@ export default function YydsPage() {
       const r = await fetch("/api/yyds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ domain: selectedDomain || undefined }),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "create failed");
@@ -123,9 +124,22 @@ export default function YydsPage() {
               <div className="p-4">
                 <h2 className="mb-2 text-sm font-semibold text-gray-300">Create Inbox</h2>
                 <p className="mb-3 text-xs text-gray-400">
-                  Buat alamat temp-mail sekali pakai di domain terverifikasi YYDS (prefer owned).
+                  Buat alamat temp-mail di domain pribadi terverifikasi (16 domain: zchyur, exilion, nyktor…).
                 </p>
-                <Button onClick={createInbox} disabled={creating || !settings?.yydsJwtConfigured}>
+                <div className="mb-3">
+                  <label className="mb-1 block text-xs font-medium text-gray-400">Domain (opsional — default: pilih otomatis)</label>
+                  <select
+                    className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-200"
+                    value={selectedDomain}
+                    onChange={(e) => setSelectedDomain(e.target.value)}
+                  >
+                    <option value="">Auto (domain pribadi pertama)</option>
+                    {domains.filter((d) => !d.isPublic).map((d) => (
+                      <option key={d.domain} value={d.domain}>{d.domain}</option>
+                    ))}
+                  </select>
+                </div>
+                <Button onClick={createInbox} disabled={creating}>
                   {creating ? "Creating…" : "Create Inbox"}
                 </Button>
                 {inbox && (

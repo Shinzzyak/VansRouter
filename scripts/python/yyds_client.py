@@ -64,6 +64,22 @@ def yyds_create_account(address=None, domain=None, api_key="", jwt=""):
     raise YYDSMailError(f"YYDS create email failed: {data}")
 
 
+def yyds_create_account_owned(address_prefix, domain, api_key=""):
+    """Create an inbox on a SPECIFIC owned domain (scope=own API key).
+
+    The 'Herm' key (domainScope=own) can create on the account's private
+    domains (verified 2026-08-08: POST /v1/accounts with
+    {\"domain\":\"zchyur.my.id\",\"address\":\"...\"} → 200 + inbox token).
+    No account JWT/password needed.
+    """
+    if not api_key:
+        raise YYDSMailError("create on owned domain requires an API key with domainScope=own")
+    data = _post("/accounts", {"domain": domain, "address": address_prefix}, api_key)
+    if data.get("success"):
+        return data.get("data", {})
+    raise YYDSMailError(f"YYDS create owned inbox failed: {data}")
+
+
 def yyds_get_token(address, api_key="", jwt=""):
     # /token also requires a temp token or account JWT (API key alone → 401).
     if not jwt:
@@ -131,6 +147,31 @@ def yyds_get_email_and_token(api_key="", jwt=""):
         temp_token = yyds_get_token(address, api_key=api_key, jwt=jwt)
     if not temp_token:
         raise YYDSMailError("Failed to get YYDS token")
+    return address, temp_token
+
+
+def yyds_create_owned_inbox(api_key="", domain="", address_prefix=""):
+    """Create a fresh inbox on an OWNED domain (scope=own API key).
+
+    Returns (address, token). Uses the given prefix (or random 10-char),
+    pinned to the requested domain (or first private/verified domain).
+    """
+    if not api_key:
+        raise YYDSMailError("YYDS API Key not configured")
+    if not domain:
+        domains = yyds_get_domains(api_key=api_key)
+        private = [d for d in domains if d.get("isVerified") and not d.get("isPublic")]
+        if not private:
+            raise YYDSMailError("No owned/private verified domains on this API key")
+        domain = private[0]["domain"]
+    prefix = address_prefix or yyds_generate_username(10)
+    result = yyds_create_account_owned(prefix, domain, api_key)
+    address = result.get("address") or f"{prefix}@{domain}"
+    temp_token = result.get("token")
+    if not temp_token:
+        temp_token = yyds_get_token(address, api_key=api_key, jwt="")
+    if not temp_token:
+        raise YYDSMailError("Failed to get YYDS token for owned inbox")
     return address, temp_token
 
 
@@ -204,9 +245,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="YYDS Mail CLI — create inbox + poll OTP")
     ap.add_argument("--api-key", default="")
     ap.add_argument("--jwt", default="")
-    ap.add_argument("cmd", choices=["domains", "create", "poll"])
+    ap.add_argument("cmd", choices=["domains", "create", "create-owned", "poll"])
     ap.add_argument("--address", default="")
     ap.add_argument("--token", default="")
+    ap.add_argument("--domain", default="")
     ap.add_argument("--timeout", type=int, default=120)
     args = ap.parse_args()
 
@@ -215,6 +257,10 @@ if __name__ == "__main__":
             print(f"{d.get('domain')} | verified={d.get('isVerified')} public={d.get('isPublic')} mx={d.get('isMxValid')}")
     elif args.cmd == "create":
         addr, tok = yyds_get_email_and_token(args.api_key, args.jwt)
+        print(f"ADDRESS={addr}")
+        print(f"TOKEN={tok}")
+    elif args.cmd == "create-owned":
+        addr, tok = yyds_create_owned_inbox(api_key=args.api_key, domain=args.domain, address_prefix=args.address)
         print(f"ADDRESS={addr}")
         print(f"TOKEN={tok}")
     elif args.cmd == "poll":
