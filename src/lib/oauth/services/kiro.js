@@ -138,6 +138,24 @@ export class KiroService {
   }
 
   /**
+   * Create a social authorization (used by bulk-import automation)
+   * Generates PKCE pair + state, returns auth URL + code verifier for manual
+   * callback follow-up. FIX: grouter called this but never defined it — the
+   * bulk-import manager crashed on the first account (TypeError).
+   */
+  async createSocialAuthorization(provider) {
+    const { generateCodeVerifier, generateCodeChallenge } = await import("../utils/pkce.js");
+    const codeVerifier = generateCodeVerifier(32);
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const state = generateCodeVerifier(16);
+    return {
+      authUrl: this.buildSocialLoginUrl(provider, codeChallenge, state),
+      codeVerifier,
+      state,
+    };
+  }
+
+  /**
    * Exchange authorization code for tokens (Social Login)
    * Must use same redirect_uri as authorization request
    */
