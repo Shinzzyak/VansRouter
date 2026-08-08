@@ -70,7 +70,7 @@ RUN mkdir -p /app/data && chown -R node:node /app && \
 # Fix permissions at runtime (handles mounted volumes)
 # Tailscale Funnel requires CAP_NET_ADMIN for TUN mode; keep su-exec for dropping privileges.
 # When using host socket mode (TAILSCALE_USE_HOST_SOCKET=true), no extra capability is needed.
-RUN apk --no-cache upgrade && apk --no-cache add su-exec ip6tables iptables && \
+RUN apk --no-cache add su-exec ip6tables iptables && \
   printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh
 

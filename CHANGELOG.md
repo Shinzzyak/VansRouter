@@ -1,3 +1,14 @@
+# v0.9.95 (2026-08-08)
+
+VansRouter 0.9.95 hardens GHCR release builds for bounded, reproducible delivery.
+
+## CI/CD fixes
+
+- **BuildKit cache reuse** — Switched intermediate-layer caching from GHCR registry export to the GitHub Actions cache backend with `mode=max`, avoiding a large registry cache manifest upload while retaining reusable `npm install` and build layers.
+- **Multi-platform release image** — Retained `linux/amd64` and `linux/arm64` output for runtime compatibility.
+- **Smaller Docker context** — Excluded tests, documentation, development tools, generated artifacts, and unrelated runtime files.
+- **Reproducible Alpine install** — Removed unpinned `apk upgrade` from the runtime image build.
+
 # v0.9.94 (2026-08-08)
 
 VansRouter 0.9.94 hardens provider response identity, Kiro system-prompt injection, and Issue #98 security consistency.
