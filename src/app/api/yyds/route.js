@@ -48,9 +48,9 @@ export async function GET(request) {
   if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 502 });
   const lines = r.stdout.split("\n").filter(Boolean);
   const domains = lines.map((l) => {
-    const m = l.match(/^(.+?) \| verified=(true|false) public=(true|false) mx=(true|false)$/);
+    const m = l.match(/^(.+?) \| verified=(true|false) public=(true|false) mx=(true|false)$/i);
     return m
-      ? { domain: m[1], isVerified: m[2] === "true", isPublic: m[3] === "true", isMxValid: m[4] === "true" }
+      ? { domain: m[1], isVerified: m[2].toLowerCase() === "true", isPublic: m[3].toLowerCase() === "true", isMxValid: m[4].toLowerCase() === "true" }
       : { raw: l };
   });
   return NextResponse.json({ ok: true, domains });
