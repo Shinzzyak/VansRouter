@@ -49,6 +49,7 @@ import {
   CODEBUDDY_CONFIG,
   ZAI_CONFIG,
   GROK_CLI_CONFIG,
+  FREEBUFF_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth";
 import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai";
@@ -409,6 +410,8 @@ const PROVIDERS = {
       };
     },
   },
+
+  freebuff,
 
   "gemini-cli": {
     config: GEMINI_CONFIG,

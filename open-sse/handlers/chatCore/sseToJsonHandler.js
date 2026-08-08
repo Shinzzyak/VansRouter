@@ -12,6 +12,14 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
 import { saveRequestDetail, appendRequestLog } from "@/lib/usageDb.js";
 
+export function responsesUsageToOpenAI(usage = {}) {
+  return {
+    prompt_tokens: usage.input_tokens ?? usage.prompt_tokens ?? 0,
+    completion_tokens: usage.output_tokens ?? usage.completion_tokens ?? 0,
+    total_tokens: usage.total_tokens ?? ((usage.input_tokens ?? usage.prompt_tokens ?? 0) + (usage.output_tokens ?? usage.completion_tokens ?? 0)),
+  };
+}
+
 function textFromResponsesMessageItem(item) {
   if (!item?.content || !Array.isArray(item.content)) return "";
   const byType = item.content.find((c) => c.type === "output_text");
@@ -178,8 +186,9 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       if (onRequestSuccess) await onRequestSuccess();
 
       const usage = jsonResponse.usage || {};
-      appendLog({ tokens: usage, status: "200 OK" });
-      saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, comboName });
+      const normalizedUsage = responsesUsageToOpenAI(usage);
+      appendLog({ tokens: normalizedUsage, status: "200 OK" });
+      saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, comboName });
 
       const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
       const totalLatency = Date.now() - requestStartTime;

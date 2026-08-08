@@ -34,6 +34,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 
+const MAX_POOL_RETRIES = 2;
 const TOOL_PROTOCOL_PROMPT_PROVIDERS = new Set(["kimchi", "nvidia"]);
 
 export function needsTerminationPrompt(provider, model) {
@@ -102,12 +103,11 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
   */
- // Pool-scoped failure retry: when an executor tags an error as belonging to a
- // proxy pool (region gate, dead proxy, per-IP limit), mark the pool unfit and
- // re-resolve the proxy config excluding it, then retry instead of failing the
- // whole account. resolveProxyConfig is injected by the SSE handler; when absent
- // (e.g. direct callers) the retry path degrades to the original behavior.
- const MAX_POOL_RETRIES = 2;
+// Pool-scoped failure retry: when an executor tags an error as belonging to a
+// proxy pool (region gate, dead proxy, per-IP limit), mark the pool unfit and
+// re-resolve the proxy config excluding it, then retry instead of failing the
+// whole account. resolveProxyConfig is injected by the SSE handler; when absent
+// (e.g. direct callers) the retry path degrades to the original behavior.
 
  /**
   * Remove translator-internal continuity fields from the outbound upstream
@@ -445,16 +445,19 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     }
   }
 
-  const proxyOptions = {
-    connectionProxyEnabled: credentials?.providerSpecificData?.connectionProxyEnabled === true,
-    connectionProxyUrl: credentials?.providerSpecificData?.connectionProxyUrl || "",
-    connectionNoProxy: credentials?.providerSpecificData?.connectionNoProxy || "",
-    vercelRelayUrl: credentials?.providerSpecificData?.vercelRelayUrl || "",
-  };
+  const buildProxyOptions = (psd = {}) => ({
+    connectionProxyEnabled: psd?.connectionProxyEnabled === true,
+    connectionProxyUrl: psd?.connectionProxyUrl || "",
+    connectionNoProxy: psd?.connectionNoProxy || "",
+    vercelRelayUrl: psd?.vercelRelayUrl || "",
+    strictProxy: psd?.strictProxy === true || provider === "freebuff",
+    proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
+  });
+  let proxyOptions = buildProxyOptions(credentials?.providerSpecificData || {});
 
   if (proxyOptions.vercelRelayUrl) {
     const connectionName = credentials?.connectionName || credentials?.connectionId || "unknown";
-    const poolId = credentials?.providerSpecificData?.connectionProxyPoolId || "none";
+    const poolId = proxyOptions.proxyPoolId || "none";
     log?.info?.("PROXY", `${provider.toUpperCase()} | ${model} | conn=${connectionName} | pool=${poolId} | vercel-relay=${proxyOptions.vercelRelayUrl}`);
   } else if (proxyOptions.connectionProxyEnabled && proxyOptions.connectionProxyUrl) {
     let maskedProxyUrl = proxyOptions.connectionProxyUrl;
@@ -509,6 +512,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
 
   const executeWithPoolFallback = async (attempt = 0) => {
     let result;
+    let parsedNonOk = null;
     try {
       result = await executor.execute({ model, body: translatedBody, stream: upstreamStream, credentials, signal: streamController.signal, log, proxyOptions, accountCount });
     } catch (error) {
@@ -557,7 +561,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     }
     const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
-    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg, error?.resetsAtMs || undefined);
   }
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)
@@ -600,7 +604,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+    const { statusCode, message, resetsAtMs } = parsedNonOk || await parseUpstreamError(providerResponse, executor);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,
@@ -619,7 +623,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 

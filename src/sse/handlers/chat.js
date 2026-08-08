@@ -505,6 +505,21 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         };
       },
       clientSignal,
+      resolveProxyConfig: async (creds, excludePoolIds = []) => {
+        const psd = { ...(creds?.providerSpecificData || {}) };
+        if (psd.proxyPoolIds?.length) psd.proxyPoolScope = `${provider}::${model}`;
+        const resolved = await resolveConnectionProxyConfig(psd, creds?.connectionId || creds?.id, excludePoolIds);
+        if (!resolved?.proxyPoolId) return null;
+        return {
+          connectionProxyEnabled: resolved.connectionProxyEnabled,
+          connectionProxyUrl: resolved.connectionProxyUrl,
+          connectionNoProxy: resolved.connectionNoProxy,
+          connectionProxyPoolId: resolved.proxyPoolId || null,
+          vercelRelayUrl: resolved.vercelRelayUrl || "",
+          proxyPoolId: resolved.proxyPoolId || null,
+          strictProxy: resolved.strictProxy === true,
+        };
+      },
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
       onCredentialsRefreshed: async (newCreds) => {

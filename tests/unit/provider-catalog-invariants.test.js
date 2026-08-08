@@ -19,6 +19,7 @@ const PROTECTED = {
     modelIds: [
       "minimaxai/minimax-m2.7",
       "minimaxai/minimax-m3",
+      "moonshotai/kimi-k2.6",
       "z-ai/glm-5.2",
       "deepseek-ai/deepseek-v4-pro",
       "deepseek-ai/deepseek-v4-flash",

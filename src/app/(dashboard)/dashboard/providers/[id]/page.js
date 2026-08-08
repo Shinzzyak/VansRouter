@@ -998,6 +998,20 @@ export default function ProviderDetailPage() {
                       body: JSON.stringify(updatePayload),
                     });
                     if (res.ok) {
+                      const nextProviderSpecificData = { ...conn.providerSpecificData };
+                      if (updatePayload.proxyPoolIds) {
+                        nextProviderSpecificData.proxyPoolIds = updatePayload.proxyPoolIds;
+                        nextProviderSpecificData.proxyRotationStrategy = updatePayload.proxyRotationStrategy;
+                        delete nextProviderSpecificData.proxyPoolId;
+                      } else if (updatePayload.proxyPoolId) {
+                        nextProviderSpecificData.proxyPoolId = updatePayload.proxyPoolId;
+                        delete nextProviderSpecificData.proxyPoolIds;
+                        delete nextProviderSpecificData.proxyRotationStrategy;
+                      } else {
+                        delete nextProviderSpecificData.proxyPoolId;
+                        delete nextProviderSpecificData.proxyPoolIds;
+                        delete nextProviderSpecificData.proxyRotationStrategy;
+                      }
                       setConnections(prev => prev.map(c =>
                         c.id === conn.id
                           ? { 

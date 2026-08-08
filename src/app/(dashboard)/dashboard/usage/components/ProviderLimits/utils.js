@@ -507,6 +507,21 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "freebuff":
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([modelKey, quota]) => {
+            normalizedQuotas.push({
+              name: quota.displayName || modelKey,
+              modelKey,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              recurring: quota.recurring !== false,
+            });
+          });
+        }
+        break;
+
       case "deepseek":
         // Credit balance — remainingPercentage only (no absolute remaining).
         if (data.quotas) {
@@ -525,6 +540,10 @@ export function parseQuotaData(provider, data) {
       case "ollama":
         // Session (5h) / Weekly (7d) usage % from ollama.com/api/usage.
         // remainingPercentage only — no absolute remaining (UI treats remaining as %).
+      case "grok-cli":
+        // Grok Build credits (on-demand window + prepaid balance).
+        // Do NOT forward absolute `remaining` — getRemainingPercentage treats
+        // it as a 0–100 percentage (same as Qoder). Use remainingPercentage.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({

@@ -32,32 +32,19 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   }, [connection]);
 
   const proxyPoolMap = new Map((proxyPools || []).map((pool) => [pool.id, pool]));
-  
-  // Display logic - support both new (multi-proxy) and legacy (single proxy) formats
+  const boundProxyPoolId = selectedProxyIds[0] || null;
+  const boundProxyPool = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
   const hasAnyProxy = selectedProxyIds.length > 0 || hasLegacyProxy;
-  
-  const getProxyDisplayText = () => {
-    if (selectedProxyIds.length === 0 && !hasLegacyProxy) return "";
-    
-    if (selectedProxyIds.length === 1) {
-      const pool = proxyPoolMap.get(selectedProxyIds[0]);
-      return pool ? `Pool: ${pool.name}` : `Pool: ${selectedProxyIds[0]} (inactive/missing)`;
-    }
-    
-    if (selectedProxyIds.length > 1) {
-      const strategyLabel = rotationStrategy === "random" ? "Random" : rotationStrategy === "round-robin" ? "Round Robin" : rotationStrategy === "failover" ? "Failover" : rotationStrategy === "smart" ? "Smart" : "Multiple";
-      return `${selectedProxyIds.length} pools (${strategyLabel})`;
-    }
-    
-    if (hasLegacyProxy) {
-      return `Legacy: ${connection.providerSpecificData?.connectionProxyUrl}`;
-    }
-    
-    return "";
-  };
-  
-  const proxyDisplayText = getProxyDisplayText();
+  const proxyDisplayText = selectedProxyIds.length > 1
+    ? `${selectedProxyIds.length} pools (${rotationStrategy})`
+    : boundProxyPool
+    ? `Pool: ${boundProxyPool.name}`
+    : boundProxyPoolId
+      ? `Pool: ${boundProxyPoolId} (inactive/missing)`
+      : hasLegacyProxy
+        ? `Legacy: ${connection.providerSpecificData?.connectionProxyUrl}`
+        : "";
   const autoPingTooltip = autoPing?.provider === "codex"
     ? "Auto-starts the next 5h Codex window after reset by sending a tiny gpt-5.5 request. Consumes a small amount of quota."
     : "When your 5h quota runs out, auto-sends a request the moment it resets so a new window starts right away.";
@@ -160,7 +147,18 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
       });
     } finally {
       setUpdatingProxy(false);
+    }
+  };
+
+  const handleAdvancedProxy = async (strategy, ids) => {
+    const activeIds = ids.filter((id) => proxyPoolMap.get(id)?.isActive === true);
+    if (!activeIds.length) return;
+    setUpdatingProxy(true);
+    try {
+      await onUpdateProxy({ proxyPoolIds: activeIds, proxyRotationStrategy: strategy });
       setShowProxyDropdown(false);
+    } finally {
+      setUpdatingProxy(false);
     }
   };
 

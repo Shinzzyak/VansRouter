@@ -106,3 +106,4 @@ export { CodeBuddyExecutor } from "./codebuddy-cn.js";
 export { MuseSparkWebExecutor } from "./muse-spark-web.js";
 export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
+export { FreebuffExecutor } from "./freebuff.js";

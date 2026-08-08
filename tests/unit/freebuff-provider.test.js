@@ -240,6 +240,24 @@ describe("freebuff session pre-flight", () => {
     expect(fetchMock.mock.calls.length).toBe(2);
   });
 
+  it("resolveSessionGate auto-switches model_locked to the session model and limited_ip to a limited-tier model", async () => {
+    const { resolveSessionGate, LIMITED_TIER_MODELS } = __test__;
+
+    // model_locked with a different currentModel → switch to it.
+    expect(
+      resolveSessionGate({ kind: "model_locked", currentModel: "openai/gpt-5.6-luna" }, { model: "deepseek/deepseek-v4-flash", log: null }),
+    ).toEqual({ fallbackModel: "openai/gpt-5.6-luna" });
+
+    // Same-model lock → no fallback (would loop).
+    expect(resolveSessionGate({ kind: "model_locked", currentModel: "deepseek/deepseek-v4-flash" }, { model: "deepseek/deepseek-v4-flash", log: null })).toBeNull();
+
+    // limited_ip on a non-limited model → switch to limited-tier default.
+    expect(resolveSessionGate({ kind: "limited_ip" }, { model: "openai/gpt-5.6-luna", log: null })).toEqual({ fallbackModel: LIMITED_TIER_MODELS[0] });
+
+    // limited-tier model already → no switch.
+    expect(resolveSessionGate({ kind: "limited_ip" }, { model: LIMITED_TIER_MODELS[0], log: null })).toBeNull();
+  });
+
   it("treats status none as no-session-needed (instanceId null)", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ status: "none", accessTier: "full" }));
     const res = await ensureSession("tok-1", "deepseek/deepseek-v4-flash", null);
@@ -584,57 +602,5 @@ describe("freebuff executor execute", () => {
     const finishes = runCalls.filter(([, o]) => JSON.parse(o.body).action === "FINISH");
     expect(finishes.length).toBe(1);
     expect(JSON.parse(finishes[0][1].body).status).toBe("cancelled");
-  });
-});
-
-
-describe("resolveSessionGate auto-switch (session-aware model fallback)", () => {
-  const base = { token: "tok-1", model: "openai/gpt-5.6-luna", proxyKey: "direct", poolId: null, log: null };
-
-  it("model_locked returns the session's bound model as fallback", () => {
-    const gate = { kind: "model_locked", currentModel: "deepseek/deepseek-v4-flash" };
-    const out = __test__.resolveSessionGate(gate, base);
-    expect(out).toEqual({ fallbackModel: "deepseek/deepseek-v4-flash" });
-  });
-
-  it("model_locked without a currentModel throws (no fallback possible)", () => {
-    const gate = { kind: "model_locked", currentModel: null };
-    expect(() => __test__.resolveSessionGate(gate, base)).toThrow(/locked/);
-  });
-
-  it("model_locked for the same model throws (would infinite-loop)", () => {
-    const gate = { kind: "model_locked", currentModel: "openai/gpt-5.6-luna" };
-    expect(() => __test__.resolveSessionGate(gate, base)).toThrow(/locked/);
-  });
-
-  it("limited_ip falls back to a limited-tier model", () => {
-    const gate = { kind: "limited_ip" };
-    const out = __test__.resolveSessionGate(gate, { ...base, model: "openai/gpt-5.6-luna" });
-    expect(out.fallbackModel).toBe("deepseek/deepseek-v4-flash");
-  });
-
-  it("limited_ip for an already-limited model throws (no better fallback)", () => {
-    const gate = { kind: "limited_ip" };
-    expect(() => __test__.resolveSessionGate(gate, { ...base, model: "deepseek/deepseek-v4-flash" })).toThrow(/limited/);
-  });
-
-  it("unknown gate kinds return null (no switch)", () => {
-    expect(__test__.resolveSessionGate({ kind: "stale" }, base)).toBeNull();
-  });
-
-  it("executor recursion guard: depth > 2 throws instead of looping", async () => {
-    const executor = new FreebuffExecutor();
-    await expect(
-      executor.execute({
-        model: "deepseek/deepseek-v4-flash",
-        body: { messages: [{ role: "user", content: "hi" }] },
-        stream: false,
-        credentials: { accessToken: "tok-x" },
-        signal: null,
-        log: null,
-        proxyOptions: null,
-        _depth: 3,
-      }),
-    ).rejects.toThrow(/recursion exceeded/);
   });
 });

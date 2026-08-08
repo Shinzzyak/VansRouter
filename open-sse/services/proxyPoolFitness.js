@@ -1,40 +1,87 @@
-// Pool fitness registry — shared, in-memory, engine layer.
-//
-// Rotation strategies can opt into region/provider-aware pool selection: an
-// executor that learns a pool's egress is unfit for a provider/model (e.g.
-// Freebuff limited-mode IP) marks it here, and the pool picker skips it for
-// that scope until the cooldown expires.
-//
-// Scope format: `provider::model` (e.g. "freebuff::openai/gpt-5.6-luna").
-// All functions are fail-open: unknown pool/scope ⇒ fit.
+// Durable proxy-pool fitness registry.
+// Scope format: `provider::model` (for example `freebuff::openai/gpt-5`).
+// The map is a read-through cache; SQLite is the source of truth.
 
-// Scope format: `provider::model` (e.g. "freebuff::openai/gpt-5.6-luna").
-// All functions are fail-open: unknown pool/scope ⇒ fit.
-//
-// State lives on globalThis so Next dev (Turbopack) never splits one Map into
-// several per-bundle copies — the executor/chatCore marks and the
-// /api/proxy-pools/fitness reader must share the SAME registry.
+import {
+  getProxyPoolById,
+  listProxyPoolFitness,
+  upsertProxyPoolFitness,
+  deleteProxyPoolFitness,
+  clearProxyPoolFitness,
+} from "@/models";
 
 const FITNESS_STATE_KEY = "__9routerPoolFitness__";
-const fitness = (globalThis[FITNESS_STATE_KEY] ??= new Map()); // poolId -> Map<scope, { until, reason }>
+const fitness = (globalThis[FITNESS_STATE_KEY] ??= new Map());
 
 export const POOL_UNFIT_MS = 5 * 60 * 1000;
 
-export function markPoolUnfit(poolId, scope, until = Date.now() + POOL_UNFIT_MS, reason = "") {
-  if (!poolId || !scope) return;
+function setPoolFitness(poolId, entries) {
+  if (entries.length) fitness.set(poolId, new Map(entries.map((entry) => [entry.scope, { until: entry.until, reason: entry.reason || "" }])));
+  else fitness.delete(poolId);
+}
+
+function entriesFromMap(poolId) {
+  const byScope = fitness.get(poolId);
+  return byScope ? [...byScope.entries()].map(([scope, entry]) => ({ poolId, scope, ...entry })) : [];
+}
+
+function updateCachedFitness(poolId, scope, until, reason = "") {
   const byScope = fitness.get(poolId) || new Map();
   byScope.set(scope, { until, reason });
   fitness.set(poolId, byScope);
 }
 
-export function clearPoolUnfit(poolId, scope) {
-  const byScope = fitness.get(poolId);
-  if (!byScope) return;
-  byScope.delete(scope);
-  if (byScope.size === 0) fitness.delete(poolId);
+async function migrateLegacyFitness(poolId) {
+  const pool = await getProxyPoolById(poolId);
+  const legacy = Object.entries(pool?.fitness || {}).filter(([, entry]) => Number.isFinite(entry?.until));
+  if (!legacy.length) return;
+  await Promise.all(legacy.map(([scope, entry]) => upsertProxyPoolFitness(poolId, scope, entry.until, entry.reason || "")));
 }
 
-// "provider::model" -> "provider::*" (null when the scope has no provider part)
+export async function loadPoolFitness(poolId) {
+  if (!poolId) return;
+  try {
+    let entries = await listProxyPoolFitness(poolId);
+    if (!entries.length) {
+      await migrateLegacyFitness(poolId);
+      entries = await listProxyPoolFitness(poolId);
+    }
+    const now = Date.now();
+    const active = entries.filter((entry) => entry.until > now);
+    setPoolFitness(poolId, active);
+    const expired = entries.filter((entry) => entry.until <= now);
+    if (expired.length) await Promise.all(expired.map((entry) => deleteProxyPoolFitness(poolId, entry.scope)));
+  } catch {
+    // Fitness is fail-open when persistence is unavailable.
+  }
+}
+
+export async function markPoolUnfit(poolId, scope, until = Date.now() + POOL_UNFIT_MS, reason = "") {
+  if (!poolId || !scope || !Number.isFinite(until)) return false;
+  try {
+    await upsertProxyPoolFitness(poolId, scope, until, reason);
+    updateCachedFitness(poolId, scope, until, reason);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function clearPoolUnfit(poolId, scope) {
+  if (!poolId || !scope) return false;
+  try {
+    await deleteProxyPoolFitness(poolId, scope);
+    const byScope = fitness.get(poolId);
+    if (byScope) {
+      byScope.delete(scope);
+      if (byScope.size === 0) fitness.delete(poolId);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function providerWildcardScope(scope) {
   const sep = String(scope || "").indexOf("::");
   if (sep < 0) return null;
@@ -45,10 +92,7 @@ export function isPoolFit(poolId, scope, now = Date.now()) {
   if (!poolId) return true;
   const byScope = fitness.get(poolId);
   if (!byScope) return true;
-  // A provider-wide mark ("provider::*", e.g. manual blocks) also covers any
-  // model lookup for that provider.
-  const candidates = [scope, providerWildcardScope(scope)];
-  for (const key of candidates) {
+  for (const key of [scope, providerWildcardScope(scope)]) {
     if (!key) continue;
     const entry = byScope.get(key);
     if (!entry) continue;
@@ -62,65 +106,60 @@ export function isPoolFit(poolId, scope, now = Date.now()) {
   return true;
 }
 
-// Keep only pool ids that are not in cooldown for the scope.
 export function fitPoolIds(poolIds, scope, now = Date.now()) {
   return (poolIds || []).filter((id) => isPoolFit(id, scope, now));
 }
 
-// Clear every mark — or only scopes belonging to one provider (`provider::*`).
-export function clearAllPoolUnfit(provider = null) {
-  if (provider) {
-    const prefix = `${provider}::`;
-    for (const [poolId, byScope] of fitness) {
-      for (const scope of [...byScope.keys()]) {
-        if (scope.startsWith(prefix)) byScope.delete(scope);
-      }
-      if (byScope.size === 0) fitness.delete(poolId);
-    }
-    return;
-  }
-  fitness.clear();
-}
-
-// Snapshot of live (non-expired) marks — expired entries are pruned here so
-// consumers never see stale data and memory stays bounded.
-// Test helper: drop all marks (module state is globalThis-backed).
-export function resetPoolFitness() {
-  fitness.clear();
-}
-
-// Sweep all expired marks. Returns how many scope entries were removed.
-export function pruneExpired(now = Date.now()) {
-  let removed = 0;
-  for (const [poolId, byScope] of fitness) {
-    for (const [scope, entry] of byScope) {
-      if (entry.until <= now) {
-        byScope.delete(scope);
-        removed += 1;
+export async function clearAllPoolUnfit(provider = null) {
+  try {
+    await clearProxyPoolFitness(provider);
+    if (!provider) fitness.clear();
+    else {
+      const prefix = `${provider}::`;
+      for (const [poolId, byScope] of fitness) {
+        for (const scope of [...byScope.keys()]) if (scope.startsWith(prefix)) byScope.delete(scope);
+        if (!byScope.size) fitness.delete(poolId);
       }
     }
-    if (byScope.size === 0) fitness.delete(poolId);
+    return true;
+  } catch {
+    return false;
   }
-  return removed;
 }
 
-export function poolFitnessSnapshot(now = Date.now()) {
+export async function resetPoolFitness() {
+  try {
+    await clearProxyPoolFitness();
+    fitness.clear();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function pruneExpired(now = Date.now()) {
+  const entries = await listProxyPoolFitness();
+  const expired = entries.filter((entry) => entry.until <= now);
+  await Promise.all(expired.map((entry) => deleteProxyPoolFitness(entry.poolId, entry.scope)));
+  for (const entry of expired) {
+    const byScope = fitness.get(entry.poolId);
+    byScope?.delete(entry.scope);
+    if (byScope && !byScope.size) fitness.delete(entry.poolId);
+  }
+  return expired.length;
+}
+
+export async function poolFitnessSnapshot(now = Date.now()) {
+  const entries = await listProxyPoolFitness();
   const out = {};
-  for (const [poolId, byScope] of fitness) {
-    let pruned = false;
-    for (const [scope, entry] of byScope) {
-      if (entry.until <= now) {
-        byScope.delete(scope);
-        pruned = true;
-      }
-    }
-    if (byScope.size === 0) {
-      fitness.delete(poolId);
+  for (const entry of entries) {
+    if (entry.until <= now) {
+      await deleteProxyPoolFitness(entry.poolId, entry.scope);
       continue;
     }
-    if (pruned || byScope.size > 0) {
-      out[poolId] = Object.fromEntries(byScope);
-    }
+    const byScope = out[entry.poolId] || (out[entry.poolId] = {});
+    byScope[entry.scope] = { until: entry.until, reason: entry.reason || "" };
+    setPoolFitness(entry.poolId, entriesFromMap(entry.poolId).concat(entry));
   }
   return out;
 }

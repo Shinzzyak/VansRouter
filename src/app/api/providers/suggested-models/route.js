@@ -19,7 +19,7 @@ export async function GET(request) {
   }
 
   try {
-    assertPublicUrl(url);
+    await assertPublicUrl(url);
     const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5000) });
     if (!res.ok) {
       return NextResponse.json({ data: [] });
