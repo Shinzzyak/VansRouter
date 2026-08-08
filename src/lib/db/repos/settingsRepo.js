@@ -52,6 +52,10 @@ const DEFAULT_SETTINGS = {
   ponytailLevel: "full",
   godmodeEnabled: false,
   godmodeLevel: "lite",
+  // YYDS temp-mail support
+  yydsEnabled: false,
+  yydsApiKey: "",
+  yydsJwt: "",
 };
 
 async function readRaw() {
