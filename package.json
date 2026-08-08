@@ -1,8 +1,11 @@
 {
   "name": "vansrouter-app",
-  "version": "0.9.96",
+  "version": "0.9.97",
   "description": "9Router web dashboard",
   "private": true,
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
