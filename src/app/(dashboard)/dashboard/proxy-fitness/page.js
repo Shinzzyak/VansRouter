@@ -44,15 +44,145 @@ export default function ProxyFitnessPage() {
     await fetch("/api/proxy-pools/fitness/clear-all", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(provider === "all" ? {} : { provider }) });
     setConfirm(false); notify.success("Proxy fitness cleared"); fetchAll();
   };
-  return <div className="mx-auto w-full max-w-5xl space-y-4 p-4 sm:p-6">
-    {loading ? <CardSkeleton /> : <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><h1 className="text-lg font-semibold">Proxy Fitness</h1><Badge variant={records.length ? "error" : "default"}>{records.length} active blocks</Badge></div><div className="flex gap-2"><Button variant="secondary" size="sm" onClick={fetchAll}>Refresh</Button>{records.length > 0 && <Button variant="danger" size="sm" onClick={() => setConfirm(true)}>Clear All</Button>}</div></div>
-      <p className="text-sm text-text-muted">Smart rotation skips pools marked unfit for a provider/model.</p>
-      <div className="flex flex-wrap gap-3"><select value={provider} onChange={(e) => setProvider(e.target.value)} className="rounded border border-border bg-bg px-2 py-2 text-sm"><option value="all">All providers</option>{providers.map((p) => <option key={p}>{p}</option>)}</select><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="IP / proxy / pool" icon="search" /></div>
-      <Card className="overflow-x-auto p-0"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted"><th className="px-4 py-2">Provider</th><th className="px-4 py-2">Model</th><th className="px-4 py-2">Pool</th><th className="px-4 py-2">Reason</th><th className="px-4 py-2">Until</th><th /></tr></thead><tbody>{records.length ? records.map((r) => <tr key={`${r.poolId}:${r.scope}`} className="border-b border-border-subtle"><td className="px-4 py-3">{r.provider}</td><td className="px-4 py-3">{r.model}</td><td className="px-4 py-3">{r.poolName}</td><td className="px-4 py-3">{r.reason}</td><td className="px-4 py-3">{new Date(r.until).toLocaleTimeString()}</td><td className="px-4 py-3"><Button variant="ghost" size="sm" onClick={async () => { await fetch(`/api/proxy-pools/${r.poolId}/fitness/clear`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: r.scope }) }); fetchAll(); }}>Clear</Button></td></tr>) : <tr><td colSpan={6} className="px-4 py-10 text-center text-text-muted">No active blocks.</td></tr>}</tbody></table></Card>
-    </>}
-    <ConfirmModal isOpen={confirm} onClose={() => setConfirm(false)} onConfirm={clearAll} title="Clear proxy fitness" message="Clear active proxy fitness blocks?" confirmText="Clear All" cancelText="Cancel" variant="danger" />
-  </div>;
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
+      {loading ? (
+        <CardSkeleton />
+      ) : (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold sm:text-2xl">Proxy Fitness</h1>
+                <Badge variant={records.length ? "error" : "default"}>
+                  {records.length} active blocks
+                </Badge>
+              </div>
+              <p className="text-sm text-text-muted mt-1">
+                Smart rotation skips pools marked unfit for a provider/model.
+              </p>
+            </div>
+            <div className="flex gap-2 sm:items-center">
+              <Button variant="secondary" size="sm" onClick={fetchAll} icon="refresh">
+                Refresh
+              </Button>
+              {records.length > 0 && (
+                <Button variant="danger" size="sm" onClick={() => setConfirm(true)} icon="clear_all">
+                  Clear All
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+                className="h-[42px] px-3.5 rounded-[10px] text-sm text-text-main bg-surface-2 border border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/40 transition-all min-w-[160px] cursor-pointer"
+              >
+                <option value="all">All providers</option>
+                {providers.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>
+              <div className="w-full sm:w-72">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search IP / proxy / pool..."
+                  icon="search"
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Card className="overflow-x-auto p-0">
+            <table className="w-full min-w-[650px] text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
+                  <th className="px-5 py-3">Provider</th>
+                  <th className="px-5 py-3">Model</th>
+                  <th className="px-5 py-3">Pool</th>
+                  <th className="px-5 py-3">Reason</th>
+                  <th className="px-5 py-3">Until</th>
+                  <th className="px-5 py-3 text-right" />
+                </tr>
+              </thead>
+              <tbody>
+                {records.length ? (
+                  records.map((r) => (
+                    <tr
+                      key={`${r.poolId}:${r.scope}`}
+                      className="border-b border-border-subtle hover:bg-surface-2/40 transition-colors"
+                    >
+                      <td className="px-5 py-3.5 font-medium">{r.provider}</td>
+                      <td className="px-5 py-3.5">
+                        <code className="px-1.5 py-0.5 rounded bg-surface-3 text-xs font-mono">
+                          {r.model}
+                        </code>
+                      </td>
+                      <td className="px-5 py-3.5 text-text-muted">{r.poolName}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500">
+                          <span className="size-1.5 rounded-full bg-red-500" />
+                          {r.reason}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-text-muted">
+                        {new Date(r.until).toLocaleTimeString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await fetch(`/api/proxy-pools/${r.poolId}/fitness/clear`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ scope: r.scope }),
+                            });
+                            fetchAll();
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-16 text-center text-text-muted">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="material-symbols-outlined text-[32px] text-text-muted/50">
+                          verified_user
+                        </span>
+                        <p className="font-medium text-sm text-text-main">No active blocks</p>
+                        <p className="text-xs text-text-muted">
+                          All proxy pools are healthy and fit for routing.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
+        </>
+      )}
+      <ConfirmModal
+        isOpen={confirm}
+        onClose={() => setConfirm(false)}
+        onConfirm={clearAll}
+        title="Clear proxy fitness"
+        message="Clear active proxy fitness blocks?"
+        confirmText="Clear All"
+        cancelText="Cancel"
+        variant="danger"
+      />
+    </div>
+  );
 }
 
 export { recordsOf };
