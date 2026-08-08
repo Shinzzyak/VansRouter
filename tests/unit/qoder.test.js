@@ -21,7 +21,8 @@ import {
   QODER_MODEL_MAP,
 } from "../../src/lib/qoder/constants.js";
 import { PROVIDER_MODELS } from "../../open-sse/config/providerModels.js";
-import { __test__ as qoderExecutorInternals } from "../../open-sse/executors/qoder.js";
+import { QoderExecutor, __test__ as qoderExecutorInternals } from "../../open-sse/executors/qoder.js";
+import { isQoderPat } from "../../open-sse/services/qoderModels.js";
 
 // Convenience aliases — tests were originally written against module-level
 // helpers; the QoderService class wraps them so each test creates its own
@@ -29,6 +30,21 @@ import { __test__ as qoderExecutorInternals } from "../../open-sse/executors/qod
 const generatePkcePair = () => new QoderService().generatePkcePair();
 const initiateDeviceFlow = () => new QoderService().initiateDeviceFlow();
 const parseExpiry = QoderService.parseExpiry;
+
+describe("Qoder PAT credentials", () => {
+  it("recognizes only Qoder personal tokens", () => {
+    expect(isQoderPat("pt-example")).toBe(true);
+    expect(isQoderPat("jt-example")).toBe(false);
+    expect(isQoderPat("")).toBe(false);
+    expect(isQoderPat(null)).toBe(false);
+  });
+
+  it("routes resolved job tokens to api2", () => {
+    const executor = new QoderExecutor();
+    expect(executor.buildUrl({ accessToken: "jt-example" })).toContain("https://api2.qoder.sh");
+    expect(executor.buildUrl({ accessToken: "dt-example" })).toContain("https://api3.qoder.sh");
+  });
+});
 
 describe("QODER_MODEL_MAP", () => {
   it("allows Qoder's latest model key", () => {

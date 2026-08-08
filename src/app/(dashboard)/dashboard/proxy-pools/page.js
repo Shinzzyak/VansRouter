@@ -152,6 +152,7 @@ export default function ProxyPoolsPage() {
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ label: "", current: 0, total: 0 });
   const [confirmState, setConfirmState] = useState(null);
   const relayMenuRef = useRef(null);
   const notify = useNotificationStore();
@@ -321,22 +322,25 @@ export default function ProxyPoolsPage() {
     const targets = selectedIds.length > 0 ? selectedIds : proxyPools.map((p) => p.id);
     if (targets.length === 0) return;
     setBulkBusy(true);
+    setBatchProgress({ label: isActive ? "Activating" : "Deactivating", current: 0, total: targets.length });
     try {
-      const results = await Promise.all(targets.map(async (id) => {
+      let ok = 0;
+      for (const id of targets) {
         try {
           const res = await fetch(`/api/proxy-pools/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ isActive }),
           });
-          return res.ok ? "ok" : "fail";
-        } catch { return "fail"; }
-      }));
-      const ok = results.filter(r => r === "ok").length;
-      const failed = results.filter(r => r === "fail").length;
+          if (res.ok) ok += 1;
+        } catch { /* count as failed */ }
+        setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
+      }
+      const failed = targets.length - ok;
       await fetchProxyPools();
       notify.success(`${isActive ? "Activated" : "Deactivated"} ${ok}${failed ? `, failed ${failed}` : ""}`);
     } finally {
+      setBatchProgress({ label: "", current: 0, total: 0 });
       setBulkBusy(false);
     }
   };
@@ -347,24 +351,26 @@ export default function ProxyPoolsPage() {
       title: "Delete Proxy Pools",
       message: `Delete ${selectedIds.length} proxy pool(s)?`,
       onConfirm: async () => {
-        setConfirmState(null);
         setBulkBusy(true);
+        const targets = [...selectedIds];
+        setBatchProgress({ label: "Deleting", current: 0, total: targets.length });
         try {
-          const results = await Promise.all(selectedIds.map(async (id) => {
+          let ok = 0;
+          let blocked = 0;
+          for (const id of targets) {
             try {
               const res = await fetch(`/api/proxy-pools/${id}`, { method: "DELETE" });
-              if (res.ok) return "ok";
-              if (res.status === 409) return "blocked";
-              return "fail";
-            } catch { return "fail"; }
-          }));
-          const ok = results.filter(r => r === "ok").length;
-          const blocked = results.filter(r => r === "blocked").length;
-          const failed = results.filter(r => r === "fail").length;
+              if (res.ok) ok += 1;
+              else if (res.status === 409) blocked += 1;
+            } catch { /* count as failed */ }
+            setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
+          }
+          const failed = targets.length - ok - blocked;
           await fetchProxyPools();
           clearSelection();
           notify.success(`Deleted ${ok}${blocked ? `, ${blocked} bound` : ""}${failed ? `, ${failed} failed` : ""}`);
         } finally {
+          setBatchProgress({ label: "", current: 0, total: 0 });
           setBulkBusy(false);
         }
       }
@@ -595,22 +601,24 @@ export default function ProxyPoolsPage() {
         return true;
       });
 
-      const results = await Promise.all(toCreate.map(async (entry) => {
-        const res = await fetch("/api/proxy-pools", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: entry.name,
-            proxyUrl: entry.proxyUrl,
-            noProxy: "",
-            isActive: true,
-          }),
-        });
-        return res.ok;
-      }));
-
-      for (const ok of results) {
-        if (ok) created += 1; else failed += 1;
+      setBatchProgress({ label: "Importing", current: 0, total: toCreate.length });
+      for (const entry of toCreate) {
+        try {
+          const res = await fetch("/api/proxy-pools", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: entry.name,
+              proxyUrl: entry.proxyUrl,
+              noProxy: "",
+              isActive: true,
+            }),
+          });
+          if (res.ok) created += 1; else failed += 1;
+        } catch {
+          failed += 1;
+        }
+        setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
       }
 
       await fetchProxyPools();
@@ -620,6 +628,7 @@ export default function ProxyPoolsPage() {
       console.log("Error batch importing proxies:", error);
       notify.error("Batch import failed");
     } finally {
+      setBatchProgress({ label: "", current: 0, total: 0 });
       setImporting(false);
     }
   };
@@ -719,12 +728,21 @@ export default function ProxyPoolsPage() {
           <Badge variant="success">Active: {activeCount}</Badge>
         </div>
 
-        {(selectedIds.length > 0 || healthChecking) && (
+        {(selectedIds.length > 0 || healthChecking || batchProgress.total > 0) && (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
             <span className="material-symbols-outlined text-[18px] text-primary">checklist</span>
             <span className="text-xs font-medium text-primary">
-              {selectedIds.length > 0 ? `${selectedIds.length} selected` : "All pools"}
+              {batchProgress.total > 0
+                ? `${batchProgress.label} ${batchProgress.current}/${batchProgress.total}`
+                : selectedIds.length > 0 ? `${selectedIds.length} selected` : "All pools"}
             </span>
+            {batchProgress.total > 0 && (
+              <div className="w-full basis-full" role="progressbar" aria-valuemin="0" aria-valuemax={batchProgress.total} aria-valuenow={batchProgress.current} aria-label={`${batchProgress.label} progress`}>
+                <div className="h-1.5 overflow-hidden rounded-full bg-primary/15">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }} />
+                </div>
+              </div>
+            )}
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
