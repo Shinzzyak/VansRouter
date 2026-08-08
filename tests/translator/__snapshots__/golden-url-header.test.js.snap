@@ -197,6 +197,55 @@ exports[`GOLDEN buildHeaders (default executor providers) > assemblyai → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > autoclaw → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Content-Type": "application/json",
+    "X-Authorization": "Bearer <TOK>",
+    "content-type": "application/json",
+    "origin": "https://autoclaw.z.ai",
+    "referer": "https://autoclaw.z.ai/",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "x-channel": "official",
+    "x-client-type": "web",
+    "x-lang": "zh-CN",
+    "x-product": "autoclaw",
+    "x-tm": "web",
+    "x-version": "1.12.1",
+  },
+  "nonStream": {
+    "Content-Type": "application/json",
+    "X-Authorization": "Bearer <TOK>",
+    "content-type": "application/json",
+    "origin": "https://autoclaw.z.ai",
+    "referer": "https://autoclaw.z.ai/",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "x-channel": "official",
+    "x-client-type": "web",
+    "x-lang": "zh-CN",
+    "x-product": "autoclaw",
+    "x-tm": "web",
+    "x-version": "1.12.1",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Content-Type": "application/json",
+    "X-Authorization": "Bearer <TOK>",
+    "content-type": "application/json",
+    "origin": "https://autoclaw.z.ai",
+    "referer": "https://autoclaw.z.ai/",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "x-channel": "official",
+    "x-client-type": "web",
+    "x-lang": "zh-CN",
+    "x-product": "autoclaw",
+    "x-tm": "web",
+    "x-version": "1.12.1",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > baidu → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -437,12 +486,12 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.9.97",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.97",
     "X-CORE-VERSION": "0.9.97",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v24.15.0",
+    "X-PLATFORM-VERSION": "v22.23.1",
     "X-Title": "Cline",
   },
   "nonStream": {
@@ -450,12 +499,12 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.9.97",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.97",
     "X-CORE-VERSION": "0.9.97",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v24.15.0",
+    "X-PLATFORM-VERSION": "v22.23.1",
     "X-Title": "Cline",
   },
   "oauth": {
@@ -464,12 +513,12 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.9.97",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.97",
     "X-CORE-VERSION": "0.9.97",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v24.15.0",
+    "X-PLATFORM-VERSION": "v22.23.1",
     "X-Title": "Cline",
   },
 }
@@ -1080,7 +1129,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "archlinux",
+    "X-Msh-Device-Name": "VM-6-151-ubuntu",
     "X-Msh-Platform": "9router",
     "X-Msh-Version": "0.9.97",
     "x-api-key": "<CRED>",
@@ -1091,7 +1140,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "archlinux",
+    "X-Msh-Device-Name": "VM-6-151-ubuntu",
     "X-Msh-Platform": "9router",
     "X-Msh-Version": "0.9.97",
     "x-api-key": "<CRED>",
@@ -1103,7 +1152,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "archlinux",
+    "X-Msh-Device-Name": "VM-6-151-ubuntu",
     "X-Msh-Platform": "9router",
     "X-Msh-Version": "0.9.97",
     "x-api-key": "<CRED>",
@@ -1661,6 +1710,34 @@ exports[`GOLDEN buildHeaders (default executor providers) > tokenrouter → head
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > trae → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://solo.trae.ai/",
+    "X-Preferenced-Language": "en",
+    "X-Trae-Client-Type": "web",
+  },
+  "nonStream": {
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://solo.trae.ai/",
+    "X-Preferenced-Language": "en",
+    "X-Trae-Client-Type": "web",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://solo.trae.ai/",
+    "X-Preferenced-Language": "en",
+    "X-Trae-Client-Type": "web",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > upstage → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1775,6 +1852,29 @@ exports[`GOLDEN buildHeaders (default executor providers) > wandb → headers (a
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > windsurf → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/grpc-web+proto",
+    "X-Grpc-Web": "1",
+  },
+  "nonStream": {
+    "Accept": "application/grpc-web+proto",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/grpc-web+proto",
+    "X-Grpc-Web": "1",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/grpc-web+proto",
+    "X-Grpc-Web": "1",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > xai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1834,6 +1934,28 @@ exports[`GOLDEN buildHeaders (default executor providers) > zcode → headers (a
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
     "x-api-key": "<CRED>",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > zed → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
   },
 }
 `;
@@ -1924,6 +2046,13 @@ exports[`GOLDEN buildUrl (default executor providers) > assemblyai → url (stre
 {
   "nonStream": "https://api.assemblyai.com/v1/audio/transcriptions",
   "stream": "https://api.assemblyai.com/v1/audio/transcriptions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > autoclaw → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/chat/completions",
+  "stream": "https://autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/chat/completions",
 }
 `;
 
@@ -2398,8 +2527,15 @@ exports[`GOLDEN buildUrl (default executor providers) > together → url (stream
 
 exports[`GOLDEN buildUrl (default executor providers) > tokenrouter → url (stream + non-stream) 1`] = `
 {
-  "nonStream": "https://www.tokenrouter.com/v1/chat/completions",
-  "stream": "https://www.tokenrouter.com/v1/chat/completions",
+  "nonStream": "https://api.tokenrouter.com/v1/chat/completions",
+  "stream": "https://api.tokenrouter.com/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > trae → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://core-normal.trae.ai/api/remote/v1",
+  "stream": "https://core-normal.trae.ai/api/remote/v1",
 }
 `;
 
@@ -2445,6 +2581,13 @@ exports[`GOLDEN buildUrl (default executor providers) > wandb → url (stream + 
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > windsurf → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://server.codeium.com/exa.language_server_pb.LanguageServerService/GetChatMessage",
+  "stream": "https://server.codeium.com/exa.language_server_pb.LanguageServerService/GetChatMessage",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > xai → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.x.ai/v1/chat/completions",
@@ -2463,6 +2606,13 @@ exports[`GOLDEN buildUrl (default executor providers) > zcode → url (stream + 
 {
   "nonStream": "https://api.z.ai/api/anthropic/v1/messages",
   "stream": "https://api.z.ai/api/anthropic/v1/messages",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > zed → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://cloud.zed.dev/completions",
+  "stream": "https://cloud.zed.dev/completions",
 }
 `;
 

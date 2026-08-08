@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import AutoclawImportModal from "./AutoclawImportModal";
 import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, Pagination } from "@/shared/components";
 import { CONNECTIONS_PER_PAGE, computeConnectionPagination } from "./connectionsPagination";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
@@ -61,6 +62,7 @@ export default function ProviderDetailPage() {
   const [modelsTestError, setModelsTestError] = useState("");
   const [testingModelIds, setTestingModelIds] = useState(() => new Set());
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [showAutoclawImportModal, setShowAutoclawImportModal] = useState(false);
   const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
   const [connectionPage, setConnectionPage] = useState(1);
   const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
@@ -109,6 +111,11 @@ export default function ProviderDetailPage() {
   const triggerApiKeyConnection = () => {
     setAddConnectionError("");
     setShowAddApiKeyModal(true);
+  };
+
+  const triggerAutoclawImport = () => {
+    setAddConnectionError("");
+    setShowAutoclawImportModal(true);
   };
 
   const triggerAddConnection = () => {
@@ -1568,6 +1575,11 @@ export default function ProviderDetailPage() {
                         {translate("Bulk Add")}
                       </Button>
                     )}
+                    {providerId === "autoclaw" && (
+                      <Button size="sm" icon="key" variant="secondary" onClick={triggerAutoclawImport}>
+                        Import Token
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       icon="add"
@@ -1635,6 +1647,18 @@ export default function ProviderDetailPage() {
                       className="w-full sm:w-auto"
                     >
                       {translate("Bulk Add")}
+                    </Button>
+                  )}
+                  {providerId === "autoclaw" && (
+                    <Button
+                      size="sm"
+                      icon="key"
+                      variant="secondary"
+                      onClick={triggerAutoclawImport}
+                      title="Import AutoClaw access + refresh tokens"
+                      className="w-full sm:w-auto"
+                    >
+                      Import Token
                     </Button>
                   )}
                   {hasDualAuthModes ? (
@@ -1813,6 +1837,14 @@ export default function ProviderDetailPage() {
         <BulkImportCodexModal
           isOpen={showBulkImportCodex}
           onClose={() => setShowBulkImportCodex(false)}
+          onSuccess={fetchConnections}
+        />
+      )}
+
+      {providerId === "autoclaw" && (
+        <AutoclawImportModal
+          isOpen={showAutoclawImportModal}
+          onClose={() => setShowAutoclawImportModal(false)}
           onSuccess={fetchConnections}
         />
       )}
