@@ -160,10 +160,10 @@ export default function PoolPanel({ api }) {
               <tbody>
                 {list.map((a) => (
                   <tr key={a.email || a.id}>
-                    <td>{a.email || a.id}</td>
-                    <td>{a.status || a.error || ""}</td>
-                    <td>{a.quota != null ? `${a.quota}%` : ""}</td>
-                    <td>
+                    <td data-label="Email">{a.email || a.id}</td>
+                    <td data-label="Status">{a.status || a.error || ""}</td>
+                    <td data-label="Quota">{a.quota != null ? `${a.quota}%` : ""}</td>
+                    <td data-label="">
                       <button className="harvest-btn danger sm" onClick={() => deleteAccount(a.email)}>✕</button>
                     </td>
                   </tr>
@@ -185,10 +185,10 @@ export default function PoolPanel({ api }) {
             <tbody>
               {keys.map((k) => (
                 <tr key={k.secret || k.id}>
-                  <td>{k.name || ""}</td>
-                  <td className="harvest-mono">{(k.secret || "").slice(0, 12)}…</td>
-                  <td>{k.status || k.error || ""}</td>
-                  <td>
+                  <td data-label="Name">{k.name || ""}</td>
+                  <td data-label="Secret" className="harvest-mono">{(k.secret || "").slice(0, 12)}…</td>
+                  <td data-label="Status">{k.status || k.error || ""}</td>
+                  <td data-label="">
                     <button className="harvest-btn danger sm" onClick={() => deleteKey(k.secret)}>✕</button>
                   </td>
                 </tr>

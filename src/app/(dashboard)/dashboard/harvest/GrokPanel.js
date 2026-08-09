@@ -153,8 +153,8 @@ export default function GrokPanel({ api, events, clearEvents }) {
             <tbody>
               {accounts.map((a) => (
                 <tr key={a.email || a.id}>
-                  <td>{a.email || a.id}</td>
-                  <td>{a.status || a.error || ""}</td>
+                  <td data-label="Email">{a.email || a.id}</td>
+                  <td data-label="Status">{a.status || a.error || ""}</td>
                 </tr>
               ))}
             </tbody>
