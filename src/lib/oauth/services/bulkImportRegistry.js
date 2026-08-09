@@ -92,6 +92,24 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       randomizeProxySession: body?.randomizeProxySession,
     }),
   },
+  "qoder-signup": {
+    label: "Qoder Signup",
+    errorLabel: "Qoder signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./qoderBulkSignupManager.js").then((m) => m.getQoderBulkSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      yydsApiKey: body?.yydsApiKey,
+      yydsDomain: body?.yydsDomain,
+    }),
+  },
   codebuddy: {
     label: "CodeBuddy",
     errorLabel: "Bulk import job",

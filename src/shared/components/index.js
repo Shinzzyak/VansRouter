@@ -45,6 +45,7 @@ export const CloudflareDisposableImportModal = lazyModal(() => import("./Cloudfl
 export const CodeBuddyCnPhoneAutomationModal = lazyModal(() => import("./CodeBuddyCnPhoneAutomationModal"));
 export const AutoclawAutomationModal = lazyModal(() => import("./AutoclawAutomationModal"));
 export const GrokSsoImportModal = lazyModal(() => import("./GrokSsoImportModal"));
+export const QoderSignupModal = lazyModal(() => import("./QoderSignupModal"));
 export const GrokRegisterModal = lazyModal(() =>
   import("@/app/(dashboard)/dashboard/providers/[id]/GrokRegisterModal")
 );
