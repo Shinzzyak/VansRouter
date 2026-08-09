@@ -11,6 +11,9 @@ export default function YydsPage() {
   const [settings, setSettings] = useState(null);
   const [inbox, setInbox] = useState(null); // { address, token }
   const [creating, setCreating] = useState(false);
+  const [bulkCount, setBulkCount] = useState(5);
+  const [bulkInboxes, setBulkInboxes] = useState([]);
+  const [bulkCreating, setBulkCreating] = useState(false);
   const [polling, setPolling] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -79,6 +82,28 @@ export default function YydsPage() {
       notify.error(e.message);
     } finally {
       setPolling(false);
+    }
+  };
+
+  const bulkCreate = async () => {
+    setBulkCreating(true);
+    setError("");
+    try {
+      const r = await fetch("/api/yyds/bulk-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: selectedDomain || undefined, count: bulkCount }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "bulk create failed");
+      setBulkInboxes(j.inboxes || []);
+      notify.success(`${j.created} inboxes created`);
+      if (j.errors?.length) notify.error(`${j.errors.length} failed: ${j.errors[0].error}`);
+    } catch (e) {
+      setError(e.message);
+      notify.error(e.message);
+    } finally {
+      setBulkCreating(false);
     }
   };
 
@@ -164,6 +189,45 @@ export default function YydsPage() {
                         copy
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="p-4">
+                <h2 className="mb-2 text-sm font-semibold text-gray-300">Bulk Create Inboxes</h2>
+                <p className="mb-3 text-xs text-gray-400">
+                  Buat N inbox sekaligus di domain pribadi — untuk bulk-import / mass registration (max 20).
+                </p>
+                <div className="mb-3 flex items-center gap-2">
+                  <label className="text-xs font-medium text-gray-400">Jumlah:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={bulkCount}
+                    onChange={(e) => setBulkCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                    className="w-20 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-sm text-gray-200"
+                  />
+                  <Button onClick={bulkCreate} disabled={bulkCreating}>
+                    {bulkCreating ? "Creating…" : "Bulk Create"}
+                  </Button>
+                </div>
+                {bulkInboxes.length > 0 && (
+                  <div className="mt-2 max-h-48 overflow-y-auto rounded-lg bg-black/20 p-2 text-xs">
+                    {bulkInboxes.map((b, i) => (
+                      <div key={b.address} className="flex items-center justify-between gap-2 border-b border-white/5 py-1 last:border-0">
+                        <span className="truncate font-mono text-emerald-300">{i + 1}. {b.address}</span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-gray-400 hover:text-white"
+                          onClick={() => navigator.clipboard?.writeText(b.address)}
+                        >
+                          copy
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
