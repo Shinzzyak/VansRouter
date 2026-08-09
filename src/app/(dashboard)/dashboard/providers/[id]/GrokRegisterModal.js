@@ -64,9 +64,10 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
   const [mailApiKey, setMailApiKey] = useState("");
   const [mailAuthMode, setMailAuthMode] = useState("none");
   const [mailDomains, setMailDomains] = useState("");
+  const [yydsJwt, setYydsJwt] = useState("");
   const [accountCount, setAccountCount] = useState("1");
   const [concurrency, setConcurrency] = useState("1");
-  const [engine, setEngine] = useState("cloakbrowser");
+  const [engine, setEngine] = useState("chromium");
   const [headless, setHeadless] = useState(false);
   const [proxyUrl, setProxyUrl] = useState("");
   const [activeJob, setActiveJob] = useState(null);
@@ -188,6 +189,7 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
         mailApiKey: mailApiKey.trim(),
         mailAuthMode: mailProvider === "cf-email" ? "none" : mailAuthMode,
         yydsApiKey: mailProvider === "yyds" ? mailApiKey.trim() : "",
+        yydsJwt: mailProvider === "yyds" ? yydsJwt.trim() : "",
       };
       if (proxyUrl.trim()) postBody.proxyUrl = proxyUrl.trim();
 
@@ -294,6 +296,12 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
                   value={mailDomains}
                   onChange={(e) => setMailDomains(e.target.value)}
                   placeholder="zchyur.my.id (kosongkan = auto)"
+                />
+                <Input
+                  label="YYDS JWT (opsional — fallback bila API key scope=team)"
+                  value={yydsJwt}
+                  onChange={(e) => setYydsJwt(e.target.value)}
+                  placeholder="eyJ... (kosongkan = pakai API key)"
                 />
               </div>
             )}
