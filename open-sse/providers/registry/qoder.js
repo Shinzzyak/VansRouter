@@ -52,5 +52,6 @@ export default {
   },
   features: {
     usage: true,
+    usageApikey: true,
   },
 };
