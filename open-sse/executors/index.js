@@ -28,6 +28,7 @@ import ZedExecutor from "./zed.js";
 import TraeExecutor from "./trae.js";
 import WindsurfExecutor from "./windsurf.js";
 import { AutoclawExecutor } from "./autoclaw.js";
+import { QwenExecutor } from "./qwen.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -68,6 +69,7 @@ const executors = {
   trae: new TraeExecutor(),
   windsurf: new WindsurfExecutor(),
   autoclaw: new AutoclawExecutor(),
+  qwen: new QwenExecutor(),
   ac: new AutoclawExecutor(), // Alias
 };
 
@@ -111,3 +113,4 @@ export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 export { FreebuffExecutor } from "./freebuff.js";
 export { AutoclawExecutor } from "./autoclaw.js";
+export { QwenExecutor } from "./qwen.js";
