@@ -137,15 +137,14 @@ class QoderBulkSignupManager extends KiroBulkImportManager {
     const args = [
       "-m",
       "qoderreg",
-      "register",
       "--count",
       "1",
       "--yyds-api-key",
       job.yydsApiKey,
-      "--yyds-domain",
-      job.yydsDomain,
     ];
+    if (job.yydsDomain) args.push("--yyds-domain", job.yydsDomain);
     if (job.proxyUrl) args.push("--proxy", job.proxyUrl);
+    if (job.engine) args.push("--engine", job.engine);
     if (job.headless) args.push("--headless");
     this.setAccountStep(account, "python_spawn", args.join(" "));
 
@@ -246,7 +245,7 @@ class QoderBulkSignupManager extends KiroBulkImportManager {
       throw new Error(`No JSON result from qoderreg: ${String(stdout).slice(0, 200)}`);
     }
 
-    if (result.status === "success") {
+    if (result.status === "ok" || result.status === "success") {
       const token = result.token || result.access_token || result.accessToken;
       const email = result.email || account.email;
       if (!token) {

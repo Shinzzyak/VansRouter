@@ -5,7 +5,13 @@ import { DATA_DIR } from "../../dataDir.js";
 import {
   KiroBulkImportManager,
   buildLookupResponse,
+  createFreshContext,
+  TERMINAL_ACCOUNT_STATUSES,
 } from "./kiroBulkImportManager.js";
+import {
+  createAutoclawTokenMonitor,
+  runAutoclawGoogleAutomation,
+} from "./autoclawAutomation.js";
 import { createProviderConnection, getProviderConnectionById } from "../../../models/index.js";
 import {
   recoverAutoclawTokenCheckpoints,
@@ -94,9 +100,107 @@ export class AutoclawBulkImportManager extends KiroBulkImportManager {
   }
 
   async processAccount(job, account, workerId, browser = job.browser) {
-    // Python subprocess mode — delegates Playwright automation to python -m autoclaw.
-    // Python script manages its own browser — no in-process browser lifecycle needed.
-    return this._processAccountPythonRetry(job, account, workerId);
+    if (job.cancelRequested || !browser) {
+      this.finalizeAccount(account, "cancelled", { error: "Job cancelled" });
+      return;
+    }
+
+    const { context, page } = await createFreshContext(browser);
+    const callbackPromise = createAutoclawTokenMonitor(context, page);
+    account.runtimeSession = { context, page, proxyUrl: browser.__ninerouterProxyUrl || job.proxyUrl || null };
+
+    try {
+      this.setAccountStep(account, "preparing_worker", `Worker ${workerId} is preparing a browser context`);
+      await this.persistJobSnapshot(job, { forcePreview: true });
+      const automationResult = await runAutoclawGoogleAutomation({
+        page,
+        email: account.email,
+        password: account.password,
+        proxyUrl: browser.__ninerouterProxyUrl || job.proxyUrl || null,
+        callbackPromise,
+        onStep: (step, message) => {
+          this.setAccountStep(account, step, message);
+          void this.persistJobSnapshot(job, { forcePreview: false });
+        },
+      });
+
+      if (automationResult.status === "success") {
+        this.setAccountStep(account, "exchanging_tokens", "Saving AutoClaw connection");
+        await this.persistJobSnapshot(job, { forcePreview: true });
+        const tokens = automationResult.tokens || {};
+        writeAutoclawTokenCheckpoint({
+          jobId: job.jobId,
+          line: account.line,
+          email: account.email,
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            deviceId: tokens.deviceId,
+            userId: tokens.userId,
+            userName: tokens.userName,
+          },
+        });
+        const { connection } = await this.socialExchange({
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+          user_id: tokens.userId,
+          user_name: tokens.userName,
+          device_id: tokens.deviceId,
+        });
+        await assertConnectionPersisted(connection);
+        this.finalizeAccount(account, "success", {
+          connectionId: connection.id,
+          step: "connection_saved",
+          message: "AutoClaw connection saved successfully",
+        });
+        account.runtimeSession = null;
+        await context.close().catch(() => null);
+        await this.persistJobSnapshot(job, { forcePreview: true });
+        return;
+      }
+
+      if (automationResult.status === "needs_manual") {
+        account.manualSession = {
+          context,
+          page,
+          opened: false,
+          openedAt: null,
+          rebind: typeof callbackPromise?.rebind === "function" ? callbackPromise.rebind : null,
+        };
+        this.setAccountStep(account, "awaiting_manual", "Waiting for manual completion in the browser session");
+        this.finalizeAccount(account, "needs_manual", {
+          error: automationResult.error,
+          step: "awaiting_manual",
+          message: automationResult.error,
+        });
+        await this.persistJobSnapshot(job, { forcePreview: true });
+        await this.runManualFollowup(job, account, workerId, context, callbackPromise);
+        return;
+      }
+
+      const terminalStatus = TERMINAL_ACCOUNT_STATUSES.has(automationResult.status)
+        ? automationResult.status
+        : "failed";
+      this.finalizeAccount(account, terminalStatus, {
+        error: automationResult.error || "AutoClaw Google automation failed.",
+        step: terminalStatus,
+        message: automationResult.error || "AutoClaw Google automation failed.",
+      });
+      account.runtimeSession = null;
+      await context.close().catch(() => null);
+      await this.persistJobSnapshot(job, { forcePreview: true });
+    } catch (error) {
+      this.finalizeAccount(account, "failed", {
+        error: error.message || "Unexpected AutoClaw bulk import failure.",
+        step: "failed",
+        message: error.message || "Unexpected AutoClaw bulk import failure.",
+      });
+      account.runtimeSession = null;
+      await context.close().catch(() => null);
+      await this.persistJobSnapshot(job, { forcePreview: true });
+    } finally {
+      account.password = undefined;
+    }
   }
 
   async cancelJob(jobId) {
