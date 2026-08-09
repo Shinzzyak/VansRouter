@@ -37,7 +37,7 @@ async function testWorkersAi(token, accountId) {
 }
 
 async function saveCloudflareConnection({ token, accountId, name, workerAi }) {
-  const { createProviderConnection } = await import("../../../../models/index.js");
+  const { createProviderConnection } = await import("@/models");
   const connection = await createProviderConnection({
     provider: PROVIDER_ID,
     authType: "apikey",
