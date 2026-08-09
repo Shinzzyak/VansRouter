@@ -8,6 +8,7 @@ import Badge from "./Badge";
 const NONE_PROXY_POOL_VALUE = "__none__";
 
 export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
+  const [proxyPools, setProxyPools] = useState([]);
   const [proxyPoolId, setProxyPoolId] = useState(NONE_PROXY_POOL_VALUE);
   const [rotateStrategy, setRotateStrategy] = useState("none");
   const [targetProxyPoolIds, setTargetProxyPoolIds] = useState([]);
