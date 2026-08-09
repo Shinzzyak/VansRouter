@@ -67,6 +67,23 @@ async function readRaw() {
 // Merge raw settings with defaults; backward-compat for missing keys
 function mergeWithDefaults(raw) {
   const merged = { ...DEFAULT_SETTINGS, ...(raw || {}) };
+  // Deep-merge nested objects (capacityAdapter, providerStrategies, comboStrategies)
+  // so DB values survive the default spread (shallow spread would clobber them).
+  for (const key of ["capacityAdapter", "providerStrategies", "comboStrategies"]) {
+    const defVal = DEFAULT_SETTINGS[key];
+    const rawVal = raw?.[key];
+    if (defVal && typeof defVal === "object" && rawVal && typeof rawVal === "object") {
+      merged[key] = { ...defVal, ...rawVal };
+      for (const subKey of Object.keys(defVal)) {
+        if (
+          defVal[subKey] && typeof defVal[subKey] === "object" &&
+          rawVal[subKey] && typeof rawVal[subKey] === "object"
+        ) {
+          merged[key][subKey] = { ...defVal[subKey], ...rawVal[subKey] };
+        }
+      }
+    }
+  }
   for (const [key, defVal] of Object.entries(DEFAULT_SETTINGS)) {
     if (merged[key] === undefined) {
       if (
