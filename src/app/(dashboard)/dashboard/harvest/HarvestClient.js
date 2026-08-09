@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import FarmPanel from "./FarmPanel";
 import PoolPanel from "./PoolPanel";
 import GrokPanel from "./GrokPanel";
@@ -12,6 +12,19 @@ const TABS = [
   { id: "pool", label: "Account Pool" },
   { id: "grok", label: "Grok" },
 ];
+
+// Whitelist of SSE event types we render (anything else is dropped).
+const SSE_TYPES = new Set([
+  "message",
+  "harvest_log",
+  "harvest_result",
+  "harvest_error",
+  "harvest_done",
+  "grok_log",
+  "token_saved",
+  "bulk_done",
+  "account_saved",
+]);
 
 export function useHarvestApi() {
   return useCallback(async (method, url, body) => {
@@ -36,6 +49,7 @@ export function useHarvestApi() {
 
 export default function HarvestClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialTab = searchParams.get("tab") || "farm";
   const [tab, setTab] = useState(TABS.some((t) => t.id === initialTab) ? initialTab : "farm");
   const [sseState, setSseState] = useState("connecting"); // connecting | live | dead
@@ -75,10 +89,18 @@ export default function HarvestClient() {
     }
 
     function pushEvent(ev) {
+      if (!SSE_TYPES.has(ev.type)) return; // drop unknown/unused event types
       setEvents((prev) => {
         const next = [...prev, ev];
         return next.length > maxEventsRef.current ? next.slice(next.length - maxEventsRef.current) : next;
       });
+    }
+
+    function selectTab(id) {
+      setTab(id);
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", id);
+      router.replace(url.pathname + url.search, { scroll: false });
     }
 
     connect();
@@ -103,7 +125,7 @@ export default function HarvestClient() {
           <button
             key={t.id}
             className={`harvest-tab ${tab === t.id ? "active" : ""}`}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
           >
             {t.label}
           </button>
