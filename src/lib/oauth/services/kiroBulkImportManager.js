@@ -265,9 +265,9 @@ export function buildLookupResponse(job, extras = {}) {
 }
 
 async function defaultBrowserLauncher(job) {
-  const { launchBulkImportBrowser } = await import("./bulkImportBrowserEngine.js");
+  const { launchBulkImportBrowser, DEFAULT_BULK_IMPORT_ENGINE } = await import("./bulkImportBrowserEngine.js");
   return launchBulkImportBrowser({
-    engine: job?.engine || "chromium",
+    engine: job?.engine || DEFAULT_BULK_IMPORT_ENGINE,
     proxyUrl: job?.proxyUrl || undefined,
     headless: job?.headless ?? false,
     args: ["--disable-blink-features=AutomationControlled"],
@@ -372,9 +372,9 @@ async function relaunchAsHeaded(account) {
 
   let newBrowser;
   try {
-    const { launchBulkImportBrowser } = await import("./bulkImportBrowserEngine.js");
+    const { launchBulkImportBrowser, DEFAULT_BULK_IMPORT_ENGINE } = await import("./bulkImportBrowserEngine.js");
     newBrowser = await launchBulkImportBrowser({
-      engine: "chromium",
+      engine: DEFAULT_BULK_IMPORT_ENGINE,
       headless: false,
       args: ["--start-maximized"],
       proxyUrl: account?.manualSession?.proxyUrl || account?.runtimeSession?.proxyUrl || null,

@@ -51,8 +51,8 @@ async function defaultSaveQoderConnection({ tokens, email }) {
 }
 
 async function defaultBrowserLauncher(job) {
-  const { launchBulkImportBrowser } = await import("./bulkImportBrowserEngine.js");
-  return launchBulkImportBrowser({ engine: job?.engine || "chromium", proxyUrl: job?.proxyUrl || undefined });
+  const { launchBulkImportBrowser, DEFAULT_BULK_IMPORT_ENGINE } = await import("./bulkImportBrowserEngine.js");
+  return launchBulkImportBrowser({ engine: job?.engine || DEFAULT_BULK_IMPORT_ENGINE, proxyUrl: job?.proxyUrl || undefined });
 }
 
 class QoderBulkImportManager extends KiroBulkImportManager {
