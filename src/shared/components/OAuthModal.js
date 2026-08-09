@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Modal, Button, Input } from "@/shared/components";
+import { Modal, Button, Input, Select } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Paste-token providers (Trae/Windsurf): user grabs a token from the IDE or
@@ -39,6 +39,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [isDeviceCode, setIsDeviceCode] = useState(false);
   const [deviceData, setDeviceData] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [proxyPoolId, setProxyPoolId] = useState("__none__");
+  const [proxyPools, setProxyPools] = useState([]);
   const [authMode, setAuthMode] = useState("browser"); // browser | paste-token
   const [pasteToken, setPasteToken] = useState("");
   const [ideStatus, setIdeStatus] = useState(null);
@@ -112,7 +114,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   }, [authData]);
 
   // Poll for device code token
-  const startPolling = useCallback(async (deviceCode, codeVerifier, interval, extraData, deadlineMs) => {
+  const startPolling = useCallback(async (deviceCode, codeVerifier, interval, extraData, deadlineMs, proxyPoolId) => {
     pollingAbortRef.current = false;
     setPolling(true);
     // Honor the upstream's expires_in when supplied (qoder sets 300s) so we
@@ -142,7 +144,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         const res = await fetch(`/api/oauth/${provider}/poll`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deviceCode, codeVerifier, extraData }),
+          body: JSON.stringify({ deviceCode, codeVerifier, extraData, proxyPoolId }),
         });
 
         const data = await res.json();
@@ -247,6 +249,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
           Number.isFinite(data.expires_in) && data.expires_in > 0
             ? data.expires_in * 1000
             : undefined,
+          proxyPoolId,
         );
         return;
       }
@@ -362,7 +365,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setError(err.message);
       setStep("error");
     }
-  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig]);
+  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig, proxyPoolId]);
 
   const resetOAuthState = useCallback(() => {
     setAuthData(null);
@@ -371,6 +374,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     setIsDeviceCode(false);
     setDeviceData(null);
     setPolling(false);
+    setProxyPoolId("__none__");
     setAuthMode("browser");
     setPasteToken("");
     setIdeStatus(null);
@@ -388,6 +392,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       openedRef.current = true;
       resetOAuthState();
       pollingAbortRef.current = false;
+      // Load active proxy pools for the login-time pool selector
+      // (device-code providers only).
+      fetch("/api/proxy-pools?isActive=true", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { proxyPools: [] }))
+        .then((d) => setProxyPools(d.proxyPools || []))
+        .catch(() => setProxyPools([]));
       // Best-effort IDE detection for paste-token providers (Trae/Windsurf)
       if (PASTE_TOKEN_PROVIDERS[provider]) {
         fetch(`/api/oauth/${provider}/ide-status`)
@@ -777,6 +787,17 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 </div>
               </div>
             </div>
+            <Select
+              label="Proxy Pool (applied to this connection at login)"
+              value={proxyPoolId}
+              onChange={(e) => setProxyPoolId(e.target.value)}
+              disabled={polling}
+              options={[
+                { value: "__none__", label: "None (direct)" },
+                ...proxyPools.map((pool) => ({ value: pool.id, label: pool.name })),
+              ]}
+              placeholder="None"
+            />
             {polling && (
               <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
                 <span className="material-symbols-outlined animate-spin">progress_activity</span>
