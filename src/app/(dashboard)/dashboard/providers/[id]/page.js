@@ -25,7 +25,7 @@ import AddApiKeyModal from "./AddApiKeyModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
-
+import GrokRegisterModal from "./GrokRegisterModal";
 const ONE_BY_ONE_DELAY_MS = 1000;
 
 const AUTO_PING_SETTINGS_KEYS = {
@@ -51,6 +51,7 @@ export default function ProviderDetailPage() {
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
+  const [showGrokRegister, setShowGrokRegister] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
   const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
@@ -1575,6 +1576,11 @@ export default function ProviderDetailPage() {
                         {translate("Bulk Add")}
                       </Button>
                     )}
+                    {providerId === "grok-cli" && (
+                      <Button size="sm" icon="person_add" variant="secondary" onClick={() => setShowGrokRegister(true)}>
+                        Register Accounts
+                      </Button>
+                    )}
                     {providerId === "autoclaw" && (
                       <Button size="sm" icon="key" variant="secondary" onClick={triggerAutoclawImport}>
                         Import Token
@@ -1837,6 +1843,14 @@ export default function ProviderDetailPage() {
         <BulkImportCodexModal
           isOpen={showBulkImportCodex}
           onClose={() => setShowBulkImportCodex(false)}
+          onSuccess={fetchConnections}
+        />
+      )}
+
+      {providerId === "grok-cli" && (
+        <GrokRegisterModal
+          isOpen={showGrokRegister}
+          onClose={() => setShowGrokRegister(false)}
           onSuccess={fetchConnections}
         />
       )}
