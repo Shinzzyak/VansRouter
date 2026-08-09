@@ -11,6 +11,8 @@ export default {
   },
   category: "apikey",
   authType: "apikey",
+  signupUrl:
+    "https://login.baseten.co/sign-up?client_id=client_01GFS4WX73TQ4NQJPQ9EPCYQY7&redirect_uri=https%3A%2F%2Fapp.baseten.co%2Fapi%2F",
   transport: {
     baseUrl: "https://inference.baseten.co/v1/chat/completions",
     validateUrl: "https://inference.baseten.co/v1/models",

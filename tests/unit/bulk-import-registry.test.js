@@ -9,10 +9,12 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   expect(isValidBulkImportProvider("codebuddy-cn")).toBe(true);
   expect(isValidBulkImportProvider("autoclaw")).toBe(true);
   expect(isValidBulkImportProvider("qoder-signup")).toBe(true);
+  expect(isValidBulkImportProvider("baseten-signup")).toBe(true);
   expect(isValidBulkImportProvider("cloudflare-ai")).toBe(false);
   expect(isValidBulkImportProvider("unknown")).toBe(false);
   expect(Object.keys(BULK_IMPORT_PROVIDERS).sort()).toEqual([
     "autoclaw",
+    "baseten-signup",
     "codebuddy",
     "codebuddy-cn",
     "grok-cli",

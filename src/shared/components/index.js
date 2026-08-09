@@ -47,6 +47,7 @@ export const AutoclawAutomationModal = lazyModal(() => import("./AutoclawAutomat
 export const GrokSsoImportModal = lazyModal(() => import("./GrokSsoImportModal"));
 export const QoderSignupModal = lazyModal(() => import("./QoderSignupModal"));
 export const TokenHarborSignupModal = lazyModal(() => import("./TokenHarborSignupModal"));
+export const BasetenSignupModal = lazyModal(() => import("./BasetenSignupModal"));
 export const GrokRegisterModal = lazyModal(() =>
   import("@/app/(dashboard)/dashboard/providers/[id]/GrokRegisterModal")
 );

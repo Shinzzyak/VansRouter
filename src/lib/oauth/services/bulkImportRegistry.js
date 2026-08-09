@@ -129,6 +129,24 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       yydsDomain: body?.yydsDomain,
     }),
   },
+  "baseten-signup": {
+    label: "Baseten Signup",
+    errorLabel: "Baseten signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./basetenSignupManager.js").then((m) => m.getBasetenSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      yydsApiKey: body?.yydsApiKey,
+      yydsDomain: body?.yydsDomain,
+    }),
+  },
   codebuddy: {
     label: "CodeBuddy",
     errorLabel: "Bulk import job",

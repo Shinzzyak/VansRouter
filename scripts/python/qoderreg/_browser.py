@@ -66,17 +66,19 @@ def _fill_react(page, locator, value):
         locator.fill(value)
 
 
-def run_browser_flow(email, password, first, last, proxy, auth_url, otp_cb, headless=True, log=print):
+def run_browser_flow(email, password, first, last, proxy, auth_url, otp_cb, headless=True, engine="chromium", log=print):
     """Signup + verify + authorize. Returns True on authorize click.
 
-    Engine: Camoufox (anti-fingerprint, geoip) if installed — chromium fallback.
-    Camoufox is required to pass Aliyun captcha (chromium gets TMD-blocked).
+    Engine: camoufox (anti-fingerprint, geoip) if requested+installed —
+    chromium otherwise. Camoufox is required to pass Aliyun captcha
+    (chromium gets TMD-blocked).
     """
-    try:
-        from camoufox import Camoufox
-        return _run_camoufox(email, password, first, last, proxy, auth_url, otp_cb, headless, log)
-    except ImportError:
-        log("[browser] camoufox not installed — chromium fallback (captcha likely blocked)", flush=True)
+    if engine == "camoufox":
+        try:
+            from camoufox import Camoufox
+            return _run_camoufox(email, password, first, last, proxy, auth_url, otp_cb, headless, log)
+        except ImportError:
+            log("[browser] camoufox requested but not installed — chromium fallback", flush=True)
     return _run_chromium(email, password, first, last, proxy, auth_url, otp_cb, headless, log)
 
 

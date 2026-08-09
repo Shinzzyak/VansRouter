@@ -2,10 +2,19 @@
 
 Usage:
   python3 -m qoderreg --count 3 --yyds-api-key KEY [--yyds-domain valerius.biz.id] \\
-      [--proxy socks5://host:port] [--headless] [--engine chromium]
+      [--proxy socks5://host:port] [--headless] [--engine chromium|camoufox] \\
+      [--trial-wait 3600]
 
-Per-account output (one JSON line): {"email","password","token","status","error"}
+Per-account output (one JSON line):
+  {"email","password","token","trial","register_ip","status","error"}
 Exit 0 if >=1 success, 2 if all failed.
+
+Trial notes (verified 2026-08-09): the 14-day Pro Trial is granted
+SERVER-SIDE on first sign-in to a Qoder client, gated by IP reputation +
+VM detection. Accounts created from residential IPs get the trial
+(possibly delayed 0-6h); datacenter/WARP IPs usually never do.
+--trial-wait polls userinfo.user_type until it becomes
+personal_professional_trial (or the timeout elapses).
 """
 import argparse
 import base64
@@ -27,7 +36,10 @@ from ._driftz import driftz_create_inbox, driftz_poll_otp
 from ._tempik import tempik_create_inbox, tempik_poll_otp
 DEVICE_URL = "https://qoder.com/device/selectAccounts"
 POLL_URL = "https://openapi.qoder.sh/api/v1/deviceToken/poll"
+EXCHANGE_URL = "https://openapi.qoder.sh/api/v1/jobToken/exchange"
+USERINFO_URL = "https://openapi.qoder.sh/api/v1/userinfo"
 CLIENT_ID_WEB = "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
+TRIAL_USER_TYPE = "personal_professional_trial"
 
 _ACCOUNT_TIMEOUT_S = 300
 
@@ -74,6 +86,50 @@ def gen_name():
     last = ["Wei", "Jing", "Ming", "Hao", "Fang", "Lin", "Qiang", "Tao",
             "Smith", "Johnson", "Williams", "Brown"]
     return random.choice(first), random.choice(last)
+
+
+def exchange_pat(pat):
+    """PAT (pt-) → job token (jt-). Returns jt- or None. PATs are never
+    accepted directly by openapi — exchange first (verified 2026-08-09)."""
+    try:
+        r = requests.post(EXCHANGE_URL, json={"personal_token": pat}, timeout=20)
+        j = r.json()
+        return j.get("token")
+    except Exception:
+        return None
+
+
+def check_trial(jt):
+    """Return (is_trial: bool, user_type: str|None, register_ip: str|None)
+    via GET /api/v1/userinfo with Bearer jt-."""
+    try:
+        r = requests.get(USERINFO_URL, headers={"Authorization": f"Bearer {jt}"}, timeout=20)
+        j = r.json()
+        return (
+            j.get("userType") == TRIAL_USER_TYPE,
+            j.get("userType"),
+            j.get("register_ip"),
+        )
+    except Exception:
+        return False, None, None
+
+
+def wait_for_trial(token, timeout_s, interval=20, log=_err):
+    """Poll userinfo until userType == personal_professional_trial.
+    Trial grant is server-side and can lag 0-6h behind first sign-in.
+    Returns dict {trial, user_type, register_ip}."""
+    jt = token if token.startswith("jt-") else exchange_pat(token)
+    if not jt:
+        return {"trial": False, "user_type": None, "register_ip": None}
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        trial, ut, ip = check_trial(jt)
+        if trial:
+            return {"trial": True, "user_type": ut, "register_ip": ip}
+        log(f"[trial] not yet ({ut}) — poll again in {interval}s")
+        time.sleep(interval)
+    trial, ut, ip = check_trial(jt)
+    return {"trial": trial, "user_type": ut, "register_ip": ip}
 
 
 def gen_password():
@@ -123,7 +179,7 @@ def _poll_otp_chain(api_key, email, inbox_id):
         return None
 
 
-def register_one(api_key, domain, proxy, headless, index):
+def register_one(api_key, domain, proxy, headless, index, engine="chromium", trial_wait_s=0):
     """Register one account. Returns result dict (JSON-serializable)."""
     try:
         inbox = _create_inbox_chain(api_key, domain)
@@ -152,7 +208,7 @@ def register_one(api_key, domain, proxy, headless, index):
 
         try:
             run_browser_flow(email, password, first, last, proxy, auth_url, _otp,
-                             headless=headless, log=_err)
+                             headless=headless, engine=engine, log=_err)
         except Exception as e:
             _err(f"[{index}] browser flow failed: {e}")
         t.join(timeout=260)
@@ -161,7 +217,21 @@ def register_one(api_key, domain, proxy, headless, index):
             token = poll_device_token(nonce, verifier, timeout_s=60)
         if not token:
             return {"status": "error", "error": "no device token"}
-        return {"status": "ok", "email": email, "password": password, "token": token}
+        result = {"status": "ok", "email": email, "password": password, "token": token}
+        if trial_wait_s > 0:
+            tinfo = wait_for_trial(token, trial_wait_s)
+            result["trial"] = tinfo["trial"]
+            result["user_type"] = tinfo["user_type"]
+            result["register_ip"] = tinfo["register_ip"]
+            _err(f"[{index}] trial={tinfo['trial']} type={tinfo['user_type']} ip={tinfo['register_ip']}")
+        else:
+            # quick single-shot probe (no waiting)
+            jt = token if token.startswith("jt-") else exchange_pat(token)
+            trial, ut, ip = check_trial(jt) if jt else (False, None, None)
+            result["trial"] = trial
+            result["user_type"] = ut
+            result["register_ip"] = ip
+        return result
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -173,8 +243,10 @@ def main():
     ap.add_argument("--yyds-domain", default=os.environ.get("YYDS_DOMAIN", "valerius.biz.id"))
     ap.add_argument("--proxy", default=os.environ.get("QODER_PROXY", ""),
                     help="socks5://host:port")
-    ap.add_argument("--engine", default="chromium", choices=["chromium"],
-                    help="browser engine (chromium only)")
+    ap.add_argument("--engine", default="chromium", choices=["chromium", "camoufox"],
+                    help="browser engine (chromium default, camoufox for captcha)")
+    ap.add_argument("--trial-wait", type=int, default=0, metavar="SECONDS",
+                    help="poll userinfo up to N seconds for server-side Pro Trial grant (0 = single probe)")
     ap.add_argument("--headless", action="store_true", default=True,
                     help="run headless (default)")
     args = ap.parse_args()
