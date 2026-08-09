@@ -155,6 +155,7 @@ export default function FarmPanel({ api, events, clearEvents }) {
             </tbody>
           </table>
         )}
+        {accounts.length === 0 && <div className="harvest-empty">No accounts yet — start a harvest above.</div>}
       </div>
 
       <div className="harvest-card">
