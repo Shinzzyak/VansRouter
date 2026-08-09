@@ -15,6 +15,7 @@ import {
   AutoclawAutomationModal,
   GrokRegisterModal,
   GrokSsoImportModal,
+  QoderSignupModal,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { FREE_PROVIDERS } from "@/shared/constants/providers";
@@ -333,6 +334,7 @@ function CodeBuddyCnAutomationPanel({ onRefresh }) {
 function QoderAutomationPanel({ providerInfo, onRefresh }) {
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [isOAuthOpen, setIsOAuthOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
 
   return (
     <>
@@ -344,6 +346,15 @@ function QoderAutomationPanel({ providerInfo, onRefresh }) {
             icon="group_add"
             title="Auto Login Bulk"
             subtitle="Run bulk gmail:password or gmail|password automation via Google SSO with Qoder device flow."
+          />
+        </button>
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="person_add"
+            title="Signup Bulk (YYDS temp mail)"
+            subtitle="Register new Qoder accounts with fresh YYDS inboxes: signup form → Aliyun slider → OTP → device authorize."
           />
         </button>
         <button type="button" onClick={() => setIsOAuthOpen(true)} className="text-left">
@@ -363,6 +374,11 @@ function QoderAutomationPanel({ providerInfo, onRefresh }) {
         serviceName="Qoder"
         onSuccess={onRefresh}
         onClose={() => setIsBulkOpen(false)}
+      />
+      <QoderSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
       />
       <OAuthModal
         isOpen={isOAuthOpen}

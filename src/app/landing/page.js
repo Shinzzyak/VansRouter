@@ -53,7 +53,7 @@ export default function LandingPage() {
           <div className="max-w-4xl mx-auto text-center relative z-10">
             <h2 className="text-4xl md:text-5xl font-black mb-6">Ready to Simplify Your AI Infrastructure?</h2>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              Join developers who are streamlining their AI integrations with VansAI. Open source and free to start.
+              Join developers who are streamlining their AI integrations with Schatt Router. Open source and free to start.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button type="button" 
@@ -63,7 +63,7 @@ export default function LandingPage() {
                 Start Free
               </button>
               <button type="button" 
-                onClick={() => window.open("https://github.com/Vanszs/VansRouter#readme", "_blank")}
+                onClick={() => window.open("https://github.com/Shinzzyak/VansRouter#readme", "_blank")}
                 className="w-full sm:w-auto h-14 px-10 rounded-lg border border-[#3a2f27] hover:bg-[#1a1433] text-white text-lg font-bold transition-all"
               >
                 Read Documentation

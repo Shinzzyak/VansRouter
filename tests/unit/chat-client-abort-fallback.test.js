@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   isProviderInCooldown: vi.fn(() => false),
   isKimchiQuotaExhausted: vi.fn(() => false),
   detectDailyQuotaExhaustion: vi.fn(() => null),
+  isAutoclawInsufficientBalance: vi.fn(() => false),
   getProxyHash: vi.fn(() => "proxy-1"),
   resolveAccountSemaphoreKey: vi.fn(() => null),
   resolveAccountSemaphoreMaxConcurrency: vi.fn(() => null),
@@ -120,6 +121,7 @@ vi.mock("open-sse/services/accountFallback.js", () => ({
   isProviderInCooldown: mocks.isProviderInCooldown,
   isKimchiQuotaExhausted: mocks.isKimchiQuotaExhausted,
   detectDailyQuotaExhaustion: mocks.detectDailyQuotaExhaustion,
+  isAutoclawInsufficientBalance: mocks.isAutoclawInsufficientBalance,
 }));
 vi.mock("@/lib/network/connectionProxy", () => ({ getProxyHash: mocks.getProxyHash }));
 vi.mock("../../src/lib/network/connectionProxy.js", () => ({ getProxyHash: mocks.getProxyHash }));

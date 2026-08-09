@@ -18,13 +18,13 @@ export default function Footer() {
                   <circle cx="16" cy="9" r="2" fill="white"/>
                 </svg>
               </div>
-              <h3 className="text-white text-lg font-bold">VansAI</h3>
+              <h3 className="text-white text-lg font-bold">Schatt Router</h3>
             </div>
             <p className="text-gray-500 text-sm max-w-xs mb-6">
               The unified endpoint for AI generation. Connect, route, and manage your AI providers with ease.
             </p>
             <div className="flex gap-4">
-              <a className="text-gray-400 hover:text-white transition-colors" href="https://github.com/Vanszs/VansRouter" target="_blank" rel="noopener noreferrer">
+              <a className="text-gray-400 hover:text-white transition-colors" href="https://github.com/Shinzzyak/VansRouter" target="_blank" rel="noopener noreferrer">
                 <span className="material-symbols-outlined">code</span>
               </a>
             </div>
@@ -35,29 +35,29 @@ export default function Footer() {
             <h4 className="font-bold text-white">Product</h4>
             <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="#features">Features</a>
             <Link className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="/dashboard">Dashboard</Link>
-            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Vanszs/VansRouter" target="_blank" rel="noopener noreferrer">Changelog</a>
+            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Shinzzyak/VansRouter" target="_blank" rel="noopener noreferrer">Changelog</a>
           </div>
           
           {/* Resources */}
           <div className="flex flex-col gap-4">
             <h4 className="font-bold text-white">Resources</h4>
-            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Vanszs/VansRouter#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
-            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Vanszs/VansRouter" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Shinzzyak/VansRouter#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
+            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Shinzzyak/VansRouter" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://www.npmjs.com/package/vansrouter" target="_blank" rel="noopener noreferrer">NPM</a>
           </div>
           
           {/* Legal */}
           <div className="flex flex-col gap-4">
             <h4 className="font-bold text-white">Legal</h4>
-            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Vanszs/VansRouter/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+            <a className="text-gray-400 hover:text-[#6366f1] text-sm transition-colors" href="https://github.com/Shinzzyak/VansRouter/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
           </div>
         </div>
         
         {/* Bottom */}
         <div className="border-t border-[#3a2f27] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-gray-600 text-sm">© 2025 VansAI. All rights reserved.</p>
+          <p className="text-gray-600 text-sm">© 2025 Schatt Router. All rights reserved.</p>
           <div className="flex gap-6">
-            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://github.com/Vanszs/VansRouter" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://github.com/Shinzzyak/VansRouter" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a className="text-gray-600 hover:text-white text-sm transition-colors" href="https://www.npmjs.com/package/vansrouter" target="_blank" rel="noopener noreferrer">NPM</a>
           </div>
         </div>
