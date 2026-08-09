@@ -122,6 +122,11 @@ async function runHeavyStartup() {
   import("@/lib/network/stateSweeper.js")
     .then(({ startStateSweeper }) => startStateSweeper())
     .catch((e) => console.log("[StateSweeper] scheduler start failed:", e.message));
+
+  // Grok-cli free-tier reactivation scheduler — re-probes exhausted accounts (6h interval).
+  import("@/shared/services/grokCliReactivation.js")
+    .then(({ startGrokCliReactivation }) => startGrokCliReactivation())
+    .catch((e) => console.log("[GrokReactivation] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {
