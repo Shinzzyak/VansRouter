@@ -8,7 +8,6 @@ import Badge from "./Badge";
 const NONE_PROXY_POOL_VALUE = "__none__";
 
 export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
-  const [proxyPools, setProxyPools] = useState([]);
   const [proxyPoolId, setProxyPoolId] = useState(NONE_PROXY_POOL_VALUE);
   const [rotateStrategy, setRotateStrategy] = useState("none");
   const [targetProxyPoolIds, setTargetProxyPoolIds] = useState([]);
@@ -128,24 +127,16 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
         />
 
         {rotateStrategy === "none" ? (
-          isFreeNoAuth ? (
-            <Select
-              label="Static Proxy Pool"
-              value={proxyPoolId}
-              onChange={(e) => handlePoolChange(e.target.value)}
-              disabled={saving}
-              options={[
-                { value: NONE_PROXY_POOL_VALUE, label: "None (direct)" },
-                ...proxyPools.map((pool) => ({ value: pool.id, label: pool.name })),
-              ]}
-            />
-          ) : (
-            <div className="flex flex-col justify-end pb-1.5">
-              <span className="text-xs text-text-muted italic">
-                Using connection-level proxy settings. Select specific proxies on connections below or click &quot;Apply Proxy&quot;.
-              </span>
-            </div>
-          )
+          <Select
+            label="Static Proxy Pool"
+            value={proxyPoolId}
+            onChange={(e) => handlePoolChange(e.target.value)}
+            disabled={saving}
+            options={[
+              { value: NONE_PROXY_POOL_VALUE, label: "None (direct)" },
+              ...proxyPools.map((pool) => ({ value: pool.id, label: pool.name })),
+            ]}
+          />
         ) : (
           <div className="flex flex-col justify-end pb-1.5">
             <span className="text-xs text-brand-500 font-medium">

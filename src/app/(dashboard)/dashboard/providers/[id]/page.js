@@ -1463,6 +1463,9 @@ export default function ProviderDetailPage() {
         </Card>
       )}
 
+      {/* Proxy Routing & Strategy (per-provider override; connection rows below still control per-connection pools) */}
+      {!isFreeNoAuth && connections.length > 0 && <NoAuthProxyCard providerId={providerId} isFreeNoAuth={false} />}
+
       {/* Connections */}
       {isFreeNoAuth ? (
         <NoAuthProxyCard providerId={providerId} />
