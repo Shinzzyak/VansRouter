@@ -1,16 +1,14 @@
 <div align="center">
-  <img src="./images/9router.png?1" alt="VansRouter Dashboard" width="800"/>
+  <img src="./images/9router.png?1" alt="Schatt Router Dashboard" width="800"/>
   
-  # VansRouter - FREE AI Router & Token Saver
+  # Schatt Router - FREE AI Router & Token Saver
   
   **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
   
   **Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
   
-  [![npm](https://img.shields.io/npm/v/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
-  [![Downloads](https://img.shields.io/npm/dm/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/vansrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/vansrouter)
-  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fvansrouter-blue?logo=github)](https://github.com/Vanszs/VansRouter/pkgs/container/vansrouter)
+  **Based on [Vanszs/VansRouter](https://github.com/Vanszs/VansRouter) — all upstream updates tracked & merged.**
+  
   [![License](https://img.shields.io/npm/l/vansrouter.svg)](https://github.com/Vanszs/VansRouter/blob/main/LICENSE)
 
 <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fvansrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
