@@ -40,6 +40,37 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       randomizeProxySession: body?.randomizeProxySession,
     }),
   },
+  "grok-cli": {
+    label: "Grok CLI",
+    errorLabel: "Grok CLI register job",
+    staleOnLatest404: true,
+    // registerCount mode skips client account parse; token paste uses parseAccounts.
+    parseAccounts: (accounts) =>
+      import("./grokBulkImportManager.js").then((m) => m.parseGrokBulkAccounts(accounts)),
+    getManager: () =>
+      import("./grokBulkImportManager.js").then((m) => m.getGrokBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl,
+      proxyUrls: resolvedProxy.proxyUrls,
+      proxyMode: resolvedProxy.proxyMode,
+      proxyPoolId: resolvedProxy.proxyPoolId,
+      proxySource: resolvedProxy.proxySource,
+      randomizeProxySession: body?.randomizeProxySession,
+      registerCount: body?.registerCount,
+      mailProvider: body?.mailProvider,
+      mailApi: body?.mailApi,
+      mailDomains: body?.mailDomains,
+      mailApiKey: body?.mailApiKey,
+      mailAuthMode: body?.mailAuthMode,
+      enableNsfw: body?.enableNsfw,
+      yydsApiKey: body?.yydsApiKey,
+      yydsJwt: body?.yydsJwt,
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {
