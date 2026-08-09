@@ -18,6 +18,7 @@ import {
   QoderSignupModal,
   TokenHarborSignupModal,
   BasetenSignupModal,
+  ProxyScraperPanel,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { FREE_PROVIDERS } from "@/shared/constants/providers";
@@ -782,6 +783,8 @@ export default function AutomationPage() {
           <ProviderPanel providerInfo={providerInfo} onRefresh={fetchConnections} />
         </div>
       </Card>
+
+      <ProxyScraperPanel />
     </div>
   );
 }

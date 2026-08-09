@@ -31,6 +31,7 @@ describe("qoderBulkSignupManager", () => {
       yydsApiKey: "key-123",
       yydsDomain: "example.com",
       proxyUrl: "http://user:sid-abc@127.0.0.1:8080",
+      engine: "chromium",
       headless: true,
       _pythonChildren: new Map(),
       persistJobSnapshot: async () => {},
@@ -44,7 +45,7 @@ describe("qoderBulkSignupManager", () => {
     const call = spawned[0];
     expect(call.args[0]).toBe("-m");
     expect(call.args[1]).toBe("qoderreg");
-    expect(call.args[2]).toBe("register");
+    expect(call.args[2]).toBe("--count");
     expect(call.args).toContain("--count");
     expect(call.args[call.args.indexOf("--count") + 1]).toBe("1");
     expect(call.args).toContain("--yyds-api-key");
@@ -53,6 +54,8 @@ describe("qoderBulkSignupManager", () => {
     expect(call.args[call.args.indexOf("--yyds-domain") + 1]).toBe("example.com");
     expect(call.args).toContain("--proxy");
     expect(call.args[call.args.indexOf("--proxy") + 1]).toBe(job.proxyUrl);
+    expect(call.args).toContain("--engine");
+    expect(call.args[call.args.indexOf("--engine") + 1]).toBe(job.engine);
     expect(call.args).toContain("--headless");
     expect(call.env.PYTHONUNBUFFERED).toBe("1");
     expect(call.env.YYDS_API_KEY).toBe("key-123");

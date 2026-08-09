@@ -132,6 +132,26 @@ export default function BulkAccountAutomationModal({
     }
   }, [configStorageKey, engine, headless, proxyPoolId, proxyUrl, randomizeProxySession, autoConcurrency, concurrency]);
 
+  // Fallback default: if the user hasn't picked a proxy yet (no cached config,
+  // no pool, no custom URL), apply the auto-scraped default proxy from the
+  // Proxy Scraper panel. Read once on mount; never overrides manual choices.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (proxyUrl || proxyPoolId) return;
+    try {
+      const raw = window.localStorage.getItem("auto:defaultProxy");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.proxyUrl) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only fallback default
+        setProxyUrl(parsed.proxyUrl);
+      }
+    } catch {
+      // malformed or unavailable storage — ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only fallback read
+  }, []);
+
   const runningJob = activeJob && ACTIVE_JOB_STATUSES.has(activeJob.status);
   const finishedJob = activeJob && TERMINAL_JOB_STATUSES.has(activeJob.status);
 
