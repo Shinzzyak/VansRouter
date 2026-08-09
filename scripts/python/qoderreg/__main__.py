@@ -23,7 +23,8 @@ import requests
 
 from ._browser import run_browser_flow
 from ._yyds import yyds_create_inbox, yyds_poll_otp
-
+from ._driftz import driftz_create_inbox, driftz_poll_otp
+from ._tempik import tempik_create_inbox, tempik_poll_otp
 DEVICE_URL = "https://qoder.com/device/selectAccounts"
 POLL_URL = "https://openapi.qoder.sh/api/v1/deviceToken/poll"
 CLIENT_ID_WEB = "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
@@ -31,7 +32,7 @@ CLIENT_ID_WEB = "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
 _ACCOUNT_TIMEOUT_S = 300
 
 
-def _err(msg):
+def _err(msg, **kwargs):
     print(msg, file=sys.stderr, flush=True)
 
 
@@ -79,16 +80,56 @@ def gen_password():
     return "Qd" + "".join(random.choices(string.ascii_letters + string.digits, k=10)) + "!2"
 
 
+def _create_inbox_chain(api_key, domain):
+    """YYDS → Driftz → tempik. Returns (email, inbox_id) or (None, None)."""
+    if api_key:
+        try:
+            inbox = yyds_create_inbox(api_key, domain)
+            if inbox:
+                return inbox
+        except Exception as e:
+            _err(f"[mail] YYDS failed ({e}) → driftz fallback")
+    try:
+        inbox = driftz_create_inbox()
+        if inbox:
+            return inbox
+    except Exception as e:
+        _err(f"[mail] driftz failed ({e}) → tempik fallback")
+    try:
+        return tempik_create_inbox()
+    except Exception as e:
+        _err(f"[mail] tempik failed ({e})")
+        return None, None
+
+
+def _poll_otp_chain(api_key, email, inbox_id):
+    """YYDS → Driftz → tempik OTP poll. Returns 6-digit code or None."""
+    if api_key and inbox_id:
+        try:
+            c = yyds_poll_otp(api_key, inbox_id, timeout_s=180)
+            if c:
+                return c
+        except Exception:
+            pass
+    try:
+        c = driftz_poll_otp(email, timeout_s=240)
+        if c:
+            return c
+    except Exception:
+        pass
+    try:
+        return tempik_poll_otp(email, timeout_s=240, session_id=inbox_id)
+    except Exception:
+        return None
+
+
 def register_one(api_key, domain, proxy, headless, index):
     """Register one account. Returns result dict (JSON-serializable)."""
     try:
-        inbox = yyds_create_inbox(api_key, domain)
-        if not inbox:
-            return {"status": "error", "error": "yyds inbox create failed"}
-        if isinstance(inbox, tuple):
-            email, inbox_id = inbox
-        else:
-            email, inbox_id = inbox, None
+        inbox = _create_inbox_chain(api_key, domain)
+        if not inbox[0]:
+            return {"status": "error", "error": "inbox create failed (yyds/driftz/tempik)"}
+        email, inbox_id = inbox
         first, last = gen_name()
         password = gen_password()
         _err(f"[{index}] inbox={email} name={first} {last}")
@@ -107,7 +148,7 @@ def register_one(api_key, domain, proxy, headless, index):
         t.start()
 
         def _otp():
-            return yyds_poll_otp(api_key, inbox_id, timeout_s=180)
+            return _poll_otp_chain(api_key, email, inbox_id)
 
         try:
             run_browser_flow(email, password, first, last, proxy, auth_url, _otp,

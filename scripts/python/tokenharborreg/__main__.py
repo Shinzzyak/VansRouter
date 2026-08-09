@@ -1,0 +1,286 @@
+"""tokenharborreg — Token Harbor bulk signup with chain referral.
+
+API-based signup (Next.js server action) + YYDS/Driftz/tempik mail chain +
+email verification + gift claim + API key creation + invite code extraction.
+
+Flow per account (chain):
+  1. create inbox (mail chain: YYDS -> Driftz -> tempik)
+  2. parse /login?mode=signup for server action id + key
+  3. POST server action (email, password, invite_code from previous account)
+  4. poll inbox for verification link, open it (email verified)
+  5. claim $5 gift, create API key, extract own invite code
+  6. emit JSON line {status, email, inviteCode, apiKey, balance}
+
+Usage:
+  python3 -m tokenharborreg --count 3 --yyds-api-key AC-... --yyds-domain valerius.biz.id \
+      --seed-invite TH-XXXX-XXXX [--proxy socks5://host:port]
+
+Output: JSON lines to stdout (one per account), logs to stderr.
+"""
+import argparse
+import json
+import os
+import random
+import re
+import sys
+import time
+
+import requests
+
+PASSWORD_CHARS = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#"
+SIGNUP_URL = "https://tokenharbor.ai/login?mode=signup"
+API_BASE = "https://tokenharbor.ai"
+
+
+def _log(msg, **kw):
+    print(f"[th] {msg}", file=sys.stderr, flush=True, **kw)
+
+
+def _passwd(n=14):
+    return "".join(random.choice(PASSWORD_CHARS) for _ in range(n))
+
+
+def _ua():
+    return (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    )
+
+
+def _make_session(proxy=None):
+    s = requests.Session()
+    s.headers.update({"User-Agent": _ua()})
+    if proxy:
+        s.proxies.update({"http": proxy, "https": proxy})
+    return s
+
+
+def _parse_action(html):
+    """Extract Next.js server action id + key from signup page."""
+    m = re.search(r'name="\$ACTION_1:0" value="([^"]+)"', html)
+    key = re.search(r'name="\$ACTION_KEY" value="([^"]+)"', html)
+    if not m or not key:
+        return None, None
+    try:
+        payload = json.loads(m.group(1).replace("&quot;", '"'))
+        return payload.get("id"), key.group(1)
+    except Exception:
+        return None, None
+
+
+def _create_inbox_chain(yyds_key, yyds_domain, s):
+    """YYDS -> Driftz -> tempik. Returns (email, poll_fn) or raises."""
+    if yyds_key:
+        try:
+            from qoderreg._yyds import yyds_create_inbox
+
+            email, iid = yyds_create_inbox(yyds_key, yyds_domain or "valerius.biz.id")
+            _log(f"yyds inbox {email}")
+
+            def poll(deadline):
+                return _poll_yyds(yyds_key, iid, deadline)
+
+            return email, poll
+        except Exception as e:
+            _log(f"yyds failed ({e}), fallback driftz")
+    try:
+        from qoderreg._driftz import driftz_create_inbox
+
+        addr, iid = driftz_create_inbox()
+        _log(f"driftz inbox {addr}")
+
+        def poll(deadline):
+            return _poll_driftz(iid, deadline)
+
+        return addr, poll
+    except Exception as e:
+        _log(f"driftz failed ({e}), fallback tempik")
+    from qoderreg._tempik import tempik_create_inbox
+
+    addr, iid = tempik_create_inbox()
+    _log(f"tempik inbox {addr}")
+
+    def poll(deadline):
+        return _poll_tempik(iid, deadline)
+
+    return addr, poll
+
+
+def _poll_yyds(key, iid, deadline):
+    while time.time() < deadline:
+        r = requests.get(
+            f"https://maliapi.215.im/v1/inboxes/{iid}/messages",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=20,
+        )
+        msgs = (r.json().get("data") or {}).get("messages") or []
+        for m in msgs:
+            body = m.get("body") or m.get("html") or m.get("text") or ""
+            if "tokenharbor" in (body + (m.get("from") or "")).lower() or "verify" in (
+                m.get("subject") or ""
+            ).lower():
+                return m
+        time.sleep(8)
+    return None
+
+
+def _poll_driftz(iid, deadline):
+    while time.time() < deadline:
+        r = requests.get(f"https://api.driftz.net/api/v1/inbox/{iid}", timeout=20)
+        j = r.json()
+        items = j.get("data") or j.get("emails") or []
+        if isinstance(j, list):
+            items = j
+        for m in items:
+            body = str(m.get("body") or m.get("html") or "")
+            if "tokenharbor" in body.lower() or "verify" in str(m.get("subject", "")).lower():
+                return m
+        time.sleep(8)
+    return None
+
+
+def _poll_tempik(iid, deadline):
+    while time.time() < deadline:
+        r = requests.get(
+            f"https://tempik.exilion.my.id/api/inbox/{iid}/messages", timeout=20
+        )
+        j = r.json()
+        msgs = j.get("messages") or j.get("data") or []
+        for m in msgs:
+            body = str(m.get("body") or m.get("html") or "")
+            if "tokenharbor" in body.lower() or "verify" in str(m.get("subject", "")).lower():
+                return m
+        time.sleep(8)
+    return None
+
+
+def _extract_verify_link(msg):
+    """Pull https://tokenharbor.ai/...verify... or supabase confirm link from message."""
+    blob = json.dumps(msg)
+    urls = re.findall(r"https?://[^\s\"'<>\\]+", blob)
+    for u in urls:
+        if any(k in u.lower() for k in ("verify", "confirm", "tokenharbor", "supabase")):
+            return u
+    return None
+
+
+def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
+    s = _make_session(proxy)
+    email, poll = _create_inbox_chain(yyds_key, yyds_domain, s)
+    password = _passwd()
+    invite = seed_invite or ""
+
+    # 1. fetch signup page for action ids
+    r = s.get(SIGNUP_URL, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"signup page HTTP {r.status_code}")
+    action_id, action_key = _parse_action(r.text)
+    if not action_id:
+        raise RuntimeError("could not parse server action id (turnstile block?)")
+
+    # 2. submit server action
+    files = {
+        "$ACTION_REF_1": "",
+        "$ACTION_1:0": ("", json.dumps({"id": action_id, "bound": "$@1"})),
+        "$ACTION_1:1": ("", '["$undefined"]'),
+        "$ACTION_KEY": action_key,
+        "device_fingerprint": "",
+        "timezone": "Asia/Jakarta",
+        "email": email,
+        "password": password,
+        "invite_code": invite,
+    }
+    r = s.post(
+        SIGNUP_URL,
+        files=files,
+        allow_redirects=False,
+        timeout=30,
+    )
+    if r.status_code != 303:
+        raise RuntimeError(f"signup HTTP {r.status_code} (IP flagged?)")
+    _log(f"signup OK → {r.headers.get('location')}")
+
+    # 3. wait for verification email, open link
+    deadline = time.time() + 180
+    msg = poll(deadline)
+    if not msg:
+        raise RuntimeError("verification email not received")
+    link = _extract_verify_link(msg)
+    if not link:
+        raise RuntimeError("verification link not found in email")
+    r = s.get(link, timeout=30, allow_redirects=True)
+    _log(f"verify link opened → HTTP {r.status_code}")
+
+    # 4. session now active; claim gift + create key via dashboard API guesses
+    result = _claim_and_key(s, email)
+    result.update({"email": email, "password": password, "invite_code_used": invite})
+    return result
+
+
+def _claim_and_key(s, email):
+    """Best-effort: claim $5 gift and create API key through dashboard APIs."""
+    out = {"status": "success", "balance": None, "apiKey": None, "inviteCode": None}
+    # dashboard gift claim (observed endpoint pattern — may need adjust)
+    for path, body in [
+        ("/api/gifts/claim", {}),
+        ("/api/gift/claim", {}),
+        ("/api/dashboard/gifts/claim", {}),
+    ]:
+        try:
+            r = s.post(path, json=body, timeout=15)
+            if r.status_code in (200, 201):
+                j = r.json()
+                out["balance"] = j.get("balance") or j.get("credits") or j.get("amount")
+                _log(f"gift claim {path} → {r.status_code}")
+                break
+        except Exception:
+            continue
+    # invite code page
+    try:
+        r = s.get(f"{API_BASE}/dashboard/invites", timeout=20)
+        m = re.search(r"invite=([A-Z0-9-]{6,})", r.text)
+        if m:
+            out["inviteCode"] = m.group(1)
+            _log(f"invite code {out['inviteCode']}")
+    except Exception:
+        pass
+    # api key
+    try:
+        r = s.post(f"{API_BASE}/api/keys", json={"name": "schatt"}, timeout=15)
+        if r.status_code in (200, 201):
+            j = r.json()
+            out["apiKey"] = j.get("key") or j.get("apiKey") or (j.get("data") or {}).get("key")
+    except Exception:
+        pass
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Token Harbor chain-referral signup")
+    ap.add_argument("--count", type=int, default=1)
+    ap.add_argument("--yyds-api-key", default=os.environ.get("YYDS_API_KEY", ""))
+    ap.add_argument("--yyds-domain", default=os.environ.get("YYDS_DOMAIN", "valerius.biz.id"))
+    ap.add_argument("--seed-invite", default="", help="initial invite code (chain seed)")
+    ap.add_argument("--proxy", default=os.environ.get("TH_PROXY", ""))
+    args = ap.parse_args()
+
+    last_invite = args.seed_invite
+    ok = 0
+    for i in range(1, args.count + 1):
+        try:
+            result = register_one(
+                args.yyds_api_key, args.yyds_domain, last_invite, args.proxy, i
+            )
+            if result.get("inviteCode"):
+                last_invite = result["inviteCode"]
+            result["line"] = i
+            print(json.dumps(result, ensure_ascii=False), flush=True)
+            ok += 1
+        except Exception as e:
+            print(json.dumps({"line": i, "status": "failed", "error": str(e)}, ensure_ascii=False), flush=True)
+    _log(f"done {ok}/{args.count}")
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

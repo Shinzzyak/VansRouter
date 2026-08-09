@@ -2,36 +2,50 @@
 
 Port of solve_slider_v2.py, unchanged logic, stripped of all cv2/numpy.
 """
+import base64
 import math
 import random
 import time
 
 
 def _js_gap_detect():
-    """JS: alpha-masked NCC + edge voting. Returns dict with targetX etc."""
+    """JS: alpha-masked NCC + edge voting. Returns dict with targetX etc.
+
+    Accepts optional bgB64/pzB64 (data URLs) passed as kwargs — when the
+    captcha images are http(s) URLs, page-side fetch() can hit CORS and
+    return garbage; caller downloads via playwright request (no CORS) and
+    passes base64 here.
+    """
     return r"""
-    async () => {
+    async (arg) => {
+      const bgB64 = arg && arg.bg, pzB64 = arg && arg.pz;
       const bgImg = document.querySelector('#aliyunCaptcha-img');
       const puzzleImg = document.querySelector('#aliyunCaptcha-puzzle');
       const slider = document.querySelector('#aliyunCaptcha-sliding-slider');
       if (!bgImg || !puzzleImg || !slider) return {targetX: -1, error: 'missing'};
 
-      async function getPixels(img) {
-        const res = await fetch(img.src, {signal: AbortSignal.timeout(10000)});
+      async function getPixels(img, b64) {
+        let url;
+        if (b64) {
+          url = 'data:image/png;base64,' + b64;
+        } else {
+          url = img.src;
+        }
+        const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
         const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+        const tmpUrl = URL.createObjectURL(blob);
         const tmp = new Image();
-        await new Promise((r, j) => { tmp.onload = r; tmp.onerror = j; tmp.src = url; });
+        await new Promise((r, j) => { tmp.onload = r; tmp.onerror = j; tmp.src = tmpUrl; });
         const c = document.createElement('canvas');
         c.width = tmp.naturalWidth; c.height = tmp.naturalHeight;
         c.getContext('2d').drawImage(tmp, 0, 0);
         const id = c.getContext('2d').getImageData(0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(tmpUrl);
         return {w: c.width, h: c.height, data: id.data};
       }
 
-      const bg = await getPixels(bgImg);
-      const pz = await getPixels(puzzleImg);
+      const bg = await getPixels(bgImg, bgB64);
+      const pz = await getPixels(puzzleImg, pzB64);
 
       // alpha bbox
       let pzMinX = pz.w, pzMaxX = 0, pzMinY = pz.h, pzMaxY = 0;
@@ -96,6 +110,34 @@ def _js_gap_detect():
       const sliderRect = slider.getBoundingClientRect();
       const candidates=[];
       if (ncc.bestX>=5) candidates.push({x:ncc.bestX,score:ncc.bestScore,method:'gray-ncc'});
+      // edge voting: a real gap has strong vertical edges in the bg image
+      // near the NCC position; keep the strongest-edge candidate above threshold
+      function edgeScoreAt(x) {
+        let s = 0;
+        const y0 = Math.max(0, pzMinY - 20), y1 = Math.min(bg.h - 1, pzMinY + cropH + 20);
+        for (let y = y0; y <= y1; y += 2) {
+          const i = y * bg.w + x;
+          const gx = bgGray[i - 1] !== undefined ? bgGray[i - 1] : bgGray[i];
+          const gx2 = bgGray[i + 1] !== undefined ? bgGray[i + 1] : bgGray[i];
+          s += Math.abs(gx2 - gx);
+        }
+        return s;
+      }
+      const best = candidates[0];
+      if (best) {
+        const es = edgeScoreAt(best.x);
+        // scan ±30px for a stronger-edge position (NCC can peak on texture noise)
+        let bestX = best.x, bestEdge = es;
+        for (let dx = -30; dx <= 30; dx += 2) {
+          const xx = best.x + dx;
+          if (xx < 5 || xx > bg.w - cropW - 1) continue;
+          const e = edgeScoreAt(xx);
+          if (e > bestEdge * 1.35 && e > 40) { bestEdge = e; bestX = xx; }
+        }
+        if (bestX !== best.x) {
+          candidates.push({x: bestX, score: best.score * 0.98, method: 'edge-vote'});
+        }
+      }
       let finalX=-1, finalScore=0;
       const agreeThreshold=15;
       for(let i=0;i<candidates.length;i++) for(let j=i+1;j<candidates.length;j++){
@@ -110,10 +152,12 @@ def _js_gap_detect():
       const scale = bgRect.width / bg.w;
       const pzOffsetX = pzMinX || 0;
       const targetPuzzleLeft = (finalX - pzOffsetX) * scale;
+      const bodyRect = (document.querySelector('#aliyunCaptcha-sliding-body') || slider).getBoundingClientRect();
       return {targetX: finalX, score: finalScore, nccX: ncc.bestX, nccScore: ncc.bestScore,
               targetPuzzleLeft, scale, pzOffsetX, cropW, bgW: bg.w,
               sliderX: sliderRect.x, sliderY: sliderRect.y,
-              sliderW: sliderRect.width, sliderH: sliderRect.height};
+              sliderW: sliderRect.width, sliderH: sliderRect.height,
+              bodyW: bodyRect.width};
     }
     """
 
@@ -123,6 +167,16 @@ def solve_slider_v2(page, max_attempts=6, log=print):
     for attempt in range(1, max_attempts + 1):
         log(f"[slider] attempt {attempt}/{max_attempts}", flush=True)
         try:
+            # refresh captcha on retry (stale after wrong position)
+            if attempt > 1:
+                try:
+                    ref = page.locator("#aliyunCaptcha-btn-refresh")
+                    if ref.count() > 0 and ref.first.is_visible(timeout=2000):
+                        ref.first.click()
+                        log("[slider] captcha refreshed", flush=True)
+                        page.wait_for_timeout(1500)
+                except Exception:
+                    pass
             # expand if collapsed
             try:
                 collapsed = page.evaluate(
@@ -135,50 +189,80 @@ def solve_slider_v2(page, max_attempts=6, log=print):
                         page.wait_for_timeout(2500)
             except Exception:
                 pass
-            # wait images ready
-            page.wait_for_function(
-                "() => { const img = document.querySelector('#aliyunCaptcha-img'); "
-                "const slider = document.querySelector('#aliyunCaptcha-sliding-slider'); "
-                "return img && img.complete && img.naturalWidth > 0 && slider && slider.getBoundingClientRect().width > 0; }",
-                timeout=15000)
-            page.wait_for_timeout(500)
-            # gap detect
-            gap = page.evaluate(_js_gap_detect())
+            # wait images ready + settle (captcha may refresh after failed attempt)
+            try:
+                page.wait_for_function(
+                    "() => { const img = document.querySelector('#aliyunCaptcha-img'); "
+                    "const slider = document.querySelector('#aliyunCaptcha-sliding-slider'); "
+                    "return img && img.complete && img.naturalWidth > 0 && slider && slider.getBoundingClientRect().width > 0; }",
+                    timeout=15000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1200)
+            # gap detect — download imgs via playwright request (no CORS) when http(s)
+            bg_b64 = pz_b64 = None
+            try:
+                img_src = page.locator("#aliyunCaptcha-img").first.get_attribute("src") or ""
+                pz_src = page.locator("#aliyunCaptcha-puzzle").first.get_attribute("src") or ""
+                if img_src.startswith("http") or pz_src.startswith("http"):
+                    def _dl(url):
+                        resp = page.request.get(url, timeout=15000)
+                        if resp.ok:
+                            return base64.b64encode(resp.body()).decode()
+                        return None
+                    bg_b64 = _dl(img_src) if img_src.startswith("http") else None
+                    pz_b64 = _dl(pz_src) if pz_src.startswith("http") else None
+            except Exception:
+                pass
+            gap = page.evaluate(_js_gap_detect(), {"bg": bg_b64, "pz": pz_b64})
+            # sanity: score must be decent; retry fresh detect if too low
+            if gap.get("score", 0) < 0.82:
+                log(f"[slider] gap score {gap.get('score', 0):.3f} low, re-detect", flush=True)
+                page.wait_for_timeout(800)
+                gap = page.evaluate(_js_gap_detect(), {"bg": bg_b64, "pz": pz_b64})
             if not gap or gap.get("targetX", -1) <= 5:
                 log(f"[slider] gap detect fail: {gap}", flush=True)
                 page.wait_for_timeout(2000)
                 continue
             tpl = gap["targetPuzzleLeft"]
-            log(f"[slider] gap X={gap['targetX']} score={gap['score']:.3f} → left={tpl:.1f}px", flush=True)
-            # drag
+            # Aliyun puzzle needs to be ~15px RIGHT of the detected gap center
+            # (proven: debug drag to 260 with gap 245 → captcha OK; exact gap → reject)
+            tpl += 15
+            log(f"[slider] gap X={gap['targetX']} score={gap['score']:.3f} → left={tpl:.1f}px (+15 offset)", flush=True)
+            # drag — page.mouse (proven to move puzzle in headless) + gentle feedback
             sx = gap["sliderX"] + 10
             sy = gap["sliderY"] + gap["sliderH"] / 2
-            track_w = gap["sliderW"]
+            track_w = gap.get("bodyW") or gap["sliderW"]
             est_max = gap.get("bgW", 300) * gap.get("scale", 1.0) - 52
+            frac = max(0.0, min(1.0, tpl / max(est_max, 1)))
+            mx = max(10, min(1270, sx + frac * track_w))
             page.mouse.move(sx, sy)
             page.wait_for_timeout(60 + random.randint(0, 60))
             page.mouse.down()
-            page.wait_for_timeout(30 + random.randint(0, 30))
-            frac = max(0.0, min(1.0, tpl / max(est_max, 1)))
-            mx = max(10, min(1270, sx + frac * track_w))
-            page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=10)
-            page.wait_for_timeout(100)
-            reached = False
-            for _step in range(1, 61):
+            page.wait_for_timeout(40 + random.randint(0, 30))
+            page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=15)
+            page.wait_for_timeout(150 + random.randint(0, 100))
+            # feedback correction
+            for _step in range(1, 21):
                 cur = page.evaluate(
                     "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
                 rem = tpl - cur
-                if abs(rem) <= 2:
-                    reached = True
+                if abs(rem) <= 2.5:
                     break
-                adj = track_w / max(est_max, 1)
-                delta = max(-60, min(60, rem * adj)) + (random.random() - 0.5) * 2
+                delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
                 mx = max(10, min(1270, mx + delta))
-                page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=5)
-                page.wait_for_timeout(15 + random.randint(0, 15))
-            page.wait_for_timeout(50 + random.randint(0, 100))
+                page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=6)
+                page.wait_for_timeout(30 + random.randint(0, 30))
             page.mouse.up()
-            page.wait_for_timeout(2500)
+            page.wait_for_timeout(1500)
+            # debug: read puzzle left
+            try:
+                cur_left = page.evaluate(
+                    "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
+                log(f"[slider] after drag: left={cur_left:.1f} target={tpl:.1f}", flush=True)
+            except Exception:
+                pass
+            page.wait_for_timeout(1000)
             # solved check
             solved = page.evaluate("""() => {
               const w = document.querySelector('#aliyunCaptcha-captcha-wrapper');

@@ -19,7 +19,9 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
     "kiro",
     "qoder",
     "qoder-signup",
+    "tokenharbor-signup",
   ]);
+  expect(isValidBulkImportProvider("tokenharbor-signup")).toBe(true);
 });
 
 test("kiro manager exports", async () => {
