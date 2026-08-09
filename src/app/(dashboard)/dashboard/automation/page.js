@@ -17,6 +17,7 @@ import {
   GrokSsoImportModal,
   QoderSignupModal,
   TokenHarborSignupModal,
+  BasetenSignupModal,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { FREE_PROVIDERS } from "@/shared/constants/providers";
@@ -420,6 +421,31 @@ function TokenHarborAutomationPanel({ onRefresh }) {
   );
 }
 
+function BasetenAutomationPanel({ onRefresh }) {
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="deployed_code"
+            title="Signup Bulk (YYDS + API key)"
+            subtitle="Register new Baseten accounts with fresh YYDS inboxes: Camoufox signup (Cloudflare) → OTP → waiting room approve → API key saved as connection."
+          />
+        </button>
+      </div>
+      <BasetenSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
+      />
+    </>
+  );
+}
+
 function AutoclawAutomationPanel({ onRefresh }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -580,6 +606,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Bulk signup with chain referral: fresh YYDS inboxes → verify email → $5 credit → API key → invite code chain.",
     supportedModes: ["signup", "chain-referral"],
     component: TokenHarborAutomationPanel,
+  },
+  {
+    id: "baseten",
+    label: "Baseten",
+    icon: "deployed_code",
+    description: "Bulk signup with YYDS temp mail: Camoufox signup → OTP → waiting room approve → API key → saved as Baseten connection.",
+    supportedModes: ["signup"],
+    component: BasetenAutomationPanel,
   },
   {
     id: "cloudflare-ai",
