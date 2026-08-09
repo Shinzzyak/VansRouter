@@ -1,11 +1,23 @@
 import { test, expect } from "vitest";
 import { BULK_IMPORT_PROVIDERS, isValidBulkImportProvider } from "../../src/lib/oauth/services/bulkImportRegistry.js";
 
-test("registry kiro + grok-cli", () => {
+test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   expect(isValidBulkImportProvider("kiro")).toBe(true);
   expect(isValidBulkImportProvider("grok-cli")).toBe(true);
-  expect(isValidBulkImportProvider("qoder")).toBe(false);
-  expect(Object.keys(BULK_IMPORT_PROVIDERS)).toEqual(["kiro", "grok-cli"]);
+  expect(isValidBulkImportProvider("qoder")).toBe(true);
+  expect(isValidBulkImportProvider("codebuddy")).toBe(true);
+  expect(isValidBulkImportProvider("codebuddy-cn")).toBe(true);
+  expect(isValidBulkImportProvider("autoclaw")).toBe(true);
+  expect(isValidBulkImportProvider("cloudflare-ai")).toBe(false);
+  expect(isValidBulkImportProvider("unknown")).toBe(false);
+  expect(Object.keys(BULK_IMPORT_PROVIDERS).sort()).toEqual([
+    "autoclaw",
+    "codebuddy",
+    "codebuddy-cn",
+    "grok-cli",
+    "kiro",
+    "qoder",
+  ]);
 });
 
 test("kiro manager exports", async () => {

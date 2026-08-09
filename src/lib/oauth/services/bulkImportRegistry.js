@@ -71,6 +71,94 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       yydsJwt: body?.yydsJwt,
     }),
   },
+  qoder: {
+    label: "Qoder",
+    errorLabel: "Bulk import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./kiroBulkImportManager.js").then((m) => m.parseKiroBulkAccounts(accounts)),
+    getManager: () =>
+      import("./qoderBulkImportManager.js").then((m) => m.getQoderBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl,
+      proxyUrls: resolvedProxy.proxyUrls,
+      proxyMode: resolvedProxy.proxyMode,
+      proxyPoolId: resolvedProxy.proxyPoolId,
+      proxySource: resolvedProxy.proxySource,
+      randomizeProxySession: body?.randomizeProxySession,
+    }),
+  },
+  codebuddy: {
+    label: "CodeBuddy",
+    errorLabel: "Bulk import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./codebuddyBulkImportManager.js").then((m) => m.parseCodeBuddyBulkAccounts(accounts)),
+    getManager: () =>
+      import("./codebuddyBulkImportManager.js").then((m) => m.getCodeBuddyBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl,
+      proxyUrls: resolvedProxy.proxyUrls,
+      proxyMode: resolvedProxy.proxyMode,
+      proxyPoolId: resolvedProxy.proxyPoolId,
+      proxySource: resolvedProxy.proxySource,
+      randomizeProxySession: body?.randomizeProxySession,
+    }),
+  },
+  "codebuddy-cn": {
+    label: "CodeBuddy CN",
+    errorLabel: "CodeBuddy CN phone import job",
+    staleOnLatest404: false,
+    applyProxyMode: true,
+    // 5sim flow: no client-side account parsing; manager handles phone OTP.
+    parseAccounts: null,
+    getManager: () =>
+      import("./codebuddyCnPhoneImportManager.js").then((m) => m.getCodeBuddyCnPhoneImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      fiveSimToken: body?.fiveSimToken,
+      count: body?.count,
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      country: body?.country,
+      operator: body?.operator,
+      product: body?.product,
+      proxyUrl: resolvedProxy.proxyUrl,
+      proxyUrls: resolvedProxy.proxyUrls,
+      proxyMode: resolvedProxy.proxyMode,
+      proxyPoolId: resolvedProxy.proxyPoolId,
+      proxySource: resolvedProxy.proxySource,
+      randomizeProxySession: body?.randomizeProxySession,
+    }),
+  },
+  autoclaw: {
+    label: "AutoClaw",
+    errorLabel: "AutoClaw import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./kiroBulkImportManager.js").then((m) => m.parseKiroBulkAccounts(accounts)),
+    getManager: () =>
+      import("./autoclawBulkImportManager.js").then((m) => m.getAutoclawBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl,
+      proxyUrls: resolvedProxy.proxyUrls,
+      proxyMode: resolvedProxy.proxyMode,
+      proxyPoolId: resolvedProxy.proxyPoolId,
+      proxySource: resolvedProxy.proxySource,
+      randomizeProxySession: body?.randomizeProxySession,
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {

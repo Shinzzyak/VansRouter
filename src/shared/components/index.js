@@ -39,6 +39,15 @@ export const AddCustomEmbeddingModal = lazyModal(() => import("./AddCustomEmbedd
 export const NoAuthProxyCard = lazyModal(() => import("./NoAuthProxyCard"));
 export const ChangelogModal = lazyModal(() => import("./ChangelogModal"));
 export const ProviderInfoCard = lazyModal(() => import("./ProviderInfoCard"));
+export const BulkAccountAutomationModal = lazyModal(() => import("./BulkAccountAutomationModal"));
+export const CloudflareTokenImportModal = lazyModal(() => import("./CloudflareTokenImportModal"));
+export const CloudflareDisposableImportModal = lazyModal(() => import("./CloudflareDisposableImportModal"));
+export const CodeBuddyCnPhoneAutomationModal = lazyModal(() => import("./CodeBuddyCnPhoneAutomationModal"));
+export const AutoclawAutomationModal = lazyModal(() => import("./AutoclawAutomationModal"));
+export const GrokSsoImportModal = lazyModal(() => import("./GrokSsoImportModal"));
+export const GrokRegisterModal = lazyModal(() =>
+  import("@/app/(dashboard)/dashboard/providers/[id]/GrokRegisterModal")
+);
 
 export { default as UsageStats } from "./UsageStats";
 export { default as LanguageSwitcher } from "./LanguageSwitcher";
