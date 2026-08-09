@@ -144,6 +144,7 @@ import p143 from "./trae.js";
 import p144 from "./zed.js";
 import p145 from "./autoclaw.js";
 import p146 from "./windsurf.js";
+import p147 from "./qwen.js";
 
 export default [
   p0,
@@ -291,5 +292,6 @@ export default [
   p143,
   p144,
   p145,
-  p146
+  p146,
+  p147
 ];

@@ -128,6 +128,8 @@ export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 export const FREEBUFF_CONFIG = { ...PROVIDER_OAUTH["freebuff"] };
 
 // OAuth timeout (5 minutes)
+export const QWEN_CONFIG = { ...PROVIDER_OAUTH["qwen"] };
+
 export const OAUTH_TIMEOUT = 300000;
 
 // Provider list
@@ -156,6 +158,7 @@ export const PROVIDERS = {
   TRAE: "trae",
   WINDSURF: "windsurf",
   ZED: "zed",
+  QWEN: "qwen",
 };
 
 // Trae (ByteDance marscode) OAuth — authorization_code flow with local callback.
