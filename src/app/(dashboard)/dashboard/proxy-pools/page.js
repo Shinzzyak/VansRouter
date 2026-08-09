@@ -135,6 +135,8 @@ export default function ProxyPoolsPage() {
   const [loading, setLoading] = useState(true);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showBatchImportModal, setShowBatchImportModal] = useState(false);
+  const [showScrapeModal, setShowScrapeModal] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const [showVercelModal, setShowVercelModal] = useState(false);
   const [showCloudflareModal, setShowCloudflareModal] = useState(false);
   const [showDenoModal, setShowDenoModal] = useState(false);
@@ -438,6 +440,33 @@ export default function ProxyPoolsPage() {
     setShowBatchImportModal(true);
   };
 
+  const openScrapeModal = () => {
+    setShowScrapeModal(true);
+  };
+
+  const runScrape = async () => {
+    setScraping(true);
+    try {
+      const res = await fetch("/api/proxy-scraper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 300, namePrefix: "free" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        notify.success(`Scraped ${data.scraped} proxies, imported ${data.imported}`);
+        setShowScrapeModal(false);
+        fetchProxyPools();
+      } else {
+        notify.error(`Scrape failed: ${data.error || "unknown"}`);
+      }
+    } catch (e) {
+      notify.error(`Scrape error: ${e.message}`);
+    } finally {
+      setScraping(false);
+    }
+  };
+
   const closeBatchImportModal = () => {
     if (importing) return;
     setShowBatchImportModal(false);
@@ -697,6 +726,9 @@ export default function ProxyPoolsPage() {
           <Button size="sm" variant="secondary" icon="upload" onClick={openBatchImportModal}>
             Batch Import
           </Button>
+          <Button size="sm" variant="secondary" icon="download" onClick={openScrapeModal} disabled={scraping}>
+            {scraping ? "Scraping…" : "Scrape Free Proxies"}
+          </Button>
           <Button size="sm" icon="add" onClick={openCreateModal}>Add Proxy Pool</Button>
         </div>
       </div>
@@ -797,6 +829,28 @@ export default function ProxyPoolsPage() {
         onImport={handleBatchImport}
         onClose={closeBatchImportModal}
       />
+
+      <Modal
+        isOpen={showScrapeModal}
+        onClose={() => { if (!scraping) setShowScrapeModal(false); }}
+        title="Scrape Free Proxies"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-muted">
+            Fetch fresh free proxies from public sources (Geonode, ProxyScrape, FreeProxyList GitHub)
+            and import them as proxy pools. Proxies are added with testStatus "unknown" —
+            run Health Check after import to filter dead ones.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" onClick={() => setShowScrapeModal(false)} disabled={scraping}>
+              Cancel
+            </Button>
+            <Button onClick={runScrape} disabled={scraping}>
+              {scraping ? "Scraping…" : "Scrape & Import"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <DeploymentModal isOpen={showVercelModal} title="Deploy Vercel Relay" onClose={closeVercelModal}>
         <div className="flex flex-col gap-4">
