@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
+import { countBatchResults, dedupeProxyEntries, runProxyPoolBatch } from "./batchOperations.js";
 
 function parseProxyLine(line) {
   const trimmed = line.trim();
@@ -324,19 +325,16 @@ export default function ProxyPoolsPage() {
     setBulkBusy(true);
     setBatchProgress({ label: isActive ? "Activating" : "Deactivating", current: 0, total: targets.length });
     try {
-      let ok = 0;
-      for (const id of targets) {
-        try {
-          const res = await fetch(`/api/proxy-pools/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isActive }),
-          });
-          if (res.ok) ok += 1;
-        } catch { /* count as failed */ }
-        setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
-      }
-      const failed = targets.length - ok;
+      const results = await runProxyPoolBatch(targets, async (id) => {
+        const res = await fetch(`/api/proxy-pools/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive }),
+        });
+        return res.ok ? "ok" : "fail";
+      }, (current) => setBatchProgress((prev) => ({ ...prev, current })));
+      const { ok = 0, fail = 0 } = countBatchResults(results);
+      const failed = fail;
       await fetchProxyPools();
       notify.success(`${isActive ? "Activated" : "Deactivated"} ${ok}${failed ? `, failed ${failed}` : ""}`);
     } finally {
@@ -351,21 +349,18 @@ export default function ProxyPoolsPage() {
       title: "Delete Proxy Pools",
       message: `Delete ${selectedIds.length} proxy pool(s)?`,
       onConfirm: async () => {
+        setConfirmState(null);
         setBulkBusy(true);
         const targets = [...selectedIds];
         setBatchProgress({ label: "Deleting", current: 0, total: targets.length });
         try {
-          let ok = 0;
-          let blocked = 0;
-          for (const id of targets) {
-            try {
-              const res = await fetch(`/api/proxy-pools/${id}`, { method: "DELETE" });
-              if (res.ok) ok += 1;
-              else if (res.status === 409) blocked += 1;
-            } catch { /* count as failed */ }
-            setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
-          }
-          const failed = targets.length - ok - blocked;
+          const results = await runProxyPoolBatch(targets, async (id) => {
+            const res = await fetch(`/api/proxy-pools/${id}`, { method: "DELETE" });
+            if (res.ok) return "ok";
+            if (res.status === 409) return "blocked";
+            return "fail";
+          }, (current) => setBatchProgress((prev) => ({ ...prev, current })));
+          const { ok = 0, blocked = 0, fail: failed = 0 } = countBatchResults(results);
           await fetchProxyPools();
           clearSelection();
           notify.success(`Deleted ${ok}${blocked ? `, ${blocked} bound` : ""}${failed ? `, ${failed} failed` : ""}`);
@@ -595,31 +590,26 @@ export default function ProxyPoolsPage() {
       let skipped = 0;
       let failed = 0;
 
-      const toCreate = parsedEntries.filter(entry => {
-        const dedupeKey = `${entry.proxyUrl}|||`;
-        if (existingKeys.has(dedupeKey)) { skipped += 1; return false; }
-        return true;
-      });
+      const { accepted: toCreate, skipped: duplicateCount } = dedupeProxyEntries(parsedEntries, existingKeys);
+      skipped += duplicateCount;
 
       setBatchProgress({ label: "Importing", current: 0, total: toCreate.length });
-      for (const entry of toCreate) {
-        try {
-          const res = await fetch("/api/proxy-pools", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: entry.name,
-              proxyUrl: entry.proxyUrl,
-              noProxy: "",
-              isActive: true,
-            }),
-          });
-          if (res.ok) created += 1; else failed += 1;
-        } catch {
-          failed += 1;
-        }
-        setBatchProgress((prev) => ({ ...prev, current: prev.current + 1 }));
-      }
+      const results = await runProxyPoolBatch(toCreate, async (entry) => {
+        const res = await fetch("/api/proxy-pools", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: entry.name,
+            proxyUrl: entry.proxyUrl,
+            noProxy: "",
+            isActive: true,
+          }),
+        });
+        return res.ok ? "ok" : "fail";
+      }, (current) => setBatchProgress((prev) => ({ ...prev, current })));
+      const counts = countBatchResults(results);
+      created = counts.ok || 0;
+      failed = counts.fail || 0;
 
       await fetchProxyPools();
       setShowBatchImportModal(false);
