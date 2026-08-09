@@ -316,7 +316,7 @@ export async function proxy(request) {
 
     return new NextResponse(
       JSON.stringify({
-        message: `Welcome to VansAI! Use ${baseUrl}/v1 as your API endpoint.`,
+        message: `Welcome to Schatt Router! Use ${baseUrl}/v1 as your API endpoint.`,
       }),
       {
         status: 200,
