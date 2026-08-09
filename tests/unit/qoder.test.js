@@ -389,13 +389,14 @@ describe("wrapQoderSSE", () => {
   const { wrapQoderSSE } = qoderExecutorInternals;
 
   // Helper: build a fake Response carrying the given lines as the body.
-  function makeResponse(lines, { status = 200 } = {}) {
+  function makeResponse(lines, { status = 200, onCancel, close = true } = {}) {
     const body = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
         for (const line of lines) controller.enqueue(encoder.encode(line));
-        controller.close();
+        if (close) controller.close();
       },
+      cancel: onCancel,
     });
     return new Response(body, { status });
   }
@@ -467,6 +468,18 @@ describe("wrapQoderSSE", () => {
     expect(dataLine).toBeDefined();
     // Body sans "data: " prefix should be valid JSON.
     expect(() => JSON.parse(dataLine.slice("data: ".length))).not.toThrow();
+  });
+
+  it("cancels the upstream reader after a terminal event", async () => {
+    let cancelled = false;
+    const inner = JSON.stringify({ choices: [{ delta: { content: "hi" } }] });
+    const upstream = `data: ${JSON.stringify({ statusCodeValue: 200, body: inner })}\n\ndata: [DONE]\n\n`;
+    const wrapped = wrapQoderSSE(
+      makeResponse([upstream], { close: false, onCancel: () => { cancelled = true; } }),
+      "qoder/auto",
+    );
+    await drain(wrapped);
+    expect(cancelled).toBe(true);
   });
 
   it("upstream error envelope produces an error chunk + [DONE]", async () => {
