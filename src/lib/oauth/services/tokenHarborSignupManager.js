@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
 import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
+import { DEFAULT_BULK_IMPORT_ENGINE } from "./bulkImportBrowserEngine.js";
 import {
   createProviderConnection,
   getProviderConnectionById,
@@ -93,7 +94,7 @@ class TokenHarborSignupManager extends KiroBulkImportManager {
     return super.startJob({
       accounts: placeholders.map((a) => `${a.email}|${a.password}`),
       concurrency: concurrency || 1,
-      engine: "chromium",
+      engine: DEFAULT_BULK_IMPORT_ENGINE,
       headless: headless ?? false,
       proxyUrl,
       jobFields: {

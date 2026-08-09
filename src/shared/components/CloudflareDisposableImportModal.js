@@ -63,7 +63,7 @@ export default function CloudflareDisposableImportModal({ isOpen, onClose, onSuc
   const [mailDomains, setMailDomains] = useState("");
   const [accountCount, setAccountCount] = useState("1");
   const [concurrency, setConcurrency] = useState("1");
-  const [engine, setEngine] = useState("chromium");
+  const [engine, setEngine] = useState("camoufox");
   const [headless, setHeadless] = useState(false);
   const [proxyUrl, setProxyUrl] = useState("");
   const [loadingDomains, setLoadingDomains] = useState(false);

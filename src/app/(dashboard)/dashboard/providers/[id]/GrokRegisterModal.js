@@ -67,7 +67,7 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
   const [yydsJwt, setYydsJwt] = useState("");
   const [accountCount, setAccountCount] = useState("1");
   const [concurrency, setConcurrency] = useState("1");
-  const [engine, setEngine] = useState("chromium");
+  const [engine, setEngine] = useState("camoufox");
   const [headless, setHeadless] = useState(false);
   const [proxyUrl, setProxyUrl] = useState("");
   const [activeJob, setActiveJob] = useState(null);
