@@ -96,16 +96,16 @@ export default function HarvestClient() {
       });
     }
 
-    function selectTab(id) {
-      setTab(id);
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", id);
-      router.replace(url.pathname + url.search, { scroll: false });
-    }
-
     connect();
     return () => es?.close();
   }, []);
+
+  function selectTab(id) {
+    setTab(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", id);
+    router.replace(url.pathname + url.search, { scroll: false });
+  }
 
   const liveEvents = (prefix) => events.filter((e) => e.type.startsWith(prefix));
   const clearEvents = () => setEvents([]);
