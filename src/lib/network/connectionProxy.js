@@ -75,7 +75,10 @@ export async function resolveConnectionProxyConfig(
     let selectedPoolId = null;
     if (proxyPoolIds.length > 0) {
       const scope = providerSpecificData?.proxyPoolScope || null;
-      selectedPoolId = pickProxyPoolId(proxyPoolIds, proxyRotationStrategy, connectionId, { scope, excludeIds: excludePoolIds });
+      // Guard: callers omit excludePoolIds (default null) — pickProxyPoolId
+      // does excludeIds.includes() which throws on null. Normalize to [].
+      const excludeIds = Array.isArray(excludePoolIds) ? excludePoolIds : [];
+      selectedPoolId = pickProxyPoolId(proxyPoolIds, proxyRotationStrategy, connectionId, { scope, excludeIds });
 
       if (selectedPoolId) {
         const proxyPool = await getProxyPoolById(selectedPoolId);
