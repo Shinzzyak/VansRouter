@@ -2,8 +2,8 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "VansRouter Proxy",
-  description: "AI Infrastructure Management",
+  name: "Schatt Router",
+  description: "AI Router & Token Saver",
   version: pkg.version,
 };
 
