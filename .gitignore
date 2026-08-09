@@ -123,3 +123,7 @@ next-env.d.ts
 graphify-out/*
 .next-analyze/*
 __pycache__/
+scripts/python/qoderreg-venv/
+scripts/python/*-venv/
+scripts/python/debug_*.py
+scripts/python/th_signup_*.py

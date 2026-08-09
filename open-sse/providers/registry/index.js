@@ -145,6 +145,7 @@ import p144 from "./zed.js";
 import p145 from "./autoclaw.js";
 import p146 from "./windsurf.js";
 import p147 from "./qwen.js";
+import p148 from "./tokenharbor.js";
 
 export default [
   p0,
@@ -293,5 +294,6 @@ export default [
   p144,
   p145,
   p146,
-  p147
+  p147,
+  p148
 ];

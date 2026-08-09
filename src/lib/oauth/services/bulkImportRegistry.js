@@ -92,6 +92,25 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       randomizeProxySession: body?.randomizeProxySession,
     }),
   },
+  "tokenharbor-signup": {
+    label: "Token Harbor Signup",
+    errorLabel: "Token Harbor signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./tokenHarborSignupManager.js").then((m) => m.getTokenHarborSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      yydsApiKey: body?.yydsApiKey,
+      yydsDomain: body?.yydsDomain,
+      seedInvite: body?.seedInvite,
+    }),
+  },
   "qoder-signup": {
     label: "Qoder Signup",
     errorLabel: "Qoder signup job",

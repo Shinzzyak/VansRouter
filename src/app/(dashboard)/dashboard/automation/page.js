@@ -16,6 +16,7 @@ import {
   GrokRegisterModal,
   GrokSsoImportModal,
   QoderSignupModal,
+  TokenHarborSignupModal,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { FREE_PROVIDERS } from "@/shared/constants/providers";
@@ -394,6 +395,31 @@ function QoderAutomationPanel({ providerInfo, onRefresh }) {
   );
 }
 
+function TokenHarborAutomationPanel({ onRefresh }) {
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="redeem"
+            title="Signup Bulk (chain reff + $5)"
+            subtitle="Register new Token Harbor accounts with fresh YYDS inboxes: signup → verify email → claim $5 → API key → invite code chain ($2/referral)."
+          />
+        </button>
+      </div>
+      <TokenHarborSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
+      />
+    </>
+  );
+}
+
 function AutoclawAutomationPanel({ onRefresh }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -546,6 +572,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Import AutoClaw access tokens or run bulk Google OAuth login. Tracks point balance + auto-refreshes tokens.",
     supportedModes: ["import-token", "bulk-account"],
     component: AutoclawAutomationPanel,
+  },
+  {
+    id: "tokenharbor",
+    label: "Token Harbor",
+    icon: "redeem",
+    description: "Bulk signup with chain referral: fresh YYDS inboxes → verify email → $5 credit → API key → invite code chain.",
+    supportedModes: ["signup", "chain-referral"],
+    component: TokenHarborAutomationPanel,
   },
   {
     id: "cloudflare-ai",
