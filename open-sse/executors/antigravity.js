@@ -232,7 +232,7 @@ export class AntigravityExecutor extends BaseExecutor {
     }).filter(c => Array.isArray(c.parts) && c.parts.length > 0); // ponytail: v1internal rejects empty parts[] (issue #6)
 
     // Sanitize tool schemas and function names before sending to Antigravity.
-    let tools = body.request?.tools;
+    let tools = body.request?.tools || body.tools;
 
     if (tools && tools.length > 0) {
       // Merge all groups into a single functionDeclarations group (Gemini expects 1 group)
@@ -472,7 +472,7 @@ export class AntigravityExecutor extends BaseExecutor {
    * Returns { cloakedBody, toolNameMap } where toolNameMap maps suffixed → original
    */
   static cloakTools(body, clientTool = null) {
-    const tools = body.request?.tools;
+    const tools = body.request?.tools || body.tools;
     if (!tools || tools.length === 0) {
       return { cloakedBody: body, toolNameMap: null };
     }
