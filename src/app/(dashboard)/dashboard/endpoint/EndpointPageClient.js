@@ -987,6 +987,21 @@ export default function APIPageClient({ machineId }) {
     return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
   };
 
+  // DB rows may carry legacy unix-seconds createdAt (e.g. imported/test keys).
+  // new Date("1785933928") -> Invalid Date -> toLocaleDateString() throws in some engines.
+  const formatKeyDate = (createdAt) => {
+    if (!createdAt) return "";
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) {
+      // numeric unix-seconds string (10 digits) or number
+      const secs = typeof createdAt === "number" || /^\d{10}$/.test(String(createdAt).trim()) ? Number(createdAt) : NaN;
+      const parsed = Number.isFinite(secs) ? new Date(secs * 1000) : null;
+      if (parsed && !isNaN(parsed.getTime())) return parsed.toLocaleDateString();
+      return "";
+    }
+    return d.toLocaleDateString();
+  };
+
   const toggleKeyVisibility = (keyId) => {
     setVisibleKeys(prev => {
       const next = new Set(prev);
@@ -1535,7 +1550,7 @@ export default function APIPageClient({ machineId }) {
                     </button>
                   </div>
                   <p className="text-xs text-text-muted mt-1">
-                    Created {new Date(key.createdAt).toLocaleDateString()}
+                    Created {formatKeyDate(key.createdAt)}
                   </p>
                    {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
