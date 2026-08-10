@@ -125,7 +125,7 @@ export async function resolveBulkImportProxy({ proxyPoolId, proxyUrl } = {}) {
   // Fallback: check settings for outbound proxy automation opt-in
   try {
     const settings = await getSettings();
-    if (settings.useOutboundProxyForAutomation === true && settings.outboundProxyUrl) {
+    if (settings.outboundProxyEnabled === true && settings.outboundProxyUrl) {
       const proxyUrls = splitBulkImportProxyUrls(settings.outboundProxyUrl);
       const validationError = validateProxyUrls(proxyUrls);
       if (validationError) {

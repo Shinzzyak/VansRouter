@@ -13,7 +13,9 @@ export const STORAGE_NAME = "autoclaw-signup-bulk-import";
 const AUTOCLAW_PROVIDER_ID = "autoclaw";
 const SIGNUP_TIMEOUT_MS = 20 * 60_000;
 
-import { findPythonBinary as PYTHON_BIN } from "./pythonEnv.js";
+import { findPythonBinary } from "./pythonEnv.js";
+
+const PYTHON_BIN = findPythonBinary();
 
 async function saveAutoclawSignupConnection({ access_token, refresh_token, device_id, user_id, user_name, email }) {
   const device = device_id || crypto.randomUUID();
