@@ -66,6 +66,14 @@ export function applyOutboundProxyEnv(
       process.env.HTTPS_PROXY = validated;
       process.env.ALL_PROXY = validated;
       process.env.NINE_ROUTER_PROXY_URL = validated;
+      // Temp-mail APIs (YYDS/Driftz/Tempik) are NOT anti-bot targets — never
+      // route them through the outbound proxy: MITM cert breaks their TLS
+      // (requests/urllib verify=True by default).
+      const extraNoProxy = "maliapi.215.im,api.driftz.net,tempik.exilion.my.id";
+      process.env.NO_PROXY = noProxy
+        ? `${noProxy},${extraNoProxy}`
+        : extraNoProxy;
+      process.env.NINE_ROUTER_NO_PROXY = process.env.NO_PROXY;
       managed = true;
     }
   }
