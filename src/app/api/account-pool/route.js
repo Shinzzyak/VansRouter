@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getProviderConnections,
+  getProviderNodes,
   updateProviderConnection,
   deleteProviderConnection,
   createProviderConnection,
@@ -18,6 +19,15 @@ export async function GET(request) {
     const filter = provider ? { provider } : {};
     const connections = await getProviderConnections(filter);
 
+    // Node name map for OpenAI/Anthropic-compatible providers (ugly ids → readable names)
+    let nodeNameMap = {};
+    try {
+      const nodes = await getProviderNodes();
+      for (const node of nodes) {
+        if (node.id && node.name) nodeNameMap[node.id] = node.name;
+      }
+    } catch {}
+
     // Enrich autoclaw with balance (like existing connections route)
     const enriched = await Promise.all(
       connections.map(async (c) => {
@@ -26,6 +36,13 @@ export async function GET(request) {
         row.refreshToken = undefined;
         row.idToken = undefined;
         row.apiKey = undefined;
+
+        // Resolve display provider name for compatible nodes
+        if (c.provider.startsWith("openai-compatible-chat-") || c.provider.startsWith("anthropic-compatible-")) {
+          row.displayProvider = nodeNameMap[c.provider] || c.provider;
+        } else {
+          row.displayProvider = c.provider;
+        }
 
         if (c.provider === "autoclaw" && c.accessToken) {
           try {

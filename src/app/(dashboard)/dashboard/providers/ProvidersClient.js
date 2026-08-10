@@ -164,8 +164,15 @@ export default function ProvidersClient({ initialConnections, initialNodes }) {
     });
 
   const getProviderStats = (providerId, authType) => {
+    // Normalize authType: "access_token" connections belong to free providers
+    // (shown in the "free" section with authType="oauth" filter)
+    const effectiveAuthType = authType === "oauth" ? null : authType;
     const providerConnections = connections.filter(
-      (c) => c.provider === providerId && c.authType === authType,
+      (c) =>
+        c.provider === providerId &&
+        (!effectiveAuthType ||
+          c.authType === effectiveAuthType ||
+          (authType === "oauth" && (c.authType === "access_token" || c.authType === "token"))),
     );
 
     const getEffectiveStatus = (conn) => {

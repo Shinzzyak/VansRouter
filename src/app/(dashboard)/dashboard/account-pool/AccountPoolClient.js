@@ -41,8 +41,8 @@ function AccountCard({ conn, busy, onToggle, onRemove }) {
     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <ProviderIcon provider={conn.provider} size={18} />
-          <span className="truncate text-sm font-medium">{conn.name || "—"}</span>
+          <ProviderIcon providerId={conn.provider} size={18} />
+          <span className="truncate text-sm font-medium">{conn.name || conn.displayProvider || "—"}</span>
         </div>
         <Badge variant={getStatusVariant(conn)} size="sm">{getStatusLabel(conn)}</Badge>
       </div>
@@ -50,7 +50,7 @@ function AccountCard({ conn, busy, onToggle, onRemove }) {
         {conn.email || conn.providerSpecificData?.userId || "—"}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>{conn.balance != null ? `balance ${conn.balance}` : conn.balanceError || ""}</span>
+        <span className="truncate">{conn.displayProvider || conn.provider}</span>
         <span>{formatTime(conn.lastRefreshAt || conn.updatedAt)}</span>
       </div>
       <div className="mt-2 flex gap-1.5">
@@ -212,7 +212,7 @@ export default function AccountPoolPage() {
               }`}
             >
               <div className="flex items-center gap-2">
-                <ProviderIcon provider={provider} size={18} />
+                <ProviderIcon providerId={provider} size={18} />
                 <span className="text-sm font-medium capitalize text-white">{provider}</span>
               </div>
               <div className="text-xs text-zinc-400">
@@ -270,8 +270,8 @@ export default function AccountPoolPage() {
                   <tr key={c.id} className="border-t border-white/5 transition-colors hover:bg-white/5">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <ProviderIcon provider={c.provider} size={16} />
-                        <span className="capitalize">{c.provider}</span>
+                        <ProviderIcon providerId={c.provider} size={16} />
+                        <span className="capitalize">{c.displayProvider || c.provider}</span>
                       </div>
                     </td>
                     <td className="max-w-[160px] truncate px-3 py-2.5">{c.name || "—"}</td>
