@@ -144,6 +144,10 @@ export class AutoclawBulkSignupManager extends KiroBulkImportManager {
       ...process.env,
       PYTHONUNBUFFERED: "1",
       YYDS_API_KEY: job.yydsApiKey,
+      // Temp-mail APIs (YYDS/Driftz/Tempik) are NOT anti-bot targets — never route
+      // them through the outbound proxy: MITM cert breaks their TLS (verify=True).
+      NO_PROXY: "maliapi.215.im,api.driftz.net,tempik.exilion.my.id",
+      no_proxy: "maliapi.215.im,api.driftz.net,tempik.exilion.my.id",
     };
 
     let stderrFull = "";
