@@ -215,6 +215,16 @@ class OutlookBulkSignupManager extends KiroBulkImportManager {
         for (const f of fs.readdirSync(outDir)) {
           if (!f.startsWith("accounts_") || !f.endsWith(".txt")) continue;
           const fp = path.join(outDir, f);
+          // Skip 0-byte files (attempt failed before writing any line) — filter
+          // by size > 0 supaya error path tidak termakan file kosong.
+          // Fix: re-chatgpt-outlook 2026-08-10.
+          let size = 0;
+          try {
+            size = fs.statSync(fp).size;
+          } catch {
+            continue;
+          }
+          if (size === 0) continue;
           const m = fs.statSync(fp).mtimeMs;
           if (m > newestMtime) {
             newestMtime = m;
