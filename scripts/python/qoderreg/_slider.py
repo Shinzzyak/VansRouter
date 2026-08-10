@@ -162,6 +162,22 @@ def _js_gap_detect():
     """
 
 
+def _cdp_drag(cdp, sx, sy, tx, steps=15):
+    """CDP trusted drag: dispatch mouseMoved with buttons:1 on EVERY step (Aliyun F015 fix)."""
+    import math, random as _r
+    for i in range(1, steps + 1):
+        t = i / steps
+        # ease-out curve + tiny jitter — human-like, still trusted
+        ease = 1 - (1 - t) ** 3
+        x = sx + (tx - sx) * ease
+        y = sy + (math.sin(t * math.pi) * 1.5 + (_r.random() - 0.5) * 1.2)
+        cdp.send("Input.dispatchMouseEvent", {
+            "type": "mouseMoved", "x": x, "y": y,
+            "button": "left", "buttons": 1,
+        })
+        time.sleep(0.012 + _r.random() * 0.008)
+
+
 def solve_slider_v2(page, max_attempts=6, log=print):
     """Solve Aliyun slider on page. Returns True on success."""
     for attempt in range(1, max_attempts + 1):
@@ -229,31 +245,54 @@ def solve_slider_v2(page, max_attempts=6, log=print):
             # (proven: debug drag to 260 with gap 245 → captcha OK; exact gap → reject)
             tpl += 15
             log(f"[slider] gap X={gap['targetX']} score={gap['score']:.3f} → left={tpl:.1f}px (+15 offset)", flush=True)
-            # drag — page.mouse (proven to move puzzle in headless) + gentle feedback
+            # drag — CDP trusted drag (Input.dispatchMouseEvent + buttons:1 on every move)
+            # page.mouse = untrusted → Aliyun F015. CDP = trusted → passes verify gate.
             sx = gap["sliderX"] + 10
             sy = gap["sliderY"] + gap["sliderH"] / 2
             track_w = gap.get("bodyW") or gap["sliderW"]
             est_max = gap.get("bgW", 300) * gap.get("scale", 1.0) - 52
             frac = max(0.0, min(1.0, tpl / max(est_max, 1)))
             mx = max(10, min(1270, sx + frac * track_w))
-            page.mouse.move(sx, sy)
-            page.wait_for_timeout(60 + random.randint(0, 60))
-            page.mouse.down()
-            page.wait_for_timeout(40 + random.randint(0, 30))
-            page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=15)
-            page.wait_for_timeout(150 + random.randint(0, 100))
-            # feedback correction
-            for _step in range(1, 21):
-                cur = page.evaluate(
-                    "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
-                rem = tpl - cur
-                if abs(rem) <= 2.5:
-                    break
-                delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
-                mx = max(10, min(1270, mx + delta))
-                page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=6)
-                page.wait_for_timeout(30 + random.randint(0, 30))
-            page.mouse.up()
+            cdp = None
+            try:
+                cdp = page.context.new_cdp_session(page)
+                cdp.send("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": sx, "y": sy})
+                page.wait_for_timeout(60 + random.randint(0, 60))
+                cdp.send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": sx, "y": sy, "button": "left", "buttons": 1, "clickCount": 1})
+                page.wait_for_timeout(40 + random.randint(0, 30))
+                _cdp_drag(cdp, sx, sy, mx, 15)
+                page.wait_for_timeout(150 + random.randint(0, 100))
+                # feedback correction
+                for _step in range(1, 21):
+                    cur = page.evaluate(
+                        "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
+                    rem = tpl - cur
+                    if abs(rem) <= 2.5:
+                        break
+                    delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
+                    mx = max(10, min(1270, mx + delta))
+                    _cdp_drag(cdp, sx, sy, mx, 6)
+                    page.wait_for_timeout(30 + random.randint(0, 30))
+                cdp.send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": mx, "y": sy, "button": "left", "buttons": 0, "clickCount": 1})
+            except Exception:
+                # fallback: page.mouse (may fail with F015, but better than nothing)
+                page.mouse.move(sx, sy)
+                page.wait_for_timeout(60 + random.randint(0, 60))
+                page.mouse.down()
+                page.wait_for_timeout(40 + random.randint(0, 30))
+                page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=15)
+                page.wait_for_timeout(150 + random.randint(0, 100))
+                for _step in range(1, 21):
+                    cur = page.evaluate(
+                        "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
+                    rem = tpl - cur
+                    if abs(rem) <= 2.5:
+                        break
+                    delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
+                    mx = max(10, min(1270, mx + delta))
+                    page.mouse.move(mx, sy + (random.random() - 0.5) * 2, steps=6)
+                    page.wait_for_timeout(30 + random.randint(0, 30))
+                page.mouse.up()
             page.wait_for_timeout(1500)
             # debug: read puzzle left
             try:
