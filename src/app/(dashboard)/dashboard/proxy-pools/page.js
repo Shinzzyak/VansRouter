@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
+import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal, ProxyScraperPanel } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import { countBatchResults, dedupeProxyEntries, runProxyPoolBatch } from "./batchOperations.js";
 
@@ -1035,6 +1035,8 @@ export default function ProxyPoolsPage() {
         message={confirmState?.message}
         variant="danger"
       />
+
+      <ProxyScraperPanel />
     </div>
   );
 }
