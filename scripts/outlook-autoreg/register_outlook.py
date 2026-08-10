@@ -45,7 +45,6 @@ try:
     from check_outlook_status import check_account_api
 except Exception:
     check_account_api = None
-
 # ======================== Configuration ========================
 
 # 导入 config 以触发 .env 加载（密钥来自 .env / 真实环境变量）。
@@ -109,20 +108,64 @@ VERIFY_AFTER_REGISTER = True
 
 
 def verify_registered_outlook(email, password, tag=""):
-    """Verify the saved password can actually log in before exporting the account."""
+    """Verify the saved password can actually log in before exporting the account.
+
+    R5-7 (P0): check_outlook_status.py tidak ada di repo → default-fail
+    membuang SEMUA akun. Ganti: verifikasi via HTTP GET ke login.live.com —
+    kalau kredensial valid, MS redirect ke halaman akun (200), kalau salah
+    → halaman error login (200 dengan 'error' / redirect ke /login).
+    Tanpa dependency tambahan, tanpa proxy wajib.
+    """
     if not VERIFY_AFTER_REGISTER:
         return True
-    if check_account_api is None:
-        # P1-3: module verifikasi hilang → default-fail, bukan skip diam-diam
-        # (akun gagal login tidak boleh diekspor sebagai sukses)
-        print(f"  {tag} verify FAILED: check_outlook_status unavailable (default-fail)")
+    try:
+        import requests as _requests
+        s = _requests.Session()
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        })
+        # Login flow ringan: GET authorize → form post → cek redirect target
+        r = s.get(
+            "https://login.live.com/oauth20_authorize.srf?client_id=00000000402b5328&response_type=code&redirect_uri=https://login.live.com/oauth20_desktop.srf&scope=wl.basic",
+            timeout=15,
+            allow_redirects=True,
+        )
+        if r.status_code != 200:
+            print(f"  {tag} verify FAILED: login.live.com status {r.status_code}")
+            return False
+        # Login page OK — kirim kredensial via POST form
+        import re as _re
+        # R5-7: halaman login sekarang SPA — PPFT di-embed sebagai JSON escape
+        # sFTTag\":\"<input type=\\\"hidden\\\" name=\\\"PPFT\\\" ... value=\\\"...\\\">
+        ppft = None
+        m = _re.search(r'value=.{0,5}([A-Za-z0-9!*_=@#%&+.\-]+)', r.text)
+        if m:
+            ppft = m
+        if not ppft:
+            # Halaman mungkin minta consent/2FA — anggap reachable, bukan verified
+            print(f"  {tag} verify SKIP: no login form (2FA/consent)")
+            return False
+        post = s.post(
+            "https://login.live.com/ppsecure/post.srf",
+            data={
+                "login": email,
+                "passwd": password,
+                "PPFT": ppft.group(1),
+                "PPSX": "",
+                "SI": "Sign in",
+                "type": "11",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=20,
+            allow_redirects=True,
+        )
+        # Sukses: redirect ke oauth20_desktop.srf dengan code / ke outlook.com
+        ok = ("oauth20_desktop.srf" in post.url) or ("outlook.live.com" in post.url) or ("/oauth20" in post.url)
+        print(f"  {tag} post-register verify: {'OK' if ok else 'FAIL'} ({post.status_code} {post.url[:80]})")
+        return ok
+    except Exception as e:
+        print(f"  {tag} verify ERROR: {str(e)[:120]} (default-fail)")
         return False
-    result = check_account_api(email, password)
-    status = result.get("status")
-    code = result.get("code") or ""
-    msg = result.get("message") or ""
-    print(f"  {tag} post-register verify: {status} {code} {msg[:80]}")
-    return status == "ok"
 
 # Default proxies (user:pass@host:port)
 # 住宅代理账密池来自环境变量 OUTLOOK_PROXIES（多个用换行或逗号分隔），默认空。
@@ -948,6 +991,20 @@ async def _skip_optional_recovery_email(page, idx=0):
     detected = "/proofs/add" in current_url or any(marker in body for marker in page_markers)
     if not detected:
         return False, False
+    # P2-2: kalau halaman minta PHONE (bukan email), jangan skip — SMS path
+    # (_bind_required_recovery_email) harus handle; skip di sini = kode SMS
+    # tidak pernah ter-submit.
+    has_phone_field = False
+    try:
+        phone_input = page.locator(
+            'input[type="tel"], input[name*="phone" i], input[id*="phone" i]'
+        ).first
+        has_phone_field = await phone_input.count() > 0 and await phone_input.is_visible()
+    except Exception:
+        pass
+    if has_phone_field:
+        print(f"  {tag} [graph] halaman minta phone — tidak skip, SMS path aktif")
+        return True, False
     clicked = await _click_microsoft_action(
         page, labels=MS_SKIP_ACTION_LABELS, negative_labels=(),
         preferred_ids=("iShowSkip", "idBtn_Skip", "skipBtn", "Skip"),
@@ -1033,6 +1090,94 @@ async def _bind_required_recovery_email(page, state, idx=0):
         has_email = await email_input.count() > 0 and await email_input.is_visible()
     except Exception:
         has_email = False
+
+    # T-04: phone field (no email input) → SMS via 5sim/SMSPool
+    phone_input = page.locator(
+        'input[type="tel"], input[name*="phone" i], input[id*="phone" i], '
+        'input[name*="mobile" i], input[id*="mobile" i]'
+    ).first
+    try:
+        has_phone = await phone_input.count() > 0 and await phone_input.is_visible()
+    except Exception:
+        has_phone = False
+    if has_phone and not state.get("sms_order"):
+        import sms_client
+        try:
+            country = os.environ.get("SMS_COUNTRY", "usa")
+            order = await asyncio.to_thread(sms_client.request_sms, "microsoft", country)
+            state["sms_order"] = order
+            print(f"  {tag} [graph] SMS via {order['provider']}: {order['phone']}")
+        except Exception as exc:
+            print(f"  {tag} [graph] SMS request failed: {str(exc)[:120]}")
+            return True, False
+    if has_phone and state.get("sms_order") and not state.get("sms_submitted"):
+        try:
+            await phone_input.fill(state["sms_order"]["phone"])
+            clicked = await _click_microsoft_action(
+                page, preferred_ids=(
+                    "iNext", "idSubmit_SAOTCSend", "idBtn_SAOTCSend",
+                    "continueButton",
+                )
+            )
+            if not clicked:
+                await phone_input.press("Enter")
+            state["sms_submitted"] = True
+            state["sms_requested_at"] = time.time()
+            await asyncio.sleep(2)
+        except Exception as exc:
+            print(f"  {tag} [graph] SMS submit failed: {str(exc)[:120]}")
+            return True, False
+    if has_phone and state.get("sms_submitted") and not state.get("sms_code_task"):
+        import sms_client
+        state["sms_code_task"] = asyncio.create_task(asyncio.to_thread(
+            sms_client.get_code, state["sms_order"], max_wait=180, poll=5,
+        ))
+        return True, True
+    if has_phone and state.get("sms_code_task"):
+        task = state["sms_code_task"]
+        if not task.done():
+            return True, True
+        try:
+            code = task.result()
+        except Exception:
+            code = None
+        if not code:
+            print(f"  {tag} [graph] SMS code timed out")
+            if not state.get("sms_cancelled"):
+                state["sms_cancelled"] = True  # R5-5: cancel sekali, jangan double
+                await asyncio.to_thread(sms_client.cancel_order, state["sms_order"])
+            return True, False
+        # P1-1: cek ulang halaman masih di recovery (marker /proofs/add atau
+        # input kode masih visible) sebelum fill — jangan isi halaman salah
+        try:
+            body_now = " ".join(
+                (await page.locator("body").inner_text(timeout=3000)).split()
+            ).lower()
+            url_now = (page.url or "").lower()
+        except Exception:
+            body_now, url_now = "", ""
+        if "/proofs/add" not in url_now and "one-time" not in body_now and "verification" not in body_now:
+            print(f"  {tag} [graph] halaman sudah pindah — SMS code tidak di-fill")
+            if not state.get("sms_cancelled"):
+                state["sms_cancelled"] = True  # R5-5: cancel sekali, jangan double
+                await asyncio.to_thread(sms_client.cancel_order, state["sms_order"])
+            return True, False
+        for selector in (
+            'input[autocomplete="one-time-code"], input[name*="otc" i], '
+            'input[id*="otc" i], input[name*="code" i], input[id*="code" i]'
+        ):
+            try:
+                c = page.locator(selector).first
+                if await c.count() > 0 and await c.is_visible():
+                    await c.fill(code)
+                    await page.keyboard.press("Enter")
+                    print(f"  {tag} [graph] SMS code submitted")
+                    await asyncio.to_thread(sms_client.cancel_order, state["sms_order"])
+                    return True, True
+            except Exception:
+                continue
+        return True, False
+
     if has_email and not state.get("email_submitted"):
         if not state.get("mailbox"):
             try:
@@ -1687,7 +1832,8 @@ async def register_outlook(page, context, idx=0, captcha_early_abort=False):
         for retry in range(5):
             email_input = page.locator(
                 'input[type="email"], input[name="MemberName"], input[id="MemberName"], '
-                'input[id="usernameInput"], input[name="Username"]'
+                'input[id="usernameInput"], input[name="Username"], '
+                'input[name*="email" i], input[autocomplete="username"]'  # R5-3: A/B test fallback
             ).first
             if await email_input.count() == 0:
                 print(f"  {tag} email input not found")
@@ -2339,6 +2485,28 @@ def _proxy_for_playwright(proxy_str):
     return result
 
 
+def _probe_proxy_outlook(proxy_str, timeout_s=10):
+    """DD6-3: probe proxy thd signup.live.com SEBELUM dipakai — buang proxy
+    yang tidak bisa reach MS (IP banned / ASN flagged) lebih awal, jangan
+    buang 1 attempt register penuh (~3min).
+    Returns True kalau proxy bisa GET signup.live.com (status 200).
+    """
+    import requests as _rq
+    proxies = _proxy_for_requests(proxy_str)
+    if not proxies:
+        return False  # tanpa proxy — bukan probe (caller skip)
+    try:
+        r = _rq.get(
+            "https://signup.live.com/",
+            proxies=proxies,
+            timeout=timeout_s,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"},
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def register_outlook_protocol(proxy_str=None, idx=0):
     """
     Register Outlook via pure HTTP requests — no browser, ~50KB per attempt.
@@ -2560,14 +2728,18 @@ async def _register_one_headless(idx, proxy_str):
                 )
                 print(f"  {tag} using Playwright Chromium (headless, no window)")
 
+            # R5-8b: headless Chrome tetap harus UA Chrome asli — HeadlessChrome
+            # di UA = sinyal deteksi klasik (baseline anti-detect menunjukkan
+            # headless_ua=true). Bundle binary Chromium 149 → UA 149.
+            _CHROME_UA = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/149.0.0.0 Safari/537.36"
+            )
             context = await browser.new_context(
                 viewport={"width": 1280, "height": 800},
                 locale="en-US",
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/136.0.0.0 Safari/537.36"
-                ),
+                user_agent=_CHROME_UA,
             )
             page = await context.new_page()
 
@@ -2817,6 +2989,19 @@ async def register_one(bb, idx, proxy_str, results, results_lock, live_fh=None, 
     registration_profile_id = None
     registration_ws = ""
 
+    # DD6-3: probe proxy ke signup.live.com dulu — buang proxy yang tidak
+    # bisa reach MS (banned ASN / IP flagged) sebelum buang 1 attempt penuh.
+    # Hanya untuk mode yang pakai proxy; tanpa proxy (no_proxy) skip.
+    if proxy_str and not os.environ.get("OUTLOOK_SKIP_PROBE"):
+        try:
+            ok = await asyncio.to_thread(_probe_proxy_outlook, proxy_str)
+            if not ok:
+                print(f"  {tag} probe FAILED: proxy tidak bisa reach signup.live.com — skip")
+                return None, None
+            print(f"  {tag} probe OK: proxy reach signup.live.com")
+        except Exception as e:
+            print(f"  {tag} probe error: {str(e)[:100]} — lanjut tanpa probe")
+
     try:
         # ── 1. Protocol mode (pure HTTP, ~50KB) ──────────────────
         if mode in ("auto", "protocol"):
@@ -2840,6 +3025,9 @@ async def register_one(bb, idx, proxy_str, results, results_lock, live_fh=None, 
                 )
             except asyncio.TimeoutError:
                 print(f"  {tag} headless timeout → falling back to browser")
+                # R5-4: pastikan finally cleanup (browser.close) selesai sebelum
+                # lanjut fallback — wait_for cancel tidak menjamin cleanup jalan
+                await asyncio.sleep(0)
             if email:
                 used_mode = "headless"
 

@@ -654,6 +654,8 @@ export default function ProxyPoolsPage() {
   };
 
   const [poolTypeFilter, setPoolTypeFilter] = useState("all"); // all | ip | relay
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(0);
 
   const activeCount = useMemo(
     () => proxyPools.filter((pool) => pool.isActive === true).length,
@@ -666,6 +668,18 @@ export default function ProxyPoolsPage() {
     if (poolTypeFilter === "relay") return proxyPools.filter((p) => relayTypes.includes(p.type));
     return proxyPools;
   }, [proxyPools, poolTypeFilter]);
+
+  // Pagination: clamp page when filter/pageSize changes
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(visiblePools.length / pageSize) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [visiblePools.length, pageSize, page]);
+
+  const pageCount = Math.max(1, Math.ceil(visiblePools.length / pageSize));
+  const pagedPools = useMemo(
+    () => visiblePools.slice(page * pageSize, (page + 1) * pageSize),
+    [visiblePools, page, pageSize]
+  );
 
   if (loading) {
     return (
@@ -843,7 +857,7 @@ export default function ProxyPoolsPage() {
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-            {visiblePools.map((pool) => (
+            {pagedPools.map((pool) => (
               <PoolRow
                 key={pool.id}
                 pool={pool}
@@ -856,6 +870,28 @@ export default function ProxyPoolsPage() {
                 onDelete={() => handleDelete(pool)}
               />
             ))}
+          </div>
+        )}
+        {visiblePools.length > pageSize && (
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-black/[0.04] pt-3 dark:border-white/[0.05]">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">
+                {page * pageSize + 1}–{Math.min((page + 1) * pageSize, visiblePools.length)} of {visiblePools.length}
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+                className="h-7 rounded border border-black/10 bg-background px-1 text-xs dark:border-white/10"
+                aria-label="Page size"
+              >
+                {[25, 50, 100].map((n) => <option key={n} value={n}>{n}/page</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="rounded px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/5">Prev</button>
+              <span className="px-2 text-xs text-text-muted">{page + 1}/{pageCount}</span>
+              <button type="button" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} className="rounded px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/5">Next</button>
+            </div>
           </div>
         )}
       </Card>
