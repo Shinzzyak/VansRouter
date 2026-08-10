@@ -69,6 +69,30 @@ async function launchChromium({ proxyUrl, headless = true, args = [] } = {}) {
 // the repo's playwright-core may differ. We require() the venv's bundled
 // playwright-core driver directly to guarantee protocol compatibility.
 // The child must be killed when the browser closes.
+function killServerTree(child, signal = "SIGTERM") {
+  // xvfb-run does not forward signals to its children — kill the whole
+  // process group instead (spawned detached). Fall back to SIGKILL after a
+  // short grace period so camoufox-bin orphans cannot survive.
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      /* already dead */
+    }
+  }
+  if (signal === "SIGTERM") {
+    setTimeout(() => {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, 5_000).unref();
+  }
+}
+
 async function launchCamoufox({ proxyUrl, headless = true } = {}) {
   const { spawn } = await import("node:child_process");
   const path = await import("node:path");
@@ -113,6 +137,7 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
     // ponytail: no cwd — camoufoxBin is an absolute path; xvfb-run needs
     // nothing from the venv bin dir. Avoids odd ENOENT when the dir is
     // unavailable in constrained runtimes (pm2, systemd).
+    detached: true, // own process group so we can kill the whole tree
     env: {
       ...process.env,
       PYTHONUNBUFFERED: "1",
@@ -139,7 +164,7 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        child.kill("SIGTERM");
+        killServerTree(child);
         reject(new Error("Camoufox server timed out (no ws endpoint)"));
       }
     }, 60_000);
@@ -202,7 +227,7 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
         await originalClose(...args);
       } finally {
         try {
-          serverChild.kill("SIGTERM");
+          killServerTree(serverChild);
         } catch {
           /* already dead */
         }
@@ -211,7 +236,7 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
     browser.__camoufoxChild = serverChild;
     return browser;
   } catch (error) {
-    serverChild.kill("SIGTERM");
+    killServerTree(serverChild);
     throw new Error(`Camoufox connect failed: ${error.message}`);
   }
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import {
   KiroBulkImportManager,
+  MANUAL_SESSION_TIMEOUT_MS,
   buildLookupResponse,
   createFreshContext,
   parseKiroBulkAccounts,
@@ -233,8 +234,21 @@ class QoderBulkImportManager extends KiroBulkImportManager {
   }
 
   async runQoderManualFollowup(job, account, workerId, context, pollPromise, qoderService, machineId) {
+    // Timeout guard: never leak the browser if the user never completes the
+    // manual login (pollPromise may never resolve).
+    let manualTimeout = null;
+    const timeoutPromise = new Promise((resolve) => {
+      manualTimeout = setTimeout(() => {
+        resolve({
+          timeout: true,
+          error: "Manual assist timed out — browser session closed automatically.",
+        });
+      }, MANUAL_SESSION_TIMEOUT_MS);
+      manualTimeout.unref();
+    });
     const followupPromise = (async () => {
       const closeManualResources = async () => {
+        clearTimeout(manualTimeout);
         const ms = account.manualSession;
         const ctx = ms?.context || context;
         const headed = ms?.headedBrowser || null;
@@ -242,12 +256,21 @@ class QoderBulkImportManager extends KiroBulkImportManager {
         if (headed) await headed.close().catch(() => null);
       };
       try {
-        const result = await pollPromise;
+        const result = await Promise.race([pollPromise, timeoutPromise]);
         if (job.cancelRequested) {
           this.finalizeAccount(account, "cancelled", {
             error: "Job cancelled",
             step: "cancelled",
             message: "Job cancelled while waiting for manual completion",
+          });
+          await this.persistJobSnapshot(job, { forcePreview: true });
+          return;
+        }
+        if (result?.timeout) {
+          this.finalizeAccount(account, "failed_timeout", {
+            error: result.error,
+            step: "manual_timeout",
+            message: result.error,
           });
           await this.persistJobSnapshot(job, { forcePreview: true });
           return;

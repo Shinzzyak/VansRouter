@@ -322,6 +322,7 @@ const BULK_IMPORT_DEFAULT_TIMEOUT_MS = 60_000; // 1 minute
 // Manual assist sessions must not leak: if the user never completes the
 // manual login, close the browser + fail the account after this long.
 const MANUAL_SESSION_TIMEOUT_MS = 10 * 60_000; // 10 minutes
+export { MANUAL_SESSION_TIMEOUT_MS };
 
 export async function createFreshContext(browser, { locale = "en-US", engine } = {}) {
   const isCloak = engine === "cloakbrowser";

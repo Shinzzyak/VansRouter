@@ -123,11 +123,12 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
             if proxy_url:
                 browser_args.append(f"--proxy-server={proxy_url}")
             browser = p.chromium.launch(headless=headless, args=browser_args)
-            context = browser.new_context()
-            page = context.new_page()
-            result = _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
-            browser.close()
-            return result
+            try:
+                context = browser.new_context()
+                page = context.new_page()
+                return _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
+            finally:
+                browser.close()
     except Exception as e:
         return {"status": "failed", "error": str(e), "email": email}
 
