@@ -7,8 +7,16 @@ import { Modal, Button, Input } from "@/shared/components";
  * Kiro Auth Method Selection Modal
  * Auto-detects token from AWS SSO cache or allows manual import
  */
-export default function KiroAuthModal({ isOpen, onMethodSelect, onClose }) {
+export default function KiroAuthModal({ isOpen, onMethodSelect, onClose, initialSelectedMethod = null }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
+
+  // Preselect method when the caller specifies one (e.g. Bulk Token / Single Token cards)
+  useEffect(() => {
+    if (isOpen && initialSelectedMethod && !selectedMethod) {
+      setSelectedMethod(initialSelectedMethod);
+      onMethodSelect?.(initialSelectedMethod);
+    }
+  }, [isOpen, initialSelectedMethod, selectedMethod, onMethodSelect]);
   const [idcStartUrl, setIdcStartUrl] = useState("");
   const [idcRegion, setIdcRegion] = useState("us-east-1");
   const [refreshToken, setRefreshToken] = useState("");

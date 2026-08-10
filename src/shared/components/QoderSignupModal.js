@@ -106,6 +106,9 @@ export default function QoderSignupModal({ isOpen, onClose, onSuccess }) {
       if (!yydsApiKey.trim()) {
         throw new Error("YYDS API key required (scope=own key from Profile → YYDS Temp Mail)");
       }
+      if (!yydsDomain.trim()) {
+        throw new Error("YYDS domain required (e.g. atherberg.biz.id — from Profile → YYDS Temp Mail)");
+      }
       const res = await fetch(`/api/oauth/${PROVIDER}/bulk-import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

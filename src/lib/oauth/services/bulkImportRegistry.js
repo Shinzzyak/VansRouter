@@ -147,7 +147,7 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       yydsDomain: body?.yydsDomain,
     }),
   },
-  codebuddy: {
+  "codebuddy-intl": {
     label: "CodeBuddy",
     errorLabel: "Bulk import job",
     staleOnLatest404: true,
