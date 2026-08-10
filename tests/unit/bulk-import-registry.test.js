@@ -5,7 +5,7 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   expect(isValidBulkImportProvider("kiro")).toBe(true);
   expect(isValidBulkImportProvider("grok-cli")).toBe(true);
   expect(isValidBulkImportProvider("qoder")).toBe(true);
-  expect(isValidBulkImportProvider("codebuddy")).toBe(true);
+  expect(isValidBulkImportProvider("codebuddy-intl")).toBe(true);
   expect(isValidBulkImportProvider("codebuddy-cn")).toBe(true);
   expect(isValidBulkImportProvider("autoclaw")).toBe(true);
   expect(isValidBulkImportProvider("autoclaw-signup")).toBe(true);
@@ -19,8 +19,8 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
     "autoclaw-signup",
     "baseten-signup",
     "chatgpt-signup",
-    "codebuddy",
     "codebuddy-cn",
+    "codebuddy-intl",
     "grok-cli",
     "kiro",
     "outlook-signup",
