@@ -4,10 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
 import {
-import { findPythonBinary } from "./pythonEnv.js";
   createProviderConnection,
   getProviderConnectionById,
 } from "../../../models/index.js";
+import { findPythonBinary } from "./pythonEnv.js";
 
 export const STORAGE_NAME = "outlook-signup-bulk-import";
 const OUTLOOK_PROVIDER_ID = "outlook";

@@ -4,10 +4,10 @@ import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
 import { DEFAULT_BULK_IMPORT_ENGINE } from "./bulkImportBrowserEngine.js";
 import {
-import { findPythonBinary } from "./pythonEnv.js";
   createProviderConnection,
   getProviderConnectionById,
 } from "../../../models/index.js";
+import { findPythonBinary } from "./pythonEnv.js";
 
 export const STORAGE_NAME = "tokenharbor-signup-bulk-import";
 const TH_PROVIDER_ID = "tokenharbor";
