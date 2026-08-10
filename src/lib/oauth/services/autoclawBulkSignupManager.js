@@ -1,7 +1,7 @@
 // AutoClaw bulk signup manager — spawns autoclawreg CLI (Z.ai signup + YYDS temp-mail)
 // Pattern mirrors qoderBulkSignupManager.js. Output: JSON lines {status, access_token, refresh_token, device_id, user_id, user_name}.
 import crypto from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
 import {
