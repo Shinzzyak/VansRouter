@@ -363,13 +363,18 @@ def _google_login(page, email, password):
             pass
         return False, "google password input tidak muncul (email ditolak?)"
     _click_first_visible(page, GOOGLE_PASSWORD_NEXT, timeout=8000)
-    time.sleep(2)
+    time.sleep(4)
 
-    # Handle "Akun ini tidak ada" / wrong password cepat
-    body = (page.locator("body").inner_text() or "")[:200]
-    for bad in ["wrong password", "incorrect password", "invalid email", "couldn't find", "tidak ditemukan", "salah"]:
-        if bad.lower() in body.lower():
-            return False, f"google auth ditolak: {bad}"
+    # Handle "Akun ini tidak ada" / wrong password cepat — popup bisa sudah redirect
+    try:
+        body = (page.locator("body").inner_text() or "")[:200]
+        for bad in ["wrong password", "incorrect password", "invalid email", "couldn't find", "tidak ditemukan", "salah"]:
+            if bad.lower() in body.lower():
+                return False, f"google auth ditolak: {bad}"
+    except Exception:
+        # Popup sudah redirect/closed = sukses lanjut consent
+        print("[google] popup pindah halaman setelah password — lanjut")
+        return True, ""
 
     return True, ""
 
@@ -403,14 +408,23 @@ def _zai_flow_google(page, gmail, gpassword, device_id):
 
     # 1. Buka AutoClaw web
     page.goto(AUTOCLAW_WEB_URL, wait_until="domcontentloaded", timeout=60000)
-    time.sleep(5)
+    time.sleep(6)
 
-    # 2. Klik Try for free (menyiapkan login gate)
-    try:
-        page.get_by_text("Try for free").first.click(timeout=5000)
-        print("[flow] clicked Try for free")
-    except Exception:
-        pass
+    # 2. Klik Try for free (menyiapkan login gate) — retry sampai modal muncul
+    for _try in range(3):
+        try:
+            page.get_by_text("Try for free").first.click(timeout=8000)
+            print("[flow] clicked Try for free")
+            # Tunggu modal login benar-benar render (SPA lambat via proxy)
+            for _w in range(10):
+                if page.locator("button:has-text('Continue with Google')").count() > 0:
+                    break
+                time.sleep(1)
+            break
+        except Exception:
+            time.sleep(3)
+    else:
+        print("[flow] warning: Try for free tidak bisa diklik")
 
     # 3. Pasang response listener SEBELUM klik Google — tangkap oauth-url
     page.on("response", on_oauth_resp)
@@ -611,6 +625,33 @@ def _zai_flow_google(page, gmail, gpassword, device_id):
             "captcha_ok": captcha_ok}
 
 
+def _save_connection(result):
+    """Simpan token ke provider VansRouter via Node helper (createProviderConnection)."""
+    import subprocess
+    import os
+    payload = {
+        "access_token": result.get("access_token") or result.get("authToken", "").replace("Bearer ", ""),
+        "refresh_token": result.get("refresh_token") or result.get("refreshToken", "").replace("Bearer ", ""),
+        "device_id": result.get("device_id") or result.get("deviceId", ""),
+        "user_id": result.get("user_id") or result.get("userId", ""),
+        "user_name": result.get("user_name") or result.get("userName", ""),
+        "email": result.get("email", ""),
+    }
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "save-autoclaw-connection.mjs")
+    try:
+        proc = subprocess.run(
+            ["node", helper, json.dumps(payload)],
+            capture_output=True, text=True, timeout=30,
+            cwd=os.path.join(os.path.dirname(helper), "..", "..", ".."),
+        )
+        out = proc.stdout.strip()
+        print(f"[save] {out[:120]}")
+        return out
+    except Exception as e:
+        print(f"[save] gagal: {e}")
+        return None
+
+
 def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run=False,
                  google_login=False, google_email="", google_password=""):
     """Register one AutoClaw account. Returns result dict (JSON-line serializable)."""
@@ -623,23 +664,31 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
             if dry_run:
                 return {"status": "dry_run", "email": google_email,
                         "note": "google OAuth login + captcha Shumei vision solver"}
+            result = None
             if engine == "camoufox":
                 from camoufox import Camoufox
                 with Camoufox(headless=headless, geoip=True) as browser:
                     page = browser.new_page()
-                    return _zai_flow_google(page, google_email, google_password, device_id)
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                browser_args = []
-                if proxy_url:
-                    browser_args.append(f"--proxy-server={proxy_url}")
-                browser = p.chromium.launch(headless=headless, args=browser_args)
-                try:
-                    context = browser.new_context()
-                    page = context.new_page()
-                    return _zai_flow_google(page, google_email, google_password, device_id)
-                finally:
-                    browser.close()
+                    result = _zai_flow_google(page, google_email, google_password, device_id)
+            else:
+                from playwright.sync_api import sync_playwright
+                with sync_playwright() as p:
+                    browser_args = []
+                    if proxy_url:
+                        browser_args.append(f"--proxy-server={proxy_url}")
+                    browser = p.chromium.launch(headless=headless, args=browser_args)
+                    try:
+                        # ignore_https_errors: proxy gateway MITM cert (8081) tidak trusted
+                        # untuk autoclaw.z.ai — tanpa ini page.goto ERR_CERT_AUTHORITY_INVALID
+                        context = browser.new_context(ignore_https_errors=True)
+                        page = context.new_page()
+                        result = _zai_flow_google(page, google_email, google_password, device_id)
+                    finally:
+                        browser.close()
+            # Auto-save ke provider VansRouter (akun pool) kalau sukses
+            if result and result.get("status") == "ok":
+                _save_connection(result)
+            return result
 
         if dry_run:
             email = f"test-{uuid.uuid4().hex[:8]}@yyds.dev"
