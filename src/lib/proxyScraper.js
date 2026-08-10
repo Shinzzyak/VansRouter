@@ -59,6 +59,27 @@ const PROXY_SOURCES = [
         })
         .filter(Boolean),
   },
+  {
+    id: "schatt-json",
+    label: "Schatt Snapshot (scored)",
+    url: "https://raw.githubusercontent.com/Shinzzyak/proxy-scraper/main/proxies.json",
+    rawJson: true, // GitHub raw serves text/plain — force JSON parse
+    parse: (json) =>
+      (Array.isArray(json) ? json : json?.proxies || [])
+        .filter((p) => p?.ip && p?.port && (p.score ?? 0) >= 60)
+        .map((p) => ({
+          proxyUrl: `${p.protocol || "http"}://${p.ip}:${p.port}`,
+          type: p.protocol === "https" ? "https" : "http",
+          country: p.country || "",
+          countryCode: p.country_code || "",
+          city: p.city || "",
+          isp: p.isp || "",
+          score: p.score ?? null,
+          responseTime: p.response_time_ms ?? null,
+          isDatacenter: p.is_datacenter === 1,
+          source: "schatt-json",
+        })),
+  },
 ];
 
 const DEDUPE_KEY = (p) => p.proxyUrl.replace(/^https?:\/\//, "");
@@ -79,7 +100,7 @@ export async function scrapeProxies({ sources = [], limit = 500 } = {}) {
         continue;
       }
       const isJson = res.headers.get("content-type")?.includes("application/json");
-      const raw = isJson ? await res.json() : await res.text();
+      const raw = isJson ? await res.json() : src.rawJson ? JSON.parse(await res.text()) : await res.text();
       let items = src.parse(raw) || [];
       items = items.filter((p) => p.proxyUrl && /^https?:\/\/[\w.:-]+:\d+$/.test(p.proxyUrl));
       let added = 0;
