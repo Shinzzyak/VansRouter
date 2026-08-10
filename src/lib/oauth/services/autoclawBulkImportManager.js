@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { DATA_DIR } from "../../dataDir.js";
 import {
@@ -14,22 +14,13 @@ import {
 } from "./autoclawAutomation.js";
 import { createProviderConnection, getProviderConnectionById } from "../../../models/index.js";
 import {
+import { findPythonBinary } from "./pythonEnv.js";
   recoverAutoclawTokenCheckpoints,
   writeAutoclawTokenCheckpoint,
 } from "./autoclawTokenCheckpoint.js";
 
 function noopBrowser() {
   return { close: async () => {}, __ninerouterProxyUrl: null };
-}
-
-function findPythonBinary() {
-  for (const bin of ["python3", "python"]) {
-    try {
-      execFileSync(bin, ["--version"], { stdio: "ignore" });
-      return bin;
-    } catch { /* try next */ }
-  }
-  return "python3"; // default, will fail with clear ENOENT
 }
 
 const PYTHON_BIN = findPythonBinary();

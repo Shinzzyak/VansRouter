@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
 import {
+import { findPythonBinary } from "./pythonEnv.js";
   createProviderConnection,
   getProviderConnectionById,
 } from "../../../models/index.js";
@@ -11,18 +12,6 @@ export const STORAGE_NAME = "qoder-signup-bulk-import";
 const QODER_PROVIDER_ID = "qoder";
 const SIGNUP_TIMEOUT_MS = 20 * 60_000;
 const MAX_REGISTER_COUNT = 50;
-
-function findPythonBinary() {
-  for (const bin of ["python3", "python"]) {
-    try {
-      execFileSync(bin, ["--version"], { stdio: "ignore" });
-      return bin;
-    } catch {
-      /* try next */
-    }
-  }
-  return "python3";
-}
 
 const PYTHON_BIN = findPythonBinary();
 

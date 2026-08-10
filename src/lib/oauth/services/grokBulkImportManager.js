@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import {
   KiroBulkImportManager,
@@ -7,21 +7,10 @@ import {
   buildLookupResponse,
 } from "./kiroBulkImportManager.js";
 import { createProviderConnection, getProviderConnectionById } from "../../../models/index.js";
+import { findPythonBinary } from "./pythonEnv.js";
 
 function noopBrowser() {
   return { close: async () => {}, __ninerouterProxyUrl: null };
-}
-
-function findPythonBinary() {
-  for (const bin of ["python3", "python"]) {
-    try {
-      execFileSync(bin, ["--version"], { stdio: "ignore" });
-      return bin;
-    } catch {
-      /* try next */
-    }
-  }
-  return "python3";
 }
 
 const PYTHON_BIN = findPythonBinary();
