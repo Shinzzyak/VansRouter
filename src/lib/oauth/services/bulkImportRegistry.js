@@ -76,7 +76,7 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
     errorLabel: "Bulk import job",
     staleOnLatest404: true,
     parseAccounts: (accounts) =>
-      import("./kiroBulkImportManager.js").then((m) => m.parseKiroBulkAccounts(accounts)),
+      import("./qoderBulkImportManager.js").then((m) => m.parseQoderBulkAccounts(accounts)),
     getManager: () =>
       import("./qoderBulkImportManager.js").then((m) => m.getQoderBulkImportManager()),
     normalizeStartArgs: (body, resolvedProxy) => ({
