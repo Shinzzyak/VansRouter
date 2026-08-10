@@ -24,6 +24,7 @@ import random
 import re
 import sys
 import time
+import uuid
 
 import requests
 
@@ -178,13 +179,29 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
     if not action_id:
         raise RuntimeError("could not parse server action id (turnstile block?)")
 
+    # 1b. Turnstile precheck (port dari catoncat/th-reg) — skip DINI kalau IP flagged.
+    #     Kalau needCaptcha=true, POST pasti 500 (IP-level flag, terbukti re-tokenharbor).
+    #     Jangan bypass — rotasi IP (proxy sticky) atau tandai failed.
+    fp = str(uuid.uuid4())
+    try:
+        pre = s.get(f"{API_BASE}/api/auth/signup-precheck?fp={fp}", timeout=15)
+        if pre.status_code == 200:
+            need = (pre.json() or {}).get("needCaptcha")
+            if need:
+                _log(f"precheck needCaptcha=true (IP flagged) — skip, rotasi proxy")
+                return {"status": "captcha-required", "email": email, "invite_code_used": invite}
+        else:
+            _log(f"precheck HTTP {pre.status_code} (non-fatal, lanjut)")
+    except Exception as e:
+        _log(f"precheck error ({e}) — lanjut tanpa precheck")
+
     # 2. submit server action
     files = {
         "$ACTION_REF_1": "",
         "$ACTION_1:0": ("", json.dumps({"id": action_id, "bound": "$@1"})),
         "$ACTION_1:1": ("", '["$undefined"]'),
         "$ACTION_KEY": action_key,
-        "device_fingerprint": "",
+        "device_fingerprint": fp,  # UUID — sama dengan yang dikirim precheck
         "timezone": "Asia/Jakarta",
         "email": email,
         "password": password,
@@ -218,23 +235,38 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
 
 
 def _claim_and_key(s, email):
-    """Best-effort: claim $5 gift and create API key through dashboard APIs."""
+    """Klaim $5 gift + buat API key + aktivasi free route (endpoint terverifikasi
+    dari catoncat/th-reg, bukan tebakan)."""
     out = {"status": "success", "balance": None, "apiKey": None, "inviteCode": None}
-    # dashboard gift claim (observed endpoint pattern — may need adjust)
-    for path, body in [
-        ("/api/gifts/claim", {}),
-        ("/api/gift/claim", {}),
-        ("/api/dashboard/gifts/claim", {}),
-    ]:
-        try:
-            r = s.post(path, json=body, timeout=15)
-            if r.status_code in (200, 201):
-                j = r.json()
-                out["balance"] = j.get("balance") or j.get("credits") or j.get("amount")
-                _log(f"gift claim {path} → {r.status_code}")
-                break
-        except Exception:
-            continue
+    # 1. klaim gift $5 — endpoint benar dari th-reg
+    try:
+        r = s.post(f"{API_BASE}/api/welcome/claim", timeout=15)
+        if r.status_code in (200, 201):
+            j = r.json()
+            out["balance"] = j.get("rewardUsd") or j.get("balance") or j.get("credits")
+            _log(f"gift claim /api/welcome/claim → {r.status_code} {j}")
+        else:
+            _log(f"welcome/claim HTTP {r.status_code}")
+    except Exception as e:
+        _log(f"welcome/claim error: {e}")
+    # 2. API key — body {"label": "..."} dari th-reg
+    try:
+        r = s.post(f"{API_BASE}/api/keys", json={"label": "bot-key"}, timeout=15)
+        if r.status_code in (200, 201):
+            j = r.json()
+            out["apiKey"] = j.get("plaintext") or j.get("key") or j.get("apiKey") or (j.get("data") or {}).get("key")
+            _log(f"api key → HTTP {r.status_code}")
+        else:
+            _log(f"api/keys HTTP {r.status_code}")
+    except Exception as e:
+        _log(f"api/keys error: {e}")
+    # 3. aktivasi free route — tanpa ini :free 429 free_route_inactive (th-reg)
+    try:
+        r = s.post(f"{API_BASE}/api/me/privacy", json={"free_models_enabled": True}, timeout=15)
+        if r.status_code in (200, 201):
+            _log("free models route activated")
+    except Exception as e:
+        _log(f"privacy route error: {e}")
     # invite code page
     try:
         r = s.get(f"{API_BASE}/dashboard/invites", timeout=20)
@@ -242,14 +274,6 @@ def _claim_and_key(s, email):
         if m:
             out["inviteCode"] = m.group(1)
             _log(f"invite code {out['inviteCode']}")
-    except Exception:
-        pass
-    # api key
-    try:
-        r = s.post(f"{API_BASE}/api/keys", json={"name": "schatt"}, timeout=15)
-        if r.status_code in (200, 201):
-            j = r.json()
-            out["apiKey"] = j.get("key") or j.get("apiKey") or (j.get("data") or {}).get("key")
     except Exception:
         pass
     return out
