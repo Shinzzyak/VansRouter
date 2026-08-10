@@ -74,7 +74,12 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
   const path = await import("node:path");
   const os = await import("node:os");
   const fs = await import("node:fs");
-  const { createRequire } = await import("node:module");
+
+  // Use process.getBuiltinModule so webpack does not transform/alias the
+  // node:module import (createRequire named-import broke under webpack →
+  // "i is not a function"). Runtime lookup is also version-proof.
+  const moduleBuiltin = process.getBuiltinModule("node:module");
+  const createRequire = moduleBuiltin?.createRequire || (await import("node:module")).createRequire;
 
   const home = os.homedir();
   const venvSite = path.join(
