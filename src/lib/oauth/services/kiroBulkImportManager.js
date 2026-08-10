@@ -10,7 +10,7 @@ export const KIRO_BULK_IMPORT_DEFAULT_CONCURRENCY = 4;
 export const KIRO_BULK_IMPORT_MIN_CONCURRENCY = 1;
 export const KIRO_BULK_IMPORT_MAX_CONCURRENCY = 8;
 
-const TERMINAL_ACCOUNT_STATUSES = new Set([
+export const TERMINAL_ACCOUNT_STATUSES = new Set([
   "success",
   "failed",
   "failed_invalid_credentials",
