@@ -639,9 +639,12 @@ def _save_connection(result):
     }
     helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "save-autoclaw-connection.mjs")
     try:
+        env = dict(os.environ)
+        # Arahkan DB ke data dir yang sama dengan app VansRouter (DATA_DIR env)
+        env.setdefault("DATA_DIR", os.environ.get("VANSROUTER_DATA_DIR", "/home/ubuntu/VansRouter/data"))
         proc = subprocess.run(
             ["node", helper, json.dumps(payload)],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, env=env,
             cwd=os.path.join(os.path.dirname(helper), "..", "..", ".."),
         )
         out = proc.stdout.strip()
