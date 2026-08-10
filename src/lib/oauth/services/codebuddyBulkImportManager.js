@@ -3,6 +3,7 @@ import {
   KIRO_BULK_IMPORT_MAX_CONCURRENCY,
   KIRO_BULK_IMPORT_MIN_CONCURRENCY,
   KiroBulkImportManager,
+  MANUAL_SESSION_TIMEOUT_MS,
   buildLookupResponse,
   createFreshContext,
   parseKiroBulkAccounts,
@@ -854,8 +855,21 @@ export class CodeBuddyBulkImportManager extends KiroBulkImportManager {
   }
 
   async runManualFollowup(job, account, workerId, context, successPromise) {
+    // Timeout guard (same as Kiro): never leak the browser if the user never
+    // completes the manual login.
+    let manualTimeout = null;
+    const timeoutPromise = new Promise((resolve) => {
+      manualTimeout = setTimeout(() => {
+        resolve({
+          timeout: true,
+          error: "Manual assist timed out — browser session closed automatically.",
+        });
+      }, MANUAL_SESSION_TIMEOUT_MS);
+      manualTimeout.unref();
+    });
     const followupPromise = (async () => {
       const closeManualResources = async () => {
+        clearTimeout(manualTimeout);
         const ms = account.manualSession;
         const ctx = ms?.context || context;
         const headed = ms?.headedBrowser || null;
@@ -863,12 +877,21 @@ export class CodeBuddyBulkImportManager extends KiroBulkImportManager {
         if (headed) await headed.close().catch(() => null);
       };
       try {
-        const result = await successPromise;
+        const result = await Promise.race([successPromise, timeoutPromise]);
         if (job.cancelRequested) {
           this.finalizeAccount(account, "cancelled", {
             error: "Job cancelled",
             step: "cancelled",
             message: "Job cancelled while waiting for manual completion",
+          });
+          await this.persistJobSnapshot(job, { forcePreview: true });
+          return;
+        }
+        if (result?.timeout) {
+          this.finalizeAccount(account, "failed_timeout", {
+            error: result.error,
+            step: "manual_timeout",
+            message: result.error,
           });
           await this.persistJobSnapshot(job, { forcePreview: true });
           return;

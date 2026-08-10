@@ -2827,12 +2827,15 @@ async def _register_one_headless(idx, proxy_str):
             await page.route("**/*", _block_heavy_resources)
 
             # Abort early when captcha solvers fail so auto-mode falls back to BitBrowser fast
-            email, password = await register_outlook(page, context, idx, captcha_early_abort=True)
-
             try:
-                await browser.close()
-            except Exception:
-                pass
+                email, password = await register_outlook(page, context, idx, captcha_early_abort=True)
+            finally:
+                # Always close the browser, even when register_outlook throws —
+                # otherwise the chromium process leaks per attempt.
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
             return email, password
 
