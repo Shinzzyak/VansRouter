@@ -214,6 +214,24 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       randomizeProxySession: body?.randomizeProxySession,
     }),
   },
+  "autoclaw-signup": {
+    label: "AutoClaw Signup",
+    errorLabel: "AutoClaw signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./autoclawBulkSignupManager.js").then((m) => m.getAutoclawBulkSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      yydsApiKey: body?.yydsApiKey,
+      yydsDomain: body?.yydsDomain,
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {
