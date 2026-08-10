@@ -252,7 +252,8 @@ def main():
     parser.add_argument("--yyds-domain", default="")
     parser.add_argument("--proxy", default="", help="socks5://host:port")
     parser.add_argument("--engine", choices=["chromium", "camoufox"], default="chromium")
-    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--headless", action="store_true", default=True,
+                        help="run headless (default True — no XServer on VPS; use xvfb-run if headed)")
     parser.add_argument("--dry-run", action="store_true", help="print plan only, no signup")
     args = parser.parse_args()
 
