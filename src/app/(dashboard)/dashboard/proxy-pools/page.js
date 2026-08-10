@@ -375,9 +375,10 @@ export default function ProxyPoolsPage() {
   };
 
   const handleHealthCheck = async () => {
-    const targets = selectedIds.length > 0
+    const relayTypes = ["vercel", "cloudflare", "deno"];
+    const targets = (selectedIds.length > 0
       ? proxyPools.filter((p) => selectedIds.includes(p.id))
-      : proxyPools;
+      : proxyPools).filter((p) => !relayTypes.includes(p.type));
     if (targets.length === 0) return;
     setHealthChecking(true);
     setHealthProgress({ current: 0, total: targets.length });
@@ -652,10 +653,19 @@ export default function ProxyPoolsPage() {
     }
   };
 
+  const [poolTypeFilter, setPoolTypeFilter] = useState("all"); // all | ip | relay
+
   const activeCount = useMemo(
     () => proxyPools.filter((pool) => pool.isActive === true).length,
     [proxyPools]
   );
+
+  const relayTypes = ["vercel", "cloudflare", "deno"];
+  const visiblePools = useMemo(() => {
+    if (poolTypeFilter === "ip") return proxyPools.filter((p) => !relayTypes.includes(p.type));
+    if (poolTypeFilter === "relay") return proxyPools.filter((p) => relayTypes.includes(p.type));
+    return proxyPools;
+  }, [proxyPools, poolTypeFilter]);
 
   if (loading) {
     return (
@@ -748,6 +758,26 @@ export default function ProxyPoolsPage() {
           )}
           <Badge variant="default">Total: {proxyPools.length}</Badge>
           <Badge variant="success">Active: {activeCount}</Badge>
+          <div className="ml-auto flex items-center gap-1 rounded-lg bg-black/[0.04] p-0.5 dark:bg-white/[0.06]">
+            {[
+              { key: "all", label: "Semua" },
+              { key: "ip", label: "Proxy IP" },
+              { key: "relay", label: "Relay" },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setPoolTypeFilter(t.key)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  poolTypeFilter === t.key
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-text-muted hover:text-text-main"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {(selectedIds.length > 0 || healthChecking || batchProgress.total > 0) && (
@@ -802,9 +832,18 @@ export default function ProxyPoolsPage() {
             </p>
             <Button icon="add" onClick={openCreateModal}>Add Proxy Pool</Button>
           </div>
+        ) : visiblePools.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-text-main font-medium mb-1">No {poolTypeFilter === "relay" ? "relay" : "proxy IP"} entries</p>
+            <p className="text-sm text-text-muted">
+              {poolTypeFilter === "relay"
+                ? "Deploy a relay via Deploy Relay, or switch to Proxy IP / Semua."
+                : "Scrape free proxies or switch to Semua."}
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-            {proxyPools.map((pool) => (
+            {visiblePools.map((pool) => (
               <PoolRow
                 key={pool.id}
                 pool={pool}
