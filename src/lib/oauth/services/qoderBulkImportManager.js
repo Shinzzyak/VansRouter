@@ -351,7 +351,7 @@ export function getQoderBulkImportManager() {
 export {
   QoderBulkImportManager,
   buildLookupResponse,
-  parseKiroBulkAccounts,
+  parseKiroBulkAccounts as parseQoderBulkAccounts,
   KIRO_BULK_IMPORT_DEFAULT_CONCURRENCY,
   KIRO_BULK_IMPORT_MAX_CONCURRENCY,
   KIRO_BULK_IMPORT_MIN_CONCURRENCY,

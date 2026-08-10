@@ -125,8 +125,13 @@ export class CodeBuddyCnPhoneImportManager extends KiroBulkImportManager {
       const operator = fiveSimConfig.operator || "any";
       const product = fiveSimConfig.product || "codebuddy";
       let loginResult = null;
+      const MAX_PROXY_ROUTE_ATTEMPTS = 5;
       let attempt = 1;
-      while (!job.cancelRequested && (workerProxyUrl || attempt <= MAX_PHONE_NUMBER_ATTEMPTS)) {
+      while (
+        !job.cancelRequested &&
+        attempt <= MAX_PHONE_NUMBER_ATTEMPTS &&
+        (!workerProxyUrl || attempt <= MAX_PROXY_ROUTE_ATTEMPTS)
+      ) {
         try {
           this.setAccountStep(
             account,
@@ -173,6 +178,8 @@ export class CodeBuddyCnPhoneImportManager extends KiroBulkImportManager {
           page = await context.newPage();
           account.runtimeSession = { context, page, proxyUrl: workerProxyUrl };
           attempt += 1;
+          if (order?.id) await fiveSim.cancelOrder(order.id).catch(() => null);
+          order = null;
         }
       }
 
@@ -237,7 +244,9 @@ export class CodeBuddyCnPhoneImportManager extends KiroBulkImportManager {
     await super.runJob(jobId);
     const job = this.jobs.get(jobId);
     if (!job || job.cancelRequested) return;
-    if (job.accounts.some((account) => account.status === "needs_manual")) {
+    // Never resurrect a terminal job: failed/cancelled must stay terminal even
+    // if some account ended in needs_manual.
+    if (job.status !== "failed" && job.status !== "cancelled" && job.accounts.some((account) => account.status === "needs_manual")) {
       job.status = "needs_manual";
       job.finishedAt = null;
       await this.persistJobSnapshot(job, { forcePreview: true });

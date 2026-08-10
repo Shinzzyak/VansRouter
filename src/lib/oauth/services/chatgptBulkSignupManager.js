@@ -214,7 +214,12 @@ class ChatGptBulkSignupManager extends KiroBulkImportManager {
       throw new Error(`No results.txt after chatgptreg run`);
     }
     const after = fs.readFileSync(resultsFile, "utf8");
-    const newLines = after.split("\n").filter((l) => !before.includes(l) && l.includes("|"));
+    // Count-based diff, not substring: a new line identical to an old one
+    // (same email) would be skipped by before.includes() → account wrongly
+    // reported as "did not write a new account line".
+    const beforeLines = before.split("\n").filter((l) => l.includes("|"));
+    const afterLines = after.split("\n").filter((l) => l.includes("|"));
+    const newLines = afterLines.slice(beforeLines.length);
     if (newLines.length === 0) {
       throw new Error(`chatgptreg did not write a new account line (check proxy/IP flags)`);
     }

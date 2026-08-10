@@ -816,7 +816,12 @@ export class KiroBulkImportManager {
     };
 
     job.persistPromise = Promise.resolve(job.persistPromise).catch(() => null).then(runPersist);
-    await job.persistPromise;
+    // Do not await inside workers: a persist that is waiting on capturePreview
+    // (page.screenshot) can deadlock or serialize all workers behind a slow
+    // screenshot. Only the final persist (runJob end / route) awaits.
+    // ponytail: if a strict write-order guarantee is ever needed, add a per-job
+    // dirty flag and flush in runJob's finally.
+    return job.persistPromise;
   }
 
   capturePreviewAccount(job) {
