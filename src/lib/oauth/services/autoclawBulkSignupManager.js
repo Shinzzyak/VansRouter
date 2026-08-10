@@ -303,5 +303,3 @@ function getSingletonStore() {
 export function getAutoclawBulkSignupManager() {
   return getSingletonStore().manager;
 }
-
-export { AutoclawBulkSignupManager };
