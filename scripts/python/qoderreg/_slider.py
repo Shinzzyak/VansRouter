@@ -317,7 +317,41 @@ def solve_slider_v2(page, max_attempts=6, log=print):
             if solved:
                 log("[slider] CAPTCHA solved!", flush=True)
                 return True
-            log("[slider] wrong position, retry", flush=True)
+            log("[slider] wrong position, nudge", flush=True)
+            # Nudge strategy: puzzle stays put after wrong — re-grab handle, nudge ±3..12px
+            # (skill: alibaba-umid-tmd-bypass — proven for AliyunCaptcha)
+            if cdp is not None:
+                for nudge_i, nudge in enumerate([5, -5, 10, -10, 14, -14, 3, -3]):
+                    if nudge_i >= 4:
+                        break  # cap at 4 nudges to bound runtime
+                    page.wait_for_timeout(600)
+                    try:
+                        nx = mx + nudge
+                        cdp.send("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": sx, "y": sy, "button": "left", "buttons": 1})
+                        page.wait_for_timeout(120)
+                        cdp.send("Input.dispatchMouseEvent", {"type": "mousePressed", "x": sx, "y": sy, "button": "left", "buttons": 1, "clickCount": 1})
+                        page.wait_for_timeout(80)
+                        _cdp_drag(cdp, sx, sy, nx, 8)
+                        page.wait_for_timeout(200)
+                        cdp.send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": nx, "y": sy, "button": "left", "buttons": 0, "clickCount": 1})
+                    except Exception:
+                        break
+                    page.wait_for_timeout(1200)
+                    solved = page.evaluate("""() => {
+                      const w = document.querySelector('#aliyunCaptcha-captcha-wrapper');
+                      const bodyTxt = document.body ? document.body.innerText.toLowerCase().slice(0,300) : '';
+                      if (bodyTxt.includes('verified') || bodyTxt.includes('success')) return true;
+                      if (!w || w.offsetParent === null) return true;
+                      const s = document.querySelector('#aliyunCaptcha-sliding-slider');
+                      const cb = document.querySelector('#aliyunCaptcha-captcha-body');
+                      if (s && (s.className.includes('success') || s.className.includes('pass'))) return true;
+                      if (cb && (cb.className.includes('success') || cb.className.includes('pass'))) return true;
+                      return false;
+                    }""")
+                    if solved:
+                        log("[slider] CAPTCHA solved! (nudge)", flush=True)
+                        return True
+            log("[slider] nudge exhausted, retry", flush=True)
             page.wait_for_timeout(2000)
         except Exception as e:
             log(f"[slider] attempt {attempt} exc: {e}", flush=True)
