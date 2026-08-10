@@ -72,6 +72,10 @@ export default function ProxyScraperPanel() {
       }
     >
       <div className="flex flex-col gap-3">
+        <p className="text-[11px] text-text-muted">
+          ⏱ Auto-refresh tiap 6 jam (cron <code className="rounded bg-background px-1">proxy-fresh-schedule</code>:
+          schatt-snapshot + schatt-json). Manual di bawah untuk refresh instan.
+        </p>
         {summary && (
           <p className="text-xs text-text-muted">
             scraped {summary.scraped}, imported {summary.imported}
