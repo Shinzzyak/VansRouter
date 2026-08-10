@@ -192,6 +192,22 @@ async function launchCamoufox({ proxyUrl, headless = true } = {}) {
     const requireVenv = createRequire(path.join(driverPackage, "package.json"));
     const venvPlaywright = requireVenv(driverPackage);
     const browser = await venvPlaywright.firefox.connect(ws, { timeout: 30_000 });
+    // Tie the server child's lifetime to the browser: whenever anyone calls
+    // browser.close() (manager cleanup, timeout, error path), also kill the
+    // camoufox server process. Otherwise every job leaks 1+ xvfb-run +
+    // camoufox-bin processes (~170MB each) until RAM is exhausted.
+    const originalClose = browser.close.bind(browser);
+    browser.close = async (...args) => {
+      try {
+        await originalClose(...args);
+      } finally {
+        try {
+          serverChild.kill("SIGTERM");
+        } catch {
+          /* already dead */
+        }
+      }
+    };
     browser.__camoufoxChild = serverChild;
     return browser;
   } catch (error) {

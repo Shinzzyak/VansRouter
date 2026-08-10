@@ -319,6 +319,9 @@ async function defaultSocialExchange(args) {
 // these for fast-fail cases (e.g. "wrong password" detection).
 const BULK_IMPORT_DEFAULT_NAVIGATION_TIMEOUT_MS = 120_000; // 2 minutes
 const BULK_IMPORT_DEFAULT_TIMEOUT_MS = 60_000; // 1 minute
+// Manual assist sessions must not leak: if the user never completes the
+// manual login, close the browser + fail the account after this long.
+const MANUAL_SESSION_TIMEOUT_MS = 10 * 60_000; // 10 minutes
 
 export async function createFreshContext(browser, { locale = "en-US", engine } = {}) {
   const isCloak = engine === "cloakbrowser";
@@ -893,8 +896,21 @@ export class KiroBulkImportManager {
   }
 
   async runManualFollowup(job, account, workerId, context, callbackPromise, codeVerifier) {
+    // Hard timeout: a manual session that is never completed must not leak
+    // the browser (and its ~170MB camoufox child) forever.
+    let manualTimeout = null;
+    const timeoutPromise = new Promise((resolve) => {
+      manualTimeout = setTimeout(() => {
+        resolve({
+          timeout: true,
+          error: "Manual assist timed out — browser session closed automatically.",
+        });
+      }, MANUAL_SESSION_TIMEOUT_MS);
+      manualTimeout.unref();
+    });
     const followupPromise = (async () => {
       const closeManualResources = async () => {
+        clearTimeout(manualTimeout);
         const ms = account.manualSession;
         const ctx = ms?.context || context;
         const headed = ms?.headedBrowser || null;
@@ -902,12 +918,21 @@ export class KiroBulkImportManager {
         if (headed) await headed.close().catch(() => null);
       };
       try {
-        const callback = await callbackPromise;
+        const callback = await Promise.race([callbackPromise, timeoutPromise]);
         if (job.cancelRequested) {
           this.finalizeAccount(account, "cancelled", {
             error: "Job cancelled",
             step: "cancelled",
             message: "Job cancelled while waiting for manual completion",
+          });
+          await this.persistJobSnapshot(job, { forcePreview: true });
+          return;
+        }
+        if (callback?.timeout) {
+          this.finalizeAccount(account, "failed_timeout", {
+            error: callback.error,
+            step: "manual_timeout",
+            message: callback.error,
           });
           await this.persistJobSnapshot(job, { forcePreview: true });
           return;
