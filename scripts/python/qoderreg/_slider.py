@@ -236,15 +236,19 @@ def solve_slider_v2(page, max_attempts=6, log=print):
                 log(f"[slider] gap score {gap.get('score', 0):.3f} low, re-detect", flush=True)
                 page.wait_for_timeout(800)
                 gap = page.evaluate(_js_gap_detect(), {"bg": bg_b64, "pz": pz_b64})
+                if gap.get("score", 0) < 0.75:
+                    # RE-qoder 2026-08-10: re-detect masih rendah → skip attempt (jangan drag target salah)
+                    log(f"[slider] re-detect still low {gap.get('score', 0):.3f}, skip attempt", flush=True)
+                    page.wait_for_timeout(2000)
+                    continue
             if not gap or gap.get("targetX", -1) <= 5:
                 log(f"[slider] gap detect fail: {gap}", flush=True)
                 page.wait_for_timeout(2000)
                 continue
             tpl = gap["targetPuzzleLeft"]
-            # Aliyun puzzle needs to be ~15px RIGHT of the detected gap center
-            # (proven: debug drag to 260 with gap 245 → captcha OK; exact gap → reject)
-            tpl += 15
-            log(f"[slider] gap X={gap['targetX']} score={gap['score']:.3f} → left={tpl:.1f}px (+15 offset)", flush=True)
+            # RE-qoder 2026-08-10: hapus +15px offset hardcode — v3 sukses TANPA offset;
+            # kalau ada bias sistematis, nudge adaptif (±20) yang koreksi.
+            log(f"[slider] gap X={gap['targetX']} score={gap['score']:.3f} → left={tpl:.1f}px", flush=True)
             # drag — CDP trusted drag (Input.dispatchMouseEvent + buttons:1 on every move)
             # page.mouse = untrusted → Aliyun F015. CDP = trusted → passes verify gate.
             sx = gap["sliderX"] + 10
@@ -321,9 +325,9 @@ def solve_slider_v2(page, max_attempts=6, log=print):
             # Nudge strategy: puzzle stays put after wrong — re-grab handle, nudge ±3..12px
             # (skill: alibaba-umid-tmd-bypass — proven for AliyunCaptcha)
             if cdp is not None:
-                for nudge_i, nudge in enumerate([5, -5, 10, -10, 14, -14, 3, -3]):
-                    if nudge_i >= 4:
-                        break  # cap at 4 nudges to bound runtime
+                for nudge_i, nudge in enumerate([5, -5, 10, -10, 14, -14, 3, -3, 18, -18, 20, -20]):
+                    if nudge_i >= 8:
+                        break  # cap at 8 nudges to bound runtime (RE-qoder: semua offset kecil dulu)
                     page.wait_for_timeout(600)
                     try:
                         nx = mx + nudge
