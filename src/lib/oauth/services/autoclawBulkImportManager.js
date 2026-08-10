@@ -14,10 +14,10 @@ import {
 } from "./autoclawAutomation.js";
 import { createProviderConnection, getProviderConnectionById } from "../../../models/index.js";
 import {
-import { findPythonBinary } from "./pythonEnv.js";
   recoverAutoclawTokenCheckpoints,
   writeAutoclawTokenCheckpoint,
 } from "./autoclawTokenCheckpoint.js";
+import { findPythonBinary } from "./pythonEnv.js";
 
 function noopBrowser() {
   return { close: async () => {}, __ninerouterProxyUrl: null };

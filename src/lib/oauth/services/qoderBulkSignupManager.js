@@ -3,10 +3,10 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { KiroBulkImportManager } from "./kiroBulkImportManager.js";
 import {
-import { findPythonBinary } from "./pythonEnv.js";
   createProviderConnection,
   getProviderConnectionById,
 } from "../../../models/index.js";
+import { findPythonBinary } from "./pythonEnv.js";
 
 export const STORAGE_NAME = "qoder-signup-bulk-import";
 const QODER_PROVIDER_ID = "qoder";
