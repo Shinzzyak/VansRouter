@@ -149,7 +149,9 @@ class ChatGptBulkSignupManager extends KiroBulkImportManager {
       ...process.env,
       PYTHONUNBUFFERED: "1",
       TEMPMAIL_API: job.tempMailApi || process.env.TEMPMAIL_API || "",
-      TEMPMAIL_TOKEN: job.tempMailToken || process.env.TEMPMAIL_TOKEN || "",
+      // YYDS: key dipakai sebagai Bearer token (lihat qoderreg/_yyds.py yyds_headers).
+      // tempMailToken di-fallback ke settings yydsApiKey oleh normalizeStartArgs registry.
+      TEMPMAIL_TOKEN: job.jobFields?.tempMailToken || process.env.TEMPMAIL_TOKEN || "",
       PROXY: job.proxyUrl || "",
     };
 

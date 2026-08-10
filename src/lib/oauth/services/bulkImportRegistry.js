@@ -2,6 +2,7 @@ import {
   applyBulkImportProxyMode,
   resolveBulkImportProxy,
 } from "./bulkImportProxyResolver.js";
+import { getSettings } from "@/lib/db/repos/settingsRepo";
 
 /**
  * Registry of bulk-import providers. Each spec is a lazy adapter over a
@@ -239,13 +240,18 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
     parseAccounts: (accounts) => Promise.resolve(accounts || []),
     getManager: () =>
       import("./outlookBulkSignupManager.js").then((m) => m.getOutlookBulkSignupManager()),
-    normalizeStartArgs: (body, resolvedProxy) => ({
-      accounts: [],
-      concurrency: body?.concurrency,
-      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
-      registerCount: body?.registerCount,
-      mode: body?.outlookMode || body?.mode || "auto",
-    }),
+    normalizeStartArgs: async (body, resolvedProxy) => {
+      // YYDS_API_KEY untuk recovery mailbox (graph token flow). Fallback settings DB.
+      const settings = await getSettings().catch(() => ({}));
+      return {
+        accounts: [],
+        concurrency: body?.concurrency,
+        proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+        registerCount: body?.registerCount,
+        mode: body?.outlookMode || body?.mode || "auto",
+        yydsApiKey: body?.yydsApiKey || settings.yydsApiKey || "",
+      };
+    },
   },
   "chatgpt-signup": {
     label: "ChatGPT Signup",
@@ -254,14 +260,18 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
     parseAccounts: (accounts) => Promise.resolve(accounts || []),
     getManager: () =>
       import("./chatgptBulkSignupManager.js").then((m) => m.getChatGptBulkSignupManager()),
-    normalizeStartArgs: (body, resolvedProxy) => ({
-      accounts: [],
-      concurrency: body?.concurrency,
-      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
-      registerCount: body?.registerCount,
-      tempMailApi: body?.tempMailApi,
-      tempMailToken: body?.tempMailToken,
-    }),
+    normalizeStartArgs: async (body, resolvedProxy) => {
+      // Modal kirim tempMailToken:"" — fallback settings yydsApiKey (YYDS Bearer).
+      const settings = await getSettings().catch(() => ({}));
+      return {
+        accounts: [],
+        concurrency: body?.concurrency,
+        proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+        registerCount: body?.registerCount,
+        tempMailApi: body?.tempMailApi,
+        tempMailToken: body?.tempMailToken || settings.yydsApiKey || "",
+      };
+    },
   },
 });
 
