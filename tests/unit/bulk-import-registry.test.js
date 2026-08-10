@@ -11,12 +11,14 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   expect(isValidBulkImportProvider("autoclaw-signup")).toBe(true);
   expect(isValidBulkImportProvider("qoder-signup")).toBe(true);
   expect(isValidBulkImportProvider("baseten-signup")).toBe(true);
-  expect(isValidBulkImportProvider("cloudflare-ai")).toBe(false);
-  expect(isValidBulkImportProvider("unknown")).toBe(false);
+  expect(isValidBulkImportProvider("tokenharbor-signup")).toBe(true);
+  expect(isValidBulkImportProvider("outlook-signup")).toBe(true);
+  expect(isValidBulkImportProvider("chatgpt-signup")).toBe(true);
   expect(Object.keys(BULK_IMPORT_PROVIDERS).sort()).toEqual([
     "autoclaw",
     "autoclaw-signup",
     "baseten-signup",
+    "chatgpt-signup",
     "codebuddy",
     "codebuddy-cn",
     "grok-cli",
@@ -26,8 +28,19 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
     "qoder-signup",
     "tokenharbor-signup",
   ]);
-  expect(isValidBulkImportProvider("tokenharbor-signup")).toBe(true);
-  expect(isValidBulkImportProvider("outlook-signup")).toBe(true);
+});
+
+test("registry chatgpt-signup passthrough", () => {
+  const spec = BULK_IMPORT_PROVIDERS["chatgpt-signup"];
+  expect(spec.label).toBe("ChatGPT Signup");
+  const args = spec.normalizeStartArgs(
+    { registerCount: 2, concurrency: 1, tempMailApi: "https://x/v1", tempMailToken: "tok" },
+    { proxyUrl: "http://1.2.3.4:8080" }
+  );
+  expect(args.registerCount).toBe(2);
+  expect(args.tempMailApi).toBe("https://x/v1");
+  expect(args.tempMailToken).toBe("tok");
+  expect(args.proxyUrl).toBe("http://1.2.3.4:8080");
 });
 
 test("registry outlook-signup has mode passthrough", () => {

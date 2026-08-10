@@ -18,6 +18,7 @@ import {
   QoderSignupModal,
   AutoclawSignupModal,
   OutlookSignupModal,
+  ChatGptSignupModal,
   TokenHarborSignupModal,
   BasetenSignupModal,
 } from "@/shared/components";
@@ -535,6 +536,32 @@ function OutlookAutomationPanel({ onRefresh }) {
   );
 }
 
+function ChatGptAutomationPanel({ onRefresh }) {
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="chat"
+            title="Signup Bulk (Go binary)"
+            subtitle="Register new ChatGPT accounts via verssache/chatgpt-creator: TLS fingerprint spoofing + pluggable temp-mail (YYDS/Tempik/Driftz) → OTP verify → account saved as connection. Needs residential proxy."
+          />
+        </button>
+      </div>
+
+      <ChatGptSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
+      />
+    </>
+  );
+}
+
 function CloudflareAutomationPanel({ onRefresh }) {
   const [isTokenOpen, setIsTokenOpen] = useState(false);
 
@@ -658,6 +685,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Bulk Microsoft/Outlook signup via stealth browser: PerimeterX press-and-hold → Arkose FunCaptcha → device challenge → Graph OAuth token.",
     supportedModes: ["signup"],
     component: OutlookAutomationPanel,
+  },
+  {
+    id: "chatgpt",
+    label: "ChatGPT",
+    icon: "chat",
+    description: "Bulk ChatGPT signup via Go binary (TLS spoof + temp-mail OTP). Needs residential proxy (OpenAI blocks datacenter IPs).",
+    supportedModes: ["signup"],
+    component: ChatGptAutomationPanel,
   },
   {
     id: "baseten",
