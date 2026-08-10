@@ -24,7 +24,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: resolvedProxy.error }, { status: 400 });
     }
 
-    const jobArgs = spec.normalizeStartArgs(body, resolvedProxy);
+    const jobArgs = await spec.normalizeStartArgs(body, resolvedProxy);
 
     // cloudflare-ai signupMode + grok-cli registerCount + ALL signup providers
     // create placeholder accounts in the manager — skip client account parse.

@@ -64,6 +64,7 @@ class OutlookBulkSignupManager extends KiroBulkImportManager {
     concurrency,
     proxyUrl,
     mode,
+    yydsApiKey,
     jobFields,
   }) {
     const count = Math.max(0, Math.min(MAX_REGISTER_COUNT, Number(registerCount) || 0));
@@ -85,6 +86,7 @@ class OutlookBulkSignupManager extends KiroBulkImportManager {
         accountsMeta: placeholders,
         registerCount: count,
         outlookMode: mode || "auto",
+        yydsApiKey: yydsApiKey || "",
       },
     });
   }
@@ -144,6 +146,10 @@ class OutlookBulkSignupManager extends KiroBulkImportManager {
       EZCAPTCHA_API_KEY: process.env.EZCAPTCHA_API_KEY || "",
       SMS5SIM_TOKEN: process.env.SMS5SIM_TOKEN || "",
       SMSPOOL_KEY: process.env.SMSPOOL_KEY || "",
+      // YYDS mail API key — dibutuhkan recovery mailbox (graph token flow).
+      // Tanpa ini register_outlook.py fallback ke config (kosong) → ValueError.
+      // Fix: re-chatgpt-outlook 2026-08-10 — di-pass dari startJob (registry fallback settings).
+      YYDS_API_KEY: process.env.YYDS_API_KEY || job.jobFields?.yydsApiKey || "",
     };
 
     if (this._spawnOutlookReg) {
