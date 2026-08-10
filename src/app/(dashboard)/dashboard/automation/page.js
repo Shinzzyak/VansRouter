@@ -17,6 +17,7 @@ import {
   GrokSsoImportModal,
   QoderSignupModal,
   AutoclawSignupModal,
+  OutlookSignupModal,
   TokenHarborSignupModal,
   BasetenSignupModal,
 } from "@/shared/components";
@@ -508,6 +509,32 @@ function AutoclawAutomationPanel({ onRefresh }) {
   );
 }
 
+function OutlookAutomationPanel({ onRefresh }) {
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="mail"
+            title="Signup Bulk (stealth browser)"
+            subtitle="Register new Microsoft/Outlook accounts via Patchright stealth: PerimeterX press-and-hold → Arkose FunCaptcha → device challenge (YYDS + SMS) → Graph OAuth refresh token saved as connection."
+          />
+        </button>
+      </div>
+
+      <OutlookSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
+      />
+    </>
+  );
+}
+
 function CloudflareAutomationPanel({ onRefresh }) {
   const [isTokenOpen, setIsTokenOpen] = useState(false);
 
@@ -623,6 +650,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Bulk signup with chain referral: fresh YYDS inboxes → verify email → $5 credit → API key → invite code chain.",
     supportedModes: ["signup", "chain-referral"],
     component: TokenHarborAutomationPanel,
+  },
+  {
+    id: "outlook",
+    label: "Outlook",
+    icon: "mail",
+    description: "Bulk Microsoft/Outlook signup via stealth browser: PerimeterX press-and-hold → Arkose FunCaptcha → device challenge → Graph OAuth token.",
+    supportedModes: ["signup"],
+    component: OutlookAutomationPanel,
   },
   {
     id: "baseten",

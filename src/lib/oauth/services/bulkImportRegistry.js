@@ -232,6 +232,21 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       yydsDomain: body?.yydsDomain,
     }),
   },
+  "outlook-signup": {
+    label: "Outlook Signup",
+    errorLabel: "Outlook signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./outlookBulkSignupManager.js").then((m) => m.getOutlookBulkSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      mode: body?.outlookMode || body?.mode || "auto",
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {

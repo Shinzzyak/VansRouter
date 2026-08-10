@@ -21,11 +21,25 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
     "codebuddy-cn",
     "grok-cli",
     "kiro",
+    "outlook-signup",
     "qoder",
     "qoder-signup",
     "tokenharbor-signup",
   ]);
   expect(isValidBulkImportProvider("tokenharbor-signup")).toBe(true);
+  expect(isValidBulkImportProvider("outlook-signup")).toBe(true);
+});
+
+test("registry outlook-signup has mode passthrough", () => {
+  const spec = BULK_IMPORT_PROVIDERS["outlook-signup"];
+  expect(spec.label).toBe("Outlook Signup");
+  const args = spec.normalizeStartArgs(
+    { registerCount: 3, concurrency: 2, outlookMode: "headless" },
+    { proxyUrl: "http://1.2.3.4:8080" }
+  );
+  expect(args.registerCount).toBe(3);
+  expect(args.mode).toBe("headless");
+  expect(args.proxyUrl).toBe("http://1.2.3.4:8080");
 });
 
 test("kiro manager exports", async () => {
