@@ -17,6 +17,10 @@ import fs from "node:fs";
  */
 export function findPythonBinary() {
   const candidates = [
+    // Production standalone (PM2 cwd = .next/standalone) — venv NOT shipped;
+    // probe the repo-tree venv by absolute path (deploy keeps repo at
+    // /home/ubuntu/VansRouter on the VPS).
+    "/home/ubuntu/VansRouter/scripts/python/qoderreg-venv/bin/python3",
     path.join(process.cwd(), "scripts", "python", "qoderreg-venv", "bin", "python3"),
     path.join(process.cwd(), ".next", "standalone", "scripts", "python", "qoderreg-venv", "bin", "python3"),
   ];
