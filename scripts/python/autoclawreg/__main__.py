@@ -27,9 +27,13 @@ FALLBACK_SCENE_ID = "xswyjefn"
 try:
     from ._yyds import yyds_create_inbox, yyds_poll_otp
     from ._slider import solve_slider_v2
+    from qoderreg._driftz import driftz_create_inbox, driftz_poll_otp
+    from qoderreg._tempik import tempik_create_inbox, tempik_poll_otp
 except ImportError:  # allow running as standalone script
     from qoderreg._yyds import yyds_create_inbox, yyds_poll_otp
     from qoderreg._slider import solve_slider_v2
+    from qoderreg._driftz import driftz_create_inbox, driftz_poll_otp
+    from qoderreg._tempik import tempik_create_inbox, tempik_poll_otp
 
 
 def random_device_id():
@@ -100,14 +104,19 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
             return {"status": "dry_run", "email": email,
                     "note": "signup would POST /auths/signup with Aliyun slider"}
 
-        # 1. YYDS inbox
-        inbox = yyds_create_inbox(yyds_api_key, yyds_domain)
-        email = inbox["email"]
-        inbox_id = inbox.get("id")
+        # 1. Temp-mail inbox (YYDS → Driftz → tempik chain, like qoderreg)
+        email, inbox_id = _create_inbox_chain(yyds_api_key, yyds_domain)
+        if not email:
+            return {"status": "failed", "error": "inbox create failed (yyds/driftz/tempik)"}
         password = gen_password()
         device_id = random_device_id()
 
         # 2. Browser flow: signup + Aliyun slider + verify + AutoClaw login
+        if engine == "camoufox":
+            from camoufox import Camoufox
+            with Camoufox(headless=headless, geoip=True) as browser:
+                page = browser.new_page()
+                return _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             browser_args = []
@@ -116,49 +125,51 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
             browser = p.chromium.launch(headless=headless, args=browser_args)
             context = browser.new_context()
             page = context.new_page()
-
-            # Load Aliyun captcha lib + signup page
-            page.goto(f"{ZAI_API}/auths/signup", wait_until="domcontentloaded")
-            page.add_script_tag(url=ALIYUN_CAPTCHA_JS)
-
-            # Solve Aliyun slider if present
-            captcha_param = solve_slider_v2(page)
-            if not captcha_param:
-                browser.close()
-                return {"status": "failed", "error": "captcha solve failed", "email": email}
-
-            ok, data = signup_zai_http(email, password, device_id, captcha_param)
-            if not ok:
-                browser.close()
-                return {"status": "failed", "error": str(data.get("detail") or data), "email": email}
-
-            # 3. Verify email — wait for YYDS inbox code
-            token = wait_for_verify_token(yyds_api_key, yyds_domain, inbox_id, email)
-            if not token:
-                browser.close()
-                return {"status": "failed", "error": "verify email token not received", "email": email}
-
-            # 4. Signin + AutoClaw
-            page.goto(AUTOCLAW_WEB_URL, wait_until="domcontentloaded")
-            page.evaluate(f"""() => {{
-              localStorage.setItem('autoclaw.web.authToken', '{data.get('token') or ''}');
-              localStorage.setItem('autoclaw.web.refreshToken', '{data.get('refresh_token') or ''}');
-              localStorage.setItem('autoclaw.web.deviceId', '{device_id}');
-            }}""")
-            tokens = extract_autoclaw_tokens(page)
-
+            result = _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
             browser.close()
-            return {
-                "status": "ok",
-                "email": email,
-                "access_token": tokens.get("authToken") or data.get("token") or "",
-                "refresh_token": tokens.get("refreshToken") or data.get("refresh_token") or "",
-                "device_id": tokens.get("deviceId") or device_id,
-                "user_id": tokens.get("userId"),
-                "user_name": tokens.get("userName"),
-            }
+            return result
     except Exception as e:
         return {"status": "failed", "error": str(e), "email": email}
+
+
+def _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id):
+    """Z.ai signup + Aliyun slider + verify + AutoClaw token extraction on a page."""
+    # Load Aliyun captcha lib + signup page
+    page.goto(f"{ZAI_API}/auths/signup", wait_until="domcontentloaded")
+    page.add_script_tag(url=ALIYUN_CAPTCHA_JS)
+
+    # Solve Aliyun slider if present
+    captcha_param = solve_slider_v2(page)
+    if not captcha_param:
+        return {"status": "failed", "error": "captcha solve failed", "email": email}
+
+    ok, data = signup_zai_http(email, password, device_id, captcha_param)
+    if not ok:
+        return {"status": "failed", "error": str(data.get("detail") or data), "email": email}
+
+    # 3. Verify email — wait for inbox code
+    token = wait_for_verify_token(yyds_api_key, yyds_domain, inbox_id, email)
+    if not token:
+        return {"status": "failed", "error": "verify email token not received", "email": email}
+
+    # 4. Signin + AutoClaw
+    page.goto(AUTOCLAW_WEB_URL, wait_until="domcontentloaded")
+    page.evaluate(f"""() => {{
+      localStorage.setItem('autoclaw.web.authToken', '{data.get('token') or ''}');
+      localStorage.setItem('autoclaw.web.refreshToken', '{data.get('refresh_token') or ''}');
+      localStorage.setItem('autoclaw.web.deviceId', '{device_id}');
+    }}""")
+    tokens = extract_autoclaw_tokens(page)
+
+    return {
+        "status": "ok",
+        "email": email,
+        "access_token": tokens.get("authToken") or data.get("token") or "",
+        "refresh_token": tokens.get("refreshToken") or data.get("refresh_token") or "",
+        "device_id": tokens.get("deviceId") or device_id,
+        "user_id": tokens.get("userId"),
+        "user_name": tokens.get("userName"),
+    }
 
 
 def signup_zai_http(email, password, device_id, captcha_param):
@@ -178,11 +189,53 @@ def signup_zai_http(email, password, device_id, captcha_param):
         return False, {"detail": str(e)}
 
 
+def _create_inbox_chain(api_key, domain):
+    """YYDS → Driftz → tempik. Returns (email, inbox_id) or (None, None)."""
+    if api_key:
+        try:
+            inbox = yyds_create_inbox(api_key, domain)
+            if inbox:
+                return inbox
+        except Exception as e:
+            print(f"[mail] YYDS failed ({e}) → driftz fallback", file=sys.stderr)
+    try:
+        inbox = driftz_create_inbox()
+        if inbox:
+            return inbox
+    except Exception as e:
+        print(f"[mail] driftz failed ({e}) → tempik fallback", file=sys.stderr)
+    try:
+        return tempik_create_inbox()
+    except Exception as e:
+        print(f"[mail] tempik failed ({e})", file=sys.stderr)
+        return None, None
+
+
+def _poll_otp_chain(api_key, inbox_id, email, timeout_s=180):
+    """YYDS → Driftz → tempik OTP poll. Returns code string or None."""
+    if api_key and inbox_id:
+        try:
+            c = yyds_poll_otp(api_key, inbox_id, timeout_s=timeout_s)
+            if c:
+                return c
+        except Exception:
+            pass
+    try:
+        c = driftz_poll_otp(email, timeout_s=timeout_s)
+        if c:
+            return c
+    except Exception:
+        pass
+    try:
+        return tempik_poll_otp(email, timeout_s=timeout_s, session_id=inbox_id)
+    except Exception:
+        return None
+
+
 def wait_for_verify_token(yyds_api_key, yyds_domain, inbox_id, email, timeout_s=180):
-    """Poll YYDS inbox for the Z.ai verification link/token."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        code = yyds_poll_otp(yyds_api_key, inbox_id)
+        code = _poll_otp_chain(yyds_api_key, inbox_id, email, timeout_s=60)
         if code:
             m = re.search(r"verify[^\s]*token=([A-Za-z0-9._-]+)", code)
             if m:
