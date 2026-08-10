@@ -11,6 +11,7 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
+import { checkApiKeyLimits, recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import {
   isKimchiQuotaExhausted,
   buildKimchiQuotaExhaustedUpdate,
@@ -136,6 +137,27 @@ export async function handleChat(request, clientRawRequest = null) {
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  }
+
+  // Enforce per-key usage limits (applies even when requireApiKey is false but a key was supplied)
+  if (apiKeyInfo) {
+    const estimatedTokens = body.max_tokens || 0;
+    const limitCheck = checkApiKeyLimits(apiKeyInfo, estimatedTokens);
+    if (!limitCheck.allowed) {
+      log.warn("AUTH", `API key limit exceeded: ${limitCheck.reason}`);
+      const retryAfter = limitCheck.retryAfterMs ? Math.ceil(limitCheck.retryAfterMs / 1000).toString() : undefined;
+      const body = JSON.stringify({
+        error: { message: limitCheck.reason, type: "rate_limit_error", code: "rate_limit_exceeded" },
+      });
+      return new Response(body, {
+        status: HTTP_STATUS.RATE_LIMITED,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+        },
+      });
+    }
   }
 
   // ACL: check if LLM kind is allowed for this API key
@@ -475,6 +497,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       connectionId: credentials.connectionId,
       userAgent,
       apiKey,
+      apiKeyInfo,
       apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: !!chatSettings.rtkEnabled,
