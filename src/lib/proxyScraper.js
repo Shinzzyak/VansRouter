@@ -43,6 +43,22 @@ const PROXY_SOURCES = [
         .filter(Boolean)
         .map((line) => ({ proxyUrl: `http://${line.trim()}`, type: "http", source: "free-proxy-list" })),
   },
+  {
+    id: "schatt-snapshot",
+    label: "Schatt Snapshot (validated)",
+    url: "https://raw.githubusercontent.com/Shinzzyak/proxy-scraper/main/proxies.txt",
+    parse: (text) =>
+      String(text)
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const hostPort = line.trim();
+          if (!/^[\w.:-]+:\d+$/.test(hostPort)) return null;
+          return { proxyUrl: `http://${hostPort}`, type: "http", source: "schatt-snapshot" };
+        })
+        .filter(Boolean),
+  },
 ];
 
 const DEDUPE_KEY = (p) => p.proxyUrl.replace(/^https?:\/\//, "");
