@@ -247,6 +247,22 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       mode: body?.outlookMode || body?.mode || "auto",
     }),
   },
+  "chatgpt-signup": {
+    label: "ChatGPT Signup",
+    errorLabel: "ChatGPT signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./chatgptBulkSignupManager.js").then((m) => m.getChatGptBulkSignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      tempMailApi: body?.tempMailApi,
+      tempMailToken: body?.tempMailToken,
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {
