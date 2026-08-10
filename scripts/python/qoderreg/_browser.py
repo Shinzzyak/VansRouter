@@ -19,8 +19,7 @@ _AUTH_BTNS = ("button:has-text('Authorize')", "button:has-text('approve')",
               "button:has-text('Approve')", "button:has-text('授权')",
               "button:has-text('confirm')", "button:has-text('Confirm')",
               "button:has-text('allow')", "button:has-text('Allow')",
-              "button:has-text('select')", "button:has-text('Continue')",
-              "button:has-text('continue')", "button[type='submit']")
+              "button:has-text('select')")  # RE-qoder: HAPUS 'Continue'/'submit' — match tombol LOGIN saat session lost
 
 
 def _chromium_exe():
@@ -191,6 +190,7 @@ def _signup_and_verify(page, email, password, first, last, auth_url, otp_cb, log
     time.sleep(1)
 
     # 4. Aliyun slider (may appear)
+    captcha_ok = False
     for attempt in range(3):
         if any(page.locator(sel).count() > 0 for sel in _SLIDER_SELS):
             log(f"[browser] slider attempt {attempt + 1}", flush=True)
@@ -198,12 +198,19 @@ def _signup_and_verify(page, email, password, first, last, auth_url, otp_cb, log
                 ok = solve_slider_v2(page, log=log)
                 log(f"[browser] slider attempt {attempt + 1} → {ok}", flush=True)
                 if ok:
+                    captcha_ok = True
                     break
             except Exception as e:
                 log(f"[browser] slider attempt {attempt + 1} EXC: {e}", flush=True)
         else:
             log(f"[browser] no slider (attempt {attempt + 1})", flush=True)
+            captcha_ok = True  # no slider = no captcha needed
             break
+    if not captcha_ok:
+        # RE-qoder 2026-08-10: fail-fast — captcha gagal = akun TIDAK dibuat.
+        # Lanjut OTP/authorize cuma buang waktu (1137s→3min) & klik tombol login palsu.
+        log("[browser] CAPTCHA FAILED after 3 attempts — aborting signup", flush=True)
+        return False
     time.sleep(1)
 
     # 5. OTP
