@@ -32,7 +32,7 @@ Tugas:
 3. Cocokkan urutan: untuk tiap ikon FG (urut), temukan ikon yang sama di BG. Ikon FG yang tidak ada di BG (duplikat/berbeda) dilewati.
 4. Output HANYA JSON, tanpa markdown, tanpa teks lain:
 {"clicks": [[x1,y1],[x2,y2],...]}
-Koordinat harus presisi (center ikon). Jika ragu, tetap berikan tebakan terbaik. Jangan pernah mengembalikan kosong."""
+Koordinat harus presisi (center ikon) dan WAJIB dalam rentang: x ∈ [0,600], y ∈ [0,300]. Jangan pernah output koordinat di luar rentang ini. Jika ragu, tetap berikan tebakan terbaik dalam rentang. Jangan pernah mengembalikan kosong."""
 
 
 def load_token():
@@ -55,9 +55,10 @@ def to_b64(path_or_url):
     return f"data:{mime};base64,{base64.b64encode(data).decode()}"
 
 
-def solve(bg, fg, timeout=90, retries=3):
+def solve(bg, fg, timeout=45, retries=5):
     token = load_token()
     last_err = None
+    import time as _t
     for attempt in range(retries):
         try:
             body = {
@@ -85,19 +86,35 @@ def solve(bg, fg, timeout=90, retries=3):
             if not content:
                 # Cek reasoning-only response
                 content = msg.get("reasoning") or ""
-                last_err = f"attempt {attempt}: empty content (model={d.get('model')})"
+                last_err = f"attempt {attempt}: empty content"
+                _t.sleep(1)
                 continue
             try:
                 start = content.find("{")
                 end = content.rfind("}") + 1
                 parsed = json.loads(content[start:end])
                 clicks = parsed.get("clicks", [])
-                return {"clicks": clicks, "raw": content, "model": d.get("model")}
+                # Validasi: koordinat harus dalam 600x300
+                valid = []
+                for c in clicks:
+                    try:
+                        x, y = float(c[0]), float(c[1])
+                        if 0 <= x <= 600 and 0 <= y <= 300:
+                            valid.append([x, y])
+                    except Exception:
+                        continue
+                if valid:
+                    return {"clicks": valid, "raw": content, "model": d.get("model")}
+                last_err = f"attempt {attempt}: all clicks out of range: {clicks}"
+                _t.sleep(1)
+                continue
             except Exception as e:
                 last_err = f"attempt {attempt}: parse fail: {e}"
+                _t.sleep(1)
                 continue
         except Exception as e:
             last_err = f"attempt {attempt}: {e}"
+            _t.sleep(1)
             continue
     return {"clicks": [], "raw": None, "error": last_err, "model": None}
 
