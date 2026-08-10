@@ -16,6 +16,7 @@ import {
   GrokRegisterModal,
   GrokSsoImportModal,
   QoderSignupModal,
+  AutoclawSignupModal,
   TokenHarborSignupModal,
   BasetenSignupModal,
 } from "@/shared/components";
@@ -449,10 +450,20 @@ function BasetenAutomationPanel({ onRefresh }) {
 function AutoclawAutomationPanel({ onRefresh }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
 
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="person_add"
+            title="Signup Bulk (Z.ai + YYDS)"
+            subtitle="Register new AutoClaw accounts via Z.ai signup with fresh YYDS inboxes: signup → Aliyun slider → verify email → tokens saved as connection."
+          />
+        </button>
         <button type="button" onClick={() => setIsBulkOpen(true)} className="text-left">
           <Card
             hover
@@ -486,6 +497,12 @@ function AutoclawAutomationPanel({ onRefresh }) {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onSaved={() => onRefresh?.()}
+      />
+
+      <AutoclawSignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
       />
     </>
   );
