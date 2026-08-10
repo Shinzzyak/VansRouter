@@ -20,8 +20,17 @@ BASE_5SIM = "https://5sim.net/v1"
 BASE_SMSPOOL = "https://api.smspool.net"
 
 
+_last_request = 0.0
+_REQUEST_GAP = 5.0  # DD8-B.5: 5sim rate-limit guest/API ~1 req/s — throttle 5s
+
+
 def request_sms(service="microsoft", country="usa", operator="any", provider="5sim"):
     """Beli nomor virtual. Return dict: {provider, order_id, phone}."""
+    global _last_request
+    gap = time.time() - _last_request
+    if gap < _REQUEST_GAP:
+        time.sleep(_REQUEST_GAP - gap)
+    _last_request = time.time()
     if provider == "5sim":
         token = os.environ.get("SMS5SIM_TOKEN", "")
         if not token:
@@ -34,7 +43,21 @@ def request_sms(service="microsoft", country="usa", operator="any", provider="5s
         if r.status_code != 200:
             raise RuntimeError(f"5sim buy failed {r.status_code}: {r.text[:200]}")
         d = r.json()
-        return {"provider": "5sim", "order_id": str(d["id"]), "phone": d["phone"]}
+        phone = d["phone"]
+        # DD8-B: filter nomor rate rendah — rate1/rate3 = peluang SMS masuk
+        # dalam 1/3 menit. Skip nomor rate1 < 40 (kemungkinan besar hang).
+        rates = d.get("rate", {})
+        try:
+            if rates.get("rate1", 0) < 40 and rates.get("rate3", 0) < 60:
+                # cancel & coba lagi sekali — kalau semua jelek, tetap pakai
+                try:
+                    requests.get(f"{BASE_5SIM}/user/cancel/{d['id']}", headers=h, timeout=10)
+                except Exception:
+                    pass
+                raise RuntimeError(f"5sim low rate number ({rates})")
+        except TypeError:
+            pass  # rate bukan dict — format beda, lanjut
+        return {"provider": "5sim", "order_id": str(d["id"]), "phone": phone}
     # ---- SMSPool fallback ----
     key = os.environ.get("SMSPOOL_KEY", "")
     if not key:
