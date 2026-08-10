@@ -47,6 +47,7 @@ export const AutoclawAutomationModal = lazyModal(() => import("./AutoclawAutomat
 export const GrokSsoImportModal = lazyModal(() => import("./GrokSsoImportModal"));
 export const QoderSignupModal = lazyModal(() => import("./QoderSignupModal"));
 export const AutoclawSignupModal = lazyModal(() => import("./AutoclawSignupModal"));
+export const OutlookSignupModal = lazyModal(() => import("./OutlookSignupModal"));
 export const TokenHarborSignupModal = lazyModal(() => import("./TokenHarborSignupModal"));
 export const BasetenSignupModal = lazyModal(() => import("./BasetenSignupModal"));
 export const ProxyScraperPanel = lazyModal(() => import("./ProxyScraperPanel"));
