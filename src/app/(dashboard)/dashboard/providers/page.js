@@ -505,17 +505,25 @@ export default function ProvidersPage() {
             // while generic apikey providers use "apikey" — include both spellings.
             const freeAuthTypes =
               key === "kiro" ? ["oauth", "apikey", "api_key"] : "oauth";
+            const stats = getProviderStats(
+              key,
+              key === "autoclaw" ? ["oauth", "access_token", "token"] : freeAuthTypes,
+            );
             return (
               <ProviderCard
                 key={key}
                 providerId={key}
                 provider={info}
-                stats={getProviderStats(key, freeAuthTypes)}
+                stats={stats}
                 authType="free"
                 circuitBreaker={getCircuitBreakerForProvider(key)}
                 onResetCircuit={resetCircuitBreaker}
                 onToggle={(active) =>
-                  handleToggleProvider(key, freeAuthTypes, active)
+                  handleToggleProvider(
+                    key,
+                    key === "autoclaw" ? ["oauth", "access_token", "token"] : freeAuthTypes,
+                    active,
+                  )
                 }
               />
             );
