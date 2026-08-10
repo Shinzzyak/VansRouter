@@ -132,9 +132,11 @@ export default function BulkAccountAutomationModal({
     }
   }, [configStorageKey, engine, headless, proxyPoolId, proxyUrl, randomizeProxySession, autoConcurrency, concurrency]);
 
-  // Fallback default: if the user hasn't picked a proxy yet (no cached config,
-  // no pool, no custom URL), apply the auto-scraped default proxy from the
-  // Proxy Scraper panel. Read once on mount; never overrides manual choices.
+  // Fallback default: jika user belum pilih proxy (no cached config, no pool,
+  // no custom URL), biarkan kosong — resolver otomatis memakai
+  // settings.outboundProxyUrl (gateway internal) sebagai default.
+  // (Proxy scraper panel yang dulu menulis localStorage "auto:defaultProxy"
+  // sudah dihapus 2026-08-10 — baca legacy key utk kompatibilitas, tidak wajib.)
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (proxyUrl || proxyPoolId) return;
