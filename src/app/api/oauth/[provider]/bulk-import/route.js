@@ -26,14 +26,20 @@ export async function POST(request, { params }) {
 
     const jobArgs = spec.normalizeStartArgs(body, resolvedProxy);
 
-    // cloudflare-ai signupMode + grok-cli registerCount create placeholder accounts in manager.
+    // cloudflare-ai signupMode + grok-cli registerCount + ALL signup providers
+    // create placeholder accounts in the manager — skip client account parse.
     const skipAccountParse =
       provider === "cloudflare-ai" ||
+      provider.endsWith("-signup") ||
       (provider === "grok-cli" && Number(body?.registerCount) > 0);
 
     if (spec.parseAccounts && !skipAccountParse) {
       const accounts = Array.isArray(body?.accounts) ? body.accounts : [];
-      const { parsed, invalidLines } = await spec.parseAccounts(accounts);
+      const parsedResult = await spec.parseAccounts(accounts);
+      // Signup providers return a plain array (placeholders are created in the
+      // manager); account-bearing providers return { parsed, invalidLines }.
+      const parsed = Array.isArray(parsedResult) ? parsedResult : parsedResult?.parsed || [];
+      const invalidLines = Array.isArray(parsedResult) ? [] : parsedResult?.invalidLines || [];
 
       const formatHint =
         provider === "grok-cli"
