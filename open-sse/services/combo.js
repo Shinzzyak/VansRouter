@@ -444,6 +444,9 @@ function extractPanelText(json) {
     const msg = choice.message ?? choice.delta ?? {};
     const t = extractTextContent(msg.content);
     if (t.trim()) return t;
+    // DeepSeek/GLM-style reasoning-only responses (content null, reasoning filled)
+    const r = extractTextContent(msg.reasoning_content);
+    if (r.trim()) return r;
     if (typeof choice.text === "string" && choice.text.trim()) return choice.text;
   }
 
@@ -813,7 +816,22 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
       cfg.thinkingTimeoutMs
     );
     if (res && !res.__timeout && !res.__error && res.ok) {
-      const json = await res.clone().json();
+      let json = null;
+      try {
+        json = await res.clone().json();
+      } catch {
+        // forceStream providers (autoclaw etc) return SSE even for stream:false
+        // — parse the stream and take the final content chunk.
+        try {
+          const text = await res.clone().text();
+          json = parseSseFinal(text);
+        } catch {
+          json = null;
+        }
+      }
+      if (!json) {
+        log.warn("THINK", `thinker ${thinker} response unparseable`);
+      }
       const text = extractPanelText(json);
       const toolCalls = extractToolCalls(json);
       if (text && text.trim()) {
@@ -926,6 +944,44 @@ async function readResponseText(res) {
   } catch {
     return "";
   }
+}
+
+/**
+ * Parse an SSE stream body and return a synthetic chat-completion JSON from
+ * the final chunk that carried content. forceStream providers (autoclaw,
+ * agentrouter, cline…) return SSE even when asked for stream:false, so the
+ * thinking pass can't .json() the response directly.
+ */
+function parseSseFinal(text) {
+  if (!text) return null;
+  let finalContent = "";
+  let finalReasoning = "";
+  const lines = text.split("\n");
+  for (const line of lines) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      const chunk = JSON.parse(payload);
+      const delta = chunk.choices?.[0]?.delta ?? {};
+      if (typeof delta.content === "string" && delta.content) finalContent += delta.content;
+      if (typeof delta.reasoning_content === "string" && delta.reasoning_content) finalReasoning += delta.reasoning_content;
+    } catch {
+      // skip malformed chunk
+    }
+  }
+  if (!finalContent && !finalReasoning) return null;
+  return {
+    choices: [
+      {
+        message: {
+          role: "assistant",
+          content: finalContent || null,
+          reasoning_content: finalReasoning || null,
+        },
+      },
+    ],
+  };
 }
 
 /**
