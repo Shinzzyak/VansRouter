@@ -224,4 +224,57 @@ describe("think-execute combo", () => {
     expect(thinkBody.messages[thinkBody.messages.length - 1].content).toBe("final request");
     expect(execBody.messages[execBody.messages.length - 1].content).toContain("analysis");
   });
+
+  it("parses SSE response from forceStream providers (autoclaw style)", async () => {
+    const handleSingleModel = vi.fn(async (body, model) => {
+      if (model === "p/thinker") {
+        // forceStream provider returns SSE even for stream:false
+        const sse = [
+          'data: {"choices":[{"delta":{"content":"analysis "}}]}',
+          'data: {"choices":[{"delta":{"content":"is done"}}]}',
+          "data: [DONE]",
+        ].join("\n");
+        const make = () => ({ ok: true, status: 200, clone: make, json: async () => { throw new Error("not json"); }, text: async () => sse });
+        return make();
+      }
+      return okResponse("EXEC ANSWER");
+    });
+
+    const res = await handleThinkExecuteChat({
+      body: { messages: [{ role: "user", content: "Q" }] },
+      models: ["p/thinker", "p/exec"],
+      handleSingleModel,
+      log,
+      thinkingModel: "p/thinker",
+      executionModel: "p/exec",
+    });
+
+    expect(res.ok).toBe(true);
+    const execBody = handleSingleModel.mock.calls[1][0];
+    expect(execBody.messages[1].content).toContain("analysis is done");
+  });
+
+  it("falls back to reasoning_content when content is null (deepseek/glm style)", async () => {
+    const handleSingleModel = vi.fn(async (body, model) => {
+      if (model === "p/thinker") {
+        const json = { choices: [{ message: { role: "assistant", content: null, reasoning_content: "deep analysis here" } }] };
+        const make = () => ({ ok: true, status: 200, clone: make, json: async () => json });
+        return make();
+      }
+      return okResponse("EXEC ANSWER");
+    });
+
+    const res = await handleThinkExecuteChat({
+      body: { messages: [{ role: "user", content: "Q" }] },
+      models: ["p/thinker", "p/exec"],
+      handleSingleModel,
+      log,
+      thinkingModel: "p/thinker",
+      executionModel: "p/exec",
+    });
+
+    expect(res.ok).toBe(true);
+    const execBody = handleSingleModel.mock.calls[1][0];
+    expect(execBody.messages[1].content).toContain("deep analysis here");
+  });
 });

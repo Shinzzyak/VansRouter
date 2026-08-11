@@ -55,10 +55,12 @@ export class AutoclawExecutor extends DefaultExecutor {
 
   // Proxy routes via X-Request-Model header — omit model from body to avoid
   // misleading "非法模型" error on 0-balance accounts (proxy returns proper
-  // "积分不足" when body lacks model field).
-  transformRequest(model, body, _stream, _credentials) {
+  // "积分不足" when body lacks model field). Respect the client's stream flag —
+  // forcing stream:true breaks non-streaming callers (e.g. think-execute's
+  // thinking pass needs a JSON response, not SSE).
+  transformRequest(model, body, stream, _credentials) {
     const { model: _, ...rest } = body;
-    return { ...rest, stream: true };
+    return { ...rest, stream: stream === true };
   }
 
   async execute(args) {
