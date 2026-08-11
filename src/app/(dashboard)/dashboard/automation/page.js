@@ -29,6 +29,99 @@ function getConnectionLabel(count) {
   return `${count} connection${count === 1 ? "" : "s"}`;
 }
 
+// ── Automation History — hasil semua automation (signup/bulk-import) ──────
+const STATUS_BADGE = {
+  success: "bg-green-500/10 text-green-600 dark:text-green-400",
+  completed: "bg-green-500/10 text-green-600 dark:text-green-400",
+  failed: "bg-red-500/10 text-red-600 dark:text-red-400",
+  cancelled: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+  running: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  queued: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  needs_verify: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  needs_manual: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+};
+
+function AutomationHistoryPanel() {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/automation-history?limit=20", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) setJobs(data.jobs || []);
+      else setError(data.error || "Failed to load history");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const fmtTime = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <Card className="mt-4">
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h3 className="text-sm font-semibold">Hasil Automation</h3>
+        <button
+          type="button"
+          onClick={load}
+          className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:bg-white/5"
+        >
+          ↻ Refresh
+        </button>
+      </div>
+      <div className="p-4">
+        {loading ? (
+          <p className="text-xs text-text-muted">Loading…</p>
+        ) : error ? (
+          <p className="text-xs text-red-500">{error}</p>
+        ) : jobs.length === 0 ? (
+          <p className="text-xs text-text-muted">Belum ada job automation.</p>
+        ) : (
+          <div className="space-y-2">
+            {jobs.map((j) => (
+              <div
+                key={j.jobId}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-background px-3 py-2 text-xs"
+              >
+                <span className="font-medium">{j.provider}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    STATUS_BADGE[j.status] || "bg-white/5 text-text-muted"
+                  }`}
+                >
+                  {j.status}
+                </span>
+                <span className="text-text-muted">{fmtTime(j.createdAt)}</span>
+                <span className="text-text-muted">
+                  {j.total} akun ·{" "}
+                  {Object.entries(j.counts)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(" · ")}
+                </span>
+                {j.error && <span className="text-red-500">⚠ {j.error}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function KiroAutomationPanel({ providerInfo, onRefresh }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -869,6 +962,8 @@ export default function AutomationPage() {
           <ProviderPanel providerInfo={providerInfo} onRefresh={fetchConnections} />
         </div>
       </Card>
+
+      <AutomationHistoryPanel />
     </div>
   );
 }

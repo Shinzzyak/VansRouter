@@ -314,7 +314,13 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
     deadline = time.time() + 180
     msg = poll(deadline)
     if not msg:
-        raise RuntimeError("verification email not received")
+        # R25-TH7: akun SUDAH dibuat (303) tapi verify email tidak datang
+        # (tempik inbox expire / email delay). Jangan raise — return sukses
+        # dengan status needs_verify supaya akun tetap masuk account pool.
+        _log("verification email not received — akun tetap dibuat (303), return needs_verify")
+        result = {"status": "needs_verify", "email": email, "password": password,
+                  "invite_code_used": invite, "apiKey": None, "inviteCode": None}
+        return result
     link = _extract_verify_link(msg)
     if not link:
         raise RuntimeError("verification link not found in email")

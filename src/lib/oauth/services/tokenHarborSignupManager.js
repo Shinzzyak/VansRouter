@@ -228,16 +228,17 @@ class TokenHarborSignupManager extends KiroBulkImportManager {
       throw new Error(`No JSON result from tokenharborreg: ${String(stdout).slice(0, 200)}`);
     }
 
-    if (result.status === "success") {
+    if (result.status === "success" || result.status === "needs_verify") {
       const token = result.apiKey || result.key || result.access_token;
       const email = result.email || account.email;
       const inviteCode = result.inviteCode || null;
+      const needsVerify = result.status === "needs_verify";
       if (!token) {
         // account created but key not captured — still save email + invite for chaining
-        this.finalizeAccount(account, "needs_manual", {
-          error: "Account created but API key not captured",
-          step: "key_missing",
-          message: `email ${email} invite ${inviteCode || "-"} (manual key fetch)`,
+        this.finalizeAccount(account, needsVerify ? "needs_verify" : "needs_manual", {
+          error: needsVerify ? "Account created, email verification pending" : "Account created but API key not captured",
+          step: needsVerify ? "verify_pending" : "key_missing",
+          message: `email ${email} invite ${inviteCode || "-"} (${needsVerify ? "verify email pending" : "manual key fetch"})`,
         });
         await this.persistJobSnapshot(job, { forcePreview: true });
         return;
