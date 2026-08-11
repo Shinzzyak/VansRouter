@@ -5,6 +5,7 @@ import Badge from "./Badge";
 import Button from "./Button";
 import Input from "./Input";
 import Modal from "./Modal";
+import ProxyPresetPicker from "./ProxyPresetPicker";
 import {
   formatBrowserProxyPoolOption,
   getBrowserProxyPools,
@@ -524,7 +525,10 @@ export default function BulkAccountAutomationModal({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Network Proxy (optional)</label>
+              <label className="mb-2 block text-sm font-medium">Network Proxy</label>
+              <div className="mb-3">
+                <ProxyPresetPicker value={proxyUrl} onChange={(url) => setProxyUrl(url)} />
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-text-muted">Proxy Pool</label>
@@ -532,7 +536,9 @@ export default function BulkAccountAutomationModal({
                     value={proxyPoolId}
                     onChange={(event) => {
                       setProxyPoolId(event.target.value);
-                      if (event.target.value) setProxyUrl("");
+                      if (event.target.value) {
+                        setProxyUrl("");
+                      }
                     }}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   >
@@ -549,7 +555,9 @@ export default function BulkAccountAutomationModal({
                   <Input
                     type="text"
                     value={proxyUrl}
-                    onChange={(event) => setProxyUrl(event.target.value)}
+                    onChange={(event) => {
+                      setProxyUrl(event.target.value);
+                    }}
                     disabled={Boolean(proxyPoolId)}
                     placeholder="http://user:pass@host:port"
                   />
@@ -565,7 +573,7 @@ export default function BulkAccountAutomationModal({
                 </div>
               </div>
               <p className="mt-1 text-xs text-text-muted">
-                Browsers will route login traffic through the chosen proxy. Multiple URLs in a pool or custom field rotate round-robin across workers. Relay-style pools (Vercel, Cloudflare, Deno) are excluded because they only rewrite API URLs.
+                Gateway sticky: ganti <code className="rounded bg-sidebar px-1">sid-XXXX</code> di URL = IP baru per akun. WARP mode proxy — IP publik VPS tidak berubah. Browsers route login traffic through the chosen proxy.
               </p>
             </div>
           </>

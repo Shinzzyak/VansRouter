@@ -63,6 +63,8 @@ export { default as RequestLogger } from "./RequestLogger";
 export { default as SegmentedControl } from "./SegmentedControl";
 export { default as Tooltip } from "./Tooltip";
 export { default as CapacityBadges } from "./CapacityBadges";
+export { default as ProxyStatusPanel } from "./ProxyStatusPanel";
+export { default as ProxyPresetPicker } from "./ProxyPresetPicker";
 
 // Layouts
 export * from "./layouts";

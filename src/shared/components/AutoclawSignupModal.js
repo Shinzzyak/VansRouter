@@ -5,6 +5,7 @@ import Badge from "./Badge";
 import Button from "./Button";
 import Input from "./Input";
 import Modal from "./Modal";
+import ProxyPresetPicker from "./ProxyPresetPicker";
 import { readJsonResponse } from "@/shared/utils/httpResponse.js";
 
 const PROVIDER = "autoclaw-signup";
@@ -202,12 +203,17 @@ export default function AutoclawSignupModal({ isOpen, onClose, onSuccess }) {
                 onChange={(e) => setYydsDomain(e.target.value)}
                 placeholder="valerius.biz.id"
               />
-              <Input
-                label="Proxy (socks5://host:port — opsional)"
-                value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
-                placeholder="socks5://127.0.0.1:9050"
-              />
+              <div>
+                <label className="mb-1 block text-sm font-medium">Proxy</label>
+                <ProxyPresetPicker value={proxyUrl} onChange={setProxyUrl} />
+                <Input
+                  className="mt-2"
+                  label="Custom Proxy URL (opsional)"
+                  value={proxyUrl}
+                  onChange={(e) => setProxyUrl(e.target.value)}
+                  placeholder="http://user:pass@host:port"
+                />
+              </div>
             </div>
 
             <label className="flex items-center gap-2 text-sm">

@@ -6,6 +6,7 @@ import Button from "@/shared/components/Button";
 import Input from "@/shared/components/Input";
 import Modal from "@/shared/components/Modal";
 import ProviderIcon from "@/shared/components/ProviderIcon";
+import ProxyStatusPanel from "@/shared/components/ProxyStatusPanel";
 import { readJsonResponse } from "@/shared/utils/httpResponse.js";
 
 function formatTime(value) {
@@ -13,6 +14,30 @@ function formatTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
+// Benefit formatter — trial sisa hari / free limit / points
+function formatBenefit(benefit) {
+  if (!benefit) return "—";
+  if (benefit.message) return benefit.message;
+  if (benefit.error) return "err";
+  if (!benefit.quotas?.length) return benefit.plan || "—";
+
+  const parts = [];
+  for (const q of benefit.quotas.slice(0, 3)) {
+    if (q.unlimited) {
+      parts.push(`${q.key}: unlimited`);
+      continue;
+    }
+    const remaining = Number.isFinite(q.remaining) ? q.remaining : q.total - q.used;
+    if (q.resetAt) {
+      const days = Math.max(0, Math.ceil((new Date(q.resetAt) - Date.now()) / 86400000));
+      parts.push(`${q.key}: ${remaining} left · ${days}d`);
+    } else {
+      parts.push(`${q.key}: ${remaining}/${q.total}`);
+    }
+  }
+  return parts.join(" · ");
 }
 
 function getStatusVariant(conn) {
@@ -36,7 +61,7 @@ const PROVIDER_OPTIONS = [
   "baseten", "chatgpt", "outlook", "tokenharbor", "cloudflare-ai",
 ];
 
-function AccountCard({ conn, busy, onToggle, onRemove }) {
+function AccountCard({ conn, busy, onToggle, onRemove, benefit, benefitLoading }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
       <div className="flex items-center justify-between gap-2">
@@ -48,6 +73,13 @@ function AccountCard({ conn, busy, onToggle, onRemove }) {
       </div>
       <div className="mt-1 truncate font-mono text-xs text-zinc-400">
         {conn.email || conn.providerSpecificData?.userId || "—"}
+      </div>
+      <div className="mt-1 text-xs text-zinc-300">
+        {benefitLoading && !benefit ? (
+          <span className="text-zinc-500">checking benefit…</span>
+        ) : (
+          formatBenefit(benefit)
+        )}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span className="truncate">{conn.displayProvider || conn.provider}</span>
@@ -77,6 +109,8 @@ export default function AccountPoolPage() {
   const [importText, setImportText] = useState("");
   const [importResult, setImportResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [benefits, setBenefits] = useState({});
+  const [benefitsLoading, setBenefitsLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +130,35 @@ export default function AccountPoolPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Fetch benefits (trial/credits) untuk akun yang punya usage handler
+  useEffect(() => {
+    if (!connections.length) return;
+    const ids = connections
+      .filter((c) => !isCompatibleProvider(c.provider))
+      .map((c) => c.id);
+    if (!ids.length) return;
+    let cancelled = false;
+    setBenefitsLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/account-pool/benefits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        const data = await readJsonResponse(res);
+        if (!cancelled && data?.benefits) setBenefits(data.benefits);
+      } catch {
+        // benefit fetch is best-effort — ignore
+      } finally {
+        if (!cancelled) setBenefitsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connections]);
 
   const isCompatibleProvider = (id) =>
     id.startsWith("openai-compatible-chat-") || id.startsWith("anthropic-compatible-");
@@ -181,7 +244,12 @@ export default function AccountPoolPage() {
             All provider accounts harvested by automation — separate from automation jobs.
           </p>
         </div>
-        <Button onClick={() => setImportOpen(true)}>Import Accounts</Button>
+        <div className="flex items-center gap-2">
+          <div className="w-64">
+            <ProxyStatusPanel compact />
+          </div>
+          <Button onClick={() => setImportOpen(true)}>Import Accounts</Button>
+        </div>
       </div>
 
       {error && (
@@ -268,6 +336,7 @@ export default function AccountPoolPage() {
                   <th scope="col" className="px-3 py-2.5 font-medium">Name</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Email / ID</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Benefit</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Balance</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Last Refresh</th>
                   <th scope="col" className="px-3 py-2.5 text-right font-medium">Actions</th>
@@ -288,6 +357,13 @@ export default function AccountPoolPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       <Badge variant={getStatusVariant(c)} size="sm">{getStatusLabel(c)}</Badge>
+                    </td>
+                    <td className="max-w-[220px] px-3 py-2.5 text-xs text-zinc-300">
+                      {benefitsLoading && !benefits[c.id] ? (
+                        <span className="text-zinc-500">checking…</span>
+                      ) : (
+                        formatBenefit(benefits[c.id])
+                      )}
                     </td>
                     <td className="px-3 py-2.5">{c.balance != null ? c.balance : c.balanceError || "—"}</td>
                     <td className="px-3 py-2.5 text-xs text-zinc-500">{formatTime(c.lastRefreshAt || c.updatedAt)}</td>
@@ -314,6 +390,8 @@ export default function AccountPoolPage() {
                 key={c.id}
                 conn={c}
                 busy={busy}
+                benefit={benefits[c.id]}
+                benefitLoading={benefitsLoading}
                 onToggle={toggleActive}
                 onRemove={removeAccount}
               />
