@@ -53,6 +53,11 @@ def _make_session(proxy=None):
     s.headers.update({"User-Agent": _ua()})
     if proxy:
         s.proxies.update({"http": proxy, "https": proxy})
+        # Proxy gateway (127.0.0.1:8081) pakai MITM cert — verify=False wajib
+        # (sama seperti autoclawreg ignore_https_errors). Tanpa ini SSLError.
+        s.verify = False
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     return s
 
 
@@ -195,23 +200,27 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
     except Exception as e:
         _log(f"precheck error ({e}) — lanjut tanpa precheck")
 
-    # 2. submit server action
+    # 2. submit server action — React 19 useActionState encoding:
+    #    field name = "<N>_<fieldname>" (N = arg index), state = "0" → ["$undefined","$K1"]
     files = {
-        "$ACTION_REF_1": "",
-        "$ACTION_1:0": ("", json.dumps({"id": action_id, "bound": "$@1"})),
-        "$ACTION_1:1": ("", '["$undefined"]'),
-        "$ACTION_KEY": action_key,
-        "device_fingerprint": fp,  # UUID — sama dengan yang dikirim precheck
-        "timezone": "Asia/Jakarta",
-        "email": email,
-        "password": password,
-        "invite_code": invite,
+        "1_device_fingerprint": (None, fp),
+        "1_timezone": (None, "Asia/Jakarta"),
+        "1_next": (None, ""),
+        "1_email": (None, email),
+        "1_password": (None, password),
+        "1_invite_code": (None, invite),
+        "0": (None, '["$undefined","$K1"]'),
     }
     r = s.post(
         SIGNUP_URL,
         files=files,
         allow_redirects=False,
         timeout=30,
+        headers={
+            "Next-Action": action_id,
+            "Referer": SIGNUP_URL,
+            "Accept": "text/x-component",
+        },
     )
     if r.status_code != 303:
         raise RuntimeError(f"signup HTTP {r.status_code} (IP flagged?)")
@@ -279,6 +288,13 @@ def _claim_and_key(s, email):
     return out
 
 
+def _proxy_with_sid(proxy_url, sid):
+    """Inject cliproxy-style sid ke proxy gateway (127.0.0.1:8081) untuk rotasi IP per akun."""
+    if not proxy_url or "127.0.0.1:8081" not in proxy_url:
+        return proxy_url
+    return proxy_url.replace("://", f"://bulk-sid-{sid}-t-300:x@", 1)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Token Harbor chain-referral signup")
     ap.add_argument("--count", type=int, default=1)
@@ -292,8 +308,9 @@ def main():
     ok = 0
     for i in range(1, args.count + 1):
         try:
+            sid = f"th{int(time.time())}{random.randint(1000, 9999)}"
             result = register_one(
-                args.yyds_api_key, args.yyds_domain, last_invite, args.proxy, i
+                args.yyds_api_key, args.yyds_domain, last_invite, _proxy_with_sid(args.proxy, sid), i
             )
             if result.get("inviteCode"):
                 last_invite = result["inviteCode"]
