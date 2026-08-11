@@ -40,8 +40,8 @@ import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
-import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
-import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy, getCapacityAdapterModels } from "open-sse/services/capacityAdapter.js";
+import { handleComboChat, handleFusionChat, handleThinkExecuteChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy, getCapacityAdapterModels, getRoleAdapterModel } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
@@ -208,6 +208,31 @@ export async function handleChat(request, clientRawRequest = null) {
         comboName: modelStr,
         judgeModel: comboStrategies[modelStr]?.judgeModel,
         tuning: comboStrategies[modelStr]?.fusionTuning,
+      });
+    }
+
+    if (comboStrategy === "think-execute") {
+      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: think-execute)`);
+      // Role adapters: auto-detect default thinking/execution models from the
+      // capacityAdapter pools when the user hasn't pinned one per combo.
+      const thinkingModel = comboStrategies[modelStr]?.thinkingModel || getRoleAdapterModel("thinking", settings);
+      const executionModel = comboStrategies[modelStr]?.executionModel || getRoleAdapterModel("execution", settings);
+      return handleThinkExecuteChat({
+        body,
+        models: comboModels,
+        handleSingleModel: (b, m, isPanel) => {
+          let cleanRawReq = clientRawRequest;
+          if (isPanel && clientRawRequest) {
+            const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
+            cleanRawReq = { ...clientRawRequest, body: cleanBody };
+          }
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+        },
+        log,
+        comboName: modelStr,
+        thinkingModel,
+        executionModel,
+        tuning: comboStrategies[modelStr]?.thinkExecuteTuning,
       });
     }
 

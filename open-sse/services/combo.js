@@ -667,3 +667,112 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   log.info("FUSION", `Judging ${answers.length} answers with ${judge}`);
   return handleSingleModel(judgeBody, judge);
 }
+
+// Think→Execute tuning. Overridable per-combo via settings.comboStrategies[name].
+const THINK_EXECUTE_DEFAULTS = {
+  thinkingTimeoutMs: 60000, // max time for the thinking model to return headers
+  thinkingMaxTokens: 2048,  // cap on thinking output (keeps context lean)
+};
+
+/**
+ * Handle a think-then-execute combo: a dedicated "thinking" model reasons about
+ * the request first (non-streaming, tools stripped), then its analysis is
+ * injected as context for the "execution" model, which writes the final answer
+ * with the client's original stream flag + tools intact.
+ *
+ * This mirrors how o-series style reasoning works, but lets the user pick ANY
+ * model for each role — e.g. a cheap/fast model to think, a strong one to
+ * write, or vice versa. Both default to the combo's first model.
+ *
+ * Degrades gracefully: thinking failure → execution runs on the original body
+ * (no injected context), so the request still succeeds.
+ *
+ * @param {Object} options
+ * @param {Object} options.body - Request body (client format)
+ * @param {string[]} options.models - Combo models (execution fallback chain)
+ * @param {Function} options.handleSingleModel - (body, modelStr, opts) => Promise<Response>
+ * @param {Object} options.log - Logger
+ * @param {string} [options.comboName] - Combo name (logging)
+ * @param {string} [options.thinkingModel] - Model that reasons first; defaults to models[0]
+ * @param {string} [options.executionModel] - Model that writes the answer; defaults to models[0]
+ * @param {Object} [options.tuning] - Override THINK_EXECUTE_DEFAULTS
+ * @returns {Promise<Response>}
+ */
+export async function handleThinkExecuteChat({ body, models, handleSingleModel, log, comboName, thinkingModel, executionModel, tuning }) {
+  const panel = Array.isArray(models) ? models.filter(Boolean) : [];
+  if (panel.length === 0) {
+    return new Response(
+      JSON.stringify({ error: { message: "Combo has no models" } }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const cfg = { ...THINK_EXECUTE_DEFAULTS, ...(tuning || {}) };
+  const thinker = thinkingModel && thinkingModel.trim() ? thinkingModel.trim() : panel[0];
+  const executor = executionModel && executionModel.trim() ? executionModel.trim() : panel[0];
+  log.info("THINK", `Combo "${comboName}" | think=${thinker} | execute=${executor}`);
+
+  // 1. Thinking pass: non-streaming, tools stripped, tool turns flattened to prose.
+  const { tools, tool_choice, ...rest } = body;
+  const thinkBody = { ...rest, stream: false };
+  if (cfg.thinkingMaxTokens > 0) thinkBody.max_tokens = cfg.thinkingMaxTokens;
+  if (Array.isArray(thinkBody.messages)) {
+    thinkBody.messages = flattenToolHistory(thinkBody.messages);
+  } else if (Array.isArray(thinkBody.input)) {
+    thinkBody.input = flattenToolHistory(thinkBody.input);
+  }
+
+  let thinking = null;
+  try {
+    const t0 = Date.now();
+    const res = await withTimeout(
+      handleSingleModel(thinkBody, thinker, true),
+      cfg.thinkingTimeoutMs
+    );
+    if (res && !res.__timeout && !res.__error && res.ok) {
+      const json = await res.clone().json();
+      const text = extractPanelText(json);
+      if (text && text.trim()) {
+        thinking = text.trim();
+        log.info("THINK", `thinker ${thinker} produced ${thinking.length} chars in ${Date.now() - t0}ms`);
+      } else {
+        log.warn("THINK", `thinker ${thinker} returned empty content`);
+      }
+    } else if (res?.__timeout) {
+      log.warn("THINK", `thinker ${thinker} timed out after ${cfg.thinkingTimeoutMs}ms`);
+    } else if (res?.__error) {
+      log.warn("THINK", `thinker ${thinker} threw`, { error: res.__error?.message || String(res.__error) });
+    } else {
+      log.warn("THINK", `thinker ${thinker} failed`, { status: res?.status });
+    }
+  } catch (e) {
+    log.warn("THINK", `thinker ${thinker} unexpected error`, { error: e.message || String(e) });
+  }
+
+  // 2. Execution pass: original body (stream + tools preserved). If thinking
+  //    succeeded, inject it as a user turn so the executor has the analysis.
+  let execBody = body;
+  if (thinking) {
+    execBody = appendUserTurn(body, buildThinkPrompt(thinking));
+  } else {
+    log.info("THINK", "no thinking context — executing on original body");
+  }
+  return handleSingleModel(execBody, executor);
+}
+
+/**
+ * Build the context directive for the execution model. The thinking output is
+ * framed as private analysis to ground the answer — the executor writes the
+ * final response addressed to the user, without mentioning the analysis step.
+ */
+function buildThinkPrompt(thinking) {
+  return [
+    "The following is private reasoning about the user's most recent request, produced by a separate analysis pass.",
+    "Use it to ground your answer, but do NOT mention it, do NOT refer to it as a separate step, and do NOT quote it verbatim.",
+    "Write the final answer directly to the user, as if you had reasoned through it yourself.",
+    "",
+    "=== PRIVATE ANALYSIS ===",
+    thinking,
+    "=== END PRIVATE ANALYSIS ===",
+  ].join("\n");
+}
