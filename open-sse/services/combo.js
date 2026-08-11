@@ -6,6 +6,7 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { DEFAULT_COMBO_TARGET_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
+import { getRoleAdapterModel } from "./capacityAdapter.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
@@ -469,6 +470,76 @@ function extractPanelText(json) {
 }
 
 /**
+ * Extract tool call requests from a non-streaming model response. Returns
+ * [{ name, arguments }] — the thinking model's exploration plan, deferred to
+ * the execution pass (the executor holds the client's tools).
+ */
+function extractToolCalls(json) {
+  if (!json || typeof json !== "object") return [];
+  const calls = [];
+
+  // OpenAI chat completion: choices[0].message.tool_calls
+  const msg = json.choices?.[0]?.message ?? json.choices?.[0]?.delta ?? {};
+  if (Array.isArray(msg.tool_calls)) {
+    for (const tc of msg.tool_calls) {
+      if (tc?.function?.name) {
+        calls.push({ name: tc.function.name, arguments: tc.function.arguments || "" });
+      }
+    }
+  }
+
+  // Claude messages: content blocks with type "tool_use"
+  if (Array.isArray(json.content)) {
+    for (const block of json.content) {
+      if (block?.type === "tool_use" && block?.name) {
+        calls.push({ name: block.name, arguments: JSON.stringify(block.input ?? {}) });
+      }
+    }
+  }
+
+  // Gemini: candidates[0].content.parts with functionCall
+  const parts = json.candidates?.[0]?.content?.parts;
+  if (Array.isArray(parts)) {
+    for (const p of parts) {
+      if (p?.functionCall?.name) {
+        calls.push({ name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args ?? {}) });
+      }
+    }
+  }
+
+  // OpenAI Responses API: output items with type "function_call"
+  if (Array.isArray(json.output)) {
+    for (const item of json.output) {
+      if (item?.type === "function_call" && item?.name) {
+        calls.push({ name: item.name, arguments: item.arguments || "" });
+      }
+    }
+  }
+
+  return calls;
+}
+
+/**
+ * Build a thinking artifact from tool calls only (no text). Tells the executor
+ * what exploration the thinker wanted, so it can run the same calls with its
+ * own tools.
+ */
+function buildToolPlanPrompt(toolCalls) {
+  const plan = toolCalls
+    .map((tc, i) => `${i + 1}. ${tc.name}(${tc.arguments})`)
+    .join("\n");
+  return [
+    "The analysis model requested the following tool calls to explore the request.",
+    "Run these (or equivalent) with your own tools to gather the needed context,",
+    "then answer the user's request.",
+    "",
+    "=== REQUESTED TOOL CALLS ===",
+    plan,
+    "=== END REQUESTED TOOL CALLS ===",
+  ].join("\n");
+}
+
+/**
  * Append a synthesized user turn to whichever message array the request format uses.
  * Preserves the original conversation + system prompt so the judge has full context.
  */
@@ -672,6 +743,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
 const THINK_EXECUTE_DEFAULTS = {
   thinkingTimeoutMs: 60000, // max time for the thinking model to return headers
   thinkingMaxTokens: 2048,  // cap on thinking output (keeps context lean)
+  reviewTimeoutMs: 60000,   // max time for the reviewer model to return
 };
 
 /**
@@ -712,8 +784,12 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   const executor = executionModel && executionModel.trim() ? executionModel.trim() : panel[0];
   log.info("THINK", `Combo "${comboName}" | think=${thinker} | execute=${executor}`);
 
-  // 1. Thinking pass: non-streaming, tools stripped, tool turns flattened to prose.
-  const { tools, tool_choice, ...rest } = body;
+  // 1. Thinking pass: non-streaming, tool history flattened to prose. Tools are
+  //    KEPT (read-only exploration — thinking model can request tool_calls to
+  //    inspect files), but tool_choice is removed so it never forces a call.
+  //    The thinking model's tool requests are recorded but NOT executed here —
+  //    the execution pass has the client's tools intact and runs them.
+  const { tool_choice, ...rest } = body;
   const thinkBody = { ...rest, stream: false };
   if (cfg.thinkingMaxTokens > 0) thinkBody.max_tokens = cfg.thinkingMaxTokens;
   if (Array.isArray(thinkBody.messages)) {
@@ -732,9 +808,15 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
     if (res && !res.__timeout && !res.__error && res.ok) {
       const json = await res.clone().json();
       const text = extractPanelText(json);
+      const toolCalls = extractToolCalls(json);
       if (text && text.trim()) {
         thinking = text.trim();
-        log.info("THINK", `thinker ${thinker} produced ${thinking.length} chars in ${Date.now() - t0}ms`);
+        log.info("THINK", `thinker ${thinker} produced ${thinking.length} chars in ${Date.now() - t0}ms${toolCalls.length ? `, requested ${toolCalls.length} tool call(s) (deferred to executor)` : ""}`);
+      } else if (toolCalls.length) {
+        // No text but tool calls — keep them as the thinking artifact so the
+        // executor knows what exploration the thinker wanted.
+        thinking = buildToolPlanPrompt(toolCalls);
+        log.info("THINK", `thinker ${thinker} produced only tool calls (${toolCalls.length}), deferring to executor`);
       } else {
         log.warn("THINK", `thinker ${thinker} returned empty content`);
       }
@@ -757,7 +839,46 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   } else {
     log.info("THINK", "no thinking context — executing on original body");
   }
-  return handleSingleModel(execBody, executor);
+  const execRes = await handleSingleModel(execBody, executor);
+
+  // 3. Review pass (optional, opt-in): only runs when reviewEnabled AND a
+  //    reviewModel is set (either pinned per-combo or the role adapter). The
+  //    reviewer verifies the executor's answer and rewrites it when it finds
+  //    gaps. Costs an extra model call — hence opt-in.
+  const reviewModelStr = cfg.reviewModel && cfg.reviewModel.trim()
+    ? cfg.reviewModel.trim()
+    : (cfg.reviewEnabled ? getRoleAdapterModel("execution", {}) : null);
+  if (cfg.reviewEnabled && reviewModelStr && execRes) {
+    const reviewStart = Date.now();
+    try {
+      const execText = await readResponseText(execRes);
+      if (execText && execText.trim()) {
+        const reviewRes = await withTimeout(
+          handleSingleModel(
+            appendUserTurn(execBody, buildReviewPrompt(execText)),
+            reviewModelStr,
+            true
+          ),
+          cfg.reviewTimeoutMs
+        );
+        if (reviewRes && !reviewRes.__timeout && !reviewRes.__error && reviewRes.ok) {
+          const json = await reviewRes.clone().json();
+          const verdict = extractVerdict(json);
+          if (verdict.finalAnswer) {
+            log.info("THINK", `reviewer ${reviewModelStr} rewrote answer (${verdict.finalAnswer.length} chars) in ${Date.now() - reviewStart}ms`);
+            return jsonResponse(verdict.finalAnswer);
+          }
+          log.info("THINK", `reviewer ${reviewModelStr} approved answer in ${Date.now() - reviewStart}ms`);
+        } else {
+          log.warn("THINK", `reviewer ${reviewModelStr} failed — keeping executor answer${reviewRes?.__timeout ? " (timeout)" : ""}`);
+        }
+      }
+    } catch (e) {
+      log.warn("THINK", `reviewer ${reviewModelStr} unexpected error`, { error: e.message || String(e) });
+    }
+  }
+
+  return execRes;
 }
 
 /**
@@ -775,4 +896,94 @@ function buildThinkPrompt(thinking) {
     thinking,
     "=== END PRIVATE ANALYSIS ===",
   ].join("\n");
+}
+
+/**
+ * Read a Response's body as text. Uses a clone so the same response can be
+ * inspected and still returned to the client afterwards.
+ */
+async function readResponseText(res) {
+  if (!res || !res.ok) return "";
+  try {
+    const text = await res.clone().text();
+    return text || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Extract the reviewer's verdict from a non-streaming response. The reviewer
+ * either approves (no finalAnswer) or rewrites the answer (finalAnswer).
+ * Tolerant of JSON-only or fenced-JSON responses.
+ */
+function extractVerdict(json) {
+  if (!json || typeof json !== "object") return {};
+  const text = extractPanelText(json);
+  if (!text) return {};
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : text;
+  try {
+    const parsed = JSON.parse(candidate.trim());
+    if (parsed && typeof parsed === "object") {
+      if (typeof parsed.finalAnswer === "string" && parsed.finalAnswer.trim()) {
+        return { finalAnswer: parsed.finalAnswer.trim() };
+      }
+      if (parsed.approved === true) return { approved: true };
+      if (parsed.approved === false && typeof parsed.revisedAnswer === "string") {
+        return { finalAnswer: parsed.revisedAnswer.trim() };
+      }
+    }
+  } catch {
+    // fall through — plain text
+  }
+
+  // Plain text or unparseable: treat as approval (don't rewrite on ambiguity).
+  return { approved: true };
+}
+
+/**
+ * Build the reviewer directive. The reviewer sees the executor's answer and
+ * either approves or rewrites, replying with strict JSON.
+ */
+function buildReviewPrompt(execText) {
+  return [
+    "You are the REVIEWER in a think-execute pipeline. The executor model produced the answer below for the user's request.",
+    "Verify it: correctness, completeness against the request, and whether it addresses everything asked.",
+    "",
+    "If the answer is correct and complete, reply with EXACTLY: {\"approved\": true}",
+    "If it has errors or gaps, reply with: {\"finalAnswer\": \"<your corrected, complete answer>\"}",
+    "Do NOT add commentary outside the JSON.",
+    "",
+    "=== EXECUTOR'S ANSWER ===",
+    execText,
+    "=== END EXECUTOR'S ANSWER ===",
+  ].join("\n");
+}
+
+/**
+ * Build a minimal non-streaming JSON response for the reviewed answer.
+ * Mirrors the client's chat completion shape.
+ */
+function jsonResponse(text) {
+  const payload = {
+    id: `gen-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: "review",
+    choices: [
+      {
+        index: 0,
+        finish_reason: "stop",
+        logprobs: null,
+        message: { role: "assistant", content: text, refusal: null },
+      },
+    ],
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+  };
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 }
