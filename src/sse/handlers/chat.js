@@ -226,12 +226,14 @@ export async function handleChat(request, clientRawRequest = null) {
       });
     }
 
-    if (comboStrategy === "think-execute") {
-      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: think-execute)`);
-      // Role adapters: auto-detect default thinking/execution models from the
-      // capacityAdapter pools when the user hasn't pinned one per combo.
-      const thinkingModel = comboStrategies[modelStr]?.thinkingModel || getRoleAdapterModel("thinking", settings);
-      const executionModel = comboStrategies[modelStr]?.executionModel || getRoleAdapterModel("execution", settings);
+    // Think-execute auto-detect (global, vision-adapter style): when the
+    // thinking + execution role-adapter pools are enabled, EVERY combo runs a
+    // 2-pass pipeline — the thinking-pool model reasons first, then the combo
+    // members (or execution pool) write the final answer. No per-combo setup.
+    const autoThinker = getRoleAdapterModel("thinking", settings);
+    const autoExecutor = getRoleAdapterModel("execution", settings);
+    if (autoThinker && autoExecutor) {
+      log.info("CHAT", `Combo "${modelStr}" auto think-execute | think=${autoThinker} | exec=${autoExecutor} | models=${comboModels.length}`);
       return handleThinkExecuteChat({
         body,
         models: comboModels,
@@ -245,12 +247,11 @@ export async function handleChat(request, clientRawRequest = null) {
         },
         log,
         comboName: modelStr,
-        thinkingModel,
-        executionModel,
+        thinkingModel: autoThinker,
+        executionModel: autoExecutor,
         tuning: {
-          ...(comboStrategies[modelStr]?.thinkExecuteTuning || {}),
-          reviewModel: comboStrategies[modelStr]?.reviewModel || "",
-          reviewEnabled: !!comboStrategies[modelStr]?.reviewEnabled,
+          reviewModel: settings.reviewModel || "",
+          reviewEnabled: !!settings.reviewEnabled,
         },
       });
     }
@@ -275,7 +276,33 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  // Single model request
+  // Single model request — also 2-pass when role adapters are enabled
+  // (vision-adapter style auto-detect: thinking pool reasons, model writes).
+  const autoThinker = getRoleAdapterModel("thinking", settings);
+  const autoExecutor = getRoleAdapterModel("execution", settings);
+  if (autoThinker && autoExecutor) {
+    log.info("CHAT", `Single "${modelStr}" auto think-execute | think=${autoThinker} | exec=${autoExecutor}`);
+    return handleThinkExecuteChat({
+      body,
+      models: [modelStr],
+      handleSingleModel: (b, m, isPanel) => {
+        let cleanRawReq = clientRawRequest;
+        if (isPanel && clientRawRequest) {
+          const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
+          cleanRawReq = { ...clientRawRequest, body: cleanBody };
+        }
+        return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+      },
+      log,
+      comboName: modelStr,
+      thinkingModel: autoThinker,
+      executionModel: autoExecutor,
+      tuning: {
+        reviewModel: settings.reviewModel || "",
+        reviewEnabled: !!settings.reviewEnabled,
+      },
+    });
+  }
   return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo);
 }
 
