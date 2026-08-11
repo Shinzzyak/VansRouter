@@ -122,6 +122,8 @@ def _poll_yyds(key, iid, deadline):
         msgs = (r.json().get("data") or {}).get("messages") or []
         for m in msgs:
             body = m.get("body") or m.get("html") or m.get("text") or ""
+            if not isinstance(body, str):
+                body = json.dumps(body)
             if "tokenharbor" in (body + (m.get("from") or "")).lower() or "verify" in (
                 m.get("subject") or ""
             ).lower():
