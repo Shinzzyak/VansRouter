@@ -34,39 +34,92 @@ export async function getAutoclawBalance(accessToken, _providerSpecificData = {}
   }
   const token = accessToken.replace(/^Bearer\s+/i, "");
 
-  const res = await fetch(`${BASE_URL}/agent-assetmgr/api/v2/wallets?biz_app_id=autoclaw`, {
-    method: "GET",
-    headers: signHeaders({ authorization: `Bearer ${token}` }),
-  });
+  const [walletRes, expiringRes, sandboxRes] = await Promise.allSettled([
+    fetch(`${BASE_URL}/agent-assetmgr/api/v2/wallets?biz_app_id=autoclaw`, {
+      method: "GET",
+      headers: signHeaders({ authorization: `Bearer ${token}` }),
+    }),
+    fetch(`${BASE_URL}/agent-assetmgr/api/v1/points/expiring?biz_app_id=autoclaw`, {
+      method: "GET",
+      headers: signHeaders({ authorization: `Bearer ${token}` }),
+    }),
+    fetch(`${BASE_URL}/agentdr/v2/assistant/sandbox/list`, {
+      method: "GET",
+      headers: signHeaders({ authorization: `Bearer ${token}` }),
+    }),
+  ]);
 
-  const contentType = res.headers.get("content-type") || "";
-  if (!res.ok || !contentType.includes("application/json")) {
-    const text = await res.text().catch(() => "");
+  const contentType = walletRes.status === "fulfilled" ? (walletRes.value.headers.get("content-type") || "") : "";
+  if (walletRes.status !== "fulfilled" || !walletRes.value.ok || !contentType.includes("application/json")) {
+    const text = walletRes.status === "fulfilled" ? await walletRes.value.text().catch(() => "") : "";
     const hint = text.startsWith("<") || contentType.includes("text/html")
       ? "token revoked or upstream returned HTML"
-      : `${res.status} ${text.slice(0, 200)}`;
+      : `${walletRes.status === "fulfilled" ? walletRes.value.status : "rejected"} ${text.slice(0, 200)}`;
     throw Object.assign(new Error(`autoclaw wallet: ${hint}`), {
-      recoverable: res.status >= 500,
+      recoverable: walletRes.status === "fulfilled" && walletRes.value.status >= 500,
     });
   }
 
-  const json = await res.json();
+  const json = await walletRes.value.json();
   const data = json.data || json;
   const balance = Number(data.total_balance ?? 0);
+
+  // Expiring points (trial window) — best-effort
+  let expiring = null;
+  if (expiringRes.status === "fulfilled" && expiringRes.value.ok) {
+    try {
+      const ex = await expiringRes.value.json();
+      const exd = ex.data || {};
+      if (exd.expiring_points_text) {
+        expiring = {
+          text: exd.expiring_points_text,
+          points: Number(exd.expiring_points ?? 0),
+          expireInDays: Number(exd.expire_time_value ?? 0),
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Cloud Lobster sandbox (free trial) — best-effort
+  let sandbox = null;
+  if (sandboxRes.status === "fulfilled" && sandboxRes.value.ok) {
+    try {
+      const sb = await sandboxRes.value.json();
+      const list = (sb.data || {}).sandbox_list || [];
+      if (list.length) {
+        const s = list[0];
+        sandbox = {
+          status: s.sandbox_status || "unknown",
+          name: s.sandbox_name || "AutoClaw",
+          startTs: s.start_timestamp ? Number(s.start_timestamp) * 1000 : null,
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const quotas = {
+    points: {
+      used: 0,
+      total: balance,
+      remaining: balance,
+      resetAt: null,
+      unlimited: false,
+    },
+  };
+  if (expiring) {
+    quotas.points.expiring = expiring;
+  }
 
   return {
     provider: "autoclaw",
     plan: "AutoClaw Points",
-    quotas: {
-      points: {
-        used: 0,
-        total: balance,
-        remaining: balance,
-        resetAt: null,
-        unlimited: false,
-      },
-    },
+    quotas,
     balance,
     currency: "points",
+    sandbox,
   };
 }
