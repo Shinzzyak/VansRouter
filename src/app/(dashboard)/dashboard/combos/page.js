@@ -37,7 +37,15 @@ const EMPTY_CAPACITY_ADAPTER = {
   pdf: { ...EMPTY_CAP_ENTRY },
   audioInput: { ...EMPTY_CAP_ENTRY },
   videoInput: { ...EMPTY_CAP_ENTRY },
+  thinking: { ...EMPTY_CAP_ENTRY },
+  execution: { ...EMPTY_CAP_ENTRY },
+  compact: { ...EMPTY_CAP_ENTRY },
 };
+// All adapter keys the combos page manages: capability + role adapters.
+const ALL_ADAPTER_KEYS = [
+  ...CAPACITY_ADAPTER_CAPS.map((c) => c.key),
+  ...ROLE_ADAPTER_CAPS.map((c) => c.key),
+];
 // Backward-compat: legacy stored form was an array of {model, enabled}.
 function normalizeCapEntry(entry) {
   if (Array.isArray(entry)) {
@@ -91,8 +99,8 @@ export default function CombosPage() {
       setComboStrategies(settingsData.comboStrategies || {});
       const rawAdapter = settingsData.capacityAdapter || {};
       const normalized = {};
-      for (const cap of CAPACITY_ADAPTER_CAPS) {
-        normalized[cap.key] = normalizeCapEntry(rawAdapter[cap.key]);
+      for (const cap of ALL_ADAPTER_KEYS) {
+        normalized[cap] = normalizeCapEntry(rawAdapter[cap]);
       }
       setCapacityAdapter(normalized);
     } catch (error) {
