@@ -49,6 +49,10 @@ export async function GET() {
       for (const modelId of fetcherIds) {
         const fullModel = `${providerId}/${modelId}`;
         if (models.some((m) => m.fullModel === fullModel)) continue;
+        // Resolve capabilities from the static catalog so the UI's capFilter
+        // (e.g. vision === true) can include these models. Without this, caps
+        // are {} and every capFilter silently hides the whole provider.
+        const c = getCapabilitiesForModel(providerId, modelId);
         extra.push({
           provider: providerAlias,
           model: modelId,
@@ -56,7 +60,13 @@ export async function GET() {
           fullModel,
           routedModel: `${providerAlias}/${modelId}`,
           alias: modelId,
-          caps: {},
+          caps: {
+            vision: c.vision,
+            search: c.search,
+            reasoning: c.reasoning,
+            contextWindow: c.contextWindow,
+            maxOutput: c.maxOutput,
+          },
         });
       }
     }
