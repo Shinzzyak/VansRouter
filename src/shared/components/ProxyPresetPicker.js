@@ -6,12 +6,14 @@ const PRESETS = [
   { id: "gateway", label: "Gateway 8081", hint: "sticky sid" },
   { id: "direct", label: "Direct", hint: "IP VPS" },
   { id: "warp", label: "WARP :40000", hint: "mode proxy" },
+  { id: "hp", label: "IP HP", hint: "socks5 :1080 tunnel" },
   { id: "custom", label: "Custom", hint: "input manual" },
 ];
 
 const PRESET_URLS = {
   gateway: "http://127.0.0.1:8081",
   warp: "http://127.0.0.1:40000",
+  hp: "socks5://127.0.0.1:1080",
   direct: "",
   custom: "",
 };
@@ -26,6 +28,7 @@ export default function ProxyPresetPicker({ value, onChange, disabled = false })
     if (!value) return "direct";
     if (value.includes("127.0.0.1:8081")) return "gateway";
     if (value.includes("127.0.0.1:40000")) return "warp";
+    if (value.includes("127.0.0.1:1080")) return "hp";
     return "custom";
   });
 
@@ -35,7 +38,7 @@ export default function ProxyPresetPicker({ value, onChange, disabled = false })
   };
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {PRESETS.map((p) => (
         <button
           key={p.id}
