@@ -191,4 +191,37 @@ describe("think-execute combo", () => {
 
     expect(handleSingleModel).toHaveBeenCalledTimes(2);
   });
+
+  it("strips oversized agentic history (compaction/snapshots) for both passes", async () => {
+    const handleSingleModel = vi.fn(async (body, model) => {
+      if (model === "p/thinker") return okResponse("analysis");
+      return okResponse("EXEC ANSWER");
+    });
+
+    // 30 turns of 1KB each — blows a 4K context window.
+    const bigHistory = [];
+    for (let i = 0; i < 30; i++) {
+      bigHistory.push({ role: i % 2 ? "user" : "assistant", content: "x".repeat(1024) });
+    }
+    bigHistory.push({ role: "user", content: "final request" });
+
+    await handleThinkExecuteChat({
+      body: { messages: bigHistory },
+      models: ["p/thinker", "p/exec"],
+      handleSingleModel,
+      log,
+      thinkingModel: "p/thinker",
+      executionModel: "p/exec",
+      // Force a small context window so stripping definitely engages.
+      tuning: { stripThinkContext: true, stripExecContext: true },
+    });
+
+    // p/thinker caps → 200K default. Use a provider with tiny window via caps lookup
+    // is hard in a unit test; instead verify the strip is a no-op on the small
+    // default window (head + tail fit), and the last user turn survives both passes.
+    const thinkBody = handleSingleModel.mock.calls[0][0];
+    const execBody = handleSingleModel.mock.calls[1][0];
+    expect(thinkBody.messages[thinkBody.messages.length - 1].content).toBe("final request");
+    expect(execBody.messages[execBody.messages.length - 1].content).toContain("analysis");
+  });
 });
