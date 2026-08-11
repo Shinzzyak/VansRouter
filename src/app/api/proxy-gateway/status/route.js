@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import net from "node:net";
 import http from "node:http";
-import https from "node:https";
 
 export const dynamic = "force-dynamic";
 
@@ -41,38 +40,28 @@ function checkPort(host, port, timeoutMs = 2500) {
   });
 }
 
-// Egress IP melalui proxy HTTP (CONNECT tunnel + TLS) — dipakai utk cek WARP
+// Egress IP via proxy HTTP (proxy-style request, path absolut) — WARP :40000
+// menerima HTTP forwarding biasa; CONNECT tunnel tidak di-support dengan benar.
 function egressViaProxy(proxyHost, proxyPort, timeoutMs = 5000) {
   return new Promise((resolve) => {
-    const connectReq = http.request({
-      host: proxyHost,
-      port: proxyPort,
-      method: "CONNECT",
-      path: "api.ipify.org:443",
-      headers: { Host: "api.ipify.org:443" },
-      timeout: timeoutMs,
-    });
-    connectReq.once("connect", (res, socket) => {
-      if (res.statusCode !== 200) {
-        socket.destroy();
-        return resolve(null);
+    const req = http.request(
+      {
+        host: proxyHost,
+        port: proxyPort,
+        method: "GET",
+        path: "http://api.ipify.org/",
+        headers: { Host: "api.ipify.org" },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk.toString()));
+        res.on("end", () => resolve(data.trim()));
       }
-      const agent = new https.Agent({ createConnection: () => socket, maxSockets: 1 });
-      const req2 = https.request(
-        { host: "api.ipify.org", path: "/", method: "GET", agent, timeout: timeoutMs },
-        (res2) => {
-          let data = "";
-          res2.on("data", (chunk) => (data += chunk.toString()));
-          res2.on("end", () => resolve(data.trim()));
-        }
-      );
-      req2.once("timeout", () => req2.destroy());
-      req2.once("error", () => resolve(null));
-      req2.end();
-    });
-    connectReq.once("timeout", () => connectReq.destroy());
-    connectReq.once("error", () => resolve(null));
-    connectReq.end();
+    );
+    req.once("timeout", () => req.destroy());
+    req.once("error", () => resolve(null));
+    req.end();
   });
 }
 
