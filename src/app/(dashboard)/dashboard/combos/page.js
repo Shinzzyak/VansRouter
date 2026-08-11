@@ -22,9 +22,8 @@ const CAPACITY_ADAPTER_CAPS = [
   // pdf, videoInput temporarily hidden — no translator support yet for those blocks.
   { key: "audioInput", label: "Audio", icon: "graphic_eq", desc: "Audio input" },
 ];
-// Role adapters: default models for the think-execute combo strategy. Router
-// auto-detects these when a combo uses think-execute and no model is pinned.
-// Compact routes /v1/responses/compact requests to a dedicated model.
+// Role adapters: global default models for the auto think-execute pipeline.
+// Compact routes compaction requests to a dedicated model.
 const ROLE_ADAPTER_CAPS = [
   { key: "thinking", label: "Thinking", icon: "psychology", desc: "Reasoning pass (non-streaming)" },
   { key: "execution", label: "Execution", icon: "edit", desc: "Final answer (stream + tools)" },
@@ -69,6 +68,7 @@ export default function CombosPage() {
   const [activeProviders, setActiveProviders] = useState([]);
   const [comboStrategies, setComboStrategies] = useState({});
   const [capacityAdapter, setCapacityAdapter] = useState(EMPTY_CAPACITY_ADAPTER);
+  const [reviewEnabled, setReviewEnabled] = useState(false);
   const { getCaps } = useModelCaps();
   const [confirmState, setConfirmState] = useState(null);
   const { copied, copy } = useCopyToClipboard();
@@ -97,6 +97,7 @@ export default function CombosPage() {
         setActiveProviders(providersData.connections || []);
       }
       setComboStrategies(settingsData.comboStrategies || {});
+      setReviewEnabled(!!settingsData.reviewEnabled);
       const rawAdapter = settingsData.capacityAdapter || {};
       const normalized = {};
       for (const cap of ALL_ADAPTER_KEYS) {
@@ -204,6 +205,19 @@ export default function CombosPage() {
     }
   };
 
+  const handleSetReviewEnabled = async (v) => {
+    setReviewEnabled(v);
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewEnabled: v }),
+      });
+    } catch (error) {
+      console.log("Error updating review enabled:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
@@ -305,12 +319,14 @@ export default function CombosPage() {
         getCaps={getCaps}
       />
 
-      {/* Role Adapter — default thinking/execution models for think-execute combos */}
+      {/* Role Adapter — global auto think-execute pools + review toggle */}
       <RoleAdapterSection
         capacityAdapter={capacityAdapter}
         onChange={handleSetCapacityAdapter}
         activeProviders={activeProviders}
         getCaps={getCaps}
+        reviewEnabled={reviewEnabled}
+        onSetReviewEnabled={handleSetReviewEnabled}
       />
 
       {/* Create Modal - Use key to force remount and reset state */}
@@ -352,7 +368,6 @@ const STRATEGY_OPTIONS = [
   { value: "fallback", label: "Fallback — try in order" },
   { value: "round-robin", label: "Round Robin — rotate" },
   { value: "fusion", label: "Fusion — panel + judge" },
-  { value: "think-execute", label: "Think → Execute — reason then write" },
 ];
 
 function CapacityAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps }) {
@@ -386,20 +401,19 @@ function CapacityAdapterSection({ capacityAdapter, onChange, activeProviders, ge
   );
 }
 
-// Role adapters: default thinking/execution models for the think-execute combo
-// strategy. Same card pattern as capability adapters — toggle + model pool. The
-// router auto-detects the first enabled model when a think-execute combo has no
-// pinned role model.
-function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps }) {
+// Role adapters: global default thinking/execution models for the auto
+// think-execute pipeline (vision-adapter style: router auto-detects when both
+// pools are enabled). Same card pattern as capability adapters.
+function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps, reviewEnabled, onSetReviewEnabled }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-medium">Think → Execute Adapter</p>
           <p className="text-xs text-text-muted mt-0.5">
-            Default models for think-execute combos. Router auto-detects these when a combo
-            uses Think → Execute and no model is pinned per combo. Compact routes compaction
-            requests to a dedicated model.
+            Enable thinking + execution pools to auto-route ALL requests through a
+            2-pass pipeline (reason first, then write) — same auto-detect as Vision.
+            Compact routes compaction requests to a dedicated model.
           </p>
           <ul className="mt-1.5 text-[11px] text-text-muted flex flex-col gap-0.5">
             <li><span className="font-medium text-text-main">Thinking</span> — reasons first (non-streaming, tools stripped)</li>
@@ -407,6 +421,15 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
             <li><span className="font-medium text-text-main">Compact</span> — handles /v1/responses/compact requests</li>
           </ul>
         </div>
+        {/* Review pass toggle — global, extra call */}
+        <label className="flex shrink-0 items-center gap-2 cursor-pointer select-none" title="Verify + rewrite the executor's answer (extra model call, opt-in)">
+          <span className="text-xs font-medium text-text-muted">Review</span>
+          <Toggle
+            checked={!!reviewEnabled}
+            onChange={(v) => onSetReviewEnabled(v)}
+            aria-label="Enable review pass"
+          />
+        </label>
       </div>
       <div className="flex flex-col gap-4">
         {ROLE_ADAPTER_CAPS.map((cap) => (
@@ -558,17 +581,9 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps, ca
 
 function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdit, onDelete, strategy = {}, onSetStrategy }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
-  const [showThinkSelect, setShowThinkSelect] = useState(false);
-  const [showExecSelect, setShowExecSelect] = useState(false);
-  const [showReviewSelect, setShowReviewSelect] = useState(false);
   const current = strategy.fallbackStrategy || "fallback";
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
-  const isThinkExecute = current === "think-execute";
-  const thinking = strategy.thinkingModel || "";
-  const execution = strategy.executionModel || "";
-  const reviewEnabled = strategy.reviewEnabled;
-  const reviewModel = strategy.reviewModel || "";
 
   return (
     <Card padding="sm" className="group">
@@ -613,66 +628,6 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                     title="Reset judge to Auto"
                   >
                     <span className="material-symbols-outlined text-[13px]">close</span>
-                  </button>
-                )}
-              </div>
-            )}
-            {/* Think → Execute: thinking + execution model pickers */}
-            {isThinkExecute && (
-              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium text-text-muted">Think</span>
-                <button
-                  onClick={() => setShowThinkSelect(true)}
-                  className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
-                  title="Model that reasons first (non-streaming, tools stripped)"
-                >
-                  <span className="material-symbols-outlined text-[13px]">psychology</span>
-                  <span className="truncate">{thinking || `Auto — ${combo.models[0] || "first model"}`}</span>
-                </button>
-                {thinking && (
-                  <button
-                    onClick={() => onSetStrategy({ thinkingModel: "" })}
-                    className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                    title="Reset thinking model to Auto"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">close</span>
-                  </button>
-                )}
-                <span className="text-[11px] font-medium text-text-muted ml-1">Execute</span>
-                <button
-                  onClick={() => setShowExecSelect(true)}
-                  className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
-                  title="Model that writes the final answer (stream + tools preserved)"
-                >
-                  <span className="material-symbols-outlined text-[13px]">edit</span>
-                  <span className="truncate">{execution || `Auto — ${combo.models[0] || "first model"}`}</span>
-                </button>
-                {execution && (
-                  <button
-                    onClick={() => onSetStrategy({ executionModel: "" })}
-                    className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                    title="Reset execution model to Auto"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">close</span>
-                  </button>
-                )}
-                {/* Review toggle + model picker — extra call, costs tokens */}
-                <span className="text-[11px] font-medium text-text-muted ml-1">Review</span>
-                <label className="flex items-center gap-1 cursor-pointer select-none" title="Verify + rewrite the executor's answer (extra model call)">
-                  <Toggle
-                    checked={!!reviewEnabled}
-                    onChange={(v) => onSetStrategy({ reviewEnabled: v })}
-                    aria-label="Enable review pass"
-                  />
-                </label>
-                {reviewEnabled && (
-                  <button
-                    onClick={() => setShowReviewSelect(true)}
-                    className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
-                    title="Model that verifies the executor's answer"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">fact_check</span>
-                    <span className="truncate">{reviewModel || `Auto — ${combo.models[0] || "first model"}`}</span>
                   </button>
                 )}
               </div>
@@ -736,44 +691,6 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
         />
       )}
 
-      {/* Thinking model picker (think-execute) */}
-      {showThinkSelect && (
-        <ModelSelectModal
-          isOpen={showThinkSelect}
-          onClose={() => setShowThinkSelect(false)}
-          onSelect={(m) => { onSetStrategy({ thinkingModel: m?.value || "" }); setShowThinkSelect(false); }}
-          activeProviders={activeProviders}
-          title="Select Thinking Model"
-          addedModelValues={thinking ? [thinking] : []}
-          closeOnSelect={true}
-        />
-      )}
-
-      {/* Execution model picker (think-execute) */}
-      {showExecSelect && (
-        <ModelSelectModal
-          isOpen={showExecSelect}
-          onClose={() => setShowExecSelect(false)}
-          onSelect={(m) => { onSetStrategy({ executionModel: m?.value || "" }); setShowExecSelect(false); }}
-          activeProviders={activeProviders}
-          title="Select Execution Model"
-          addedModelValues={execution ? [execution] : []}
-          closeOnSelect={true}
-        />
-      )}
-
-      {/* Review model picker (think-execute, optional pass) */}
-      {showReviewSelect && (
-        <ModelSelectModal
-          isOpen={showReviewSelect}
-          onClose={() => setShowReviewSelect(false)}
-          onSelect={(m) => { onSetStrategy({ reviewModel: m?.value || "" }); setShowReviewSelect(false); }}
-          activeProviders={activeProviders}
-          title="Select Review Model"
-          addedModelValues={reviewModel ? [reviewModel] : []}
-          closeOnSelect={true}
-        />
-      )}
     </Card>
   );
 }
