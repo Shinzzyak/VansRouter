@@ -81,8 +81,7 @@ export default function AccountPoolPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const q = providerFilter ? `?provider=${encodeURIComponent(providerFilter)}` : "";
-      const res = await fetch(`/api/account-pool${q}`);
+      const res = await fetch("/api/account-pool");
       const data = await readJsonResponse(res);
       setConnections(data.connections || []);
       setGrouped(data.grouped || {});
@@ -92,25 +91,32 @@ export default function AccountPoolPage() {
     } finally {
       setLoading(false);
     }
-  }, [providerFilter]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const isCompatibleProvider = (id) =>
+    id.startsWith("openai-compatible-chat-") || id.startsWith("anthropic-compatible-");
+
   const providers = useMemo(() => {
-    return Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
+    return Object.entries(grouped)
+      .filter(([id]) => !isCompatibleProvider(id))
+      .sort((a, b) => b[1].total - a[1].total);
   }, [grouped]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return connections.filter(
       (c) =>
-        !q ||
-        (c.email || "").toLowerCase().includes(q) ||
-        (c.name || "").toLowerCase().includes(q)
+        !isCompatibleProvider(c.provider) &&
+        (!providerFilter || c.provider === providerFilter) &&
+        (!q ||
+          (c.email || "").toLowerCase().includes(q) ||
+          (c.name || "").toLowerCase().includes(q))
     );
-  }, [connections, search]);
+  }, [connections, search, providerFilter]);
 
   async function toggleActive(conn) {
     setBusy(true);
@@ -198,7 +204,9 @@ export default function AccountPoolPage() {
           >
             <span className="text-sm font-medium text-white">All</span>
             <div className="text-xs text-zinc-400">
-              {Object.values(grouped).reduce((s, g) => s + g.total, 0)} accounts
+              {Object.entries(grouped)
+                .filter(([id]) => !isCompatibleProvider(id))
+                .reduce((s, [, g]) => s + g.total, 0)} accounts
             </div>
           </button>
           {providers.map(([provider, stats]) => (
