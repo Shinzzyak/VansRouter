@@ -12,6 +12,7 @@ Reuses qoderreg's _yyds.py (temp-mail) + _slider.py (Aliyun slider solver).
 
 import argparse
 import json
+import random
 import re
 import sys
 import time
@@ -676,14 +677,14 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
             else:
                 from playwright.sync_api import sync_playwright
                 with sync_playwright() as p:
-                    browser_args = []
-                    if proxy_url:
-                        browser_args.append(f"--proxy-server={proxy_url}")
-                    browser = p.chromium.launch(headless=headless, args=browser_args)
+                    browser = p.chromium.launch(headless=headless)
                     try:
                         # ignore_https_errors: proxy gateway MITM cert (8081) tidak trusted
                         # untuk autoclaw.z.ai — tanpa ini page.goto ERR_CERT_AUTHORITY_INVALID
-                        context = browser.new_context(ignore_https_errors=True)
+                        context = browser.new_context(
+                            ignore_https_errors=True,
+                            proxy=_parse_proxy(proxy_url),
+                        )
                         page = context.new_page()
                         result = _zai_flow_google(page, google_email, google_password, device_id)
                     finally:
@@ -713,12 +714,9 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
                 return _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
-            browser_args = []
-            if proxy_url:
-                browser_args.append(f"--proxy-server={proxy_url}")
-            browser = p.chromium.launch(headless=headless, args=browser_args)
+            browser = p.chromium.launch(headless=headless)
             try:
-                context = browser.new_context()
+                context = browser.new_context(proxy=_parse_proxy(proxy_url))
                 page = context.new_page()
                 return _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
             finally:
@@ -839,6 +837,32 @@ def wait_for_verify_token(yyds_api_key, yyds_domain, inbox_id, email, timeout_s=
     return None
 
 
+def _proxy_with_sid(proxy_url, sid):
+    """Inject cliproxy-style sid ke proxy gateway (127.0.0.1:8081) untuk rotasi IP per akun.
+    Format: http://bulk-sid-<SID>-t-300:x@host:port → gateway pilih egress beda per sid."""
+    if not proxy_url or "127.0.0.1:8081" not in proxy_url:
+        return proxy_url
+    # http://127.0.0.1:8081 → http://bulk-sid-<sid>-t-300:x@127.0.0.1:8081
+    return proxy_url.replace("://", f"://bulk-sid-{sid}-t-300:x@", 1)
+
+
+def _parse_proxy(proxy_url):
+    """Parse proxy URL → Playwright context proxy config.
+    Chromium --proxy-server flag TIDAK support userinfo (ERR_NO_SUPPORTED_PROXIES),
+    jadi userinfo dipisah dan dikirim via context proxy username/password."""
+    if not proxy_url:
+        return None
+    m = re.match(r"^(https?|socks5)://(?:([^:@/]+)(?::([^@/]*))?@)?([^/]+)$", proxy_url)
+    if not m:
+        return {"server": proxy_url}
+    scheme, user, pw, host = m.groups()
+    cfg = {"server": f"{scheme}://{host}"}
+    if user:
+        cfg["username"] = user
+        cfg["password"] = pw or ""
+    return cfg
+
+
 def main():
     parser = argparse.ArgumentParser(description="AutoClaw bulk registration via Z.ai signup (YYDS temp-mail)")
     parser.add_argument("--count", type=int, default=1, help="number of accounts")
@@ -867,8 +891,9 @@ def main():
                 print(json.dumps({"status": "failed", "error": f"bad line: {line[:40]}"}))
                 continue
             gmail, gpass = parts[0].strip(), parts[1].strip()
+            sid = f"ac{int(time.time())}{random.randint(1000, 9999)}"
             result = register_one(
-                engine=args.engine, proxy_url=args.proxy,
+                engine=args.engine, proxy_url=_proxy_with_sid(args.proxy, sid),
                 yyds_api_key=args.yyds_api_key, yyds_domain=args.yyds_domain,
                 headless=args.headless, dry_run=args.dry_run,
                 google_login=True, google_email=gmail, google_password=gpass,
@@ -878,8 +903,9 @@ def main():
         return
 
     for i in range(args.count):
+        sid = f"ac{int(time.time())}{random.randint(1000, 9999)}"
         result = register_one(
-            engine=args.engine, proxy_url=args.proxy,
+            engine=args.engine, proxy_url=_proxy_with_sid(args.proxy, sid),
             yyds_api_key=args.yyds_api_key, yyds_domain=args.yyds_domain,
             headless=args.headless, dry_run=args.dry_run,
             google_login=args.google_login,
