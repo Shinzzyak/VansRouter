@@ -36,6 +36,12 @@ function formatBenefit(benefit) {
     } else {
       parts.push(`${q.key}: ${remaining}/${q.total}`);
     }
+    if (q.expiring?.text) {
+      parts.push(`⚠ ${q.expiring.text}`);
+    }
+  }
+  if (benefit.sandbox) {
+    parts.push(`🦞 ${benefit.sandbox.status}`);
   }
   return parts.join(" · ");
 }
