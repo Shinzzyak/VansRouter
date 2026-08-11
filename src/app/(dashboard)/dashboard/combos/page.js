@@ -24,9 +24,11 @@ const CAPACITY_ADAPTER_CAPS = [
 ];
 // Role adapters: default models for the think-execute combo strategy. Router
 // auto-detects these when a combo uses think-execute and no model is pinned.
+// Compact routes /v1/responses/compact requests to a dedicated model.
 const ROLE_ADAPTER_CAPS = [
   { key: "thinking", label: "Thinking", icon: "psychology", desc: "Reasoning pass (non-streaming)" },
   { key: "execution", label: "Execution", icon: "edit", desc: "Final answer (stream + tools)" },
+  { key: "compact", label: "Compact", icon: "compress", desc: "Conversation compaction requests" },
 ];
 const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.5-free";
 const EMPTY_CAP_ENTRY = { enabled: true, roundRobin: false, models: [] };
@@ -388,11 +390,13 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
           <p className="text-sm font-medium">Think → Execute Adapter</p>
           <p className="text-xs text-text-muted mt-0.5">
             Default models for think-execute combos. Router auto-detects these when a combo
-            uses Think → Execute and no model is pinned per combo.
+            uses Think → Execute and no model is pinned per combo. Compact routes compaction
+            requests to a dedicated model.
           </p>
           <ul className="mt-1.5 text-[11px] text-text-muted flex flex-col gap-0.5">
             <li><span className="font-medium text-text-main">Thinking</span> — reasons first (non-streaming, tools stripped)</li>
             <li><span className="font-medium text-text-main">Execution</span> — writes the final answer (stream + tools)</li>
+            <li><span className="font-medium text-text-main">Compact</span> — handles /v1/responses/compact requests</li>
           </ul>
         </div>
       </div>
