@@ -75,6 +75,17 @@ export function getActiveAdapterStrategy(requiredCapabilities, settings) {
   return "fallback";
 }
 
+// Role adapters (thinking / execution) for the think-execute combo strategy.
+// Unlike capability pools, these are NOT appended to fallback chains — they only
+// supply the default role model when a combo uses think-execute and the user
+// hasn't pinned a model for that role. Auto-detect: enabled pool with models →
+// first model wins; disabled/empty → null (combo falls back to its own first model).
+export function getRoleAdapterModel(role, settings) {
+  const entry = normalizeCapEntry(settings?.capacityAdapter?.[role]);
+  if (!entry.enabled || entry.models.length === 0) return null;
+  return entry.models[0];
+}
+
 function modelSatisfies(modelStr, requiredHard) {
   const slash = modelStr.indexOf("/");
   const provider = slash > 0 ? modelStr.slice(0, slash) : "";

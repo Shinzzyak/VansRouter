@@ -22,6 +22,12 @@ const CAPACITY_ADAPTER_CAPS = [
   // pdf, videoInput temporarily hidden — no translator support yet for those blocks.
   { key: "audioInput", label: "Audio", icon: "graphic_eq", desc: "Audio input" },
 ];
+// Role adapters: default models for the think-execute combo strategy. Router
+// auto-detects these when a combo uses think-execute and no model is pinned.
+const ROLE_ADAPTER_CAPS = [
+  { key: "thinking", label: "Thinking", icon: "psychology", desc: "Reasoning pass (non-streaming)" },
+  { key: "execution", label: "Execution", icon: "edit", desc: "Final answer (stream + tools)" },
+];
 const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.5-free";
 const EMPTY_CAP_ENTRY = { enabled: true, roundRobin: false, models: [] };
 const EMPTY_CAPACITY_ADAPTER = {
@@ -228,6 +234,13 @@ export default function CombosPage() {
               </div>
             </div>
             <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
+              <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">psychology</span>
+              <div>
+                <span className="text-xs font-medium text-text-main">Think → Execute</span>
+                <p className="text-xs text-text-muted">One model reasons, another writes (2 calls)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-2/50">
               <span className="material-symbols-outlined text-[18px] text-primary mt-0.5 shrink-0">auto_awesome</span>
               <div>
                 <span className="text-xs font-medium text-text-main">Capacity auto-switch</span>
@@ -282,6 +295,14 @@ export default function CombosPage() {
         getCaps={getCaps}
       />
 
+      {/* Role Adapter — default thinking/execution models for think-execute combos */}
+      <RoleAdapterSection
+        capacityAdapter={capacityAdapter}
+        onChange={handleSetCapacityAdapter}
+        activeProviders={activeProviders}
+        getCaps={getCaps}
+      />
+
       {/* Create Modal - Use key to force remount and reset state */}
       {showCreateModal && (
         <ComboFormModal
@@ -321,6 +342,7 @@ const STRATEGY_OPTIONS = [
   { value: "fallback", label: "Fallback — try in order" },
   { value: "round-robin", label: "Round Robin — rotate" },
   { value: "fusion", label: "Fusion — panel + judge" },
+  { value: "think-execute", label: "Think → Execute — reason then write" },
 ];
 
 function CapacityAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps }) {
@@ -340,6 +362,42 @@ function CapacityAdapterSection({ capacityAdapter, onChange, activeProviders, ge
       </div>
       <div className="flex flex-col gap-4">
         {CAPACITY_ADAPTER_CAPS.map((cap) => (
+          <CapacityAdapterCap
+            key={cap.key}
+            cap={cap}
+            entry={capacityAdapter[cap.key] || EMPTY_CAP_ENTRY}
+            onChange={(entry) => onChange({ ...capacityAdapter, [cap.key]: entry })}
+            activeProviders={activeProviders}
+            getCaps={getCaps}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Role adapters: default thinking/execution models for the think-execute combo
+// strategy. Same card pattern as capability adapters — toggle + model pool. The
+// router auto-detects the first enabled model when a think-execute combo has no
+// pinned role model.
+function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCaps }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Think → Execute Adapter</p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Default models for think-execute combos. Router auto-detects these when a combo
+            uses Think → Execute and no model is pinned per combo.
+          </p>
+          <ul className="mt-1.5 text-[11px] text-text-muted flex flex-col gap-0.5">
+            <li><span className="font-medium text-text-main">Thinking</span> — reasons first (non-streaming, tools stripped)</li>
+            <li><span className="font-medium text-text-main">Execution</span> — writes the final answer (stream + tools)</li>
+          </ul>
+        </div>
+      </div>
+      <div className="flex flex-col gap-4">
+        {ROLE_ADAPTER_CAPS.map((cap) => (
           <CapacityAdapterCap
             key={cap.key}
             cap={cap}
@@ -468,9 +526,14 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
 
 function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdit, onDelete, strategy = {}, onSetStrategy }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
+  const [showThinkSelect, setShowThinkSelect] = useState(false);
+  const [showExecSelect, setShowExecSelect] = useState(false);
   const current = strategy.fallbackStrategy || "fallback";
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
+  const isThinkExecute = current === "think-execute";
+  const thinking = strategy.thinkingModel || "";
+  const execution = strategy.executionModel || "";
 
   return (
     <Card padding="sm" className="group">
@@ -513,6 +576,47 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                     onClick={() => onSetStrategy({ judgeModel: "" })}
                     className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
                     title="Reset judge to Auto"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">close</span>
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Think → Execute: thinking + execution model pickers */}
+            {isThinkExecute && (
+              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-text-muted">Think</span>
+                <button
+                  onClick={() => setShowThinkSelect(true)}
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
+                  title="Model that reasons first (non-streaming, tools stripped)"
+                >
+                  <span className="material-symbols-outlined text-[13px]">psychology</span>
+                  <span className="truncate">{thinking || `Auto — ${combo.models[0] || "first model"}`}</span>
+                </button>
+                {thinking && (
+                  <button
+                    onClick={() => onSetStrategy({ thinkingModel: "" })}
+                    className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Reset thinking model to Auto"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">close</span>
+                  </button>
+                )}
+                <span className="text-[11px] font-medium text-text-muted ml-1">Execute</span>
+                <button
+                  onClick={() => setShowExecSelect(true)}
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
+                  title="Model that writes the final answer (stream + tools preserved)"
+                >
+                  <span className="material-symbols-outlined text-[13px]">edit</span>
+                  <span className="truncate">{execution || `Auto — ${combo.models[0] || "first model"}`}</span>
+                </button>
+                {execution && (
+                  <button
+                    onClick={() => onSetStrategy({ executionModel: "" })}
+                    className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Reset execution model to Auto"
                   >
                     <span className="material-symbols-outlined text-[13px]">close</span>
                   </button>
@@ -574,6 +678,32 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
           activeProviders={activeProviders}
           title="Select Judge Model"
           addedModelValues={judge ? [judge] : []}
+          closeOnSelect={true}
+        />
+      )}
+
+      {/* Thinking model picker (think-execute) */}
+      {showThinkSelect && (
+        <ModelSelectModal
+          isOpen={showThinkSelect}
+          onClose={() => setShowThinkSelect(false)}
+          onSelect={(m) => { onSetStrategy({ thinkingModel: m?.value || "" }); setShowThinkSelect(false); }}
+          activeProviders={activeProviders}
+          title="Select Thinking Model"
+          addedModelValues={thinking ? [thinking] : []}
+          closeOnSelect={true}
+        />
+      )}
+
+      {/* Execution model picker (think-execute) */}
+      {showExecSelect && (
+        <ModelSelectModal
+          isOpen={showExecSelect}
+          onClose={() => setShowExecSelect(false)}
+          onSelect={(m) => { onSetStrategy({ executionModel: m?.value || "" }); setShowExecSelect(false); }}
+          activeProviders={activeProviders}
+          title="Select Execution Model"
+          addedModelValues={execution ? [execution] : []}
           closeOnSelect={true}
         />
       )}
