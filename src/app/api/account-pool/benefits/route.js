@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { getProviderConnectionById } from "@/lib/localDb";
-import { getUsageForProvider } from "open-sse/services/usage.js";
+import { getUsageForProvider, USAGE_PROVIDERS } from "open-sse/services/usage.js";
 
 export const dynamic = "force-dynamic";
 
 const CONCURRENCY = 3;
 const PER_CALL_TIMEOUT_MS = 5000;
 
-// Provider yang punya usage handler — sisanya tidak di-fetch
-const SUPPORTED = new Set([
-  "autoclaw", "kiro", "qoder", "freebuff", "github", "claude", "codex",
-  "gemini-cli", "antigravity", "qwen", "iflow", "glm", "minimax",
-  "codebuddy-cn", "grok-cli", "kimi", "deepseek",
-]);
+// Auto-detect: provider yang punya usage handler (USAGE_HANDLERS di usage.js).
+// Tambah handler baru → otomatis di-fetch di sini, tanpa edit route ini.
+const SUPPORTED = new Set(USAGE_PROVIDERS);
 
 function summarizeUsage(usage) {
   if (!usage || typeof usage !== "object") return null;
@@ -28,16 +25,22 @@ function summarizeUsage(usage) {
     const remaining = Number(q.remaining) ?? Math.max(0, total - used);
     const resetAt = q.resetAt || null;
     const unlimited = !!q.unlimited;
-    rows.push({
+    const row = {
       key,
       total,
       used,
       remaining,
       resetAt,
       unlimited,
-    });
+    };
+    // Pass-through field tambahan per provider (expiring points, dll)
+    if (q.expiring) row.expiring = q.expiring;
+    rows.push(row);
   }
-  return { plan: usage.plan || null, quotas: rows };
+  const summary = { plan: usage.plan || null, quotas: rows };
+  // Pass-through metadata non-quota (sandbox trial, dll)
+  if (usage.sandbox) summary.sandbox = usage.sandbox;
+  return summary;
 }
 
 async function fetchOne(id) {
