@@ -6,7 +6,7 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { DEFAULT_COMBO_TARGET_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
-import { getRoleAdapterModel } from "./capacityAdapter.js";
+import { getRoleAdapterModel, stripHistoryForContext } from "./capacityAdapter.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
@@ -790,12 +790,19 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   //    The thinking model's tool requests are recorded but NOT executed here —
   //    the execution pass has the client's tools intact and runs them.
   const { tool_choice, ...rest } = body;
-  const thinkBody = { ...rest, stream: false };
+  let thinkBody = { ...rest, stream: false };
   if (cfg.thinkingMaxTokens > 0) thinkBody.max_tokens = cfg.thinkingMaxTokens;
   if (Array.isArray(thinkBody.messages)) {
     thinkBody.messages = flattenToolHistory(thinkBody.messages);
   } else if (Array.isArray(thinkBody.input)) {
     thinkBody.input = flattenToolHistory(thinkBody.input);
+  }
+  if (cfg.stripThinkContext !== false) {
+    const slash = thinker.indexOf("/");
+    const tProvider = slash > 0 ? thinker.slice(0, slash) : "";
+    const tModel = slash > 0 ? thinker.slice(slash + 1) : thinker;
+    const { contextWindow } = getCapabilitiesForModel(tProvider, tModel);
+    thinkBody = stripHistoryForContext(thinkBody, contextWindow);
   }
 
   let thinking = null;
@@ -833,9 +840,18 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
 
   // 2. Execution pass: original body (stream + tools preserved). If thinking
   //    succeeded, inject it as a user turn so the executor has the analysis.
+  //    Same agentic-history guard as the thinker: strip the middle so the
+  //    executor's window isn't blown by compaction/browser-snapshot turns.
   let execBody = body;
+  if (cfg.stripExecContext !== false) {
+    const slash = executor.indexOf("/");
+    const xProvider = slash > 0 ? executor.slice(0, slash) : "";
+    const xModel = slash > 0 ? executor.slice(slash + 1) : executor;
+    const { contextWindow } = getCapabilitiesForModel(xProvider, xModel);
+    execBody = stripHistoryForContext(execBody, contextWindow);
+  }
   if (thinking) {
-    execBody = appendUserTurn(body, buildThinkPrompt(thinking));
+    execBody = appendUserTurn(execBody, buildThinkPrompt(thinking));
   } else {
     log.info("THINK", "no thinking context — executing on original body");
   }
