@@ -548,12 +548,15 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showThinkSelect, setShowThinkSelect] = useState(false);
   const [showExecSelect, setShowExecSelect] = useState(false);
+  const [showReviewSelect, setShowReviewSelect] = useState(false);
   const current = strategy.fallbackStrategy || "fallback";
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
   const isThinkExecute = current === "think-execute";
   const thinking = strategy.thinkingModel || "";
   const execution = strategy.executionModel || "";
+  const reviewEnabled = strategy.reviewEnabled;
+  const reviewModel = strategy.reviewModel || "";
 
   return (
     <Card padding="sm" className="group">
@@ -641,6 +644,25 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                     <span className="material-symbols-outlined text-[13px]">close</span>
                   </button>
                 )}
+                {/* Review toggle + model picker — extra call, costs tokens */}
+                <span className="text-[11px] font-medium text-text-muted ml-1">Review</span>
+                <label className="flex items-center gap-1 cursor-pointer select-none" title="Verify + rewrite the executor's answer (extra model call)">
+                  <Toggle
+                    checked={!!reviewEnabled}
+                    onChange={(v) => onSetStrategy({ reviewEnabled: v })}
+                    aria-label="Enable review pass"
+                  />
+                </label>
+                {reviewEnabled && (
+                  <button
+                    onClick={() => setShowReviewSelect(true)}
+                    className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:border-primary hover:bg-primary/5 transition-colors"
+                    title="Model that verifies the executor's answer"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">fact_check</span>
+                    <span className="truncate">{reviewModel || `Auto — ${combo.models[0] || "first model"}`}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -724,6 +746,19 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
           activeProviders={activeProviders}
           title="Select Execution Model"
           addedModelValues={execution ? [execution] : []}
+          closeOnSelect={true}
+        />
+      )}
+
+      {/* Review model picker (think-execute, optional pass) */}
+      {showReviewSelect && (
+        <ModelSelectModal
+          isOpen={showReviewSelect}
+          onClose={() => setShowReviewSelect(false)}
+          onSelect={(m) => { onSetStrategy({ reviewModel: m?.value || "" }); setShowReviewSelect(false); }}
+          activeProviders={activeProviders}
+          title="Select Review Model"
+          addedModelValues={reviewModel ? [reviewModel] : []}
           closeOnSelect={true}
         />
       )}

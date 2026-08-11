@@ -232,7 +232,11 @@ export async function handleChat(request, clientRawRequest = null) {
         comboName: modelStr,
         thinkingModel,
         executionModel,
-        tuning: comboStrategies[modelStr]?.thinkExecuteTuning,
+        tuning: {
+          ...(comboStrategies[modelStr]?.thinkExecuteTuning || {}),
+          reviewModel: comboStrategies[modelStr]?.reviewModel || "",
+          reviewEnabled: !!comboStrategies[modelStr]?.reviewEnabled,
+        },
       });
     }
 
