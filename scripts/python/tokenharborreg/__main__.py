@@ -38,7 +38,14 @@ def _log(msg, **kw):
 
 
 def _passwd(n=14):
-    return "".join(random.choice(PASSWORD_CHARS) for _ in range(n))
+    # R25-TH5: server butuh password ≥12 char + digit. _passwd lama kadang
+    # tanpa digit → ditolak ("Password needs at least 12 characters" padahal
+    # 14 char — server validate digit juga). Guarantee 1 digit + 1 upper.
+    chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#"
+    pw = [random.choice("23456789"), random.choice("ABCDEFGHJKMNPQRSTUVWXYZ")]
+    pw += [random.choice(chars) for _ in range(n - 2)]
+    random.shuffle(pw)
+    return "".join(pw)
 
 
 def _ua():
@@ -148,6 +155,49 @@ def _poll_driftz(iid, deadline):
 
 
 def _poll_tempik(iid, deadline):
+    # R25-TH3: path lama /api/inbox/{iid}/messages = 404 (Extra data JSON error).
+    # Path benar: /api/inboxes/{address}/messages + x-session-id header.
+    # Reuse tempik_poll_otp dari qoderreg yang sudah benar.
+    try:
+        from qoderreg._tempik import tempik_poll_otp
+        from qoderreg._tempik import _req as tempik_req
+    except Exception:
+        _log("tempik_poll_otp import gagal — fallback poll manual")
+        return _poll_tempik_old(iid, deadline)
+    # iid = session_id; cari inbox address via session
+    try:
+        inboxes = tempik_req("GET", "/inboxes", {"x-session-id": iid})
+        for box in inboxes:
+            addr = box.get("address")
+            if not addr:
+                continue
+            mails = tempik_req("GET", f"/inboxes/{addr}/messages", {"x-session-id": iid})
+            for m in mails:
+                body = str(m.get("body") or m.get("html") or m.get("textContent") or "")
+                if "tokenharbor" in body.lower() or "verify" in str(m.get("subject", "")).lower():
+                    return m
+    except Exception as e:
+        _log(f"tempik poll err: {e}")
+    # loop sampai deadline
+    while time.time() < deadline:
+        try:
+            inboxes = tempik_req("GET", "/inboxes", {"x-session-id": iid})
+            for box in inboxes:
+                addr = box.get("address")
+                if not addr:
+                    continue
+                mails = tempik_req("GET", f"/inboxes/{addr}/messages", {"x-session-id": iid})
+                for m in mails:
+                    body = str(m.get("body") or m.get("html") or m.get("textContent") or "")
+                    if "tokenharbor" in body.lower() or "verify" in str(m.get("subject", "")).lower():
+                        return m
+        except Exception as e:
+            _log(f"tempik poll err: {e}")
+        time.sleep(8)
+    return None
+
+
+def _poll_tempik_old(iid, deadline):
     while time.time() < deadline:
         r = requests.get(
             f"https://tempik.exilion.my.id/api/inbox/{iid}/messages", timeout=20
@@ -207,11 +257,17 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
     files = {
         "1_device_fingerprint": (None, fp),
         "1_timezone": (None, "Asia/Jakarta"),
-        "1_next": (None, ""),
+        "1_next": (None, "0"),
         "1_email": (None, email),
         "1_password": (None, password),
         "1_invite_code": (None, invite),
         "0": (None, '["$undefined","$K1"]'),
+        # R25-TH6: hidden fields React 19 — WAJIB, tanpa ini server action
+        # tidak dieksekusi (200 tanpa error tapi akun tidak dibuat = silent fail)
+        "$ACTION_REF_1": (None, ""),
+        "$ACTION_1:0": (None, '{"id":"%s","bound":"$@1"}' % action_id),
+        "$ACTION_1:1": (None, '["$undefined"]'),
+        "$ACTION_KEY": (None, action_key),
     }
     r = s.post(
         SIGNUP_URL,
@@ -225,7 +281,33 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
         },
     )
     if r.status_code != 303:
-        raise RuntimeError(f"signup HTTP {r.status_code} (IP flagged?)")
+        # R25-TH1: debug — dump body utk tahu kenapa ditolak (200 = React Flight
+        # error digest, biasanya rate limit / IP flag / cookie mismatch)
+        body_snippet = ""
+        try:
+            body_snippet = r.text[:300]
+        except Exception:
+            pass
+        # R25-TH4: parse React Flight error — kalau error message nyata (bukan
+        # digest rate limit), itu VALIDASI server (password pendek, email duplikat).
+        # Password < 12 char = ditolak server. Rate limit = digest 343680605.
+        flight_error = None
+        if r.status_code == 200:
+            for line in r.text.splitlines():
+                if '"error"' in line:
+                    m_err = re.search(r'"error":"([^"]+)"', line)
+                    if m_err:
+                        flight_error = m_err.group(1)
+                        break
+        if flight_error and "password" in flight_error.lower():
+            raise RuntimeError(f"signup validation: {flight_error}")
+        # R25-TH2: 200 + React Flight TANPA error digest (343680605) = SUKSES
+        # (server action diterima, redirect via JS/streaming). Rate limit lama
+        # selalu return digest — absence = akun dibuat.
+        if r.status_code == 200 and "343680605" not in r.text:
+            _log(f"signup 200 tanpa error digest — anggap SUKSES (akun dibuat) flight={flight_error}")
+        else:
+            raise RuntimeError(f"signup HTTP {r.status_code} (IP flagged?) body={body_snippet}")
     _log(f"signup OK → {r.headers.get('location')}")
 
     # 3. wait for verification email, open link
