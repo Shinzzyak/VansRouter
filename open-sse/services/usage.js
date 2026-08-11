@@ -16,6 +16,7 @@ import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
 import { getFreebuffUsage } from "./usage/freebuff.js";
 import { getAutoclawBalance } from "./usage/autoclaw.js";
+import { getTokenHarborUsage } from "./usage/tokenharbor.js";
 import { resolveQoderCredentials } from "./qoderModels.js";
 import {
   getQwenUsage,
@@ -57,6 +58,7 @@ const USAGE_HANDLERS = {
   deepseek: (c) => getDeepseekUsage(c.apiKey, c.proxyOptions),
   freebuff: (c) => getFreebuffUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   autoclaw: (c) => getAutoclawBalance(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  tokenharbor: (c) => getTokenHarborUsage(c, c.proxyOptions),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null) {
