@@ -70,3 +70,7 @@ export async function getUsageForProvider(connection, proxyOptions = null) {
   if (!handler) return { message: `Usage API not implemented for ${provider}` };
   return await handler({ provider, accessToken, apiKey, providerSpecificData, providerDataWithProjectId, proxyOptions });
 }
+
+// Provider yang punya usage handler — auto-detect untuk account pool benefits.
+// Tambah handler baru di USAGE_HANDLERS → otomatis masuk di sini, tanpa edit route.
+export const USAGE_PROVIDERS = Object.keys(USAGE_HANDLERS);
