@@ -405,6 +405,7 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
             onChange={(entry) => onChange({ ...capacityAdapter, [cap.key]: entry })}
             activeProviders={activeProviders}
             getCaps={getCaps}
+            capFilterValue={null}
           />
         ))}
       </div>
@@ -412,11 +413,29 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
   );
 }
 
-function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) {
+function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps, capFilterValue }) {
   const [showModelSelect, setShowModelSelect] = useState(false);
+  const [modelAliases, setModelAliases] = useState({});
   const { enabled, roundRobin, models } = entry;
 
   const patch = (p) => onChange({ ...entry, ...p });
+  // Role adapters (thinking/execution) have no capability key — pass null to
+  // show all models. Capability adapters (vision/audio) filter by their key.
+  const modalCapFilter = capFilterValue === undefined ? cap.key : capFilterValue;
+
+  // Passthrough providers (e.g. opencode) list models via modelAliases, so we
+  // must load aliases before opening the picker — same pattern as ComboFormModal.
+  const openModelSelect = async () => {
+    setShowModelSelect(true);
+    try {
+      const res = await fetch("/api/models/alias", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setModelAliases(data.aliases || {});
+    } catch (error) {
+      console.error("Error fetching model aliases:", error);
+    }
+  };
 
   const handleAdd = (model) => {
     if (models.includes(model.value)) return;
@@ -499,7 +518,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
             icon="add"
             variant="ghost"
             size="sm"
-            onClick={() => setShowModelSelect(true)}
+            onClick={openModelSelect}
             disabled={!enabled}
             title={`Add ${cap.label} model`}
           >
@@ -514,9 +533,10 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
           onClose={() => setShowModelSelect(false)}
           onSelect={handleAdd}
           activeProviders={activeProviders}
+          modelAliases={modelAliases}
           title={`Add ${cap.label} Model`}
           addedModelValues={models}
-          capFilter={cap.key}
+          capFilter={modalCapFilter}
           closeOnSelect={false}
         />
       )}
