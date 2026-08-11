@@ -127,3 +127,4 @@ scripts/python/qoderreg-venv/
 scripts/python/*-venv/
 scripts/python/debug_*.py
 scripts/python/th_signup_*.py
+scripts/python/tokenharborreg/_th_*.py
