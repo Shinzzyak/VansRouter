@@ -385,6 +385,35 @@ def _proxy_with_sid(proxy_url, sid):
     return proxy_url.replace("://", f"://bulk-sid-{sid}-t-300:x@", 1)
 
 
+def _save_connection(result):
+    """Simpan akun TH ke provider VansRouter via Node helper (createProviderConnection).
+    Dipanggil untuk status success (ada apiKey) maupun needs_verify (akun dibuat,
+    verify email pending) — keduanya masuk account pool + providers page."""
+    import subprocess
+    import os
+    email = result.get("email", "")
+    password = result.get("password", "")
+    if not email or not password:
+        return None
+    invite = result.get("inviteCode") or result.get("invite_code_used") or ""
+    api_key = result.get("apiKey") or ""
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "save-tokenharbor-connection.mjs")
+    try:
+        env = dict(os.environ)
+        env.setdefault("DATA_DIR", os.environ.get("VANSROUTER_DATA_DIR", "/home/ubuntu/VansRouter/data"))
+        proc = subprocess.run(
+            ["node", helper, email, password, invite, api_key],
+            capture_output=True, text=True, timeout=30, env=env,
+            cwd=os.path.join(os.path.dirname(helper), "..", "..", ".."),
+        )
+        out = proc.stdout.strip()
+        _log(f"save: {out[:120]}")
+        return out
+    except Exception as e:
+        _log(f"save gagal: {e}")
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Token Harbor chain-referral signup")
     ap.add_argument("--count", type=int, default=1)
@@ -406,6 +435,7 @@ def main():
                 last_invite = result["inviteCode"]
             result["line"] = i
             print(json.dumps(result, ensure_ascii=False), flush=True)
+            _save_connection(result)
             ok += 1
         except Exception as e:
             print(json.dumps({"line": i, "status": "failed", "error": str(e)}, ensure_ascii=False), flush=True)
