@@ -41,7 +41,7 @@ import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
 import { handleComboChat, handleFusionChat, handleThinkExecuteChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
-import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy, getCapacityAdapterModels, getRoleAdapterModel } from "open-sse/services/capacityAdapter.js";
+import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy, getCapacityAdapterModels, getRoleAdapterModel, getCompactAdapterModel } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
@@ -170,6 +170,21 @@ export async function handleChat(request, clientRawRequest = null) {
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
   if (bypassResponse) return bypassResponse.response || bypassResponse;
+
+  // Compact adapter: /v1/responses/compact sets body._compact = true (client
+  // asks the router to compact the conversation). Route it to the dedicated
+  // compact model from capacityAdapter.compact when configured; otherwise fall
+  // through to the normal pipeline.
+  if (body._compact === true) {
+    const compactModel = getCompactAdapterModel(settings);
+    if (compactModel) {
+      log.info("CHAT", `Compact request → ${compactModel} (compact adapter)`);
+      const cleanBody = { ...body };
+      delete cleanBody._compact;
+      return handleSingleModelChat(cleanBody, compactModel, clientRawRequest, request, apiKey, apiKeyInfo);
+    }
+    log.info("CHAT", "Compact request, no compact adapter configured — using normal pipeline");
+  }
 
   // Capacity adapter: if the request needs a capability (vision/pdf/audio/video)
   // none of the target models have, prepend adapter-pool models that can handle it.

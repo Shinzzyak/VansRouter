@@ -86,6 +86,14 @@ export function getRoleAdapterModel(role, settings) {
   return entry.models[0];
 }
 
+// Compact adapter: when a client triggers a conversation-compaction request
+// (body._compact === true, e.g. /v1/responses/compact), route it to the
+// dedicated compact model from capacityAdapter.compact. Returns null when
+// disabled/empty so the normal pipeline runs.
+export function getCompactAdapterModel(settings) {
+  return getRoleAdapterModel("compact", settings);
+}
+
 function modelSatisfies(modelStr, requiredHard) {
   const slash = modelStr.indexOf("/");
   const provider = slash > 0 ? modelStr.slice(0, slash) : "";
