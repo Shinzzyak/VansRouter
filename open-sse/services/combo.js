@@ -832,7 +832,6 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
       if (!json) {
         log.warn("THINK", `thinker ${thinker} response unparseable`);
       }
-      log.info("THINK", `thinker RAW keys=${json ? Object.keys(json).join(",") : "null"} choices=${json?.choices?.length ?? 0} msg=${JSON.stringify(json?.choices?.[0]?.message || {}).slice(0, 300)}`);
       const text = extractPanelText(json);
       const toolCalls = extractToolCalls(json);
       if (text && text.trim()) {
