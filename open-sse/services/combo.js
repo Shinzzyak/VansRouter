@@ -296,6 +296,13 @@ function combineSignals(...signals) {
  * @returns {Promise<Response>}
  */
 export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
+  // Normalize orphan tool messages (interrupted tool loops leave `tool` role
+  // without preceding tool_calls -> upstream 400). Keeps valid tool_calls.
+  if (Array.isArray(body.messages)) {
+    body = { ...body, messages: flattenOrphanToolMessages(body.messages) };
+  } else if (Array.isArray(body.input)) {
+    body = { ...body, input: flattenOrphanToolMessages(body.input) };
+  }
   // Apply rotation strategy if enabled
   let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
 
