@@ -39,11 +39,12 @@ describe("think-execute combo", () => {
     expect(res.ok).toBe(true);
     expect(handleSingleModel).toHaveBeenCalledTimes(2);
 
-    // Thinking pass: non-streaming, tools KEPT (read-only exploration), isPanel=true.
+    // Thinking pass: non-streaming, tools STRIPPED (pure reasoning — tool deferral
+    // caused executor tool loops), isPanel=true.
     const thinkCall = seen[0];
     expect(thinkCall.model).toBe("p/thinker");
     expect(thinkCall.stream).toBe(false);
-    expect(thinkCall.hasTools).toBe(true);
+    expect(thinkCall.hasTools).toBe(false);
     expect(thinkCall.isPanel).toBe(true);
 
     // Execution pass: original stream flag preserved, tools preserved, analysis injected.
