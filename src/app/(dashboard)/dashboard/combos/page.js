@@ -448,15 +448,24 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
   );
 }
 
-function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps, capFilterValue }) {
+function CapacityAdapterCap({ cap, entry, onChange, activeProviders, capFilterValue }) {
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
+  const [expanded, setExpanded] = useState(false);
   const { enabled, roundRobin, models } = entry;
 
   const patch = (p) => onChange({ ...entry, ...p });
   // Role adapters (thinking/execution) have no capability key — pass null to
   // show all models. Capability adapters (vision/audio) filter by their key.
   const modalCapFilter = capFilterValue === undefined ? cap.key : capFilterValue;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Stable index-based ids so duplicate/similar model names work with dnd-kit.
+  const modelItems = models.map((model, i) => ({ uid: `cap-${cap.key}-${i}`, model }));
 
   // Passthrough providers (e.g. opencode) list models via modelAliases, so we
   // must load aliases before opening the picker — same pattern as ComboFormModal.
@@ -475,11 +484,18 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps, ca
   const handleAdd = (model) => {
     if (models.includes(model.value)) return;
     patch({ models: [...models, model.value] });
+    setExpanded(true);
   };
 
   const handleRemove = (index) => {
     const next = models.filter((_, i) => i !== index);
     patch({ models: next.length === 0 ? [DEFAULT_FALLBACK_MODEL] : next });
+  };
+
+  const handleEdit = (index, value) => {
+    const next = [...models];
+    next[index] = value;
+    patch({ models: next });
   };
 
   const handleMove = (index, delta) => {
@@ -490,77 +506,106 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps, ca
     patch({ models: next });
   };
 
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = modelItems.findIndex((m) => m.uid === active.id);
+      const newIndex = modelItems.findIndex((m) => m.uid === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        patch({ models: arrayMove(models, oldIndex, newIndex) });
+      }
+    }
+  };
+
   return (
-    <Card padding="sm" className={`group ${!enabled ? "opacity-50" : ""}`}>
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Master toggle + icon + label + chips */}
-        <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
-          <Toggle
-            checked={enabled}
-            onChange={(v) => patch({ enabled: v })}
-            aria-label={`Enable ${cap.label} adapter`}
-          />
-          <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-primary text-[18px]">{cap.icon}</span>
+    <Card padding="sm" className={`group ${!enabled ? "opacity-60" : ""}`}>
+      {/* Header: expand toggle + enable + icon + label + count + actions */}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="shrink-0 rounded p-0.5 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+          aria-label={expanded ? `Collapse ${cap.label} adapter` : `Expand ${cap.label} adapter`}
+          aria-expanded={expanded}
+        >
+          <span className="material-symbols-outlined text-[18px]">{expanded ? "expand_more" : "chevron_right"}</span>
+        </button>
+        <Toggle
+          checked={enabled}
+          onChange={(v) => patch({ enabled: v })}
+          size="sm"
+          aria-label={`Enable ${cap.label} adapter`}
+        />
+        <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <span className="material-symbols-outlined text-primary text-[18px]">{cap.icon}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <code className="font-mono text-sm font-medium">{cap.label}</code>
+            <span className="hidden sm:inline text-[10px] text-text-muted truncate">— {cap.desc}</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <code className="font-mono text-sm font-medium">{cap.label}</code>
-              <span className="text-[10px] text-text-muted">— {cap.desc}</span>
-            </div>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-              {models.length === 0 ? (
-                <span className="text-xs text-text-muted italic">No models</span>
-              ) : (
-                models.slice(0, 3).map((model, index) => (
-                  <code
-                    key={`${model}-${index}`}
-                    className="group/chip inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5"
-                  >
-                    <span>{model}</span>
-                    <CapacityBadges caps={getCaps?.(model)} />
-                    <button onClick={() => handleMove(index, -1)} disabled={index === 0} className={`leading-none opacity-0 group-hover/chip:opacity-100 ${index === 0 ? "text-text-muted/20" : "text-text-muted hover:text-primary"}`}>
-                      <span className="material-symbols-outlined text-[12px]">arrow_upward</span>
-                    </button>
-                    <button onClick={() => handleMove(index, 1)} disabled={index === models.length - 1} className={`leading-none opacity-0 group-hover/chip:opacity-100 ${index === models.length - 1 ? "text-text-muted/20" : "text-text-muted hover:text-primary"}`}>
-                      <span className="material-symbols-outlined text-[12px]">arrow_downward</span>
-                    </button>
-                    <button onClick={() => handleRemove(index)} className="leading-none opacity-0 group-hover/chip:opacity-100 text-text-muted hover:text-red-500">
-                      <span className="material-symbols-outlined text-[12px]">close</span>
-                    </button>
-                  </code>
-                ))
-              )}
-              {models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{models.length - 3} more</span>
-              )}
-            </div>
+          <div className="mt-0.5 text-[10px] text-text-muted">
+            {enabled ? `${models.length} model${models.length === 1 ? "" : "s"}${roundRobin ? " · round-robin" : ""}` : "Disabled"}
           </div>
         </div>
-
-        {/* Actions: Round-robin toggle + Add Model */}
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
-          <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none">
+        <div className="flex shrink-0 items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none" title="Round-robin across pool">
             <Toggle
               checked={roundRobin}
               onChange={(v) => patch({ roundRobin: v })}
+              size="sm"
               disabled={!enabled}
               aria-label={`Round-robin ${cap.label} adapter`}
             />
             <span>Round</span>
           </label>
-          <Button
-            icon="add"
-            variant="ghost"
-            size="sm"
-            onClick={openModelSelect}
-            disabled={!enabled}
-            title={`Add ${cap.label} model`}
-          >
-            Add Model
+          <Button icon="add" variant="ghost" size="sm" onClick={openModelSelect} disabled={!enabled} title={`Add ${cap.label} model`}>
+            Add
           </Button>
         </div>
       </div>
+
+      {/* Model list (expandable — keeps the page short on mobile) */}
+      {expanded && (
+        <div className="mt-3 border-t border-black/5 pt-3 dark:border-white/5">
+          {models.length === 0 ? (
+            <div className="text-center py-4 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/[0.01] dark:bg-white/[0.01]">
+              <span className="material-symbols-outlined text-text-muted text-xl mb-1">layers</span>
+              <p className="text-xs text-text-muted">No models yet — add one</p>
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
+              <SortableContext items={modelItems.map((m) => m.uid)} strategy={verticalListSortingStrategy}>
+                <div className="flex max-h-[55vh] min-w-0 flex-col gap-1 overflow-y-auto sm:max-h-[320px]">
+                  {modelItems.map(({ uid, model }, index) => (
+                    <ModelItem
+                      key={uid}
+                      id={uid}
+                      index={index}
+                      model={model}
+                      isFirst={index === 0}
+                      isLast={index === modelItems.length - 1}
+                      onEdit={(value) => handleEdit(index, value)}
+                      onMoveUp={() => handleMove(index, -1)}
+                      onMoveDown={() => handleMove(index, 1)}
+                      onRemove={() => handleRemove(index)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+          <button
+            type="button"
+            onClick={openModelSelect}
+            disabled={!enabled}
+            className="w-full mt-2 py-1.5 border border-dashed border-black/10 dark:border-white/10 rounded-lg text-xs text-primary font-medium hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            Add Model
+          </button>
+        </div>
+      )}
 
       {showModelSelect && (
         <ModelSelectModal
