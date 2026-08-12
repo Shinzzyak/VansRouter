@@ -5,6 +5,8 @@ import {
   updateProviderConnection,
   deleteProviderConnection,
 } from "@/models";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 function normalizeProxyConfig(body = {}) {
   const hasAnyProxyField =
@@ -198,6 +200,10 @@ export async function PUT(request, { params }) {
 
     const updated = await updateProviderConnection(id, updateData);
 
+    // Provider details change can alter exposed models (baseUrl, defaultModel, auth).
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
+
     // Hide sensitive fields
     const result = { ...updated };
     delete result.apiKey;
@@ -221,6 +227,10 @@ export async function DELETE(request, { params }) {
     if (!deleted) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
+
+    // Deleted provider must not keep exposing phantom models.
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
 
     return NextResponse.json({ message: "Connection deleted successfully" });
   } catch (error) {

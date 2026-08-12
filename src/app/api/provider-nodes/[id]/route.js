@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 // PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
@@ -79,6 +81,10 @@ export async function PUT(request, { params }) {
       })
     )));
 
+    // Node change (baseUrl/prefix) alters the models it exposes.
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
+
     return NextResponse.json({ node: updated });
   } catch (error) {
     console.log("Error updating provider node:", error);
@@ -98,6 +104,10 @@ export async function DELETE(request, { params }) {
 
     await deleteProviderConnectionsByProvider(id);
     await deleteProviderNode(id);
+
+    // Node delete removes its connections + models — purge phantom cache entries.
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

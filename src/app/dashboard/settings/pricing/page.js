@@ -72,28 +72,34 @@ export default function PricingSettingsPage() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="text-text-muted text-sm uppercase font-semibold">
-            Total Models
-          </div>
-          <div className="text-2xl font-bold mt-1">
-            {loading ? "..." : getModelCount()}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-text-muted text-sm uppercase font-semibold">
-            Providers
-          </div>
-          <div className="text-2xl font-bold mt-1">
-            {loading ? "..." : getProviders().length}
+        <Card>
+          <div className="p-4">
+            <div className="text-text-muted text-sm uppercase font-semibold">
+              Total Models
+            </div>
+            <div className="text-2xl font-bold mt-1">
+              {loading ? <StatSkeleton /> : getModelCount()}
+            </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="text-text-muted text-sm uppercase font-semibold">
-            Status
+        <Card>
+          <div className="p-4">
+            <div className="text-text-muted text-sm uppercase font-semibold">
+              Providers
+            </div>
+            <div className="text-2xl font-bold mt-1">
+              {loading ? <StatSkeleton /> : getProviders().length}
+            </div>
           </div>
-          <div className="text-2xl font-bold mt-1 text-success">
-            {loading ? "..." : "Active"}
+        </Card>
+        <Card>
+          <div className="p-4">
+            <div className="text-text-muted text-sm uppercase font-semibold">
+              Status
+            </div>
+            <div className="text-2xl font-bold mt-1 text-success">
+              {loading ? <StatSkeleton /> : "Active"}
+            </div>
           </div>
         </Card>
       </div>
@@ -140,7 +146,11 @@ export default function PricingSettingsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-4 text-text-muted">Loading pricing data...</div>
+          <div className="space-y-2 py-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-5 animate-pulse rounded bg-white/5" />
+            ))}
+          </div>
         ) : currentPricing ? (
           <div className="space-y-3">
             {Object.keys(currentPricing).slice(0, 5).map(provider => (
@@ -172,4 +182,8 @@ export default function PricingSettingsPage() {
       )}
     </div>
   );
+}
+
+function StatSkeleton() {
+  return <div className="h-7 w-20 animate-pulse rounded bg-white/10" />;
 }

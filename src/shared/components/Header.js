@@ -232,6 +232,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         {showMenuButton && (
           <button
             onClick={onMenuClick}
+            aria-label="Open navigation menu"
             className="text-text-main hover:text-primary transition-colors"
           >
             <span className="material-symbols-outlined">menu</span>

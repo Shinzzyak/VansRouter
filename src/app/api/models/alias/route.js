@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,8 @@ export async function PUT(request) {
     }
 
     await setModelAlias(alias, model);
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
 
     return NextResponse.json({ success: true, model, alias });
   } catch (error) {
@@ -44,6 +48,8 @@ export async function DELETE(request) {
     }
 
     await deleteModelAlias(alias);
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

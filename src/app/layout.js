@@ -6,6 +6,7 @@ import "@/lib/network/initOutboundProxy"; // Auto-initialize outbound proxy env
 import "@/shared/services/bootstrap"; // Auto-run initializeApp (watchdog, auto-resume tunnel)
 import { initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { RuntimeI18nProvider } from "@/i18n/RuntimeI18nProvider";
+import MaterialSymbolsLink from "@/shared/components/MaterialSymbolsLink";
 
 
 // Hook console immediately at module load time (server-side only, runs once)
@@ -47,6 +48,7 @@ export default function RootLayout({ children }) {
             {children}
           </RuntimeI18nProvider>
         </ThemeProvider>
+        <MaterialSymbolsLink />
       </body>
     </html>
   );

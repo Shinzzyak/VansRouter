@@ -9,6 +9,8 @@ import {
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -207,6 +209,10 @@ export async function POST(request) {
       isActive: true,
       testStatus: testStatus || "unknown",
     });
+
+    // New connection may expose models (e.g. compatible nodes) — drop stale caches.
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
 
     // Hide sensitive fields
     const result = { ...newConnection };
