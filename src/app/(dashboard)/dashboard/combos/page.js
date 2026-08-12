@@ -474,7 +474,9 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, capFilterVa
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
   // Default-expand adapters that already have models; auto-expand on add.
-  const [expanded, setExpanded] = useState(models => models.length > 0);
+  // NB: `models` from props (entry) — useState lazy initializer must close over
+  // it, NOT receive it as a parameter (React calls initializer with no args).
+  const [expanded, setExpanded] = useState(() => models.length > 0);
   const { enabled, roundRobin, models } = entry;
 
   const patch = (p) => onChange({ ...entry, ...p });
