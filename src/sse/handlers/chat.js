@@ -232,6 +232,12 @@ export async function handleChat(request, clientRawRequest = null) {
     // members (or execution pool) write the final answer. No per-combo setup.
     const autoThinker = getRoleAdapterModel("thinking", settings);
     const autoExecutor = getRoleAdapterModel("execution", settings);
+    // Execution pool: ALL models from the role adapter (fallback order), not just [0].
+    const autoExecPool = (() => {
+      const entry = settings?.capacityAdapter?.execution;
+      if (!entry?.enabled || !Array.isArray(entry.models) || entry.models.length === 0) return null;
+      return entry.models.filter(Boolean);
+    })();
     if (autoThinker && autoExecutor) {
       log.info("CHAT", `Combo "${modelStr}" auto think-execute | think=${autoThinker} | exec=${autoExecutor} | models=${comboModels.length}`);
       return handleThinkExecuteChat({
@@ -248,7 +254,7 @@ export async function handleChat(request, clientRawRequest = null) {
         log,
         comboName: modelStr,
         thinkingModel: autoThinker,
-        executionModel: autoExecutor,
+        executionModel: autoExecPool || autoExecutor,
         tuning: {
           reviewModel: settings.reviewModel || "",
           reviewEnabled: !!settings.reviewEnabled,
