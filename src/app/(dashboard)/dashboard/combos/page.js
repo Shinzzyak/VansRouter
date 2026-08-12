@@ -29,7 +29,6 @@ const ROLE_ADAPTER_CAPS = [
   { key: "execution", label: "Execution", icon: "edit", desc: "Final answer (stream + tools)" },
   { key: "compact", label: "Compact", icon: "compress", desc: "Conversation compaction requests" },
 ];
-const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.5-free";
 const EMPTY_CAP_ENTRY = { enabled: true, roundRobin: false, models: [] };
 const EMPTY_CAPACITY_ADAPTER = {
   vision: { ...EMPTY_CAP_ENTRY },
@@ -71,6 +70,8 @@ export default function CombosPage() {
   const [reviewEnabled, setReviewEnabled] = useState(false);
   const { getCaps } = useModelCaps();
   const [confirmState, setConfirmState] = useState(null);
+  const [error, setError] = useState(null);
+  const [formError, setFormError] = useState(null); // inline error in create/edit modal
   const { copied, copy } = useCopyToClipboard();
 
   /* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect --
@@ -104,14 +105,17 @@ export default function CombosPage() {
         normalized[cap] = normalizeCapEntry(rawAdapter[cap]);
       }
       setCapacityAdapter(normalized);
+      setError(null);
     } catch (error) {
       console.log("Error fetching data:", error);
+      setError(error?.message || "Failed to load combos data");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreate = async (data) => {
+    setFormError(null);
     try {
       const res = await fetch("/api/combos", {
         method: "POST",
@@ -123,14 +127,16 @@ export default function CombosPage() {
         setShowCreateModal(false);
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to create combo");
+        setFormError(err.error || "Failed to create combo");
       }
     } catch (error) {
       console.log("Error creating combo:", error);
+      setFormError(error?.message || "Failed to create combo");
     }
   };
 
   const handleUpdate = async (id, data) => {
+    setFormError(null);
     try {
       const res = await fetch(`/api/combos/${id}`, {
         method: "PUT",
@@ -142,10 +148,11 @@ export default function CombosPage() {
         setEditingCombo(null);
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to update combo");
+        setFormError(err.error || "Failed to update combo");
       }
     } catch (error) {
       console.log("Error updating combo:", error);
+      setFormError(error?.message || "Failed to update combo");
     }
   };
 
@@ -279,7 +286,20 @@ export default function CombosPage() {
       </div>
 
       {/* Combos List */}
-      {combos.length === 0 ? (
+      {error ? (
+        <Card>
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 text-red-500 mb-4">
+              <span className="material-symbols-outlined text-[32px]">error</span>
+            </div>
+            <p className="text-text-main font-medium mb-1">Failed to load combos</p>
+            <p className="text-sm text-text-muted mb-4">{error}</p>
+            <Button icon="refresh" onClick={fetchData} className="w-full sm:w-auto">
+              Retry
+            </Button>
+          </div>
+        </Card>
+      ) : combos.length === 0 ? (
         <Card>
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
@@ -334,9 +354,10 @@ export default function CombosPage() {
         <ComboFormModal
           key="create"
           isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => { setShowCreateModal(false); setFormError(null); }}
           onSave={handleCreate}
           activeProviders={activeProviders}
+          formError={formError}
         />
       )}
 
@@ -345,9 +366,10 @@ export default function CombosPage() {
           key={editingCombo.id}
           isOpen={!!editingCombo}
           combo={editingCombo}
-          onClose={() => setEditingCombo(null)}
+          onClose={() => { setEditingCombo(null); setFormError(null); }}
           onSave={(data) => handleUpdate(editingCombo.id, data)}
           activeProviders={activeProviders}
+          formError={formError}
         />
       )}
 
@@ -451,7 +473,8 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
 function CapacityAdapterCap({ cap, entry, onChange, activeProviders, capFilterValue }) {
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
-  const [expanded, setExpanded] = useState(false);
+  // Default-expand adapters that already have models; auto-expand on add.
+  const [expanded, setExpanded] = useState(models => models.length > 0);
   const { enabled, roundRobin, models } = entry;
 
   const patch = (p) => onChange({ ...entry, ...p });
@@ -489,7 +512,8 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, capFilterVa
 
   const handleRemove = (index) => {
     const next = models.filter((_, i) => i !== index);
-    patch({ models: next.length === 0 ? [DEFAULT_FALLBACK_MODEL] : next });
+    // Allow empty lists — no silent re-insert of a fallback model.
+    patch({ models: next });
   };
 
   const handleEdit = (index, value) => {
@@ -838,7 +862,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
   );
 }
 
-function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null }) {
+function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null, formError = null }) {
   // Initialize state with combo values - key prop on parent handles reset on remount
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
@@ -1009,6 +1033,11 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
           </div>
 
           {/* Actions */}
+          {formError && (
+            <div role="alert" className="rounded-md bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500">
+              {formError}
+            </div>
+          )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">
             <Button onClick={onClose} variant="ghost" fullWidth size="sm">
               Cancel

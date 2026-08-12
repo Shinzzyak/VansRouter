@@ -10,7 +10,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
-
 const STATUS_CONFIG = {
   available: { icon: "check_circle", color: "#22c55e", label: "Available" },
   cooldown: { icon: "schedule", color: "#f59e0b", label: "Cooldown" },
@@ -94,8 +93,11 @@ export default function ModelAvailabilityBadge() {
 
   return (
     <div className="relative" ref={ref}>
-      {/* <button
+      <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-haspopup="dialog"
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
           isHealthy
             ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/15"
@@ -108,10 +110,10 @@ export default function ModelAvailabilityBadge() {
         {isHealthy
           ? "All models operational"
           : `${unavailableCount} model${unavailableCount !== 1 ? "s" : ""} with issues`}
-      </button> */}
+      </button>
 
       {expanded && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div role="dialog" aria-label="Model status details" className="absolute top-full right-0 mt-2 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg">
             <div className="flex items-center gap-2">
               <span

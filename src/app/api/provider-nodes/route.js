@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { randomUUID } from "node:crypto";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,8 @@ export async function POST(request) {
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
       });
+      invalidateAllowedModelsCache();
+      clearCachedProviderModels().catch(() => {});
       return NextResponse.json({ node }, { status: 201 });
     }
 
@@ -75,6 +79,8 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
       });
+      invalidateAllowedModelsCache();
+      clearCachedProviderModels().catch(() => {});
       return NextResponse.json({ node }, { status: 201 });
     }
 
@@ -96,6 +102,8 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
       });
+      invalidateAllowedModelsCache();
+      clearCachedProviderModels().catch(() => {});
       return NextResponse.json({ node }, { status: 201 });
     }
 

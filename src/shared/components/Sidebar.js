@@ -208,6 +208,8 @@ export default function Sidebar({ onClose }) {
             {/* Media Providers accordion */}
             <button
               onClick={() => setMediaOpen((v) => !v)}
+              aria-expanded={mediaOpen}
+              aria-controls="media-providers-accordion"
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
                 pathname.startsWith("/dashboard/media-providers")
@@ -222,7 +224,7 @@ export default function Sidebar({ onClose }) {
               </span>
             </button>
             {mediaOpen && (
-              <div className="pl-4">
+              <div className="pl-4" id="media-providers-accordion">
                 {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
                   <Link
                     key={kind.id}

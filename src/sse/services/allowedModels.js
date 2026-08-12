@@ -667,6 +667,8 @@ export function invalidateAllowedModelsCache() {
   _allowedCacheExpiry = 0;
   _modelsListCache.clear();
   _compatibleModelsCache.clear();
+  _modelsFetcherCache = {};
+  _modelsFetcherCacheExpiry = {};
 }
 
 export async function isModelAllowed(modelStr, apiKeyInfo = null) {

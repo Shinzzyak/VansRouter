@@ -672,94 +672,78 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle, circuit
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
 
-  const dotColors = {
-    free: "bg-green-500",
-    oauth: "bg-blue-500",
-    apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
-  };
-  const dotLabels = {
-    free: "Free",
-    oauth: "OAuth",
-    apikey: "API Key",
-    compatible: "Compatible",
-  };
-
   return (
-    <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
-      <Card
-        padding="xs"
-        className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
+    <div className="group relative min-w-0">
+      <Link
+        href={`/dashboard/providers/${providerId}`}
+        className="block min-w-0"
+        aria-label={`Open ${provider.name} settings`}
       >
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="size-8 shrink-0 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: `${provider.color?.length > 7 ? provider.color : provider.color + "15"}`,
-              }}
-            >
-              <ProviderIcon
-                src={`/providers/${provider.id}.webp`}
-                alt={provider.name}
-                size={30}
-                className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
-                fallbackText={
-                  provider.textIcon || provider.id.slice(0, 2).toUpperCase()
-                }
-                fallbackColor={provider.color}
-              />
-            </div>
-            <div className="min-w-0">
-              <h3 className="truncate font-semibold">{provider.name}</h3>
-              <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
-                {allDisabled ? (
-                  <Badge variant="default" size="sm">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
-                        pause_circle
-                      </span>
-                      Disabled
-                    </span>
-                  </Badge>
-                ) : isNoAuth ? (
-                  <Badge variant="success" size="sm" dot>Ready</Badge>
-                ) : (
-                  <>
-                    {getStatusDisplay(connected, error, errorCode)}
-                    {circuitBreaker && (
-                      <CircuitBreakerBadge status={circuitBreaker} onReset={() => onResetCircuit(providerId)} />
-                    )}
-                    {errorTime && (
-                      <span className="text-text-muted">{errorTime}</span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
+        <Card
+          padding="xs"
+          className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
+        >
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <div
-                className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggle(!allDisabled ? false : true);
+                className="size-8 shrink-0 rounded-lg flex items-center justify-center"
+                style={{
+                  backgroundColor: `${provider.color?.length > 7 ? provider.color : provider.color + "15"}`,
                 }}
               >
-                <Toggle
-                  size="sm"
-                  checked={!allDisabled}
-                  onChange={() => {}}
-                  title={allDisabled ? "Enable provider" : "Disable provider"}
+                <ProviderIcon
+                  src={`/providers/${provider.id}.webp`}
+                  alt={provider.name}
+                  size={30}
+                  className="object-contain rounded-lg max-w-[32px] max-h-[32px]"
+                  fallbackText={
+                    provider.textIcon || provider.id.slice(0, 2).toUpperCase()
+                  }
+                  fallbackColor={provider.color}
                 />
               </div>
-            )}
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold">{provider.name}</h3>
+                <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
+                  {allDisabled ? (
+                    <Badge variant="default" size="sm">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">
+                          pause_circle
+                        </span>
+                        Disabled
+                      </span>
+                    </Badge>
+                  ) : isNoAuth ? (
+                    <Badge variant="success" size="sm" dot>Ready</Badge>
+                  ) : (
+                    <>
+                      {getStatusDisplay(connected, error, errorCode)}
+                      {circuitBreaker && (
+                        <CircuitBreakerBadge status={circuitBreaker} onReset={() => onResetCircuit(providerId)} />
+                      )}
+                      {errorTime && (
+                        <span className="text-text-muted">{errorTime}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
+        </Card>
+      </Link>
+      {stats.total > 0 && (
+        <div className="absolute right-2.5 top-2.5 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+          <Toggle
+            size="sm"
+            checked={!allDisabled}
+            onChange={(v) => onToggle(v)}
+            title={allDisabled ? "Enable provider" : "Disable provider"}
+          />
         </div>
-      </Card>
-    </Link>
+      )}
+    </div>
   );
 }
 
@@ -780,19 +764,6 @@ function ApiKeyProviderCard({
     ANTHROPIC_COMPATIBLE_PREFIX,
   );
 
-  const dotColors = {
-    free: "bg-green-500",
-    oauth: "bg-blue-500",
-    apikey: "bg-amber-500",
-    compatible: "bg-orange-500",
-  };
-  const dotLabels = {
-    free: "Free",
-    oauth: "OAuth",
-    apikey: "API Key",
-    compatible: "Compatible",
-  };
-
   const getIconPath = () => {
     if (isCompatible && provider.apiType)
       return provider.apiType === "responses"
@@ -803,87 +774,84 @@ function ApiKeyProviderCard({
   };
 
   return (
-    <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
-      <Card
-        padding="xs"
-        className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
+    <div className="group relative min-w-0">
+      <Link
+        href={`/dashboard/providers/${providerId}`}
+        className="block min-w-0"
+        aria-label={`Open ${provider.name} settings`}
       >
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="size-8 shrink-0 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: `${provider.color?.length > 7 ? provider.color : provider.color + "15"}`,
-              }}
-            >
-              <ProviderIcon
-                src={getIconPath()}
-                alt={provider.name}
-                size={30}
-                className="object-contain rounded-lg max-w-[30px] max-h-[30px]"
-                fallbackText={
-                  provider.textIcon || provider.id.slice(0, 2).toUpperCase()
-                }
-                fallbackColor={provider.color}
-              />
-            </div>
-            <div className="min-w-0">
-              <h3 className="truncate font-semibold">{provider.name}</h3>
-              <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
-                {allDisabled ? (
-                  <Badge variant="default" size="sm">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
-                        pause_circle
-                      </span>
-                      Disabled
-                    </span>
-                  </Badge>
-                ) : (
-                  <>
-                    {getStatusDisplay(connected, error, errorCode)}
-                    {isCompatible && (
-                      <Badge variant="default" size="sm">
-                        {provider.apiType === "responses"
-                          ? "Responses"
-                          : "Chat"}
-                      </Badge>
-                    )}
-                    {isAnthropicCompatible && (
-                      <Badge variant="default" size="sm">
-                        Messages
-                      </Badge>
-                    )}
-                    {errorTime && (
-                      <span className="text-text-muted">{errorTime}</span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
+        <Card
+          padding="xs"
+          className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
+        >
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <div
-                className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggle(!allDisabled ? false : true);
+                className="size-8 shrink-0 rounded-lg flex items-center justify-center"
+                style={{
+                  backgroundColor: `${provider.color?.length > 7 ? provider.color : provider.color + "15"}`,
                 }}
               >
-                <Toggle
-                  size="sm"
-                  checked={!allDisabled}
-                  onChange={() => {}}
-                  title={allDisabled ? "Enable provider" : "Disable provider"}
+                <ProviderIcon
+                  src={getIconPath()}
+                  alt={provider.name}
+                  size={30}
+                  className="object-contain rounded-lg max-w-[30px] max-h-[30px]"
+                  fallbackText={
+                    provider.textIcon || provider.id.slice(0, 2).toUpperCase()
+                  }
+                  fallbackColor={provider.color}
                 />
               </div>
-            )}
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold">{provider.name}</h3>
+                <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
+                  {allDisabled ? (
+                    <Badge variant="default" size="sm">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">
+                          pause_circle
+                        </span>
+                        Disabled
+                      </span>
+                    </Badge>
+                  ) : (
+                    <>
+                      {getStatusDisplay(connected, error, errorCode)}
+                      {isCompatible && (
+                        <Badge variant="default" size="sm">
+                          {provider.apiType === "responses"
+                            ? "Responses"
+                            : "Chat"}
+                        </Badge>
+                      )}
+                      {isAnthropicCompatible && (
+                        <Badge variant="default" size="sm">
+                          Messages
+                        </Badge>
+                      )}
+                      {errorTime && (
+                        <span className="text-text-muted">{errorTime}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
+        </Card>
+      </Link>
+      {stats.total > 0 && (
+        <div className="absolute right-2.5 top-2.5 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+          <Toggle
+            size="sm"
+            checked={!allDisabled}
+            onChange={(v) => onToggle(v)}
+            title={allDisabled ? "Enable provider" : "Disable provider"}
+          />
         </div>
-      </Card>
-    </Link>
+      )}
+    </div>
   );
 }
 

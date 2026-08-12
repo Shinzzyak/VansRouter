@@ -5,6 +5,7 @@ import Badge from "@/shared/components/Badge";
 import Button from "@/shared/components/Button";
 import Input from "@/shared/components/Input";
 import Modal from "@/shared/components/Modal";
+import { ConfirmModal } from "@/shared/components/Modal";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import ProxyStatusPanel from "@/shared/components/ProxyStatusPanel";
 import { readJsonResponse } from "@/shared/utils/httpResponse.js";
@@ -117,6 +118,7 @@ export default function AccountPoolPage() {
   const [busy, setBusy] = useState(false);
   const [benefits, setBenefits] = useState({});
   const [benefitsLoading, setBenefitsLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { conn, message }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -206,18 +208,10 @@ export default function AccountPoolPage() {
   }
 
   async function removeAccount(conn) {
-    if (!confirm(`Delete account ${conn.email || conn.name}?`)) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/account-pool?id=${encodeURIComponent(conn.id)}`, { method: "DELETE" });
-      const data = await readJsonResponse(res);
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await load();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    setDeleteConfirm({
+      conn,
+      message: `Delete account ${conn.email || conn.name || conn.displayProvider || "?"}? This cannot be undone.`,
+    });
   }
 
   async function doImport() {
@@ -410,8 +404,34 @@ export default function AccountPoolPage() {
         </>
       )}
 
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={async () => {
+          const conn = deleteConfirm?.conn;
+          if (!conn) return;
+          setDeleteConfirm(null);
+          setBusy(true);
+          try {
+            const res = await fetch(`/api/account-pool?id=${encodeURIComponent(conn.id)}`, { method: "DELETE" });
+            const data = await readJsonResponse(res);
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            await load();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+        title="Delete Account"
+        message={deleteConfirm?.message}
+        confirmText="Delete"
+        variant="danger"
+      />
+
       {/* Import modal */}
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Accounts">
+      <Modal isOpen={importOpen} onClose={() => setImportOpen(false)} title="Import Accounts">
         <div className="space-y-3">
           <div>
             <label htmlFor="pool-import-provider" className="mb-1 block text-xs text-zinc-400">

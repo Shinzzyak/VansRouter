@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDisabledModels, disableModels, enableModels } from "@/lib/disabledModelsDb";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "providerAlias and ids[] required" }, { status: 400 });
     }
     await disableModels(providerAlias, ids);
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error disabling models:", error);
@@ -42,6 +46,8 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "providerAlias required" }, { status: 400 });
     }
     await enableModels(providerAlias, id ? [id] : []);
+    invalidateAllowedModelsCache();
+    clearCachedProviderModels().catch(() => {});
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error enabling models:", error);
