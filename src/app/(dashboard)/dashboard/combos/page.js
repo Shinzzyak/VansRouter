@@ -471,13 +471,11 @@ function RoleAdapterSection({ capacityAdapter, onChange, activeProviders, getCap
 }
 
 function CapacityAdapterCap({ cap, entry, onChange, activeProviders, capFilterValue }) {
+  const { enabled, roundRobin, models } = entry; // NB: destructure BEFORE useState — lazy init closure reads `models`
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
   // Default-expand adapters that already have models; auto-expand on add.
-  // NB: `models` from props (entry) — useState lazy initializer must close over
-  // it, NOT receive it as a parameter (React calls initializer with no args).
   const [expanded, setExpanded] = useState(() => models.length > 0);
-  const { enabled, roundRobin, models } = entry;
 
   const patch = (p) => onChange({ ...entry, ...p });
   // Role adapters (thinking/execution) have no capability key — pass null to
