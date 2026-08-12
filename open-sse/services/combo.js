@@ -65,6 +65,29 @@ function flattenToolHistory(messages) {
       return msg;
     });
 }
+// Flatten ONLY orphan `tool` messages (no preceding assistant tool_calls).
+// Keeps legitimate tool_calls intact so the executor can still run tools.
+function flattenOrphanToolMessages(messages) {
+  const out = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!msg) continue;
+    const isTool = msg.role === "tool" || msg.role === "function";
+    if (isTool) {
+      const toolId = msg.tool_call_id;
+      const hasPrecedingCall = toolId
+        ? out.some((m) => m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.some((c) => c?.id === toolId))
+        : out.some((m) => m.role === "assistant" && Array.isArray(m.tool_calls));
+      if (!hasPrecedingCall) {
+        out.push({ role: "assistant", content: `${TOOL_RESULT_PREFIX}${extractTextContent(msg.content) || String(msg.content ?? "")}]` });
+        continue;
+      }
+    }
+    out.push(msg);
+  }
+  return out;
+}
+
 
 // Reorder combo models by capability fit. Stable; never drops a model (fallback intact).
 // Tier 0: satisfies all hard + all soft. Tier 1: all hard only. Tier 2: rest.
@@ -874,6 +897,14 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   //    Same agentic-history guard as the thinker: strip the middle so the
   //    executor's window isn't blown by compaction/browser-snapshot turns.
   let execBody = body;
+  // Normalize tool-history shape before handing to the executor: client history
+  // can contain orphan `tool` messages (no preceding tool_calls) after an
+  // interrupted tool loop — flattening them to prose avoids upstream 400s.
+  if (Array.isArray(execBody.messages)) {
+    execBody = { ...execBody, messages: flattenOrphanToolMessages(execBody.messages) };
+  } else if (Array.isArray(execBody.input)) {
+    execBody = { ...execBody, input: flattenOrphanToolMessages(execBody.input) };
+  }
   if (cfg.stripExecContext !== false) {
     const slash = executor.indexOf("/");
     const xProvider = slash > 0 ? executor.slice(0, slash) : "";
