@@ -817,6 +817,9 @@ const THINK_EXECUTE_DEFAULTS = {
  * @returns {Promise<Response>}
  */
 export async function handleThinkExecuteChat({ body, models, handleSingleModel, log, comboName, thinkingModel, executionModel, tuning }) {
+  const execPool = Array.isArray(executionModel)
+    ? executionModel.filter(Boolean)
+    : (executionModel && executionModel.trim() ? [executionModel.trim()] : []);
   const panel = Array.isArray(models) ? models.filter(Boolean) : [];
   if (panel.length === 0) {
     return new Response(
@@ -827,7 +830,7 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
 
   const cfg = { ...THINK_EXECUTE_DEFAULTS, ...(tuning || {}) };
   const thinker = thinkingModel && thinkingModel.trim() ? thinkingModel.trim() : panel[0];
-  const executor = executionModel && executionModel.trim() ? executionModel.trim() : panel[0];
+  const executor = execPool.length > 0 ? execPool[0] : panel[0];
   log.info("THINK", `Combo "${comboName}" | think=${thinker} | execute=${executor}`);
 
   // 1. Thinking pass: non-streaming, tool history flattened to prose. Tools are
@@ -934,7 +937,29 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   } else {
     log.info("THINK", "no thinking context — executing on original body");
   }
-  const execRes = await handleSingleModel(execBody, executor);
+  let execRes = null;
+  let execErr = null;
+  for (let ei = 0; ei < execPool.length; ei++) {
+    const execTry = execPool[ei];
+    try {
+      execRes = await handleSingleModel(execBody, execTry);
+      if (execRes && (execRes.ok || execRes.status < 400)) {
+        log.info("THINK", `executor ${execTry} succeeded (pool ${ei + 1}/${execPool.length})`);
+        break;
+      }
+      execErr = execRes?.status ? `status ${execRes.status}` : "empty response";
+      log.warn("THINK", `executor ${execTry} failed (${execErr}), trying next in pool`);
+    } catch (err) {
+      execErr = err.message || String(err);
+      log.warn("THINK", `executor ${execTry} threw (${execErr}), trying next in pool`);
+    }
+  }
+  if (!execRes) {
+    return new Response(
+      JSON.stringify({ error: { message: `All execution models failed: ${execErr}` } }),
+      { status: 502, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   // 3. Review pass (optional, opt-in): only runs when reviewEnabled AND a
   //    reviewModel is set (either pinned per-combo or the role adapter). The
