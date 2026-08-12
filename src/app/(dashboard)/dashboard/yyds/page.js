@@ -120,8 +120,8 @@ export default function YydsPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-semibold sm:text-2xl">YYDS Temp Mail</h1>
-                <Badge variant={settings?.yydsJwtConfigured ? "success" : "warning"}>
-                  {settings?.yydsJwtConfigured ? "JWT configured" : "JWT missing"}
+                <Badge variant={settings?.yydsApiKeyConfigured || settings?.yydsJwtConfigured ? "success" : "warning"}>
+                  {settings?.yydsJwtConfigured ? "JWT configured" : settings?.yydsApiKeyConfigured ? "API key configured" : "Not configured"}
                 </Badge>
               </div>
               <p className="mt-1 text-sm text-gray-400">
@@ -134,12 +134,13 @@ export default function YydsPage() {
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
           )}
 
-          {!settings?.yydsJwtConfigured && (
+          {!settings?.yydsApiKeyConfigured && !settings?.yydsJwtConfigured && (
             <Card>
               <div className="p-4 text-sm text-gray-300">
-                <b className="text-amber-300">JWT belum dikonfigurasi.</b> Buat inbox butuh JWT akun YYDS (dari login{" "}
-                <code className="rounded bg-black/30 px-1">mail.215.im</code>). Set <code className="rounded bg-black/30 px-1">YYDS_JWT</code>{" "}
-                di <code className="rounded bg-black/30 px-1">.env</code> atau <code className="rounded bg-black/30 px-1">yydsJwt</code> di settings DB.
+                <b className="text-amber-300">Belum dikonfigurasi.</b> Buat inbox butuh API key akun YYDS (scope=own)
+                atau JWT (dari login <code className="rounded bg-black/30 px-1">mail.215.im</code>). Set{" "}
+                <code className="rounded bg-black/30 px-1">YYDS_API_KEY</code> / <code className="rounded bg-black/30 px-1">YYDS_JWT</code>{" "}
+                di <code className="rounded bg-black/30 px-1">.env</code> atau lewat Profile → YYDS Temp Mail.
               </div>
             </Card>
           )}
@@ -152,15 +153,15 @@ export default function YydsPage() {
                   Buat alamat temp-mail di domain pribadi terverifikasi (16 domain: zchyur, exilion, nyktor…).
                 </p>
                 <div className="mb-3">
-                  <label className="mb-1 block text-xs font-medium text-gray-400">Domain (opsional — default: pilih otomatis)</label>
+                  <label className="mb-1 block text-xs font-medium text-gray-400">Domain (opsional — default: auto-detect domain pribadi pertama)</label>
                   <select
                     className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-200"
                     value={selectedDomain}
                     onChange={(e) => setSelectedDomain(e.target.value)}
                   >
-                    <option value="">Auto (domain pribadi pertama)</option>
+                    <option value="">✨ Auto-detect (domain pribadi pertama terverifikasi)</option>
                     {domains.filter((d) => !d.isPublic).map((d) => (
-                      <option key={d.domain} value={d.domain}>{d.domain}</option>
+                      <option key={d.domain} value={d.domain}>{d.domain}{d.isVerified ? " ✓" : " (unverified)"}</option>
                     ))}
                   </select>
                 </div>
