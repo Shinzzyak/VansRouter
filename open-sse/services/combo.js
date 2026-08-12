@@ -698,7 +698,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   log.info("FUSION", `Combo "${comboName}" | panel=${panel.length} [${panel.join(", ")}] | judge=${judge} | quorum=${minPanel}`);
 
   // 1. Fan out to the panel in parallel: non-streaming, tools stripped (we want prose).
-  const { tools, tool_choice, ...rest } = body;
+  const { tools, tool_choice, stream_options, ...rest } = body;
   const panelBody = { ...rest, stream: false };
 
   // Flatten tool turns to prose so panel models keep context without emitting tool_calls.
@@ -805,7 +805,7 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   //    inspect files), but tool_choice is removed so it never forces a call.
   //    The thinking model's tool requests are recorded but NOT executed here —
   //    the execution pass has the client's tools intact and runs them.
-  const { tool_choice, ...rest } = body;
+  const { tool_choice, stream_options, ...rest } = body;
   let thinkBody = { ...rest, stream: false };
   if (cfg.thinkingMaxTokens > 0) thinkBody.max_tokens = cfg.thinkingMaxTokens;
   if (Array.isArray(thinkBody.messages)) {
