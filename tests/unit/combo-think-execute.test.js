@@ -145,6 +145,11 @@ describe("think-execute combo", () => {
     const execBody = handleSingleModel.mock.calls[1][0];
     expect(execBody.messages[1].content).toContain("read_file");
     expect(execBody.messages[1].content).toContain("REQUESTED TOOL CALLS");
+    // Regression: tool-only plans must NOT be wrapped in the PRIVATE ANALYSIS
+    // framing — executors echo that verbatim instead of executing ("baik saya
+    // eksekusi pemahaman" loop). The executor prompt must be the raw plan.
+    expect(execBody.messages[1].content).not.toContain("PRIVATE ANALYSIS");
+    expect(execBody.messages[1].content).not.toContain("separate analysis pass");
   });
 
   it("runs review pass only when reviewEnabled and returns rewritten answer", async () => {

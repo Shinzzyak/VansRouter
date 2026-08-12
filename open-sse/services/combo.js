@@ -542,6 +542,19 @@ function buildToolPlanPrompt(toolCalls) {
   ].join("\n");
 }
 
+// Re-parse a REQUESTED TOOL CALLS plan (buildToolPlanPrompt output) back into
+// structured calls. Lenient: skips malformed lines rather than failing.
+function extractPlannedToolCalls(planText) {
+  const calls = [];
+  if (typeof planText !== "string") return calls;
+  for (const line of planText.split("\n")) {
+    const m = line.match(/^\s*\d+\.\s*([A-Za-z_][\w.]*)\((.*)\)\s*$/);
+    if (!m) continue;
+    calls.push({ name: m[1], arguments: m[2] });
+  }
+  return calls;
+}
+
 /**
  * Append a synthesized user turn to whichever message array the request format uses.
  * Preserves the original conversation + system prompt so the judge has full context.
@@ -869,7 +882,17 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
     execBody = stripHistoryForContext(execBody, contextWindow);
   }
   if (thinking) {
-    execBody = appendUserTurn(execBody, buildThinkPrompt(thinking));
+    // Tool-only thinking artifacts are a plan, not an answer — the executor must
+    // run them with its own tools, never quote them back. Skip the PRIVATE
+    // ANALYSIS framing (it invites literal repetition) and hand the plan to the
+    // tool-bearing executor directly so the pipeline actually executes.
+    const isToolPlan = /REQUESTED TOOL CALLS/.test(thinking);
+    if (isToolPlan) {
+      log.info("THINK", "deferring tool plan to executor (raw, no PRIVATE ANALYSIS wrapper)");
+      execBody = appendUserTurn(execBody, buildToolPlanPrompt(extractPlannedToolCalls(thinking)));
+    } else {
+      execBody = appendUserTurn(execBody, buildThinkPrompt(thinking));
+    }
   } else {
     log.info("THINK", "no thinking context — executing on original body");
   }
