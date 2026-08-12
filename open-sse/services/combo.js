@@ -839,8 +839,13 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
   //    inspect files), but tool_choice is removed so it never forces a call.
   //    The thinking model's tool requests are recorded but NOT executed here —
   //    the execution pass has the client's tools intact and runs them.
-  const { tool_choice, stream_options, ...rest } = body;
+  const { tool_choice, stream_options, tools, ...rest } = body;
   let thinkBody = { ...rest, stream: false };
+  // Opsi B: thinker TANPA tools — cuma reasoning teks. Tool calls thinker yang
+  // di-defer bikin loop (executor jalanin plan, thinker minta lagi). Think pass
+  // harus murni analisis; eksekusi 100% di executor.
+  thinkBody.tool_choice = "none";
+  delete thinkBody.tools;
   if (cfg.thinkingMaxTokens > 0) thinkBody.max_tokens = cfg.thinkingMaxTokens;
   if (Array.isArray(thinkBody.messages)) {
     thinkBody.messages = flattenToolHistory(thinkBody.messages);
