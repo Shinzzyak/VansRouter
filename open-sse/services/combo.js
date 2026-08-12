@@ -830,6 +830,7 @@ export async function handleThinkExecuteChat({ body, models, handleSingleModel, 
 
   const cfg = { ...THINK_EXECUTE_DEFAULTS, ...(tuning || {}) };
   const thinker = thinkingModel && thinkingModel.trim() ? thinkingModel.trim() : panel[0];
+  if (execPool.length === 0 && panel.length > 0) execPool.push(panel[0]);
   const executor = execPool.length > 0 ? execPool[0] : panel[0];
   log.info("THINK", `Combo "${comboName}" | think=${thinker} | execute=${executor}`);
 
