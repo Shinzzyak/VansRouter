@@ -33,19 +33,27 @@ export async function getAutoclawBalance(accessToken, _providerSpecificData = {}
     throw new Error("autoclaw: accessToken required for wallet lookup");
   }
   const token = accessToken.replace(/^Bearer\s+/i, "");
+  // Hard cap each upstream call — a dead/hanging autoclaw endpoint must not
+  // block the whole account-pool page. Undici's default connect/body timeout
+  // can take ~5s+ per call.
+  const TIMEOUT_MS = 3500;
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
 
   const [walletRes, expiringRes, sandboxRes] = await Promise.allSettled([
     fetch(`${BASE_URL}/agent-assetmgr/api/v2/wallets?biz_app_id=autoclaw`, {
       method: "GET",
       headers: signHeaders({ authorization: `Bearer ${token}` }),
+      signal,
     }),
     fetch(`${BASE_URL}/agent-assetmgr/api/v1/points/expiring?biz_app_id=autoclaw`, {
       method: "GET",
       headers: signHeaders({ authorization: `Bearer ${token}` }),
+      signal,
     }),
     fetch(`${BASE_URL}/agentdr/v2/assistant/sandbox/list`, {
       method: "GET",
       headers: signHeaders({ authorization: `Bearer ${token}` }),
+      signal,
     }),
   ]);
 

@@ -190,11 +190,13 @@ export default function AccountPoolPage() {
   async function toggleActive(conn) {
     setBusy(true);
     try {
-      await fetch("/api/account-pool", {
+      const res = await fetch("/api/account-pool", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: conn.id, isActive: !conn.isActive }),
       });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       await load();
     } catch (e) {
       setError(e.message);
@@ -207,7 +209,9 @@ export default function AccountPoolPage() {
     if (!confirm(`Delete account ${conn.email || conn.name}?`)) return;
     setBusy(true);
     try {
-      await fetch(`/api/account-pool?id=${encodeURIComponent(conn.id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/account-pool?id=${encodeURIComponent(conn.id)}`, { method: "DELETE" });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       await load();
     } catch (e) {
       setError(e.message);

@@ -46,7 +46,12 @@ export async function GET(request) {
 
         if (c.provider === "autoclaw" && c.accessToken) {
           try {
-            const bal = await getAutoclawBalance(c.accessToken, c.providerSpecificData);
+            const bal = await Promise.race([
+              getAutoclawBalance(c.accessToken, c.providerSpecificData),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("autoclaw balance timeout")), 4000)
+              ),
+            ]);
             row.balance = bal.balance;
           } catch (e) {
             row.balanceError = e.message;
@@ -141,7 +146,8 @@ export async function PATCH(request) {
     const { id, isActive } = body;
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    await updateProviderConnection(id, { isActive: !!isActive });
+    const updated = await updateProviderConnection(id, { isActive: !!isActive });
+    if (!updated) return NextResponse.json({ error: "account not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -155,7 +161,8 @@ export async function DELETE(request) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-    await deleteProviderConnection(id);
+    const deleted = await deleteProviderConnection(id);
+    if (!deleted) return NextResponse.json({ error: "account not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
