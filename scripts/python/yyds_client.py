@@ -91,23 +91,32 @@ def yyds_get_token(address, api_key="", jwt=""):
 
 
 def yyds_get_messages(address, token=None, api_key="", jwt=""):
-    # Auth priority: temp inbox token > account JWT > API key.
-    # API key alone is NOT accepted for /messages (verified 2026-08-08:
-    # returns authorization_required_any unless a temp token or JWT is sent).
-    temp_token = token or jwt
-    if not temp_token:
-        raise YYDSMailError("messages requires a temp inbox token or account JWT")
-    data = _get("/messages", "", temp_token, params={"address": address})
+    # Auth priority: temp inbox token > API key > account JWT.
+    # API key (X-API-Key OR Bearer) IS accepted for /messages — verified
+    # 2026-08-12 with scope=own key (AC-e776): 200 OK. Old comment claimed
+    # otherwise; that was true before the key got inbox-scope access.
+    if token:
+        data = _get("/messages", "", token, params={"address": address})
+    elif api_key:
+        data = _get("/messages", api_key, "", params={"address": address})
+    elif jwt:
+        data = _get("/messages", "", jwt, params={"address": address})
+    else:
+        raise YYDSMailError("messages requires a temp inbox token, API key, or account JWT")
     if data.get("success"):
         return data.get("data", {}).get("messages", [])
     return []
 
 
 def yyds_get_message_detail(message_id, token=None, api_key="", jwt=""):
-    temp_token = token or jwt
-    if not temp_token:
-        raise YYDSMailError("message detail requires a temp inbox token or account JWT")
-    data = _get(f"/messages/{message_id}", "", temp_token)
+    if token:
+        data = _get(f"/messages/{message_id}", "", token)
+    elif api_key:
+        data = _get(f"/messages/{message_id}", api_key, "")
+    elif jwt:
+        data = _get(f"/messages/{message_id}", "", jwt)
+    else:
+        raise YYDSMailError("message detail requires a temp inbox token, API key, or account JWT")
     if data.get("success"):
         return data.get("data", {})
     raise YYDSMailError(f"YYDS get message detail failed: {data}")
@@ -135,7 +144,8 @@ def yyds_pick_domain(api_key="", jwt=""):
 
 
 def yyds_get_email_and_token(api_key="", jwt=""):
-    """Create a fresh inbox on a verified (prefer owned) domain. Returns (address, token)."""
+    """Create a fresh inbox on a verified (prefer owned) domain. Returns (address, token).
+    Token may be empty when API key already has inbox-scope access."""
     if not api_key and not jwt:
         raise YYDSMailError("YYDS API Key or JWT not configured")
     domain = yyds_pick_domain(api_key=api_key, jwt=jwt)
@@ -144,9 +154,10 @@ def yyds_get_email_and_token(api_key="", jwt=""):
     address = result.get("address") or f"{username}@{domain}"
     temp_token = result.get("token")
     if not temp_token:
-        temp_token = yyds_get_token(address, api_key=api_key, jwt=jwt)
-    if not temp_token:
-        raise YYDSMailError("Failed to get YYDS token")
+        try:
+            temp_token = yyds_get_token(address, api_key=api_key, jwt=jwt)
+        except YYDSMailError:
+            temp_token = ""  # API key alone is enough for /messages now
     return address, temp_token
 
 
@@ -169,9 +180,10 @@ def yyds_create_owned_inbox(api_key="", domain="", address_prefix=""):
     address = result.get("address") or f"{prefix}@{domain}"
     temp_token = result.get("token")
     if not temp_token:
-        temp_token = yyds_get_token(address, api_key=api_key, jwt="")
-    if not temp_token:
-        raise YYDSMailError("Failed to get YYDS token for owned inbox")
+        try:
+            temp_token = yyds_get_token(address, api_key=api_key, jwt="")
+        except YYDSMailError:
+            temp_token = ""  # API key alone is enough for /messages now
     return address, temp_token
 
 
@@ -191,7 +203,7 @@ def extract_verification_code(blob, subject=""):
     return None
 
 
-def yyds_get_oai_code(token, address, timeout=180, poll_interval=1, log_callback=None, jwt="", cancel_callback=None):
+def yyds_get_oai_code(token, address, timeout=180, poll_interval=1, log_callback=None, jwt="", cancel_callback=None, api_key=""):
     """Poll YYDS inbox until a verification code arrives. Returns the code string."""
     deadline = time.time() + timeout
     seen_ids = set()
@@ -199,7 +211,7 @@ def yyds_get_oai_code(token, address, timeout=180, poll_interval=1, log_callback
         if cancel_callback and cancel_callback():
             raise YYDSMailError("cancelled")
         try:
-            messages = yyds_get_messages(address, token=token, jwt=jwt)
+            messages = yyds_get_messages(address, token=token, api_key=api_key, jwt=jwt)
         except Exception as exc:
             if log_callback:
                 log_callback(f"[Debug] YYDS fetch message list failed: {exc}")
@@ -214,7 +226,7 @@ def yyds_get_oai_code(token, address, timeout=180, poll_interval=1, log_callback
             if address.lower() not in to_addrs:
                 continue
             try:
-                detail = yyds_get_message_detail(msg_id, token=token, jwt=jwt)
+                detail = yyds_get_message_detail(msg_id, token=token, api_key=api_key, jwt=jwt)
             except Exception as exc:
                 if log_callback:
                     log_callback(f"[Debug] YYDS get message detail failed: {exc}")
@@ -264,7 +276,7 @@ if __name__ == "__main__":
         print(f"ADDRESS={addr}")
         print(f"TOKEN={tok}")
     elif args.cmd == "poll":
-        if not args.address or not args.token:
-            raise SystemExit("poll requires --address and --token")
-        code = yyds_get_oai_code(args.token, args.address, timeout=args.timeout)
+        if not args.address:
+            raise SystemExit("poll requires --address")
+        code = yyds_get_oai_code(args.token, args.address, timeout=args.timeout, api_key=args.api_key, jwt=args.jwt)
         print(f"CODE={code}")

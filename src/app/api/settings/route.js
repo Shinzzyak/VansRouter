@@ -109,9 +109,10 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
-    const { password, oidcClientSecret, yydsJwt, ...safeSettings } = settings;
+    const { password, oidcClientSecret, yydsJwt, yydsApiKey, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     safeSettings.yydsJwtConfigured = !!yydsJwt || !!process.env.YYDS_JWT;
+    safeSettings.yydsApiKeyConfigured = !!yydsApiKey || !!process.env.YYDS_API_KEY;
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
     console.log("Error updating settings:", error);
