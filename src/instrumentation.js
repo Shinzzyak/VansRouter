@@ -15,6 +15,19 @@ export async function register() {
     initConsoleLogCapture();
   }
 
+  // Apply outbound proxy (gateway 8081) env early — layout-import is not
+  // guaranteed to run before request handlers in standalone, so proxy env
+  // (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) must be set here at server startup
+  // for ALL providers, not just automation.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    try {
+      const { ensureOutboundProxyInitialized } = await import("@/lib/network/initOutboundProxy");
+      await ensureOutboundProxyInitialized();
+    } catch (e) {
+      console.warn("[instrumentation] outbound proxy init failed:", e?.message || e);
+    }
+  }
+
   // Skip in development: `next dev` bundles instrumentation with webpack and
   // cannot resolve Node built-ins (fs/os) pulled in by better-sqlite3 and some
   // provider registries. Production/standalone builds use the Node runtime and
