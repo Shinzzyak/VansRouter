@@ -9,8 +9,6 @@ import {
 import { getAutoclawBalance } from "open-sse/services/usage/autoclaw.js";
 
 export const dynamic = "force-dynamic";
-
-// GET /api/account-pool?provider=autoclaw — list accounts per provider
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -36,6 +34,9 @@ export async function GET(request) {
         row.refreshToken = undefined;
         row.idToken = undefined;
         row.apiKey = undefined;
+        // Surface expiry + last refresh for the UI (grok-cli etc.)
+        row.expiresAt = c.data?.expiresAt || c.expiresAt || null;
+        row.lastRefreshAt = c.data?.lastRefreshAt || c.lastRefreshAt || null;
 
         // Resolve display provider name for compatible nodes
         if (c.provider.startsWith("openai-compatible-chat-") || c.provider.startsWith("anthropic-compatible-")) {
@@ -139,13 +140,73 @@ export async function POST(request) {
   }
 }
 
+// POST /api/account-pool/refresh — refresh a single account token (grok-cli etc)
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id } = body;
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+    const conn = (await getProviderConnections({ id }))?.[0];
+    if (!conn) return NextResponse.json({ error: "account not found" }, { status: 404 });
+
+    const { checkAndRefreshToken } = await import("../../../../sse/services/tokenRefresh.js");
+    const result = await checkAndRefreshToken(conn.provider, {
+      id: conn.id,
+      refreshToken: conn.refreshToken,
+      accessToken: conn.accessToken,
+      expiresAt: conn.expiresAt,
+      providerSpecificData: conn.providerSpecificData,
+    });
+    const accessToken = result?.accessToken || result?.apiKey;
+    if (!accessToken) {
+      return NextResponse.json({ error: result?.refreshError || "refresh failed — no access token" }, { status: 400 });
+    }
+
+    const expiresAt = result?.expiresAt || new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    const updated = await updateProviderConnection(id, {
+      accessToken,
+      refreshToken: result?.refreshToken || conn.refreshToken,
+      expiresAt,
+      lastRefreshAt: new Date().toISOString(),
+      providerSpecificData: {
+        ...(result?.providerSpecificData || conn.providerSpecificData || {}),
+        refreshBlocked: undefined,
+        refreshBlockedAt: undefined,
+      },
+    });
+    if (!updated) return NextResponse.json({ error: "update failed" }, { status: 500 });
+    return NextResponse.json({ ok: true, expiresAt });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// POST /api/account-pool/refresh-token — set manual refresh token for an account
 // PATCH /api/account-pool — toggle active
 export async function PATCH(request) {
   try {
     const body = await request.json();
-    const { id, isActive } = body;
-    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+    const { id, refreshToken, isActive } = body;
 
+    if (refreshToken) {
+      if (!id || !refreshToken) return NextResponse.json({ error: "id and refreshToken required" }, { status: 400 });
+      const conn = (await getProviderConnections({ id }))?.[0];
+      if (!conn) return NextResponse.json({ error: "account not found" }, { status: 404 });
+      const updated = await updateProviderConnection(id, {
+        refreshToken,
+        lastRefreshAt: new Date().toISOString(),
+        providerSpecificData: {
+          ...(conn.providerSpecificData || {}),
+          refreshBlocked: undefined,
+          refreshBlockedAt: undefined,
+        },
+      });
+      if (!updated) return NextResponse.json({ error: "update failed" }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
     const updated = await updateProviderConnection(id, { isActive: !!isActive });
     if (!updated) return NextResponse.json({ error: "account not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
