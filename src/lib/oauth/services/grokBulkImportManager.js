@@ -511,22 +511,21 @@ export class GrokBulkImportManager extends KiroBulkImportManager {
     this.setAccountStep(
       account,
       "python_automation",
-      `Worker ${workerId} python -m grokreg register (attempt ${attempt})`
+      `Worker ${workerId} x-farm mass_regist (attempt ${attempt})`
     );
     await this.persistJobSnapshot(job, { forcePreview: false });
 
-    const args = ["-m", "grokreg", "register"];
-    if (currentProxyUrl) args.push("--proxy", currentProxyUrl);
-
-    const mailProvider = job.mailProvider || "cloudflare";
-    args.push("--mail-provider", mailProvider);
-    if (job.mailApi) args.push("--cloudflare-api-base", String(job.mailApi).replace(/\/$/, ""));
-    if (job.mailApiKey && mailProvider !== "cf-email") args.push("--cloudflare-api-key", job.mailApiKey);
-    if (job.mailAuthMode && mailProvider !== "cf-email") args.push("--cloudflare-auth-mode", job.mailAuthMode);
-    const domains = job.mailDomains || [];
-    if (domains[0]) args.push("--domain", domains[0]);
-    args.push("--enable-cpa"); // always mint grok-cli OAuth
-    if (job.headless) args.push("--headless");
+    // x-farm: pure-HTTP mass registration (no browser) — proven 75%+ success
+    const mailProvider = job.mailProvider || "yyds";
+    const args = [
+      path.join(SCRIPT_DIR, "grokreg", "xfarm_register_one.py"),
+      "--proxy",
+      currentProxyUrl || "http://127.0.0.1:40000",
+      "--mail-provider",
+      job.yydsApiKey ? "yyds" : mailProvider,
+      "--speed",
+      "slow",
+    ];
     if (job.enableNsfw) args.push("--enable-nsfw");
 
     this.setAccountStep(account, "python_spawn", args.join(" "));
@@ -535,8 +534,8 @@ export class GrokBulkImportManager extends KiroBulkImportManager {
       ...process.env,
       PYTHONPATH: SCRIPT_DIR,
       PYTHONUNBUFFERED: "1",
-      ...(job.yydsApiKey ? { GROK_YYDS_KEY: job.yydsApiKey } : {}),
-      ...(job.yydsJwt ? { GROK_YYDS_JWT: job.yydsJwt } : {}),
+      ...(job.yydsApiKey ? { YYDS_API_KEY: job.yydsApiKey } : {}),
+      ...(job.yydsJwt ? { YYDS_JWT: job.yydsJwt } : {}),
     };
 
     let stderrFull = "";
