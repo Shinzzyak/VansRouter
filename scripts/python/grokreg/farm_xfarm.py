@@ -29,6 +29,10 @@ def main() -> int:
     ap.add_argument("--mail-provider", default="mail.tm")
     ap.add_argument("--speed", default="slow", choices=["slow", "normal", "fast", "maximum"])
     ap.add_argument("--skip-inject", action="store_true", help="jangan inject ke 9router DB")
+    ap.add_argument("--proxy-file", default=None, help="file proxy list (rotate antar akun; format host:port per baris)")
+    ap.add_argument("--proxy-mode", default="limit", choices=["limit", "every"], help="limit=sticky sampai 429/block; every=rotate tiap N")
+    ap.add_argument("--proxy-every", type=int, default=5, help="rotate tiap N akun (mode every)")
+    ap.add_argument("--delay", type=float, default=None, help="delay antar akun (detik)")
     args = ap.parse_args()
 
     if not os.path.isdir(XFARM_DIR):
@@ -43,6 +47,10 @@ def main() -> int:
         "--proxy", args.proxy,
         "--mail-provider", args.mail_provider,
     ]
+    if args.proxy_file:
+        cmd += ["--proxy-file", args.proxy_file, "--proxy-mode", args.proxy_mode, "--proxy-every", str(args.proxy_every)]
+    if args.delay:
+        cmd += ["--delay", str(args.delay)]
     if args.skip_inject:
         cmd.append("--skip-inject")
 
