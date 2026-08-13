@@ -12,7 +12,13 @@ function defaultDir() {
   }
   // VansRouter deployment default. The decommissioned ~/.9router must NEVER be
   // used as a fallback — it holds a stale DB and silently swallows writes.
-  return process.env.VANSROUTER_DATA_DIR || "/home/ubuntu/VansRouter/data";
+  // Home-relative so builds on CI (home=/home/runner, read-only /home/ubuntu)
+  // don't crash collecting page data; prod sets VANSROUTER_DATA_DIR.
+  return (
+    process.env.VANSROUTER_DATA_DIR ||
+    path.join(os.homedir(), "VansRouter", "data")
+  );
+  // legacy default: /home/ubuntu/VansRouter/data — keep via env on prod
 }
 
 function looksLikeSmokeDataDir(configured) {
@@ -58,23 +64,7 @@ export function getDataDir() {
     );
   }
 
-  // On Windows, ignore Unix-style absolute paths (e.g. /var/lib/...) that come
-  // from a Linux-targeted .env or Docker config — they are not valid here.
-  if (process.platform === "win32" && /^\//.test(configured)) {
-    console.warn(`[DATA_DIR] '${configured}' is a Unix path on Windows → fallback to default`);
-    return defaultDir();
-  }
-
-  try {
-    fs.mkdirSync(configured, { recursive: true });
-    return configured;
-  } catch (e) {
-    if (e?.code === "EACCES" || e?.code === "EPERM") {
-      console.warn(`[DATA_DIR] '${configured}' not writable → fallback ~/.${APP_NAME}`);
-      return defaultDir();
-    }
-    throw e;
-  }
+  return configured;
 }
 
 export const DATA_DIR = getDataDir();

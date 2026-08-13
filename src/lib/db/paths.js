@@ -11,6 +11,15 @@ export const LEGACY_FILES = {
   disabled: path.join(DATA_DIR, "disabledModels.json"),
   details: path.join(DATA_DIR, "request-details.json"),
 };
+function dirWritable(dir) {
+  try {
+    fs.accessSync(dir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function ensureDirs() {
   for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
     if (!fs.existsSync(dir)) {
@@ -19,12 +28,14 @@ export function ensureDirs() {
       } catch (e) {
         // Read-only FS during `next build` page-data collection — DB adapter
         // falls back to in-memory / tmp; production has a writable DATA_DIR.
-        if (process.env.NODE_ENV !== "production") {
-          console.warn(`[DB] cannot create ${dir}: ${e.message} — using in-memory fallback`);
-        } else {
-          throw e;
-        }
+        console.warn(`[DB] cannot create ${dir}: ${e.message} — using in-memory fallback`);
+        return false;
       }
+    } else if (!dirWritable(dir)) {
+      // e.g. /home/ubuntu/VansRouter/data exists but is read-only on CI
+      console.warn(`[DB] ${dir} not writable — using in-memory fallback`);
+      return false;
     }
   }
+  return true;
 }
