@@ -175,6 +175,9 @@ export class GrokBulkImportManager extends KiroBulkImportManager {
     enableNsfw,
     yydsApiKey,
     yydsJwt,
+    relayUrl,
+    authMode,
+    ssoReuse,
   }) {
     const count = Math.max(0, Math.min(50, Number(registerCount) || 0));
     const { parsed, invalidLines } = parseGrokBulkAccounts(accounts);
@@ -217,6 +220,9 @@ export class GrokBulkImportManager extends KiroBulkImportManager {
           enableCpa: true, // always — product is grok-cli OAuth
           enableNsfw: Boolean(enableNsfw),
           registerCount: count,
+          relayUrl: relayUrl || "",
+          authMode: authMode || "email",
+          ssoReuse: ssoReuse || "",
         },
       });
     }
@@ -526,6 +532,9 @@ export class GrokBulkImportManager extends KiroBulkImportManager {
       "--speed",
       "slow",
     ];
+    if (job.authMode === "sso") args.push("--auth-mode", "sso");
+    if (job.ssoReuse) args.push("--sso-reuse", job.ssoReuse);
+    if (job.relayUrl) args.push("--relay", job.relayUrl);
     if (job.enableNsfw) args.push("--enable-nsfw");
 
     this.setAccountStep(account, "python_spawn", args.join(" "));

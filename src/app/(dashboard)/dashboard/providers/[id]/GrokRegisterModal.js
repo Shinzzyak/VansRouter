@@ -70,6 +70,9 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
   const [engine, setEngine] = useState("camoufox");
   const [headless, setHeadless] = useState(false);
   const [proxyUrl, setProxyUrl] = useState("");
+  const [relayUrl, setRelayUrl] = useState("");
+  const [authMode, setAuthMode] = useState("email");
+  const [ssoReuse, setSsoReuse] = useState("");
   const [activeJob, setActiveJob] = useState(null);
   const [error, setError] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -192,6 +195,9 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
         yydsJwt: mailProvider === "yyds" ? yydsJwt.trim() : "",
       };
       if (proxyUrl.trim()) postBody.proxyUrl = proxyUrl.trim();
+      if (relayUrl.trim()) postBody.relayUrl = relayUrl.trim();
+      if (authMode !== "email") postBody.authMode = authMode;
+      if (ssoReuse.trim()) postBody.ssoReuse = ssoReuse.trim();
 
       const res = await fetch(`/api/oauth/${PROVIDER}/bulk-import`, {
         method: "POST",
@@ -410,6 +416,44 @@ export default function GrokRegisterModal({ isOpen, onClose, onSuccess }) {
                 Route browser traffic through a proxy. Recommended for avoiding rate limits.
               </p>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Relay URL (optional — SSO reuse / egress rotation)</label>
+              <Input
+                value={relayUrl}
+                onChange={(e) => setRelayUrl(e.target.value)}
+                placeholder="https://vercel-relay1-xxx.vercel.app"
+              />
+              <p className="mt-1 text-xs text-text-muted">
+                Route HTTP traffic via Vercel relay. Required for SSO-reuse mode (device flow approve dari relay).
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Auth Mode</label>
+              <select
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                value={authMode}
+                onChange={(e) => setAuthMode(e.target.value)}
+              >
+                <option value="email">Email (register baru via temp mail)</option>
+                <option value="sso">SSO Reuse (device flow — token recovery, tanpa email/captcha)</option>
+              </select>
+            </div>
+
+            {authMode === "sso" && (
+              <div>
+                <label className="mb-2 block text-sm font-medium">SSO Owner Email (untuk --sso-reuse)</label>
+                <Input
+                  value={ssoReuse}
+                  onChange={(e) => setSsoReuse(e.target.value)}
+                  placeholder="akun@pemilik-sso.com"
+                />
+                <p className="mt-1 text-xs text-text-muted">
+                  Email akun yang SSO cookie-nya tersimpan di DB (device flow approve via SSO tersebut).
+                </p>
+              </div>
+            )}
 
             <p className="text-sm text-text-muted">
               Always mints CPA OAuth → saves <strong>grok-cli</strong> connection.

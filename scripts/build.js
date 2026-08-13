@@ -39,7 +39,7 @@ function loadEnvFile(file) {
 }
 function backupProductionDb() {
   const dotenv = loadEnvFile(path.join(appDir, ".env"));
-  const dataDir = process.env.DATA_DIR || dotenv.DATA_DIR || path.join(require("os").homedir(), ".9router");
+  const dataDir = process.env.DATA_DIR || dotenv.DATA_DIR || process.env.VANSROUTER_DATA_DIR || "/home/ubuntu/VansRouter/data";
   const dbFile = path.join(dataDir, "db", "data.sqlite");
   if (!fs.existsSync(dbFile)) {
     console.log(`▶ DB safety backup skipped (no DB at ${dbFile})`);

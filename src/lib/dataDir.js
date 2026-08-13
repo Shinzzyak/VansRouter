@@ -10,7 +10,9 @@ function defaultDir() {
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
   }
-  return path.join(os.homedir(), `.${APP_NAME}`);
+  // VansRouter deployment default. The decommissioned ~/.9router must NEVER be
+  // used as a fallback — it holds a stale DB and silently swallows writes.
+  return process.env.VANSROUTER_DATA_DIR || "/home/ubuntu/VansRouter/data";
 }
 
 function looksLikeSmokeDataDir(configured) {

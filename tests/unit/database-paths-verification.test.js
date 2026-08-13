@@ -14,9 +14,10 @@ describe("Database location & fallback path rules", () => {
     expect(src).toContain('const APP_NAME = "9router"');
   });
 
-  it("dataDir.js defaultDir must resolve to .9router", () => {
+  it("dataDir.js defaultDir must resolve to the VansRouter data dir (never ~/.9router)", () => {
     const src = read("src/lib/dataDir.js");
-    expect(src).toContain("~/.${APP_NAME}");
+    expect(src).toContain('"/home/ubuntu/VansRouter/data"');
+    expect(src).not.toContain('path.join(os.homedir(), `.${APP_NAME}`)');
     expect(src).toContain("AppData");
   });
 

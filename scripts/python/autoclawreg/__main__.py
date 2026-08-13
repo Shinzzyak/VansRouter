@@ -716,7 +716,10 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=headless)
             try:
-                context = browser.new_context(proxy=_parse_proxy(proxy_url))
+                context = browser.new_context(
+                proxy=_parse_proxy(proxy_url),
+                ignore_https_errors=True,
+            )
                 page = context.new_page()
                 return _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id)
             finally:
@@ -727,8 +730,8 @@ def register_one(engine, proxy_url, yyds_api_key, yyds_domain, headless, dry_run
 
 def _zai_flow(page, email, password, device_id, yyds_api_key, yyds_domain, inbox_id):
     """Z.ai signup + Aliyun slider + verify + AutoClaw token extraction on a page."""
-    # Load Aliyun captcha lib + signup page
-    page.goto(f"{ZAI_API}/auths/signup", wait_until="domcontentloaded")
+    # Load Aliyun captcha lib + signup page (UI register — API endpoint = 405)
+    page.goto("https://chat.z.ai/register", wait_until="domcontentloaded", timeout=60000)
     page.add_script_tag(url=ALIYUN_CAPTCHA_JS)
 
     # Solve Aliyun slider if present

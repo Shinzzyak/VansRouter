@@ -61,3 +61,33 @@ def yyds_poll_otp(api_key, inbox_id, timeout_s=180, interval=8):
             pass
         time.sleep(interval)
     return None
+
+
+def yyds_get_messages(api_key, inbox_id, timeout=20):
+    """List messages in inbox (full body optional)."""
+    r = requests.get(
+        f"{YYDS_BASE}/inboxes/{inbox_id}/messages",
+        headers=yyds_headers(api_key), timeout=timeout)
+    r.raise_for_status()
+    j = r.json()
+    return ((j.get("data") or {}).get("messages")
+            or j.get("messages") or [])
+
+
+def yyds_get_message(api_key, message_id, timeout=20):
+    """Get single message with full body."""
+    r = requests.get(
+        f"{YYDS_BASE}/messages/{message_id}",
+        headers=yyds_headers(api_key), timeout=timeout)
+    r.raise_for_status()
+    j = r.json()
+    return (j.get("data") or j)
+
+
+def yyds_list_inboxes(api_key, timeout=20):
+    """List all inboxes for the key."""
+    r = requests.get(f"{YYDS_BASE}/inboxes", headers=yyds_headers(api_key), timeout=timeout)
+    r.raise_for_status()
+    j = r.json()
+    d = j.get("data") or j
+    return d.get("inboxes") or d.get("items") or (d if isinstance(d, list) else [])

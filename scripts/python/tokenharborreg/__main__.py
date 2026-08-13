@@ -222,10 +222,17 @@ def _extract_verify_link(msg):
     return None
 
 
-def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
+def register_one(yyds_key, yyds_domain, seed_invite, proxy, index, email_override=None, password_override=None):
     s = _make_session(proxy)
-    email, poll = _create_inbox_chain(yyds_key, yyds_domain, s)
-    password = _passwd()
+    if email_override:
+        # GSuite mode: pakai email GSuite langsung (verify link ke Gmail web)
+        email = email_override
+        password = password_override or _passwd()
+        poll = None
+        _log(f"GSuite mode: email {email}")
+    else:
+        email, poll = _create_inbox_chain(yyds_key, yyds_domain, s)
+        password = _passwd()
     invite = seed_invite or ""
 
     # 1. fetch signup page for action ids
@@ -312,11 +319,13 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index):
 
     # 3. wait for verification email, open link
     deadline = time.time() + 180
-    msg = poll(deadline)
+    msg = poll(deadline) if poll else None
     if not msg:
         # R25-TH7: akun SUDAH dibuat (303) tapi verify email tidak datang
-        # (tempik inbox expire / email delay). Jangan raise — return sukses
-        # dengan status needs_verify supaya akun tetap masuk account pool.
+        # (tempik inbox expire / email delay / GSuite mode). Jangan raise —
+        # return sukses dengan status needs_verify supaya akun tetap masuk
+        # account pool. GSuite mode: verify link di-poll dari Gmail web
+        # oleh caller (verify_gsuite_emails).
         _log("verification email not received — akun tetap dibuat (303), return needs_verify")
         result = {"status": "needs_verify", "email": email, "password": password,
                   "invite_code_used": invite, "apiKey": None, "inviteCode": None}
