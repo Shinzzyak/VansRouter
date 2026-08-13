@@ -67,6 +67,9 @@ def main() -> int:
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--speed", default="slow")
     ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--auth-mode", default="email", choices=["email", "google", "sso"], help="sso=reuse SSO cookie (device flow via relay)")
+    ap.add_argument("--sso-reuse", default=None, help="email pemilik SSO utk auth-mode sso")
+    ap.add_argument("--relay", default=None, help="Vercel relay URL (egress rotation)")
     args = ap.parse_args()
 
     before = time.time()
@@ -77,6 +80,12 @@ def main() -> int:
         "--proxy", args.proxy,
         "--mail-provider", args.mail_provider,
     ]
+    if args.auth_mode != "email":
+        cmd += ["--auth-mode", args.auth_mode]
+    if args.sso_reuse:
+        cmd += ["--sso-reuse", args.sso_reuse]
+    if args.relay:
+        cmd += ["--relay", args.relay]
     env = dict(os.environ)
     env["NINEROUTER_DB"] = args.db
     env["PYTHONUNBUFFERED"] = "1"

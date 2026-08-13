@@ -70,6 +70,9 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       enableNsfw: body?.enableNsfw,
       yydsApiKey: body?.yydsApiKey,
       yydsJwt: body?.yydsJwt,
+      relayUrl: body?.relayUrl,
+      authMode: body?.authMode,
+      ssoReuse: body?.ssoReuse,
     }),
   },
   qoder: {

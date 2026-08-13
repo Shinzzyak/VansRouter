@@ -1,17 +1,9 @@
 // Save TokenHarbor connection ke providerConnections (account pool + providers page)
-// Usage: DATA_DIR=<db-dir> node save-tokenharbor-connection.mjs <email> <password> [inviteCode] [apiKey]
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { createProviderConnection } from "../../../src/lib/db/repos/connectionsRepo.js";
+// Usage: node save-tokenharbor-connection.mjs <email> <password> [inviteCode] [apiKey]
+// DATA_DIR optional — default: /home/ubuntu/VansRouter/data (lihat save-connection-common.mjs)
+import { loadConnectionRepo } from "../save-connection-common.mjs";
 
-// Resolve DATA_DIR the same way the app does: env DATA_DIR, else ~/.9router
-function resolveDataDir() {
-  const configured = process.env.DATA_DIR;
-  if (configured && fs.existsSync(configured)) return configured;
-  return path.join(os.homedir(), ".9router");
-}
-process.env.DATA_DIR = resolveDataDir();
+const { createProviderConnection } = await loadConnectionRepo();
 
 const [email, password, inviteCode, apiKey] = process.argv.slice(2);
 if (!email || !password) {

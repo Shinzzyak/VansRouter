@@ -1957,6 +1957,51 @@ def start_browser(log_callback=None):
             "DrissionPage not installed — register flow requires it "
             "(pip install DrissionPage). YYDS mail + CPA mint-sso work without it."
         )
+    # VPS fix: Chrome 151 bind IPv6 → DrissionPage 404. Launch manual IPv4 + connect via ws_address.
+    _manual_chrome = os.path.expanduser("~/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome")
+    if os.path.exists(_manual_chrome):
+        for attempt in range(1, 5):
+            try:
+                import subprocess as _sp
+                import socket as _sk
+                import json as _json
+                import urllib.request as _ur
+                with _sk.socket() as s:
+                    s.bind(("127.0.0.1", 0))
+                    _port = s.getsockname()[1]
+                _profile = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".browser_profiles", f"manual_{os.getpid()}_{attempt}")
+                os.makedirs(_profile, exist_ok=True)
+                _launch_args = [_manual_chrome, "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+                           f"--remote-debugging-port={_port}", "--remote-debugging-address=127.0.0.1",
+                           f"--user-data-dir={_profile}", "--no-first-run", "about:blank"]
+                _proxy = str(config.get("proxy", "") or "").strip()
+                if _proxy:
+                    _launch_args.append(f"--proxy-server={_proxy}")
+                _sp.Popen(_launch_args, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+                time.sleep(3)
+                _ver = _json.loads(_ur.urlopen(f"http://127.0.0.1:{_port}/json/version", timeout=5).read())
+                _opt = ChromiumOptions()
+                _opt.ws_address = _ver["webSocketDebuggerUrl"]
+                _opt.set_browser_path(_manual_chrome)
+                _set_browser(Chromium(_opt))
+                tabs = _get_browser().get_tabs()
+                _set_page(tabs[-1] if tabs else _get_browser().new_tab())
+                if log_callback and attempt > 1:
+                    log_callback(f"[*] Browser started successfully on attempt {attempt}")
+                return _get_browser(), _get_page()
+            except Exception as exc:
+                last_exc = exc
+                if log_callback:
+                    log_callback(f"[Debug] Browser start failed (attempt {attempt}/4): {exc}")
+                try:
+                    if _get_browser() is not None:
+                        _get_browser().quit(del_data=True)
+                except Exception:
+                    pass
+                _set_browser(None)
+                _set_page(None)
+                time.sleep(min(1.5 * attempt, 4))
+        raise Exception(f"Browser start failed after 4 retries: {last_exc}")
     for attempt in range(1, 5):
         try:
             _set_browser(Chromium(create_browser_options()))

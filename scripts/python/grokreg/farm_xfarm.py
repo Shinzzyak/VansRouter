@@ -33,6 +33,9 @@ def main() -> int:
     ap.add_argument("--proxy-mode", default="limit", choices=["limit", "every"], help="limit=sticky sampai 429/block; every=rotate tiap N")
     ap.add_argument("--proxy-every", type=int, default=5, help="rotate tiap N akun (mode every)")
     ap.add_argument("--delay", type=float, default=None, help="delay antar akun (detik)")
+    ap.add_argument("--auth-mode", default="email", choices=["email", "google", "sso"], help="mode auth (sso=reuse SSO cookie dari DB)")
+    ap.add_argument("--sso-reuse", default=None, help="email pemilik SSO utk --auth-mode sso (device flow reuse)")
+    ap.add_argument("--relay", default=None, help="Vercel relay URL (egress via relay, rotation IP)")
     args = ap.parse_args()
 
     if not os.path.isdir(XFARM_DIR):
@@ -53,6 +56,12 @@ def main() -> int:
         cmd += ["--delay", str(args.delay)]
     if args.skip_inject:
         cmd.append("--skip-inject")
+    if args.auth_mode != "email":
+        cmd += ["--auth-mode", args.auth_mode]
+    if args.sso_reuse:
+        cmd += ["--sso-reuse", args.sso_reuse]
+    if args.relay:
+        cmd += ["--relay", args.relay]
 
     env = dict(os.environ)
     env["NINEROUTER_DB"] = args.db
