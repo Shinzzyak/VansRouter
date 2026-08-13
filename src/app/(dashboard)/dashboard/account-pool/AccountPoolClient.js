@@ -68,7 +68,7 @@ const PROVIDER_OPTIONS = [
   "baseten", "chatgpt", "outlook", "tokenharbor", "cloudflare-ai",
 ];
 
-function AccountCard({ conn, busy, onToggle, onRemove, benefit, benefitLoading }) {
+function AccountCard({ conn, busy, onToggle, onRemove, onRefresh, onSetRefreshToken, benefit, benefitLoading }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
       <div className="flex items-center justify-between gap-2">
@@ -92,9 +92,22 @@ function AccountCard({ conn, busy, onToggle, onRemove, benefit, benefitLoading }
         <span className="truncate">{conn.displayProvider || conn.provider}</span>
         <span>{formatTime(conn.lastRefreshAt || conn.updatedAt)}</span>
       </div>
+      <div className="mt-1 text-xs">
+        {conn.expiresAt ? (
+          <span className={new Date(conn.expiresAt) < new Date() ? "text-red-400" : "text-zinc-500"}>
+            exp {formatTime(conn.expiresAt)}
+          </span>
+        ) : null}
+      </div>
       <div className="mt-2 flex gap-1.5">
         <Button size="sm" variant={conn.isActive ? "default" : "primary"} onClick={() => onToggle(conn)} disabled={busy} className="flex-1">
           {conn.isActive ? "Deactivate" : "Activate"}
+        </Button>
+        <Button size="sm" variant="default" onClick={() => onRefresh(conn)} disabled={busy}>
+          Refresh
+        </Button>
+        <Button size="sm" variant="default" onClick={() => onSetRefreshToken(conn)} disabled={busy}>
+          Set RT
         </Button>
         <Button size="sm" variant="danger" onClick={() => onRemove(conn)} disabled={busy}>
           Delete
@@ -119,6 +132,8 @@ export default function AccountPoolPage() {
   const [benefits, setBenefits] = useState({});
   const [benefitsLoading, setBenefitsLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { conn, message }
+  const [refreshTokenTarget, setRefreshTokenTarget] = useState(null); // conn
+  const [refreshTokenValue, setRefreshTokenValue] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,6 +227,45 @@ export default function AccountPoolPage() {
       conn,
       message: `Delete account ${conn.email || conn.name || conn.displayProvider || "?"}? This cannot be undone.`,
     });
+  }
+
+  async function refreshAccount(conn) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/account-pool/refresh", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: conn.id }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doSetRefreshToken() {
+    if (!refreshTokenTarget || !refreshTokenValue.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/account-pool", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: refreshTokenTarget.id, refreshToken: refreshTokenValue.trim() }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setRefreshTokenTarget(null);
+      setRefreshTokenValue("");
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function doImport() {
@@ -343,6 +397,7 @@ export default function AccountPoolPage() {
                   <th scope="col" className="px-3 py-2.5 font-medium">Benefit</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Balance</th>
                   <th scope="col" className="px-3 py-2.5 font-medium">Last Refresh</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">Expires</th>
                   <th scope="col" className="px-3 py-2.5 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -371,10 +426,25 @@ export default function AccountPoolPage() {
                     </td>
                     <td className="px-3 py-2.5">{c.balance != null ? c.balance : c.balanceError || "—"}</td>
                     <td className="px-3 py-2.5 text-xs text-zinc-500">{formatTime(c.lastRefreshAt || c.updatedAt)}</td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {c.expiresAt ? (
+                        <span className={new Date(c.expiresAt) < new Date() ? "text-red-400" : "text-zinc-500"}>
+                          {formatTime(c.expiresAt)}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-1.5">
                         <Button size="sm" variant={c.isActive ? "default" : "primary"} onClick={() => toggleActive(c)} disabled={busy}>
                           {c.isActive ? "Deactivate" : "Activate"}
+                        </Button>
+                        <Button size="sm" variant="default" onClick={() => refreshAccount(c)} disabled={busy}>
+                          Refresh
+                        </Button>
+                        <Button size="sm" variant="default" onClick={() => { setRefreshTokenTarget(c); setRefreshTokenValue(""); }} disabled={busy}>
+                          Set RT
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => removeAccount(c)} disabled={busy}>
                           Delete
@@ -398,6 +468,8 @@ export default function AccountPoolPage() {
                 benefitLoading={benefitsLoading}
                 onToggle={toggleActive}
                 onRemove={removeAccount}
+                onRefresh={refreshAccount}
+                onSetRefreshToken={(conn) => { setRefreshTokenTarget(conn); setRefreshTokenValue(""); }}
               />
             ))}
           </div>
@@ -429,6 +501,34 @@ export default function AccountPoolPage() {
         confirmText="Delete"
         variant="danger"
       />
+
+      {/* Set refresh token modal */}
+      <Modal isOpen={!!refreshTokenTarget} onClose={() => setRefreshTokenTarget(null)} title="Set Refresh Token">
+        <div className="space-y-3">
+          <p className="text-xs text-zinc-400">
+            Account: <span className="font-mono text-zinc-300">{refreshTokenTarget?.email || refreshTokenTarget?.name || "—"}</span>
+          </p>
+          <div>
+            <label htmlFor="pool-rt-value" className="mb-1 block text-xs text-zinc-400">
+              Refresh Token
+            </label>
+            <textarea
+              id="pool-rt-value"
+              value={refreshTokenValue}
+              onChange={(e) => setRefreshTokenValue(e.target.value)}
+              rows={3}
+              className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              placeholder="paste refresh token…"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="default" onClick={() => setRefreshTokenTarget(null)}>Cancel</Button>
+            <Button onClick={doSetRefreshToken} disabled={busy || !refreshTokenValue.trim()}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Import modal */}
       <Modal isOpen={importOpen} onClose={() => setImportOpen(false)} title="Import Accounts">
