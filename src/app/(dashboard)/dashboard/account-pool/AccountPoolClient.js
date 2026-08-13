@@ -132,7 +132,9 @@ export default function AccountPoolPage() {
   const [benefits, setBenefits] = useState({});
   const [benefitsLoading, setBenefitsLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { conn, message }
-  const [refreshTokenTarget, setRefreshTokenTarget] = useState(null); // conn
+  const [refreshTokenTarget, setRefreshTokenTarget] = useState(null);
+  const [schedule, setSchedule] = useState(null);
+  const [scheduleDirty, setScheduleDirty] = useState(false); // conn
   const [refreshTokenValue, setRefreshTokenValue] = useState("");
 
   const load = useCallback(async () => {
@@ -149,6 +151,33 @@ export default function AccountPoolPage() {
       setLoading(false);
     }
   }, []);
+
+  // Load refresh schedule from settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await readJsonResponse(res);
+        setSchedule(data.refreshSchedule || { enabled: false, times: [], timezone: "Asia/Jakarta", provider: "grok-cli" });
+      } catch (e) {
+        /* non-fatal */
+      }
+    })();
+  }, []);
+
+  async function saveSchedule() {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshSchedule: schedule }),
+      });
+      await readJsonResponse(res);
+      setScheduleDirty(false);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -367,6 +396,83 @@ export default function AccountPoolPage() {
         />
         <span className="text-sm text-zinc-500">{filtered.length} accounts</span>
       </div>
+
+      {/* Scheduled refresh panel */}
+      {schedule && (
+        <div className="rounded-xl border border-indigo-400/30 bg-indigo-500/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Scheduled Refresh</h2>
+              <p className="text-xs text-zinc-400">
+                Otomatis refresh semua akun {schedule.provider || "grok-cli"} di jam yang di-set.
+                Auto-refresh bawaan (5 menit, sebelum expiry) tetap jalan — ini sweep tambahan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSchedule({ ...schedule, enabled: !schedule.enabled });
+                  setScheduleDirty(true);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  schedule.enabled
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-white/10 text-zinc-300"
+                }`}
+              >
+                {schedule.enabled ? "ON" : "OFF"}
+              </button>
+              <Button size="sm" onClick={saveSchedule} disabled={!scheduleDirty}>
+                Save
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="HH:MM (mis. 03:00)"
+              value={(schedule.times || []).join(",")}
+              onChange={(e) => {
+                const times = e.target.value
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter((t) => /^\d{2}:\d{2}$/.test(t));
+                setSchedule({ ...schedule, times });
+                setScheduleDirty(true);
+              }}
+              className="w-48"
+            />
+            <select
+              value={schedule.timezone || "Asia/Jakarta"}
+              onChange={(e) => {
+                setSchedule({ ...schedule, timezone: e.target.value });
+                setScheduleDirty(true);
+              }}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white"
+            >
+              <option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
+              <option value="UTC">UTC</option>
+              <option value="Asia/Singapore">Asia/Singapore</option>
+              <option value="America/New_York">America/New_York</option>
+            </select>
+            <select
+              value={schedule.provider || "grok-cli"}
+              onChange={(e) => {
+                setSchedule({ ...schedule, provider: e.target.value });
+                setScheduleDirty(true);
+              }}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-white"
+            >
+              <option value="grok-cli">grok-cli</option>
+              <option value="xai">xai</option>
+            </select>
+            <span className="text-xs text-zinc-500">
+              {schedule.enabled && schedule.times?.length
+                ? `Akan refresh ${schedule.times.length}×/hari: ${schedule.times.join(", ")} (${schedule.timezone})`
+                : "Set jam dulu (format HH:MM, pisahkan koma)"}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Desktop table / mobile cards */}
       {loading ? (

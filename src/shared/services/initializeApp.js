@@ -127,6 +127,9 @@ async function runHeavyStartup() {
   import("@/shared/services/grokCliReactivation.js")
     .then(({ startGrokCliReactivation }) => startGrokCliReactivation())
     .catch((e) => console.log("[GrokReactivation] scheduler start failed:", e.message));
+  import("@/shared/services/accountPoolRefreshScheduler.js")
+    .then(({ startAccountPoolRefreshScheduler }) => startAccountPoolRefreshScheduler())
+    .catch((e) => console.log("[AccountPoolRefresh] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {
