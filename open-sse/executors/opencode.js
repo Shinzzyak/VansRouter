@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
-
+import { randomUUID } from "crypto";
 // OpenCode free tier is limited per egress IP — a 429/403 with a limit-ish
 // body means the POOL's IP is exhausted, not the account. Declare it
 // pool-scoped so chatCore marks the pool unfit, retries via another pool, and
@@ -14,6 +14,27 @@ const MESSAGES_MODELS = new Set();
 export class OpenCodeExecutor extends BaseExecutor {
   constructor() {
     super("opencode", PROVIDERS.opencode);
+  }
+
+  // #5997 + #10222: opencode.ai free tier (/zen/v1) returns FreeUsageLimitError
+  // 429 for generic client UAs from datacenter IPs. When CLI identity synthesis
+  // is enabled, REPLACE any non-CLI UA with the OpenCode CLI identity and add
+  // the x-opencode-* identity headers Cloudflare checks on VPS egress.
+  _cliHeaders() {
+    const enabled = process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS === "true";
+    if (!enabled) return {};
+    const ua = process.env.OPENCODE_CLI_USER_AGENT || "opencode-cli/1.0.0";
+    const client = process.env.OPENCODE_CLI_CLIENT || "opencode-cli";
+    const project = process.env.OPENCODE_CLI_PROJECT || "vans-router";
+    const session = process.env.OPENCODE_CLI_SESSION || randomUUID();
+    const requestId = process.env.OPENCODE_CLI_REQUEST || randomUUID();
+    return {
+      "User-Agent": ua,
+      "x-opencode-client": client,
+      "x-opencode-project": project,
+      "x-opencode-session": session,
+      "x-opencode-request": requestId,
+    };
   }
 
   transformRequest(model, body) {
@@ -32,7 +53,8 @@ export class OpenCodeExecutor extends BaseExecutor {
       "Content-Type": "application/json",
       "Authorization": "Bearer public",
       "x-opencode-client": "desktop",
-      "Accept": "text/event-stream"
+      "Accept": "text/event-stream",
+      ...this._cliHeaders(),
     };
   }
 
