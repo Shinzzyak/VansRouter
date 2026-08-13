@@ -136,6 +136,7 @@ export default function AccountPoolPage() {
   const [schedule, setSchedule] = useState(null);
   const [scheduleDirty, setScheduleDirty] = useState(false); // conn
   const [refreshTokenValue, setRefreshTokenValue] = useState("");
+  const [visibleCount, setVisibleCount] = useState(50); // pagination — render 50 dulu, load more saat scroll
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,10 +184,10 @@ export default function AccountPoolPage() {
     load();
   }, [load]);
 
-  // Fetch benefits (trial/credits) untuk akun yang punya usage handler
+  // Fetch benefits (trial/credits) untuk akun yang punya usage handler — hanya visible (paginasi)
   useEffect(() => {
-    if (!connections.length) return;
-    const ids = connections
+    if (!visible.length) return;
+    const ids = visible
       .filter((c) => !isCompatibleProvider(c.provider))
       .map((c) => c.id);
     if (!ids.length) return;
@@ -200,7 +201,7 @@ export default function AccountPoolPage() {
           body: JSON.stringify({ ids }),
         });
         const data = await readJsonResponse(res);
-        if (!cancelled && data?.benefits) setBenefits(data.benefits);
+        if (!cancelled && data?.benefits) setBenefits((prev) => ({ ...prev, ...data.benefits }));
       } catch {
         // benefit fetch is best-effort — ignore
       } finally {
@@ -210,7 +211,7 @@ export default function AccountPoolPage() {
     return () => {
       cancelled = true;
     };
-  }, [connections]);
+  }, [visible]);
 
   const isCompatibleProvider = (id) =>
     id.startsWith("openai-compatible-chat-") || id.startsWith("anthropic-compatible-");
@@ -232,6 +233,13 @@ export default function AccountPoolPage() {
           (c.name || "").toLowerCase().includes(q))
     );
   }, [connections, search, providerFilter]);
+
+  // Pagination: reset ke 50 saat filter/search berubah
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search, providerFilter, connections]);
+
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
   async function toggleActive(conn) {
     setBusy(true);
@@ -508,7 +516,7 @@ export default function AccountPoolPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
+                {visible.map((c) => (
                   <tr key={c.id} className="border-t border-white/5 transition-colors hover:bg-white/5">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
@@ -565,7 +573,7 @@ export default function AccountPoolPage() {
 
           {/* Mobile cards — shown below md */}
           <div className="grid gap-2 sm:grid-cols-2 md:hidden">
-            {filtered.map((c) => (
+            {visible.map((c) => (
               <AccountCard
                 key={c.id}
                 conn={c}
@@ -579,6 +587,15 @@ export default function AccountPoolPage() {
               />
             ))}
           </div>
+
+          {/* Load more (pagination) */}
+          {visibleCount < filtered.length && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={() => setVisibleCount((n) => n + 50)} variant="outline" size="sm">
+                Load more ({filtered.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
         </>
       )}
 
