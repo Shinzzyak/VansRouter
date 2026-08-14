@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import random
+import re
 import string
 import sys
 import time
@@ -49,14 +50,61 @@ def gen_password():
 def register_one(api_key, domain, proxy, headless, engine, index):
     """Register one account. Returns result dict (JSON-serializable)."""
     try:
-        email, inbox_id = yyds_create_inbox(api_key, domain)
+        # Mailpit first (atherberg.biz.id — lolos blocklist baseten, verified 2026-08-14)
+        import random as _r, string as _s, urllib.request as _ur, json as _json, time as _t
+        mp_email = None
+        try:
+            local = "bt" + "".join(_r.choices(_s.ascii_lowercase + _s.digits, k=10))
+            mp_email = f"{local}@atherberg.biz.id"
+            _err(f"[{index}] mailpit inbox={mp_email}")
+        except Exception as _e:
+            _err(f"[{index}] mailpit inbox fail ({_e})")
+
+        def _mp_otp():
+            if not mp_email:
+                return None
+            deadline = time.time() + 180
+            while time.time() < deadline:
+                try:
+                    url = f"http://127.0.0.1:8025/api/v1/search?query=to:{mp_email}&limit=5"
+                    with _ur.urlopen(url, timeout=10) as resp:
+                        data = _json.loads(resp.read().decode("utf-8", "replace"))
+                    for msg in data.get("messages", []):
+                        tos = [t.get("Address", "") for t in (msg.get("To") or [])]
+                        if mp_email not in tos:
+                            continue
+                        mid = msg.get("ID")
+                        body = ""
+                        try:
+                            with _ur.urlopen(f"http://127.0.0.1:8025/api/v1/message/{mid}", timeout=10) as mr:
+                                full = _json.loads(mr.read().decode("utf-8", "replace"))
+                            body = (full.get("Subject") or "") + "\n" + (full.get("Text") or "") + "\n" + (full.get("HTML") or "")
+                        except Exception:
+                            body = msg.get("Snippet", "") or ""
+                        m = re.search(r"\b(\d{6})\b", body)
+                        if m:
+                            return m.group(1)
+                    time.sleep(8)
+                except Exception:
+                    time.sleep(8)
+            return None
+
+        # YYDS fallback jika Mailpit tidak tersedia
+        inbox_id = None
+        if mp_email:
+            email = mp_email
+        else:
+            email, inbox_id = yyds_create_inbox(api_key, domain)
         if not email:
-            return {"status": "error", "error": "yyds inbox create failed"}
+            return {"status": "error", "error": "inbox create failed"}
         first, last = gen_name()
         password = gen_password()
-        _err(f"[{index}] inbox={email} name={first} {last}")
+        if not mp_email:
+            _err(f"[{index}] inbox={email} name={first} {last}")
 
         def _otp():
+            if mp_email:
+                return _mp_otp()
             return yyds_poll_otp(api_key, inbox_id, timeout_s=180)
 
         cookies = run_baseten_signup(email, password, first, last, proxy, _otp,
@@ -72,8 +120,11 @@ def register_one(api_key, domain, proxy, headless, engine, index):
         submit_waiting_room(s, first, last, organization="bt")
         user = get_user(s) or {}
         if (user.get("status") or "") != "APPROVED":
-            return {"status": "error",
-                    "error": f"waiting room / not approved ({user.get('status')})"}
+            # Flow 2026-08-14: approval MANUAL via email (waiting room).
+            # Akun sudah DIBUAT + session valid — simpan sebagai pending
+            # supaya masuk account pool; approval dikirim email baseten.
+            return {"status": "pending", "email": email, "password": password,
+                    "error": f"waiting approval (status={user.get('status')})"}
         complete_onboarding(s, first, last, organization="bt")
         api = create_api_key(s, name=f"bt-{int(time.time())}")
         if not api:

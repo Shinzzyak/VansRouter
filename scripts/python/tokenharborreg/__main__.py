@@ -82,7 +82,49 @@ def _parse_action(html):
 
 
 def _create_inbox_chain(yyds_key, yyds_domain, s):
-    """YYDS -> Driftz -> tempik. Returns (email, poll_fn) or raises."""
+    """Mailpit (atherberg.biz.id, self-hosted — lolos blocklist) → YYDS → Driftz → tempik.
+
+    Mailpit domain (MX live, reputasi bersih) tidak diblokir oleh tokenharbor/
+    baseten, sedangkan domain tempmail YYDS/Driftz diblokir (verify email tidak
+    pernah sampai — verified 2026-08-14).
+    """
+    # 1. Mailpit first — self-hosted, MX live, tidak ada blocklist
+    try:
+        import urllib.request
+
+        def _mp_poll(deadline):
+            import re
+            while time.time() < deadline:
+                try:
+                    url = f"http://127.0.0.1:8025/api/v1/search?query=to:{email}&limit=5"
+                    with urllib.request.urlopen(url, timeout=10) as resp:
+                        data = json.loads(resp.read().decode("utf-8", "replace"))
+                    for msg in data.get("messages", []):
+                        tos = [t.get("Address", "") for t in (msg.get("To") or [])]
+                        if email not in tos:
+                            continue
+                        mid = msg.get("ID")
+                        body = ""
+                        full = {}
+                        try:
+                            with urllib.request.urlopen(f"http://127.0.0.1:8025/api/v1/message/{mid}", timeout=10) as mr:
+                                full = json.loads(mr.read().decode("utf-8", "replace"))
+                            body = (full.get("Subject") or "") + "\n" + (full.get("Text") or "") + "\n" + (full.get("HTML") or "")
+                        except Exception:
+                            body = msg.get("Snippet", "") or ""
+                        return {"subject": full.get("Subject", ""), "body": body, "from": (full.get("From") or {}).get("Address", "") if full.get("From") else ""}
+                    time.sleep(8)
+                except Exception:
+                    time.sleep(8)
+            return None
+
+        import random, string
+        local = "th" + "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+        email = f"{local}@atherberg.biz.id"
+        _log(f"mailpit inbox {email}")
+        return email, _mp_poll
+    except Exception as e:
+        _log(f"mailpit failed ({e}), fallback yyds")
     if yyds_key:
         try:
             from qoderreg._yyds import yyds_create_inbox
