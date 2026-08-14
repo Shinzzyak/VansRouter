@@ -301,18 +301,31 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index, email_overrid
     except Exception as e:
         _log(f"precheck error ({e}) — lanjut tanpa precheck")
 
-    # 2. submit server action — React 19 useActionState encoding:
-    #    field name = "<N>_<fieldname>" (N = arg index), state = "0" → ["$undefined","$K1"]
+    # 1c. Precheck invite code (riset 2026-08-14) — wajib sebelum submit kalau
+    #     invite diisi; valid:false → error invite, jangan submit.
+    if invite:
+        try:
+            pc = s.post(f"{API_BASE}/api/auth/precheck-code",
+                        json={"code": invite, "email": email, "device_fingerprint": fp},
+                        timeout=15)
+            pcj = pc.json() or {}
+            if not pcj.get("valid"):
+                _log(f"invite precheck invalid: {pcj.get('reason')} — skip akun")
+                return {"status": "failed", "email": email,
+                        "error": f"invite invalid: {pcj.get('reason')}"}
+        except Exception as e:
+            _log(f"invite precheck error ({e}) — lanjut tanpa precheck invite")
+
+    # 2. submit server action — React 19 useActionState encoding (riset 2026-08-14):
+    #    field name = TANPA prefix (form modern: email/password/invite_code),
+    #    state "0" TIDAK dikirim (React 19: state awal undefined), header next-action lowercase.
     files = {
-        "1_device_fingerprint": (None, fp),
-        "1_timezone": (None, "Asia/Jakarta"),
-        "1_next": (None, "0"),
-        "1_email": (None, email),
-        "1_password": (None, password),
-        "1_invite_code": (None, invite),
-        "0": (None, '["$undefined","$K1"]'),
-        # R25-TH6: hidden fields React 19 — WAJIB, tanpa ini server action
-        # tidak dieksekusi (200 tanpa error tapi akun tidak dibuat = silent fail)
+        "device_fingerprint": (None, fp),
+        "timezone": (None, "Asia/Jakarta"),
+        "next": (None, ""),
+        "email": (None, email),
+        "password": (None, password),
+        "invite_code": (None, invite),
         "$ACTION_REF_1": (None, ""),
         "$ACTION_1:0": (None, '{"id":"%s","bound":"$@1"}' % action_id),
         "$ACTION_1:1": (None, '["$undefined"]'),
@@ -324,37 +337,40 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index, email_overrid
         allow_redirects=False,
         timeout=30,
         headers={
-            "Next-Action": action_id,
+            "next-action": action_id,
             "Referer": SIGNUP_URL,
             "Accept": "text/x-component",
         },
     )
     if r.status_code != 303:
-        # R25-TH1: debug — dump body utk tahu kenapa ditolak (200 = React Flight
-        # error digest, biasanya rate limit / IP flag / cookie mismatch)
+        # R25-TH4: parse React Flight error — error useActionState dikirim sebagai
+        # row `1:{"error":"..."}` dalam HTTP 200. SEMUA error row = kegagalan
+        # (rate limit "Too many sign-ups from this network...", validasi, dll).
         body_snippet = ""
         try:
             body_snippet = r.text[:300]
         except Exception:
             pass
-        # R25-TH4: parse React Flight error — kalau error message nyata (bukan
-        # digest rate limit), itu VALIDASI server (password pendek, email duplikat).
-        # Password < 12 char = ditolak server. Rate limit = digest 343680605.
         flight_error = None
         if r.status_code == 200:
             for line in r.text.splitlines():
-                if '"error"' in line:
-                    m_err = re.search(r'"error":"([^"]+)"', line)
+                if line.startswith("1:") and '"error"' in line:
+                    m_err = re.search(r'"error":"((?:[^"\\]|\\.)*)"', line)
                     if m_err:
-                        flight_error = m_err.group(1)
+                        try:
+                            flight_error = m_err.group(1).encode().decode("unicode_escape", "replace")
+                        except Exception:
+                            flight_error = m_err.group(1)
                         break
-        if flight_error and "password" in flight_error.lower():
+        if flight_error:
+            # rate limit per-network — jangan retry di IP sama (cooldown 1 jam)
+            if "too many sign-up" in flight_error.lower() or "rate" in flight_error.lower():
+                return {"status": "rate-limited", "email": email,
+                        "error": flight_error, "invite_code_used": invite}
             raise RuntimeError(f"signup validation: {flight_error}")
-        # R25-TH2: 200 + React Flight TANPA error digest (343680605) = SUKSES
-        # (server action diterima, redirect via JS/streaming). Rate limit lama
-        # selalu return digest — absence = akun dibuat.
-        if r.status_code == 200 and "343680605" not in r.text:
-            _log(f"signup 200 tanpa error digest — anggap SUKSES (akun dibuat) flight={flight_error}")
+        # 200 tanpa error row = SUKSES (flight berisi tree baru, redirect via JS)
+        if r.status_code == 200:
+            _log("signup 200 tanpa error row — anggap SUKSES")
         else:
             raise RuntimeError(f"signup HTTP {r.status_code} (IP flagged?) body={body_snippet}")
     _log(f"signup OK → {r.headers.get('location')}")

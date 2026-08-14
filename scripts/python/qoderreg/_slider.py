@@ -163,19 +163,37 @@ def _js_gap_detect():
 
 
 def _cdp_drag(cdp, sx, sy, tx, steps=15):
-    """CDP trusted drag: dispatch mouseMoved with buttons:1 on EVERY step (Aliyun F015 fix)."""
-    import math, random as _r
-    for i in range(1, steps + 1):
-        t = i / steps
-        # ease-out curve + tiny jitter — human-like, still trusted
-        ease = 1 - (1 - t) ** 3
+    """CDP trusted drag with HUMAN-like trajectory (riset 2026-08-14):
+    ease-in-out + micro-jitter + random timing (10-30ms, kadang 40-80ms pause).
+    Aliyun FeiLin risk engine menolak drag mekanik (kecepatan konstan ~1000px/s)."""
+    import math
+    n = steps if steps >= 10 else max(10, steps * 2)
+    total_ms = random.uniform(400, 900)  # 244px dalam 400-900ms = 270-600 px/s (range manusia)
+    pts = []
+    for i in range(1, n + 1):
+        t = i / n
+        # ease-in-out cubic (mulai pelan, tengah cepat, akhir pelan)
+        ease = 0.5 - 0.5 * math.cos(math.pi * t) if t < 0.9 else 1 - (1 - t) ** 2.2
         x = sx + (tx - sx) * ease
-        y = sy + (math.sin(t * math.pi) * 1.5 + (_r.random() - 0.5) * 1.2)
+        # micro-jitter 0-1.5px + drift y natural
+        y = sy + math.sin(t * math.pi * 2.3) * 1.2 + (random.random() - 0.5) * 2.2
+        pts.append((x, y))
+    # overshoot-pullback 30% kasus (manusia)
+    if random.random() < 0.35 and steps >= 10:
+        overshoot = random.uniform(4, 10)
+        x0, y0 = pts[-1]
+        pts[-1] = (x0 + overshoot, y0)
+        for k in range(3):
+            pts.append((x0 + overshoot - overshoot * (k + 1) / 4, y0 + (random.random() - 0.5) * 2))
+    for (x, y) in pts:
         cdp.send("Input.dispatchMouseEvent", {
             "type": "mouseMoved", "x": x, "y": y,
             "button": "left", "buttons": 1,
         })
-        time.sleep(0.012 + _r.random() * 0.008)
+        dt = random.uniform(10, 30)
+        if random.random() < 0.12:
+            dt = random.uniform(40, 80)
+        time.sleep(dt / 1000.0)
 
 
 def solve_slider_v2(page, max_attempts=6, log=print):
@@ -253,10 +271,9 @@ def solve_slider_v2(page, max_attempts=6, log=print):
             # page.mouse = untrusted → Aliyun F015. CDP = trusted → passes verify gate.
             sx = gap["sliderX"] + 10
             sy = gap["sliderY"] + gap["sliderH"] / 2
-            track_w = gap.get("bodyW") or gap["sliderW"]
-            est_max = gap.get("bgW", 300) * gap.get("scale", 1.0) - 52
-            frac = max(0.0, min(1.0, tpl / max(est_max, 1)))
-            mx = max(10, min(1270, sx + frac * track_w))
+            # riset 2026-08-14: mapping 1:1 — puzzle & mouse share coordinate
+            # space (track); factor 1.21 (track_w/est_max) lama = overshoot sistematis.
+            mx = max(10, min(1270, sx + tpl))
             cdp = None
             try:
                 cdp = page.context.new_cdp_session(page)
@@ -266,14 +283,29 @@ def solve_slider_v2(page, max_attempts=6, log=print):
                 page.wait_for_timeout(40 + random.randint(0, 30))
                 _cdp_drag(cdp, sx, sy, mx, 15)
                 page.wait_for_timeout(150 + random.randint(0, 100))
-                # feedback correction
-                for _step in range(1, 21):
+                # feedback correction — DYNAMIC gain (riset 2026-08-14):
+                # ratio puzzle/mouse NONLINEAR (0.29-0.68x per attempt). Ukur ratio
+                # aktual dari coarse drag pertama, pakai untuk koreksi — bukan 0.45.
+                cur0 = page.evaluate(
+                    "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
+                mouse_delta = max(abs(mx - sx), 1)
+                ratio = cur0 / mouse_delta if mouse_delta else 0
+                if ratio < 0.05:
+                    log("[slider] drag tidak nempel (ratio<0.05) — grab ulang", flush=True)
+                    try:
+                        cdp.send("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": mx, "y": sy, "button": "left", "buttons": 0, "clickCount": 1})
+                    except Exception:
+                        pass
+                    continue
+                log(f"[slider] measured ratio={ratio:.3f} (mouse {mouse_delta}px -> puzzle {cur0:.1f}px)", flush=True)
+                for _step in range(1, 61):
                     cur = page.evaluate(
                         "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
                     rem = tpl - cur
                     if abs(rem) <= 1.0:
                         break
-                    delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
+                    delta = rem / max(ratio, 0.1)
+                    delta = max(-60, min(60, delta))
                     mx = max(10, min(1270, mx + delta))
                     _cdp_drag(cdp, sx, sy, mx, 6)
                     page.wait_for_timeout(30 + random.randint(0, 30))
