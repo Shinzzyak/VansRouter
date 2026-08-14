@@ -142,7 +142,7 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     headers,
     body: JSON.stringify({
       model,
-      max_tokens: 16, // Claude-on-Copilot returns empty choices at max_tokens:1
+      max_tokens: 1024,
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
@@ -185,6 +185,11 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
   }
 
   const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
+  const firstChoice = parsed?.choices?.[0] || {};
+  const hasReasoning = firstChoice.message?.reasoning || firstChoice.message?.reasoning_content || firstChoice.message?.thinking || firstChoice.message?.thinking_content;
+  if (hasChoices && firstChoice.finish_reason === "length" && !String(firstChoice.message?.content || "").trim() && hasReasoning) {
+    return { ok: true, latencyMs, error: null, status: res.status, note: "reasoning-only response (length-limited)" };
+  }
   if (!hasChoices) {
     return {
       ok: false,

@@ -608,6 +608,11 @@ export async function buildModelsList(kindFilter, options = {}) {
     };
     if (entry.kind) model.kind = entry.kind;
     if (entry.capabilities) model.capabilities = entry.capabilities;
+    const caps = entry.capabilities || {};
+    if (entry.kind === "llm" || !entry.kind) {
+      if (Number.isFinite(caps.contextWindow)) model.context_length = caps.contextWindow;
+      if (Number.isFinite(caps.maxOutput)) model.max_completion_tokens = caps.maxOutput;
+    }
     dedupedModels.push(model);
   }
 

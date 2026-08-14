@@ -129,9 +129,29 @@ export function detectRequiredCapabilities(body) {
   const scanContent = (content) => {
     if (Array.isArray(content)) for (const b of content) scanBlock(b);
   };
+  const scanMessage = (m) => {
+    if (!m || typeof m !== "object") return;
+    if (Array.isArray(m.images) && m.images.length) required.add("vision");
+    const attachments = m.experimental_attachments || m.attachments;
+    if (Array.isArray(attachments)) for (const a of attachments) {
+      const mime = a?.contentType || a?.mediaType || (typeof a?.url === "string" ? a.url.match(/^data:([^;,]+)/)?.[1] : null);
+      if (mime?.startsWith("image/")) required.add("vision");
+      else if (mime?.startsWith("audio/")) required.add("audioInput");
+      else if (mime === "application/pdf") required.add("pdf");
+      else if (a?.url || a?.data) required.add("vision");
+    }
+    if (m.image_url || m.image) required.add("vision");
+    if (m.audio_url || m.audio) required.add("audioInput");
+    scanContent(m.content);
+    if (typeof m.content === "string") {
+      if (m.content.includes("data:image/")) required.add("vision");
+      if (m.content.includes("data:audio/")) required.add("audioInput");
+      if (m.content.includes("data:application/pdf")) required.add("pdf");
+    }
+  };
 
   // Modalities: current user turn only (trailing user run across each known shape).
-  for (const m of trailingUserItems(body.messages)) scanContent(m.content);      // openai / claude
+  for (const m of trailingUserItems(body.messages)) scanMessage(m);              // openai / claude / Hermes
   for (const it of trailingUserItems(body.input)) scanContent(it.content);       // responses
   const contents = body.contents || body.request?.contents;                      // gemini / antigravity
   for (const c of trailingUserItems(contents)) scanContent(c.parts);
@@ -611,7 +631,7 @@ export async function handleFusionChat({ body, models, handleSingleModel, log, c
   log.info("FUSION", `Combo "${comboName}" | panel=${panel.length} [${panel.join(", ")}] | judge=${judge} | quorum=${minPanel}`);
 
   // 1. Fan out to the panel in parallel: non-streaming, tools stripped (we want prose).
-  const { tools, tool_choice, ...rest } = body;
+  const { tools, tool_choice, stream_options, ...rest } = body;
   const panelBody = { ...rest, stream: false };
 
   // Flatten tool turns to prose so panel models keep context without emitting tool_calls.
