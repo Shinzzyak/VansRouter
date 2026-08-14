@@ -271,7 +271,7 @@ def solve_slider_v2(page, max_attempts=6, log=print):
                     cur = page.evaluate(
                         "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
                     rem = tpl - cur
-                    if abs(rem) <= 2.5:
+                    if abs(rem) <= 1.0:
                         break
                     delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
                     mx = max(10, min(1270, mx + delta))
@@ -290,7 +290,7 @@ def solve_slider_v2(page, max_attempts=6, log=print):
                     cur = page.evaluate(
                         "() => parseFloat(document.querySelector('#aliyunCaptcha-puzzle')?.style.left) || 0")
                     rem = tpl - cur
-                    if abs(rem) <= 2.5:
+                    if abs(rem) <= 1.0:
                         break
                     delta = max(-40, min(40, rem * 0.45)) + (random.random() - 0.5) * 2
                     mx = max(10, min(1270, mx + delta))

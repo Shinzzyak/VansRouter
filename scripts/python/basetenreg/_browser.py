@@ -108,19 +108,18 @@ def _signup(page, email, password, first, last, otp_cb, log):
     if "Just a moment" in (page.content() or "")[:4000]:
         raise RuntimeError("cloudflare challenge not solved")
 
+    # Flow 2026-08-14: PASSWORDLESS — form cuma email + Continue (no password/name).
+    # Email → Continue → OTP code dikirim → masukkan code → redirect ke app.
     _fill_any(page, ["input[type='email']", "input[name='email']",
                      "input[placeholder*='email' i]"], email)
-    _fill_any(page, ["input[type='password']", "input[name='password']"], password)
-    _fill_any(page, ["input[name='firstName']", "input[placeholder*='first' i]"], first)
-    _fill_any(page, ["input[name='lastName']", "input[placeholder*='last' i]"], last)
 
-    # submit (continue → create account)
+    # submit (continue → send OTP)
     if not _click_any(page, ["button[type='submit']", "button:has-text('Continue')",
                              "button:has-text('Create account')", "button:has-text('Sign up')"]):
         page.keyboard.press("Enter")
     page.wait_for_timeout(3000)
 
-    # OTP step (if requested)
+    # OTP step (passwordless code — required)
     code = otp_cb() if otp_cb else None
     log(f"[browser] OTP: {code or 'none'}")
     if code:
@@ -134,12 +133,12 @@ def _signup(page, email, password, first, last, otp_cb, log):
                               "button:has-text('Continue')"])
             page.wait_for_timeout(2000)
 
-    # wait out the magic-code redirect / landing
-    for _ in range(20):
+    # wait out the magic-code redirect / landing (app.baseten.co = success)
+    for _ in range(30):
         u = page.url
-        if "app.baseten.co" in u or "baseten.co" in u and "/sign-up" not in u:
+        if "app.baseten.co" in u:
             break
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(2000)
 
 
 def run_baseten_signup(email, password, first, last, proxy, otp_cb,
