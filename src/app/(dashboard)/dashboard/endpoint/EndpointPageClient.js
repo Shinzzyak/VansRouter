@@ -1320,8 +1320,7 @@ export default function APIPageClient({ machineId }) {
             </p>
           </div>
           <Toggle
-            checked={headroomEnabled && headroomRunning}
-            disabled={!headroomRunning}
+            checked={headroomEnabled}
             onChange={() => handleHeadroomEnabled(!headroomEnabled)}
           />
         </div>
@@ -2006,6 +2005,5 @@ export default function APIPageClient({ machineId }) {
     </div>
   );
 }
-
 
 

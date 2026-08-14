@@ -416,6 +416,10 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     toolSpecs,
     nameMap,
   });
+  if (!canonical.valid) {
+    console.error(`[Kiro] refusing invalid conversation (claude -> kiro): ${(canonical.errors || []).join(", ") || "unknown"}`);
+    return null;
+  }
   const replayCurrent = canonical.currentMessage.userInputMessage;
   const userInputMessage = {
     content: replayCurrent.content || "",

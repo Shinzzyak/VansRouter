@@ -224,15 +224,56 @@ async function buildQoderRequestBody({ model, body, credentials, log, proxyOptio
  * and re-emit as `data: <inner>\n\n`. Errors become `data: [DONE]\n\n` plus
  * a synthetic OpenAI error chunk.
  */
-function wrapQoderSSE(response, model) {
+function isBillingBlock(inner) {
+  if (typeof inner !== "string") return false;
+  return /["']?code["']?\s*:\s*["']?(?:112|10605)["']?/i.test(inner)
+    || /pricingUrl/i.test(inner);
+}
+
+async function peekFirstQoderFrame(reader, decoder) {
+  let consumed = "";
+  let scanOffset = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return { consumed, upstreamDone: true };
+    consumed += decoder.decode(value, { stream: true });
+    const newline = consumed.indexOf("\n", scanOffset);
+    if (newline < 0) continue;
+
+    const line = consumed.slice(scanOffset, newline).replace(/\r$/, "").trim();
+    scanOffset = newline + 1;
+    if (!line.startsWith("data:")) continue;
+    const data = line.slice(5).trimStart();
+    if (data === "[DONE]") return { consumed };
+
+    let envelope;
+    try { envelope = JSON.parse(data); } catch { return { consumed }; }
+    const statusVal = typeof envelope.statusCodeValue === "number" ? envelope.statusCodeValue : 200;
+    const inner = typeof envelope.body === "string" ? envelope.body : "";
+    if (statusVal !== 200 && isBillingBlock(inner)) {
+      return { isBilling: true, statusVal, message: inner || `qoder billing block (${statusVal})` };
+    }
+    return { consumed };
+  }
+}
+
+async function wrapQoderSSE(response, model) {
   if (!response.ok || !response.body) return response;
 
   const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-  let buffer = "";
-  let doneEmitted = false;
-
   const reader = response.body.getReader();
+  const peek = await peekFirstQoderFrame(reader, decoder);
+  if (peek.isBilling) {
+    await reader.cancel().catch(() => {});
+    return new Response(
+      JSON.stringify({ error: { message: peek.message, code: peek.statusVal } }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const encoder = new TextEncoder();
+  let buffer = peek.consumed || "";
+  let doneEmitted = false;
 
   const processLine = (line, controller) => {
     const trimmed = line.replace(/\r$/, "").trim();
@@ -282,7 +323,16 @@ function wrapQoderSSE(response, model) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        while (!doneEmitted) {
+        while (buffer.includes("\n") && !doneEmitted) {
+          const newline = buffer.indexOf("\n");
+          processLine(buffer.slice(0, newline), controller);
+          buffer = buffer.slice(newline + 1);
+        }
+        if (peek.upstreamDone && buffer && !doneEmitted) {
+          processLine(buffer, controller);
+          buffer = "";
+        }
+        while (!doneEmitted && !peek.upstreamDone) {
           const { done, value } = await reader.read();
           if (done) {
             buffer += decoder.decode();
@@ -312,7 +362,7 @@ function wrapQoderSSE(response, model) {
       }
     },
     cancel() {
-      return reader.cancel().catch(() => {});
+    return reader.cancel().catch(() => {});
     },
   });
 
@@ -450,7 +500,7 @@ export class QoderExecutor extends BaseExecutor {
       return { response, url, headers, transformedBody: payload };
     }
 
-    const wrapped = wrapQoderSSE(response, `qoder/${qoderKey}`);
+    const wrapped = await wrapQoderSSE(response, `qoder/${qoderKey}`);
     return { response: wrapped, url, headers, transformedBody: payload };
   }
 
@@ -472,5 +522,6 @@ export class QoderExecutor extends BaseExecutor {
 export const __test__ = {
   normalizeMessages,
   wrapQoderSSE,
+  isBillingBlock,
   buildQoderRequestBody,
 };

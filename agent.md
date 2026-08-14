@@ -21,7 +21,7 @@ cp -r .next/static .next/standalone/.next/static
 ```
 
 ## 4. Menjalankan dengan PM2
-Jalankan file `server.js` menggunakan PM2. File ini adalah wrapper yang default ke port `20128` jika `PORT` tidak di-set, dan sangat disarankan untuk tetap mendefinisikan port di environment saat menjalankan PM2 (pastikan port sesuai dengan upstream proxy Nginx Anda, contoh port 3003):
+Jalankan file `server.js` menggunakan PM2. File ini adalah wrapper yang default ke port `3003` jika `PORT` tidak di-set. Docker memakai default `20128`; selalu definisikan `PORT` saat menjalankan PM2 agar sesuai dengan upstream proxy Nginx (contoh port 3003):
 
 ```bash
 # Menjalankan instance baru (ganti 3003 sesuai konfigurasi upstream Nginx)
@@ -76,6 +76,27 @@ git diff <v0.9.0-commit> dev --stat  # pastikan tidak ada file custom hilang
 | 17 | Sidebar VansRouter brand | `src/shared/components/Sidebar.js` |
 | 18 | Provider detail connections pagination (10/page) | `src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js` |
 | 19 | ACL filter di `GET /v1/models` (validate key + filter providers) | `src/app/api/v1/models/route.js` |
+
+### Aturan Hybrid Upstream
+
+Hybrid **tidak boleh** cherry-pick file penuh dari upstream. Port hanya blok perilaku yang dibutuhkan, lalu pertahankan kontrak lokal berikut:
+
+- `agent.md` tetap ada dan command production di atas tetap valid.
+- PM2 memakai `server.js`; jangan menggantinya dengan `.next/standalone/server.js` tanpa mempertahankan default port `3003`.
+- `custom-server.js` tetap menjadi entrypoint Docker; jangan menghapus trusted peer header dan proxy-IP handling.
+- `pnpm run build` tetap menyalin `public`, `.next/static`, `src/`, serta shim/runtime yang dibuat `scripts/build.js`.
+- Jangan mengubah nama volume Docker `9router-data`; perubahan memerlukan migrasi dan verifikasi database eksplisit.
+- Fitur VansRouter pada tabel ini harus tetap aktif; verifikasi handler, bukan sekadar import atau nama simbol.
+- Hybrid security patch wajib mempertahankan `allowRemoteNoApiKey`, ACL, trusted internal call, dan multi-account compatible provider.
+- Provider/model hybrid wajib mempertahankan registry lokal, executor khusus, proxy layer, fallback account, dan test baseline.
+
+Validasi minimum setelah setiap hybrid:
+
+```bash
+git diff --check
+pnpm run build
+npx vitest run tests/unit/post-merge-verification.test.js
+```
 
 ### ⚠️ Pelajaran: ACL Block di `GET /v1/models` Pernah Hilang
 

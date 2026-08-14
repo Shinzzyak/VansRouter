@@ -75,6 +75,10 @@ export function kiroToClaudeResponse(chunk, state) {
         ? data.usage.completion_tokens
         : 0;
     state.usage = { input_tokens: promptTokens, output_tokens: outputTokens };
+    const cacheRead = data.usage.cache_read_input_tokens ?? data.usage.prompt_tokens_details?.cached_tokens;
+    const cacheCreation = data.usage.cache_creation_input_tokens ?? data.usage.prompt_tokens_details?.cache_creation_tokens;
+    if (typeof cacheRead === "number") state.usage.cache_read_input_tokens = cacheRead;
+    if (typeof cacheCreation === "number") state.usage.cache_creation_input_tokens = cacheCreation;
   }
 
   // First chunk → emit message_start.

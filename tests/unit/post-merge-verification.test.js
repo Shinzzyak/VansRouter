@@ -216,3 +216,28 @@ describe("Post-merge: allowRemoteNoApiKey feature intact", () => {
     expect(ui).toContain("Allow Remote Access Without API Key");
   });
 });
+
+describe("Post-merge: hybrid security guards", () => {
+  it("redacts request payloads at the request-details API boundary", () => {
+    const src = read("src/app/api/usage/request-details/route.js");
+    expect(src).toContain('"providerRequest", "providerResponse", "response"');
+    expect(src).toContain("redacted: true");
+  });
+
+  it("checks remote default-password state before issuing a cookie", () => {
+    const src = read("src/app/api/auth/login/route.js");
+    const guard = src.indexOf("if (mustChangePassword)");
+    const cookie = src.lastIndexOf("setDashboardAuthCookie");
+    expect(guard).toBeGreaterThan(-1);
+    expect(cookie).toBeGreaterThan(guard);
+    expect(src.slice(guard, cookie)).toContain("status: 403");
+  });
+
+  it("keeps the async search SSRF boundary", () => {
+    const callers = read("open-sse/handlers/search/callers.js");
+    const dispatcher = read("open-sse/handlers/search/index.js");
+    expect(callers).toContain("export async function resolveBaseUrl");
+    expect(callers).toContain("await assertPublicUrl(override)");
+    expect(dispatcher).toContain("await buildSearchRequest");
+  });
+});

@@ -31,7 +31,7 @@ export function isMultiModelProvider(provider) {
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
 // Claude usage/quota endpoint rate-limits; poll it less often than other providers
-export const CLAUDE_REFRESH_INTERVAL_MS = 180000;
+export const CLAUDE_REFRESH_INTERVAL_MS = 600000;
 export const DEPLETED_QUOTA_THRESHOLD = 5;
 export const AUTO_REFRESH_STORAGE_KEY = "quotaAutoRefresh";
 export const CONNECTIONS_PAGE_SIZE = 20;
@@ -63,6 +63,16 @@ export function getConnectionQuotaRemaining(connection, quotaData) {
   return Number.POSITIVE_INFINITY;
 }
 
+function groupByProviderStable(connections) {
+  const groups = new Map();
+  for (const connection of connections) {
+    const provider = connection.provider || "";
+    if (!groups.has(provider)) groups.set(provider, []);
+    groups.get(provider).push(connection);
+  }
+  return Array.from(groups.values()).flat();
+}
+
 export function sortVisibleConnections(
   connections,
   quotaData,
@@ -85,7 +95,7 @@ export function sortVisibleConnections(
     });
   }
 
-  if (!expiringFirst) return connections;
+  if (!expiringFirst) return groupByProviderStable(connections);
 
   const getEarliestResetTime = (connection) => {
     const resetTimes = (quotaData[connection.id]?.quotas || [])

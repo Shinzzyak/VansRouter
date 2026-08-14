@@ -812,6 +812,13 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
+      case "llm7": {
+        const baseUrl = connection.providerSpecificData?.baseUrl || "https://api.llm7.io/v1";
+        const res = await fetchWithConnectionProxy(`${baseUrl.replace(/\/$/, "")}/models`, {
+          headers: { Authorization: `Bearer ${connection.apiKey}` },
+        }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
+      }
       case "xiaomi-mimo":
       case "xiaomi-tokenplan": {
         const baseUrls = { "xiaomi-mimo": "https://api.xiaomimimo.com/v1", "xiaomi-tokenplan": "https://token-plan-sgp.xiaomimimo.com/v1" };
