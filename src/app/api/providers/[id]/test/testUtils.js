@@ -819,6 +819,13 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
       }
+      case "kimchi": {
+        const url = KIMCHI_CONFIG.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers";
+        const res = await fetchWithConnectionProxy(url, {
+          headers: { Accept: "application/json", Authorization: `Bearer ${connection.apiKey}` },
+        }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
       case "xiaomi-mimo":
       case "xiaomi-tokenplan": {
         const baseUrls = { "xiaomi-mimo": "https://api.xiaomimimo.com/v1", "xiaomi-tokenplan": "https://token-plan-sgp.xiaomimimo.com/v1" };

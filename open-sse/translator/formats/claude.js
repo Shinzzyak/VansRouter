@@ -9,6 +9,19 @@ import { PROVIDERS } from "../../providers/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 import { DEFAULT_MAX_TOKENS } from "../../config/runtimeConfig.js";
 
+export function anchorClaudeCache(body) {
+  if (!body || typeof body !== "object") return body;
+  if (Array.isArray(body.system) && body.system.length) body.system.at(-1).cache_control = { type: "ephemeral", ttl: "1h" };
+  if (Array.isArray(body.tools) && body.tools.length) body.tools.at(-1).cache_control = { type: "ephemeral", ttl: "1h" };
+  if (Array.isArray(body.messages)) {
+    for (const message of body.messages) for (const block of message.content || []) delete block.cache_control;
+    const target = [...body.messages].reverse().find((m) => m.role === ROLE.ASSISTANT && Array.isArray(m.content)) || [...body.messages].reverse().find((m) => Array.isArray(m.content));
+    const block = [...(target?.content || [])].reverse().find((b) => b && typeof b === "object" && ![CLAUDE_BLOCK.THINKING, CLAUDE_BLOCK.REDACTED_THINKING].includes(b.type));
+    if (block) block.cache_control = { type: "ephemeral" };
+  }
+  return body;
+}
+
 // Check if message has valid non-empty content
 export function hasValidContent(msg) {
   if (typeof msg.content === "string" && msg.content.trim()) return true;

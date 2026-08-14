@@ -2,7 +2,7 @@ import { compressWithPxpipe, formatPxpipeLog } from "../rtk/pxpipe.js";
 import { detectFormat, getTargetFormat, resolveTransport } from "../services/provider.js";
 import { translateRequest } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
-import { normalizeClaudePassthrough } from "../translator/formats/claude.js";
+import { normalizeClaudePassthrough, anchorClaudeCache } from "../translator/formats/claude.js";
 import { COLORS } from "../utils/stream.js";
 import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
@@ -358,6 +358,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     try { onPxpipeEvent?.({ provider, model, ...pxpipeSummary }); } catch { /* stats must not break requests */ }
   }
 
+  if (passthrough && clientTool === "claude") anchorClaudeCache(translatedBody);
   const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });

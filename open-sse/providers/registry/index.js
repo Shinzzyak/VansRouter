@@ -138,6 +138,8 @@ import p136 from "./llm7.js";
 import p137 from "./morph.js";
 import p138 from "./tencent.js";
 import p139 from "./freebuff.js";
+import p140 from "./fish-audio.js";
+import p141 from "./alitp-intl.js";
 
 export default [
   p0,
@@ -279,5 +281,7 @@ export default [
   p136,
   p137,
   p138,
-  p139
+  p139,
+  p140,
+  p141
 ];
