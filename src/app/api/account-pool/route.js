@@ -150,7 +150,7 @@ export async function PUT(request) {
     const conn = (await getProviderConnections({ id }))?.[0];
     if (!conn) return NextResponse.json({ error: "account not found" }, { status: 404 });
 
-    const { checkAndRefreshToken } = await import("../../../../sse/services/tokenRefresh.js");
+    const { checkAndRefreshToken } = await import("../../../sse/services/tokenRefresh.js");
     const result = await checkAndRefreshToken(conn.provider, {
       id: conn.id,
       refreshToken: conn.refreshToken,
