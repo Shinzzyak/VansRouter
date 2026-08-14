@@ -20,6 +20,7 @@ function sanitizeFunctionName(name) {
 const MAX_RETRY_AFTER_MS = 10000;
 const ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS = 15000;
 const MAX_ANTIGRAVITY_OUTPUT_TOKENS = 16384;
+const COMPETITIVE_CLAUDE_AGENT_PROMPT = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
 const ANTIGRAVITY_IDE_REQUEST_ID_RE = /^agent\/[^/]+\/\d+\/[^/]+\/\d+$/;
 
 const ANTIGRAVITY_TRANSIENT_ERROR_PATTERNS = [
@@ -274,6 +275,16 @@ export class AntigravityExecutor extends BaseExecutor {
       }
     }
     stripBlacklisted(requestWithoutTools);
+    if (Array.isArray(requestWithoutTools.systemInstruction?.parts)) {
+      requestWithoutTools.systemInstruction = {
+        ...requestWithoutTools.systemInstruction,
+        parts: requestWithoutTools.systemInstruction.parts.map((part) => (
+          typeof part?.text === "string"
+            ? { ...part, text: part.text.split(COMPETITIVE_CLAUDE_AGENT_PROMPT).join("") }
+            : part
+        )),
+      };
+    }
     // Model-aware thinkingConfig strip — keep for Gemini, drop for Claude/gpt-oss/tab_.
     if (shouldStripCloudCodeThinking("antigravity", model)) {
       stripCloudCodeThinkingConfig(requestWithoutTools);
