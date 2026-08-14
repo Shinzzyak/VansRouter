@@ -50,8 +50,8 @@ jobs:
 
       - name: Copy static assets into standalone
         run: |
-          cp -r public .next/standalone/public
-          cp -r .next/static .next/standalone/.next/static
+          cp -r public/. .next/standalone/public
+          cp -r .next/static/. .next/standalone/.next/static/
           # open-sse/ is imported via bare specifier ("open-sse/...") which
           # Next.js does NOT trace into the standalone output. Without it the
           # production server cannot resolve providers/executors (FreeBuff,
