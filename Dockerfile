@@ -65,6 +65,7 @@ COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 # Ensure `next` is available at runtime in case tracing did not include it.
 COPY --from=builder /app/node_modules/next ./node_modules/next
+COPY --from=builder /app/node_modules/sql.js ./node_modules/sql.js
 RUN node -e "const Database = require('better-sqlite3'); const db = new Database(':memory:'); db.prepare('SELECT 1').get(); db.close(); console.log('SQLite native driver: better-sqlite3')"
 # Bundle Tailscale binaries into /usr/local/bin so they survive the /app/data volume mount.
 COPY --from=tailscale /out/tailscale /usr/local/bin/tailscale
