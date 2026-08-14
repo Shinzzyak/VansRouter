@@ -424,7 +424,10 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
     try {
       const live = await liveResolver(conn);
       if (live?.models?.length) {
-        rawModelIds = live.models.map((m) => m.id);
+        const liveIds = live.models
+          .map((m) => m.id)
+          .filter((id) => typeof id === "string" && id.trim() !== "");
+        rawModelIds = Array.from(new Set([...rawModelIds, ...liveIds]));
         for (const m of live.models) {
           if (m.id && m.capabilities) liveCapabilitiesById.set(m.id, m.capabilities);
         }
