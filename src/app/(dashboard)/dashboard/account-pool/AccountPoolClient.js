@@ -184,6 +184,32 @@ export default function AccountPoolPage() {
     load();
   }, [load]);
 
+  const isCompatibleProvider = (id) =>
+    id.startsWith("openai-compatible-chat-") || id.startsWith("anthropic-compatible-");
+
+  const providers = useMemo(() => {
+    return Object.entries(grouped)
+      .filter(([id]) => !isCompatibleProvider(id))
+      .sort((a, b) => b[1].total - a[1].total);
+  }, [grouped]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return connections.filter(
+      (c) =>
+        !isCompatibleProvider(c.provider) &&
+        (!providerFilter || c.provider === providerFilter) &&
+        (!q ||
+          (c.email || "").toLowerCase().includes(q) ||
+          (c.name || "").toLowerCase().includes(q))
+    );
+  }, [connections, search, providerFilter]);
+
+  // Pagination: reset ke 50 saat filter/search berubah
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search, providerFilter, connections]);
+
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
   // Fetch benefits (trial/credits) untuk akun yang punya usage handler — hanya visible (paginasi)
@@ -214,32 +240,6 @@ export default function AccountPoolPage() {
       cancelled = true;
     };
   }, [visible]);
-
-  const isCompatibleProvider = (id) =>
-    id.startsWith("openai-compatible-chat-") || id.startsWith("anthropic-compatible-");
-
-  const providers = useMemo(() => {
-    return Object.entries(grouped)
-      .filter(([id]) => !isCompatibleProvider(id))
-      .sort((a, b) => b[1].total - a[1].total);
-  }, [grouped]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return connections.filter(
-      (c) =>
-        !isCompatibleProvider(c.provider) &&
-        (!providerFilter || c.provider === providerFilter) &&
-        (!q ||
-          (c.email || "").toLowerCase().includes(q) ||
-          (c.name || "").toLowerCase().includes(q))
-    );
-  }, [connections, search, providerFilter]);
-
-  // Pagination: reset ke 50 saat filter/search berubah
-  useEffect(() => {
-    setVisibleCount(50);
-  }, [search, providerFilter, connections]);
 
   async function toggleActive(conn) {
     setBusy(true);
