@@ -22,9 +22,14 @@ export default {
     baseUrl: "https://opencode.ai/zen/go/v1/chat/completions",
     headers: {},
   },
+  transports: [
+    { format: "openai", baseUrl: "https://opencode.ai/zen/go/v1/chat/completions", auth: { combined: true, header: "Authorization", scheme: "bearer" } },
+    { format: "claude", baseUrl: "https://opencode.ai/zen/go/v1/messages", auth: { combined: true, header: "x-api-key", scheme: "raw", anthropicVersion: true } },
+    { format: "openai-responses", baseUrl: "https://opencode.ai/zen/go/v1/responses", auth: { combined: true, header: "Authorization", scheme: "bearer" } },
+  ],
   models: [
-    { id: "glm-5.2", name: "GLM 5.2" },
-    { id: "glm-5.1", name: "GLM 5.1" },
+    { id: "glm-5.2", name: "GLM 5.2", supportedFormats: ["openai"] },
+    { id: "glm-5.1", name: "GLM 5.1", supportedFormats: ["openai"] },
     { id: "kimi-k2.7-code", name: "Kimi K2.7 Code" },
     { id: "kimi-k2.6", name: "Kimi K2.6" },
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },

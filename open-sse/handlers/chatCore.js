@@ -8,7 +8,7 @@ import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { extractThinking } from "../translator/concerns/thinkingUnified.js";
-import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
+import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
@@ -118,8 +118,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const modelTargetFormat = getModelTargetFormat(alias, model);
   // Multi-endpoint providers: pick transport matching sourceFormat → zero translation
   const runtimeTransport = resolveTransport(provider, sourceFormat);
-  const targetFormat = modelTargetFormat || runtimeTransport?.format || getTargetFormat(provider);
-  if (runtimeTransport && credentials) credentials.runtimeTransport = runtimeTransport;
+  const supportedFormats = getModelSupportedFormats(alias, model);
+  const selectedTransport = !supportedFormats || supportedFormats.includes(sourceFormat) ? runtimeTransport : null;
+  const targetFormat = modelTargetFormat || selectedTransport?.format || getTargetFormat(provider);
+  if (selectedTransport && credentials) credentials.runtimeTransport = selectedTransport;
   const stripList = getModelStrip(alias, model);
   const upstreamModel = getModelUpstreamId(alias, model);
 
