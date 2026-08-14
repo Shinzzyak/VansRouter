@@ -184,6 +184,8 @@ export default function AccountPoolPage() {
     load();
   }, [load]);
 
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+
   // Fetch benefits (trial/credits) untuk akun yang punya usage handler — hanya visible (paginasi)
   useEffect(() => {
     if (!visible.length) return;
@@ -238,8 +240,6 @@ export default function AccountPoolPage() {
   useEffect(() => {
     setVisibleCount(50);
   }, [search, providerFilter, connections]);
-
-  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
   async function toggleActive(conn) {
     setBusy(true);
