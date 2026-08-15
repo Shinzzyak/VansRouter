@@ -1,6 +1,6 @@
-# v0.91.00 (2026-08-15)
+# v0.91.0 (2026-08-15)
 
-VansRouter 0.91.00 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
+VansRouter 0.91.0 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
 
 ## Provider and model routing
 
