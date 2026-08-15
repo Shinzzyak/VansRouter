@@ -82,6 +82,11 @@ jobs:
           cp -rL node_modules/undici .next/standalone/node_modules/undici
           cp -rL node_modules/uuid .next/standalone/node_modules/uuid
           cp -rL node_modules/node-machine-id .next/standalone/node_modules/node-machine-id
+          # sql.js wasm — Next.js does not trace the .wasm asset into standalone;
+          # without it the sql.js fallback SQLite driver aborts at runtime
+          # ("No SQLite driver available" when better-sqlite3 fails). Copy the
+          # dist dir (js + wasm) into the same .pnpm path the runtime resolves.
+          cp -rL node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist .next/standalone/node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist
           # Bundle the root launcher (server.js) into the standalone tarball as
           # launcher.js. The standalone dir already has its own server.js (the
           # Next server), so rename ours to avoid clobbering it. The deploy step
