@@ -8,6 +8,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.js";
 import { cleanJSONSchemaForAntigravity } from "../translator/formats/gemini.js";
 import { DEFAULT_THINKING_AG_SIGNATURE } from "../config/defaultThinkingSignature.js";
+import { getModelUpstreamId } from "../config/providerModels.js";
 
 // Sanitize function name: Gemini requires [a-zA-Z_][a-zA-Z0-9_.:\-]{0,63}
 function sanitizeFunctionName(name) {
@@ -17,10 +18,18 @@ function sanitizeFunctionName(name) {
   return s.substring(0, 64);
 }
 
+function resolveAntigravityUpstreamModel(model) {
+  const upstream = getModelUpstreamId("ag", model) || model;
+  return upstream.replace(/-tiered\([^)]*\)$/, "-tiered");
+}
+
+export { resolveAntigravityUpstreamModel };
+
 const MAX_RETRY_AFTER_MS = 10000;
 const ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS = 15000;
 const MAX_ANTIGRAVITY_OUTPUT_TOKENS = 16384;
 const COMPETITIVE_CLAUDE_AGENT_PROMPT = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+const AG_PROMPT_TRIGGERS = [COMPETITIVE_CLAUDE_AGENT_PROMPT, "Hermes Agent", "Nous Research"];
 const ANTIGRAVITY_IDE_REQUEST_ID_RE = /^agent\/[^/]+\/\d+\/[^/]+\/\d+$/;
 
 const ANTIGRAVITY_TRANSIENT_ERROR_PATTERNS = [
@@ -149,6 +158,7 @@ export class AntigravityExecutor extends BaseExecutor {
 
   transformRequest(model, body, stream, credentials) {
     const projectId = credentials?.projectId || this.generateProjectId();
+    const upstreamModel = resolveAntigravityUpstreamModel(model);
 
     // OpenAI clients may include stream_options even for non-streaming calls.
     // Google generateContent rejects that combination before processing the request.
@@ -280,7 +290,7 @@ export class AntigravityExecutor extends BaseExecutor {
         ...requestWithoutTools.systemInstruction,
         parts: requestWithoutTools.systemInstruction.parts.map((part) => (
           typeof part?.text === "string"
-            ? { ...part, text: part.text.split(COMPETITIVE_CLAUDE_AGENT_PROMPT).join("") }
+            ? { ...part, text: AG_PROMPT_TRIGGERS.reduce((text, trigger) => text.split(trigger).join(""), part.text) }
             : part
         )),
       };
@@ -334,7 +344,7 @@ export class AntigravityExecutor extends BaseExecutor {
     return {
       ...body,
       project: projectId,
-      model: model,
+      model: upstreamModel,
       userAgent: "antigravity",
       requestType: "agent",
       requestId: buildIdeRequestId({ body, request: transformedRequest, credentials, model, requestType: "agent" }),

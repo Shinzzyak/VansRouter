@@ -41,7 +41,6 @@ export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
     supportsVision: true,
     toolCalling: true,
   },
-  { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", ...GEMINI_36_FLASH_BASE },
   { id: "gemini-3.7-flash-high", name: "Gemini 3.7 Flash (High)", ...GEMINI_37_FLASH_BASE },
   { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)", ...GEMINI_37_FLASH_BASE },
   { id: "gemini-3.7-flash-low", name: "Gemini 3.7 Flash (Low)", ...GEMINI_37_FLASH_BASE },
@@ -165,7 +164,6 @@ export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
 ]);
 
 export const ANTIGRAVITY_MODEL_ALIASES = Object.freeze({
-  "gemini-3.7-flash": "gemini-3.7-flash-medium",
   "gemini-3.7-flash-preview": "gemini-3.7-flash-high",
   "gemini-3.6-flash": "gemini-3.6-flash-medium",
   "gemini-3.6-flash-preview": "gemini-3.6-flash-high",
