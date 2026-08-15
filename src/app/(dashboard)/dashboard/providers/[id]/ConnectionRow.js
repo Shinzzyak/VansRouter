@@ -70,6 +70,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
       } else {
         await onUpdateProxy(poolId);
       }
+      setShowProxyDropdown(false);
     } finally {
       setUpdatingProxy(false);
     }
@@ -236,8 +237,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
           {/* Proxy button with inline dropdown */}
           {(proxyPools || []).length > 0 && (
             <div className="relative" ref={proxyDropdownRef}>
-              <button
-                onClick={() => setShowProxyDropdown((v) => !v)}
+               <button
+                 type="button"
+                 onClick={() => setShowProxyDropdown((v) => !v)}
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
                 disabled={updatingProxy}
               >
@@ -249,16 +251,18 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               {showProxyDropdown && (
                 <div className="absolute right-0 top-full z-50 mt-1 max-w-[78vw] min-w-[160px] rounded-lg border border-border bg-bg py-1 shadow-lg">
                   {rotationStrategy === "smart" && <p className="px-3 py-1 text-[10px] text-text-muted">Smart skips unfit pools for this provider/model.</p>}
-                  <button
-                    onClick={() => handleSelectProxy("__none__")}
+                   <button
+                     type="button"
+                     onClick={() => handleSelectProxy("__none__")}
                     className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${!boundProxyPoolId ? "text-primary font-medium" : "text-text-main"}`}
                   >
                     None
                   </button>
                   <p className="px-3 pt-2 text-[10px] font-medium uppercase text-text-muted">Rotation</p>
                   {["fill-first", "round-robin", "random", "smart"].map((strategy) => (
-                    <button
-                      key={strategy}
+                     <button
+                       type="button"
+                       key={strategy}
                       onClick={() => handleAdvancedProxy(strategy, selectedProxyIds.length > 1 ? selectedProxyIds : (proxyPools || []).filter((pool) => pool.isActive).map((pool) => pool.id))}
                       className={`w-full px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 ${rotationStrategy === strategy ? "font-medium text-primary" : "text-text-main"}`}
                     >
@@ -267,9 +271,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                   ))}
                   <p className="px-3 pt-2 text-[10px] font-medium uppercase text-text-muted">Single pool</p>
                   {(proxyPools || []).map((pool) => (
-                    <button
-                      key={pool.id}
-                      onClick={() => handleSelectProxy(pool.id)}
+                     <button
+                       type="button"
+                       key={pool.id}
+                       onClick={() => handleSelectProxy(pool.id)}
+                       disabled={updatingProxy || pool.isActive !== true}
                       className={`w-full text-left px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${boundProxyPoolId === pool.id ? "text-primary font-medium" : "text-text-main"}`}
                     >
                       {pool.name}
@@ -309,5 +315,3 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     </div>
   );
 }
-
-

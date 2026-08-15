@@ -905,6 +905,19 @@ export default function ProviderDetailPage() {
     setShowBulkProxyModal(false);
   };
 
+  const updateConnectionProxy = async (connectionId, body) => {
+    const res = await fetch(`/api/providers/${connectionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || `Proxy update failed (${res.status})`);
+    }
+    return res.json();
+  };
+
   const applyProxyAssignments = async (assignments) => {
     setBulkUpdatingProxy(true);
     try {
@@ -915,12 +928,7 @@ export default function ProviderDetailPage() {
             ? { proxyPoolIds, proxyRotationStrategy }
             : { proxyPoolId };
 
-          const res = await fetch(`/api/providers/${connectionId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          if (!res.ok) failed += 1;
+          await updateConnectionProxy(connectionId, body);
         } catch (e) {
           console.log("Error applying proxy for", connectionId, e);
           failed += 1;
@@ -1075,6 +1083,7 @@ export default function ProviderDetailPage() {
           <div className="p-3 flex flex-col gap-1">
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Dynamic Strategies</p>
             <button
+              type="button"
               onClick={handleApplyOneToOne}
               disabled={bulkUpdatingProxy || activePools.length === 0}
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1087,6 +1096,7 @@ export default function ProviderDetailPage() {
             </button>
             {["fill-first", "round-robin", "random", "smart"].map((strategy) => (
               <button
+                type="button"
                 key={strategy}
                 onClick={() => handleApplyAdvancedProxy(strategy, activePools.map((p) => p.id))}
                 disabled={bulkUpdatingProxy || activePools.length === 0}
@@ -1106,6 +1116,7 @@ export default function ProviderDetailPage() {
           <div className="p-3 flex flex-col gap-1">
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Static Assignment</p>
             <button
+              type="button"
               onClick={() => handleApplySinglePool(null)}
               disabled={bulkUpdatingProxy}
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1118,6 +1129,7 @@ export default function ProviderDetailPage() {
             </button>
             {proxyPools.map((pool) => (
               <button
+                type="button"
                 key={pool.id}
                 onClick={() => handleApplySinglePool(pool.id)}
                 disabled={bulkUpdatingProxy || pool.isActive !== true}
