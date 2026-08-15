@@ -1,3 +1,34 @@
+# v0.91.00 (2026-08-15)
+
+VansRouter 0.91.00 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
+
+## Provider and model routing
+
+- **Gemini 3.7 Flash support** — Added Antigravity `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, and `gemini-3.7-flash-low` mapped cleanly to upstream `gemini-3.7-flash-tiered`. Removed ambiguous plain alias while preserving explicit provider ACLs.
+- **GLM updates** — Added `glm-5.3` to GLM Coding and GLM (China) provider registries.
+- **Upstream provider adoption** — Integrated latest upstream provider updates (Clinepass, Venice, Muse Spark Web, and OpenCode Go transport declarations).
+- **Prompt trigger sanitization** — Stripped competitive and identity prompt triggers (Claude, Hermes, Nous) to avoid upstream 429 and rate limit rejections.
+
+## Caching and session affinity
+
+- **Codex Responses cache accounting** — Preserved `input_tokens_details.cached_tokens` across Responses API stream conversions and request details extraction.
+- **Tool-call session affinity** — Hardened `accumulateAssistantText` in `sessionManager.js` to extract `tool_calls` and function call arguments, ensuring consistent session hashing across multi-turn agent conversations.
+- **Dashboard cache metrics** — Surfaced `Cache Hit Rate (%)` in usage overview cards and normalized input token breakdown calculation.
+- **Universal Claude cache anchoring** — Ensured `anchorClaudeCache` executes across all passthrough Claude-format targets.
+- **Connection affinity in chat** — Wired `x-connection-id` header to `getProviderCredentials` in chat routing to avoid cache-busting account rotation within a conversation thread.
+
+## Dashboard and management
+
+- **Codex 401 bulk delete** — Added batch action button on `/dashboard/quota` (under Codex filter) to bulk remove connections reporting `Usage API temporarily unavailable (401)` with confirmation and state reconciliation.
+- **Proxy pool assignments** — Hardened per-button proxy pool assignment on provider connection rows, ensuring exact pool IDs are preserved, inactive pools are disabled, and UI state reflects authoritative API responses.
+- **Performance** — Parallelized remote image prefetching using `Promise.all` during request translation.
+
+## Verification
+
+- Full Vitest suite: **243 test files passed; 2,845 tests passed; 13 skipped; 82 expected skipped/e2e**.
+- Production standalone build and PM2 deployment verified on port 3003.
+- Live Gemini 3.7 tiered execution verified (HTTP 200).
+
 # v0.9.99 (2026-08-09)
 
 VansRouter 0.9.99 hardens Qoder authentication, proxy-pool batch operations, OAuth callback handling, and SQLite fallback compatibility.
