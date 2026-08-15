@@ -78,6 +78,11 @@ export function getModelUpstreamId(aliasOrId, modelId) {
   return modelId;
 }
 
+export function resolveAntigravityUpstreamModel(model) {
+  const upstream = getModelUpstreamId("ag", model) || model;
+  return upstream.replace(/-tiered\([^)]*\)$/, "-tiered");
+}
+
 export function getModelQuotaFamily(aliasOrId, modelId) {
   const models = PROVIDER_MODELS[aliasOrId];
   return modelQuotaFamily(findModel(models, modelId, aliasOrId));

@@ -8,7 +8,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.js";
 import { cleanJSONSchemaForAntigravity } from "../translator/formats/gemini.js";
 import { DEFAULT_THINKING_AG_SIGNATURE } from "../config/defaultThinkingSignature.js";
-import { getModelUpstreamId } from "../config/providerModels.js";
+import { resolveAntigravityUpstreamModel } from "../config/providerModels.js";
 
 // Sanitize function name: Gemini requires [a-zA-Z_][a-zA-Z0-9_.:\-]{0,63}
 function sanitizeFunctionName(name) {
@@ -17,13 +17,6 @@ function sanitizeFunctionName(name) {
   if (!/^[a-zA-Z_]/.test(s)) s = "_" + s;
   return s.substring(0, 64);
 }
-
-function resolveAntigravityUpstreamModel(model) {
-  const upstream = getModelUpstreamId("ag", model) || model;
-  return upstream.replace(/-tiered\([^)]*\)$/, "-tiered");
-}
-
-export { resolveAntigravityUpstreamModel };
 
 const MAX_RETRY_AFTER_MS = 10000;
 const ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS = 15000;

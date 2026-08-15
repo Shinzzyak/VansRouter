@@ -9,7 +9,7 @@ describe("providerIcon", () => {
     expect(getProviderIconSrc("kilo-gateway")).toBe("/providers/kilocode.webp");
     expect(getProviderIconSrc("codebuddy-intl")).toBe("/providers/codebuddy-cn.webp");
     expect(getProviderIconSrc("alims-intl")).toBe("/providers/alicode-intl.webp");
-    
+
     // Normal fallback
     expect(getProviderIconSrc("unknown-provider")).toBe("/providers/unknown-provider.webp");
   });

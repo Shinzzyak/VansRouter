@@ -168,7 +168,9 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (!response.ok) return _modelsFetcherCache[providerId] || [];
+    if (!response.ok) {
+      return _modelsFetcherCacheExpiry[providerId] > now ? _modelsFetcherCache[providerId] : [];
+    }
 
     const data = await response.json();
     let rawModels;
