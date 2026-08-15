@@ -147,8 +147,10 @@ export class AntigravityExecutor extends BaseExecutor {
   }
 
   transformRequest(model, body, stream, credentials) {
-    const projectId = credentials?.projectId || this.generateProjectId();
-
+    // Prefer connection-stored cloud project (from loadCodeAssist), else random.
+    const projectId = credentials?.projectId
+      || credentials?.cloudProjectId
+      || this.generateProjectId();
     // OpenAI clients may include stream_options even for non-streaming calls.
     // Google generateContent rejects that combination before processing the request.
     if (stream !== true) delete body.stream_options;
