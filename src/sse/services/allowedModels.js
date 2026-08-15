@@ -146,6 +146,8 @@ function comboMatchesKinds(combo, kindFilter) {
 let _modelsFetcherCache = {};
 let _modelsFetcherCacheExpiry = {};
 const MODELS_FETCHER_CACHE_TTL_MS = 300000;
+const _liveModelsCache = new Map();
+const LIVE_MODELS_CACHE_TTL_MS = 300000;
 
 export async function fetchModelsFetcherIds(providerId, providerInfo) {
   const fetcher = providerInfo?.modelsFetcher;
@@ -166,7 +168,7 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (!response.ok) return [];
+    if (!response.ok) return _modelsFetcherCache[providerId] || [];
 
     const data = await response.json();
     let rawModels;
@@ -176,6 +178,8 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       rawModels = data.data;
     } else if (data?.models && typeof data.models === "object" && !Array.isArray(data.models)) {
       rawModels = Object.values(data.models);
+    } else if (Array.isArray(data?.results)) {
+      rawModels = data.results;
     } else if (data && typeof data === "object") {
       const providerKey = providerInfo?.id || providerId;
       const aliasKey = providerInfo?.alias || providerInfo?.uiAlias;
@@ -432,9 +436,25 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
           if (m.id && m.capabilities) liveCapabilitiesById.set(m.id, m.capabilities);
         }
         liveKind = live.kind || null;
+        _liveModelsCache.set(`${providerId}:${conn.id}`, {
+          models: live.models,
+          kind: liveKind,
+          expiresAt: Date.now() + LIVE_MODELS_CACHE_TTL_MS,
+        });
       }
     } catch (err) {
       console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
+      const cachedLive = _liveModelsCache.get(`${providerId}:${conn.id}`);
+      if (cachedLive?.expiresAt > Date.now()) {
+        rawModelIds = Array.from(new Set([
+          ...rawModelIds,
+          ...cachedLive.models.map((m) => m.id).filter((id) => typeof id === "string" && id.trim() !== ""),
+        ]));
+        for (const m of cachedLive.models) {
+          if (m.id && m.capabilities) liveCapabilitiesById.set(m.id, m.capabilities);
+        }
+        liveKind = cachedLive.kind;
+      }
     }
   }
 
