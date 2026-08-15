@@ -216,7 +216,7 @@ jobs:
             echo "=== Restarting PM2 process: ${PM2_NAME} ==="
             export PORT="${PORT:-20128}"
             pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || pm2 start "${DEPLOY}/server.js" --name "${PM2_NAME}" --env production
-            pm2 save
+            pm2 save --force || echo "[warn] pm2 save failed (dump permission) — non-fatal"
 
             echo "=== Health check (PORT=${PORT}) ==="
             sleep 3
