@@ -26,6 +26,7 @@ import {
   setQuotaCache,
   getModelOptionsForProvider,
   isMultiModelProvider,
+  isCodexUnavailable401,
   getQuotaModelKey,
   filterQuotasByModel,
   QUOTA_CACHE_KEY,
@@ -154,6 +155,7 @@ export default function ProviderLimits() {
   const [expiringFirst, setExpiringFirst] = useState(false);
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const [bulkToggling, setBulkToggling] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(CONNECTIONS_PAGE_SIZE);
   const [customPageSizeInput, setCustomPageSizeInput] = useState(
@@ -700,6 +702,76 @@ export default function ProviderLimits() {
     bulkSetActive(ids, true);
   };
 
+  const codexUnavailableIds = useMemo(() => {
+    return sortedConnections
+      .filter((c) => isCodexUnavailable401(c, quotaData[c.id], errors[c.id]))
+      .map((c) => c.id);
+  }, [sortedConnections, quotaData, errors]);
+
+  const handleBulkDeleteCodexUnavailable = useCallback(async () => {
+    if (!codexUnavailableIds.length || bulkDeleting) return;
+
+    if (
+      !confirm(
+        `Delete ${codexUnavailableIds.length} Codex connection(s) with "Usage API temporarily unavailable (401)"?`,
+      )
+    ) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        codexUnavailableIds.map((id) =>
+          fetch(`/api/providers/${id}`, { method: "DELETE" }),
+        ),
+      );
+
+      setQuotaData((prev) => {
+        const next = { ...prev };
+        for (const id of codexUnavailableIds) delete next[id];
+        return next;
+      });
+      setLoading((prev) => {
+        const next = { ...prev };
+        for (const id of codexUnavailableIds) delete next[id];
+        return next;
+      });
+      setErrors((prev) => {
+        const next = { ...prev };
+        for (const id of codexUnavailableIds) delete next[id];
+        return next;
+      });
+
+      if (typeof window !== "undefined") {
+        try {
+          const cache = getQuotaCache();
+          let changed = false;
+          for (const id of codexUnavailableIds) {
+            if (cache[id]) {
+              delete cache[id];
+              changed = true;
+            }
+          }
+          if (changed) {
+            window.localStorage.setItem(
+              QUOTA_CACHE_KEY,
+              JSON.stringify(cache),
+            );
+          }
+        } catch (e) {
+          console.error("Error deleting cache entries:", e);
+        }
+      }
+
+      await reconcileConnectionsPage(fetchConnections, page);
+    } catch (error) {
+      console.error("Error bulk deleting codex unavailable connections:", error);
+    } finally {
+      setBulkDeleting(false);
+    }
+  }, [codexUnavailableIds, bulkDeleting, fetchConnections, page]);
+
   const selectedProviderLabel =
     providerFilter === "all" ? "All providers" : providerFilter;
   const hasEligibleConnections = totals.eligibleConnections > 0;
@@ -942,6 +1014,31 @@ export default function ProviderLimits() {
             </span>
             <span className="hidden sm:inline">Turn on Available</span>
           </button>
+
+          {/* Bulk: delete Codex 401 unavailable */}
+          {providerFilter === "codex" && (
+            <button
+              type="button"
+              onClick={handleBulkDeleteCodexUnavailable}
+              disabled={bulkDeleting || codexUnavailableIds.length === 0}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-red-500/40 bg-red-500/10 px-2 text-xs text-red-600 dark:text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                codexUnavailableIds.length > 0
+                  ? `Delete ${codexUnavailableIds.length} Codex connection(s) with "Usage API temporarily unavailable (401)"`
+                  : "No Codex 401 unavailable connections on current page"
+              }
+            >
+              <span className={`material-symbols-outlined text-[14px] ${bulkDeleting ? "animate-spin" : ""}`}>
+                {bulkDeleting ? "progress_activity" : "delete_sweep"}
+              </span>
+              <span className="hidden sm:inline">
+                Delete 401 ({codexUnavailableIds.length})
+              </span>
+              <span className="sm:hidden">
+                401 ({codexUnavailableIds.length})
+              </span>
+            </button>
+          )}
 
           {/* Auto-refresh toggle */}
           <button

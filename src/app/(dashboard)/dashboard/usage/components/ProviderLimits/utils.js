@@ -27,6 +27,19 @@ export function isMultiModelProvider(provider) {
   return MULTI_MODEL_PROVIDERS.has(provider);
 }
 
+export function isCodexUnavailable401(connection, quotaEntry, error) {
+  if (connection?.provider !== "codex") return false;
+  const msg = typeof quotaEntry?.message === "string" ? quotaEntry.message : "";
+  const err = typeof error === "string" ? error : "";
+  return (
+    msg.includes("Usage API temporarily unavailable (401)") ||
+    msg.includes("temporarily unavailable (401)") ||
+    (msg.includes("Codex connected") && msg.includes("401")) ||
+    err.includes("temporarily unavailable (401)") ||
+    err.includes("HTTP 401")
+  );
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
