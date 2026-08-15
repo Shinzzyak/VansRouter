@@ -56,8 +56,14 @@ def _ua():
 
 
 def _make_session(proxy=None):
+    # Header PERSIS seperti _th_signup.sess (terbukti 303) — CF block kalau beda.
     s = requests.Session()
-    s.headers.update({"User-Agent": _ua()})
+    s.headers["User-Agent"] = _ua()
+    s.headers.update({"Accept": "text/x-component", "Origin": "https://tokenharbor.ai",
+                      "Referer": "https://tokenharbor.ai/login?mode=signup",
+                      "sec-ch-ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+                      "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+                      "sec-fetch-dest": "empty", "sec-fetch-mode": "cors", "sec-fetch-site": "same-origin"})
     if proxy:
         s.proxies.update({"http": proxy, "https": proxy})
         # Proxy gateway (127.0.0.1:8081) pakai MITM cert — verify=False wajib
@@ -88,7 +94,21 @@ def _create_inbox_chain(yyds_key, yyds_domain, s):
     baseten, sedangkan domain tempmail YYDS/Driftz diblokir (verify email tidak
     pernah sampai — verified 2026-08-14).
     """
-    # 1. Mailpit first — self-hosted, MX live, tidak ada blocklist
+    # YYDS dulu — domain sendiri verified inbox (update 14-08 malam)
+    if yyds_key:
+        try:
+            from qoderreg._yyds import yyds_create_inbox
+
+            email, iid = yyds_create_inbox(yyds_key, yyds_domain or "valerius.biz.id")
+            _log(f"yyds inbox {email}")
+
+            def poll(deadline):
+                return _poll_yyds(yyds_key, iid, deadline)
+
+            return email, poll
+        except Exception as e:
+            _log(f"yyds failed ({e}), fallback mailpit")
+    # 1. Mailpit second — self-hosted, MX live
     try:
         import urllib.request
 
@@ -264,6 +284,26 @@ def _extract_verify_link(msg):
     return None
 
 
+def _retry_get(s, url, tries=5, delay=5):
+    """Gateway 8081 flaky — retry pakai session BARU tiap attempt (egress beda,
+    IP burn di satu proxy tidak memblokir attempt berikutnya)."""
+    last = None
+    for i in range(tries):
+        try:
+            r = s.get(url, timeout=30)
+            if r.status_code == 200:
+                return r
+            last = f"HTTP {r.status_code}"
+        except Exception as e:
+            last = str(e)[:100]
+        if i < tries - 1:
+            proxy = s.proxies.get("https") or s.proxies.get("http") or ""
+            if proxy:
+                s = _make_session(proxy)  # session baru = egress baru (rotasi)
+        time.sleep(delay * (i + 1))
+    raise RuntimeError(f"GET retry habis: {last}")
+
+
 def register_one(yyds_key, yyds_domain, seed_invite, proxy, index, email_override=None, password_override=None):
     s = _make_session(proxy)
     if email_override:
@@ -277,10 +317,8 @@ def register_one(yyds_key, yyds_domain, seed_invite, proxy, index, email_overrid
         password = _passwd()
     invite = seed_invite or ""
 
-    # 1. fetch signup page for action ids
-    r = s.get(SIGNUP_URL, timeout=30)
-    if r.status_code != 200:
-        raise RuntimeError(f"signup page HTTP {r.status_code}")
+    # 1. fetch signup page for action ids (retry — gateway flaky)
+    r = _retry_get(s, SIGNUP_URL)
     action_id, action_key = _parse_action(r.text)
     if not action_id:
         raise RuntimeError("could not parse server action id (turnstile block?)")
