@@ -68,6 +68,8 @@ export default {
     { id: "gemini-3-pro-image", name: "Gemini 3 Pro (Image)", kind: "image", imageGen: true, capabilities: ["textToImage"] },
   ],
   oauth: {
+    clientId: "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+    clientSecret: "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",
     authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
     userInfoUrl: "https://www.googleapis.com/oauth2/v1/userinfo",
@@ -84,6 +86,9 @@ export default {
     onboardUserEndpoint: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
     loadCodeAssistUserAgent: AG_IDE_UA,
     refreshLeadMs: 300000,
+    refresh: {
+      encoding: "form",
+    },
   },
   features: {
     usage: true,

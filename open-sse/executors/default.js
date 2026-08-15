@@ -75,7 +75,7 @@ const REFRESH_GRANTS = Object.fromEntries(
         url: () => tokenUrl,
         params: (ex) => id === "gemini"
           ? { client_id: ex.config.clientId, client_secret: ex.config.clientSecret, ...extraParams }
-          : { client_id: o.clientId, ...extraParams },
+          : { client_id: o.clientId, client_secret: o.clientSecret, ...extraParams },
       }];
     })
 );
@@ -341,6 +341,7 @@ export class DefaultExecutor extends BaseExecutor {
       codex: () => this.refreshFromGrant(credentials, proxyOptions),
       iflow: () => this.refreshIflow(credentials.refreshToken, proxyOptions),
       gemini: () => this.refreshFromGrant(credentials, proxyOptions),
+      antigravity: () => this.refreshFromGrant(credentials, proxyOptions),
       kiro: () => this.refreshKiro(credentials.refreshToken, proxyOptions),
       cline: () => this.refreshCline(credentials.refreshToken, proxyOptions),
       clinepass: () => this.refreshCline(credentials.refreshToken, proxyOptions),
