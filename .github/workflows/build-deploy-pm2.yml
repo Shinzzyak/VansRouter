@@ -85,8 +85,13 @@ jobs:
           # sql.js wasm — Next.js does not trace the .wasm asset into standalone;
           # without it the sql.js fallback SQLite driver aborts at runtime
           # ("No SQLite driver available" when better-sqlite3 fails). Copy the
-          # dist dir (js + wasm) into the same .pnpm path the runtime resolves.
-          cp -rL node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist .next/standalone/node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist
+          # dist dir (js + wasm) into BOTH the flat node_modules/sql.js and the
+          # .pnpm store path the runtime may resolve (mkdir -p first — the
+          # target parent may not exist in the standalone trace).
+          mkdir -p .next/standalone/node_modules/sql.js/dist
+          cp -rL node_modules/sql.js/dist/. .next/standalone/node_modules/sql.js/dist/
+          mkdir -p .next/standalone/node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist
+          cp -rL node_modules/sql.js/dist/. .next/standalone/node_modules/.pnpm/sql.js@1.14.1/node_modules/sql.js/dist/
           # Bundle the root launcher (server.js) into the standalone tarball as
           # launcher.js. The standalone dir already has its own server.js (the
           # Next server), so rename ours to avoid clobbering it. The deploy step
