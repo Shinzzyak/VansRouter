@@ -6,6 +6,14 @@ const GEMINI_36_FLASH_BASE = Object.freeze({
   toolCalling: true,
 });
 
+const GEMINI_37_FLASH_BASE = Object.freeze({
+  contextLength: 1048576,
+  maxOutputTokens: 65536,
+  supportsReasoning: true,
+  supportsVision: true,
+  toolCalling: true,
+});
+
 export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
   {
     id: "claude-sonnet-5",
@@ -37,6 +45,8 @@ export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
   { id: "gemini-3.6-flash-high", name: "Gemini 3.6 Flash (High)", ...GEMINI_36_FLASH_BASE },
   { id: "gemini-3.6-flash-medium", name: "Gemini 3.6 Flash (Medium)", ...GEMINI_36_FLASH_BASE },
   { id: "gemini-3.6-flash-low", name: "Gemini 3.6 Flash (Low)", ...GEMINI_36_FLASH_BASE },
+  { id: "gemini-3.7-flash-tiered", name: "Gemini 3.7 Flash (Tiered)", ...GEMINI_37_FLASH_BASE },
+  { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", ...GEMINI_37_FLASH_BASE },
   {
     id: "gemini-3.5-flash-low",
     name: "Gemini 3.5 Flash (Low)",
@@ -154,6 +164,7 @@ export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
 ]);
 
 export const ANTIGRAVITY_MODEL_ALIASES = Object.freeze({
+  "gemini-3.7-flash": "gemini-3.7-flash-tiered",
   "gemini-3.6-flash": "gemini-3.6-flash-medium",
   "gemini-3.6-flash-preview": "gemini-3.6-flash-high",
   "gemini-3.5-flash-low": "gemini-3.5-flash-extra-low",
