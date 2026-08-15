@@ -136,7 +136,10 @@ export class BaseExecutor {
       // that key off body.stream (e.g. cline: stream:false → JSON envelope, stream:true → SSE)
       // return the transport shape the handler pipeline expects.
       if (transformedBody && typeof transformedBody === "object" && !Array.isArray(transformedBody)) {
-        transformedBody.stream = stream;
+        // Antigravity/Gemini upstream API (Google generateContent) rejects unknown "stream" field.
+        if (this.provider !== "antigravity" && this.provider !== "gemini-cli") {
+          transformedBody.stream = stream;
+        }
       }
       const headers = this.buildHeaders(credentials, stream);
 
