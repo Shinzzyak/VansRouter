@@ -49,12 +49,14 @@
 
 | Feature | 9Router | OmniRoute | **VansRouter** |
 |---------|---------|-----------|---------------|
+| **Gemini 3.7 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
+| **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI |
 | **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) |
 | **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware |
 | **Provider-level failure tracking** | ❌ | ✅ with 5s dedup | ✅ ported, with dedup bound 10K |
 | **Provider exhaustion detection** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ ported + tightened regex |
 | **429 excluded from breaker** | ❌ N/A | ❌ (429 counts) | ✅ Only 5xx/timeout counts |
-| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore |
+| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore + pool routing |
 | **Kimchi CLI alignment** | ❌ | ❌ | ✅ 5 models, per-model caps from models.dev |
 | **Kimchi quota auto-reactivation** | ❌ | ❌ | ✅ monthly auto-reset via instrumentation hook |
 | **AgentRouter provider** | ❌ | ✅ | ✅ |
@@ -68,7 +70,7 @@
 | **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache |
 | **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation |
 | **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
-| **Provider count** | 40+ | 231+ | 40+ + AgentRouter |
+| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 |
 
 ### What VansRouter has that neither 9Router nor OmniRoute has
 
@@ -276,53 +278,53 @@ Default URLs:
   <table>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/claude.png" width="60" alt="Claude Code"/><br/>
+        <img src="./public/providers/claude.webp" width="60" alt="Claude Code"/><br/>
         <b>Claude-Code</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/openclaw.png" width="60" alt="OpenClaw"/><br/>
+        <img src="./public/providers/openclaw.webp" width="60" alt="OpenClaw"/><br/>
         <b>OpenClaw</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/codex.png" width="60" alt="Codex"/><br/>
+        <img src="./public/providers/codex.webp" width="60" alt="Codex"/><br/>
         <b>Codex</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/opencode.png" width="60" alt="OpenCode"/><br/>
+        <img src="./public/providers/opencode.webp" width="60" alt="OpenCode"/><br/>
         <b>OpenCode</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/cursor.png" width="60" alt="Cursor"/><br/>
+        <img src="./public/providers/cursor.webp" width="60" alt="Cursor"/><br/>
         <b>Cursor</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
+        <img src="./public/providers/antigravity.webp" width="60" alt="Antigravity"/><br/>
         <b>Antigravity</b>
       </td>
     </tr>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/cline.png" width="60" alt="Cline"/><br/>
+        <img src="./public/providers/cline.webp" width="60" alt="Cline"/><br/>
         <b>Cline</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/continue.png" width="60" alt="Continue"/><br/>
+        <img src="./public/providers/continue.webp" width="60" alt="Continue"/><br/>
         <b>Continue</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/droid.png" width="60" alt="Droid"/><br/>
+        <img src="./public/providers/droid.webp" width="60" alt="Droid"/><br/>
         <b>Droid</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/roo.png" width="60" alt="Roo"/><br/>
+        <img src="./public/providers/roo.webp" width="60" alt="Roo"/><br/>
         <b>Roo</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/copilot.png" width="60" alt="Copilot"/><br/>
+        <img src="./public/providers/copilot.webp" width="60" alt="Copilot"/><br/>
         <b>Copilot</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/kilocode.png" width="60" alt="Kilo Code"/><br/>
+        <img src="./public/providers/kilocode.webp" width="60" alt="Kilo Code"/><br/>
         <b>Kilo Code</b>
       </td>
     </tr>
@@ -339,27 +341,27 @@ Default URLs:
   <table>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/claude.png" width="60" alt="Claude Code"/><br/>
+        <img src="./public/providers/claude.webp" width="60" alt="Claude Code"/><br/>
         <b>Claude-Code</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
+        <img src="./public/providers/antigravity.webp" width="60" alt="Antigravity"/><br/>
         <b>Antigravity</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/codex.png" width="60" alt="Codex"/><br/>
+        <img src="./public/providers/codex.webp" width="60" alt="Codex"/><br/>
         <b>Codex</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/github.png" width="60" alt="GitHub"/><br/>
+        <img src="./public/providers/github.webp" width="60" alt="GitHub"/><br/>
         <b>GitHub</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/cursor.png" width="60" alt="Cursor"/><br/>
+        <img src="./public/providers/cursor.webp" width="60" alt="Cursor"/><br/>
         <b>Cursor</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/kimchi.png" width="60" alt="Kimchi"/><br/>
+        <img src="./public/providers/kimchi.webp" width="60" alt="Kimchi"/><br/>
         <b>Kimchi</b>
       </td>
     </tr>
@@ -372,17 +374,17 @@ Default URLs:
   <table>
     <tr>
       <td align="center" width="150">
-        <img src="./public/providers/kiro.png" width="70" alt="Kiro"/><br/>
+        <img src="./public/providers/kiro.webp" width="70" alt="Kiro"/><br/>
         <b>Kiro AI</b><br/>
         <sub>Claude 4.5 + GLM-5 + MiniMax<br/>Unlimited FREE</sub>
       </td>
       <td align="center" width="150">
-        <img src="./public/providers/opencode.png" width="70" alt="OpenCode Free"/><br/>
+        <img src="./public/providers/opencode.webp" width="70" alt="OpenCode Free"/><br/>
         <b>OpenCode Free</b><br/>
         <sub>No auth • Auto-fetch models<br/>Unlimited FREE</sub>
       </td>
       <td align="center" width="150">
-        <img src="./public/providers/gemini.png" width="70" alt="Vertex AI"/><br/>
+        <img src="./public/providers/gemini.webp" width="70" alt="Vertex AI"/><br/>
         <b>Vertex AI</b><br/>
         <sub>Gemini 3 Pro + GLM-5 + DeepSeek<br/>$300 credits free</sub>
       </td>
@@ -398,79 +400,79 @@ Default URLs:
   <table>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/openrouter.png" width="50" alt="OpenRouter"/><br/>
+        <img src="./public/providers/openrouter.webp" width="50" alt="OpenRouter"/><br/>
         <sub>OpenRouter</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/glm.png" width="50" alt="GLM"/><br/>
+        <img src="./public/providers/glm.webp" width="50" alt="GLM"/><br/>
         <sub>GLM</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/kimi.png" width="50" alt="Kimi"/><br/>
+        <img src="./public/providers/kimi.webp" width="50" alt="Kimi"/><br/>
         <sub>Kimi</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/minimax.png" width="50" alt="MiniMax"/><br/>
+        <img src="./public/providers/minimax.webp" width="50" alt="MiniMax"/><br/>
         <sub>MiniMax</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/openai.png" width="50" alt="OpenAI"/><br/>
+        <img src="./public/providers/openai.webp" width="50" alt="OpenAI"/><br/>
         <sub>OpenAI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/anthropic.png" width="50" alt="Anthropic"/><br/>
+        <img src="./public/providers/anthropic.webp" width="50" alt="Anthropic"/><br/>
         <sub>Anthropic</sub>
       </td>
     </tr>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/gemini.png" width="50" alt="Gemini"/><br/>
+        <img src="./public/providers/gemini.webp" width="50" alt="Gemini"/><br/>
         <sub>Gemini</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/deepseek.png" width="50" alt="DeepSeek"/><br/>
+        <img src="./public/providers/deepseek.webp" width="50" alt="DeepSeek"/><br/>
         <sub>DeepSeek</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/groq.png" width="50" alt="Groq"/><br/>
+        <img src="./public/providers/groq.webp" width="50" alt="Groq"/><br/>
         <sub>Groq</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/xai.png" width="50" alt="xAI"/><br/>
+        <img src="./public/providers/xai.webp" width="50" alt="xAI"/><br/>
         <sub>xAI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/mistral.png" width="50" alt="Mistral"/><br/>
+        <img src="./public/providers/mistral.webp" width="50" alt="Mistral"/><br/>
         <sub>Mistral</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/perplexity.png" width="50" alt="Perplexity"/><br/>
+        <img src="./public/providers/perplexity.webp" width="50" alt="Perplexity"/><br/>
         <sub>Perplexity</sub>
       </td>
     </tr>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/together.png" width="50" alt="Together"/><br/>
+        <img src="./public/providers/together.webp" width="50" alt="Together"/><br/>
         <sub>Together AI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/fireworks.png" width="50" alt="Fireworks"/><br/>
+        <img src="./public/providers/fireworks.webp" width="50" alt="Fireworks"/><br/>
         <sub>Fireworks</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/cerebras.png" width="50" alt="Cerebras"/><br/>
+        <img src="./public/providers/cerebras.webp" width="50" alt="Cerebras"/><br/>
         <sub>Cerebras</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/cohere.png" width="50" alt="Cohere"/><br/>
+        <img src="./public/providers/cohere.webp" width="50" alt="Cohere"/><br/>
         <sub>Cohere</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/nvidia.png" width="50" alt="NVIDIA"/><br/>
+        <img src="./public/providers/nvidia.webp" width="50" alt="NVIDIA"/><br/>
         <sub>NVIDIA</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/siliconflow.png" width="50" alt="SiliconFlow"/><br/>
+        <img src="./public/providers/siliconflow.webp" width="50" alt="SiliconFlow"/><br/>
         <sub>SiliconFlow</sub>
       </td>
     </tr>
@@ -965,7 +967,7 @@ Models:
 <details>
 <summary><b>💰 Cheap Providers (Backup)</b></summary>
 
-### GLM-5.1 / GLM-4.7 (Daily reset, $0.6/1M)
+### GLM-5.3 / GLM-5.1 / GLM-4.7 (Daily reset, $0.6/1M)
 
 1. Sign up: [Zhipu AI](https://open.bigmodel.cn/)
 2. Get API key from Coding Plan
@@ -973,9 +975,9 @@ Models:
    - Provider: `glm`
    - API Key: `your-key`
 
-**Use:** `glm/glm-5.1`, `glm/glm-5`, `glm/glm-4.7`
+**Use:** `glm/glm-5.3`, `glm/glm-5.1`, `glm/glm-5`, `glm/glm-4.7`
 
-**Pro Tip:** Coding Plan offers 3× quota at 1/7 cost! Reset daily 10:00 AM.
+**Pro Tip:** Coding Plan offers 3× quota at 1/7 cost! Reset daily 10:00 AM. Supports GLM-5.3 with coding-optimized benchmarks.
 
 ### MiniMax M2.7 (5h reset, $0.20/1M)
 
@@ -1019,6 +1021,27 @@ Models:
 ```
 
 **Pro Tip:** Best free option for Claude. No API key, no payment, fully unlimited.
+
+### Antigravity (Google Cloud Code / Gemini 3.7 & Claude)
+
+```bash
+Dashboard → Connect Antigravity
+→ Google OAuth Login
+→ Access to tiered reasoning models with automatic quota failover
+
+Models:
+  ag/gemini-3.7-flash-high
+  ag/gemini-3.7-flash-medium
+  ag/gemini-3.7-flash-low
+  ag/gemini-3.6-flash-high
+  ag/gemini-3.6-flash-medium
+  ag/gemini-3.6-flash-low
+  ag/claude-sonnet-4-6
+  ag/claude-opus-4-6-thinking
+  ag/gpt-oss-120b-medium
+```
+
+**Pro Tip:** Full Gemini 3.7 Flash support with High/Medium/Low reasoning effort tiers, competitive trigger stripping, and direct proxy routing.
 
 ### OpenCode Free (No auth, auto-fetch models)
 
