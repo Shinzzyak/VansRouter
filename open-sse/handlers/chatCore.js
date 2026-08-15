@@ -358,7 +358,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     try { onPxpipeEvent?.({ provider, model, ...pxpipeSummary }); } catch { /* stats must not break requests */ }
   }
 
-  if (passthrough && clientTool === "claude") anchorClaudeCache(translatedBody);
+  if (passthrough && (clientTool === "claude" || targetFormat === FORMATS.CLAUDE)) anchorClaudeCache(translatedBody);
   const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });

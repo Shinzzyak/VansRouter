@@ -276,8 +276,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
   }
 
-  // Extract userAgent from request
+  // Extract userAgent and preferred connection from request
   const userAgent = request?.headers?.get("user-agent") || "";
+  const preferredConnectionId = request?.headers?.get("x-connection-id") || null;
 
   const chatSettings = await getSettings();
   const circuitBreakerEnabled = chatSettings.circuitBreakerEnabled !== false && chatSettings.circuitBreakerEnabled !== 0;
@@ -334,7 +335,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return withSelectedConnectionHeader(new Response(null, { status: 499 }), lastExcludedConnectionId);
     }
 
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
 
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
