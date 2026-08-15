@@ -11,11 +11,11 @@ BASE = "http://127.0.0.1:20128/api/v1/chat/completions"
 
 # provider → model untuk test (harus model yang pasti ada)
 TESTS = [
-    ("ag/gemini-3.6-flash-medium", "antigravity"),
-    ("kr/claude-sonnet-4.5", "kiro"),
-    ("kimchi/minimax-m3", "kimchi"),
-    ("gcli/grok-4.6", "grok-cli"),
-    ("qoder/auto", "qoder"),
+    ("ag/gemini-3.6-flash-medium", "antigravity", 50),
+    ("kr/claude-sonnet-4.5", "kiro", 70),
+    ("kimchi/minimax-m3", "kimchi", 30),
+    ("gcli/grok-4.6", "grok-cli", 40),
+    ("qoder/auto", "qoder", 40),
 ]
 
 def test(model, timeout=45):
@@ -41,9 +41,28 @@ def test(model, timeout=45):
         return False, f"ERR {str(e)[:60]}"
 
 print(f"=== VERIFIKASI PROVIDER ({time.strftime('%H:%M')}) ===")
-for model, label in TESTS:
+# Clear model locks dulu supaya test tidak kena lock accumulation
+import sqlite3
+try:
+    conn = sqlite3.connect("/home/ubuntu/VansRouter/data/db/data.sqlite")
+    for prov in ("kiro", "antigravity", "kimchi", "grok-cli", "qoder"):
+        rows = conn.execute("SELECT id, data FROM providerConnections WHERE provider=?", (prov,)).fetchall()
+        for rid, data in rows:
+            d = json.loads(data)
+            dirty = False
+            for k in list(d.keys()):
+                if k.startswith("modelLock_") or k in ("lastError", "errorCode", "lastErrorAt", "backoffLevel"):
+                    del d[k]
+                    dirty = True
+            if dirty:
+                conn.execute("UPDATE providerConnections SET data=? WHERE id=?", (json.dumps(d), rid))
+    conn.commit()
+    print("locks cleared")
+except Exception as e:
+    print(f"clear locks err: {e}")
+for model, label, tmo in TESTS:
     t0 = time.time()
-    ok, info = test(model)
+    ok, info = test(model, tmo)
     dt = time.time() - t0
     status = "✅ OK" if ok else "❌ FAIL"
     print(f"{status} {label:<12} {model:<30} {dt:5.1f}s | {info}")
