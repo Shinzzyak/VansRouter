@@ -921,7 +921,7 @@ export default function ProviderDetailPage() {
   const applyProxyAssignments = async (assignments) => {
     setBulkUpdatingProxy(true);
     try {
-      let failed = 0;
+      const failedConnectionIds = [];
       for (const { connectionId, proxyPoolId, proxyPoolIds, proxyRotationStrategy } of assignments) {
         try {
           const body = proxyPoolIds
@@ -931,11 +931,14 @@ export default function ProviderDetailPage() {
           await updateConnectionProxy(connectionId, body);
         } catch (e) {
           console.log("Error applying proxy for", connectionId, e);
-          failed += 1;
+          failedConnectionIds.push(connectionId);
         }
       }
-      if (failed > 0) alert(`Updated with ${failed} failed request(s).`);
       await fetchConnections();
+      if (failedConnectionIds.length > 0) {
+        alert(`Updated with ${failedConnectionIds.length} failed request(s). Retry the selected connections.`);
+        return;
+      }
       setShowBulkProxyModal(false);
       clearSelection();
     } finally {

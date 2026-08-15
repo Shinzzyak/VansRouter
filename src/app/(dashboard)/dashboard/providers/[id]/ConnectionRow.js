@@ -263,8 +263,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                      <button
                        type="button"
                        key={strategy}
-                      onClick={() => handleAdvancedProxy(strategy, selectedProxyIds.length > 1 ? selectedProxyIds : (proxyPools || []).filter((pool) => pool.isActive).map((pool) => pool.id))}
-                      className={`w-full px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 ${rotationStrategy === strategy ? "font-medium text-primary" : "text-text-main"}`}
+                       onClick={() => handleAdvancedProxy(strategy, selectedProxyIds.length > 1 ? selectedProxyIds : (proxyPools || []).filter((pool) => pool.isActive).map((pool) => pool.id))}
+                       disabled={updatingProxy}
+                       className={`w-full px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 ${rotationStrategy === strategy ? "font-medium text-primary" : "text-text-main"}`}
                     >
                       {strategy === "smart" ? "Smart (provider/model aware)" : strategy}
                     </button>
