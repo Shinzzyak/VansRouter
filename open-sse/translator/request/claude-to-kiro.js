@@ -433,7 +433,10 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId,
-      agentContinuationId: continuationId,
+      // Kiro API rejects agentContinuationId on a fresh conversation (400
+      // "Improperly formed request" — verified empirically). Only send it for
+      // follow-up turns that actually carry history.
+      ...(history?.length > 0 ? { agentContinuationId: continuationId } : {}),
       agentTaskType: "vibe",
       currentMessage: {
         userInputMessage,
