@@ -158,6 +158,7 @@ export const ANTIGRAVITY_PUBLIC_MODELS = Object.freeze([
 ]);
 
 export const ANTIGRAVITY_MODEL_ALIASES = Object.freeze({
+  "gemini-3.7-flash": "gemini-3.7-flash-medium",
   "gemini-3.6-flash": "gemini-3.6-flash-medium",
   "gemini-3.6-flash-preview": "gemini-3.6-flash-high",
   "gemini-3.5-flash-low": "gemini-3.5-flash-extra-low",
