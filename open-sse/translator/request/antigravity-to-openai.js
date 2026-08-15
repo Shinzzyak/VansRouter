@@ -13,7 +13,7 @@ export function antigravityToOpenAIRequest(model, body, stream) {
   const result = {
     model: model,
     messages: [],
-    stream: stream
+    stream: false
   };
 
   // Generation config
