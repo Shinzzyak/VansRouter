@@ -33,9 +33,10 @@ export default {
     },
   },
   models: [
-    { id: "GLM-5.2", name: "GLM 5.2" },
-    { id: "GLM-5.2-Max", name: "GLM 5.2 Max", quotaFamily: "max" },
-    { id: "GLM-5-Turbo", name: "GLM 5 Turbo" },
-    { id: "GLM-5-Turbo-Max", name: "GLM 5 Turbo Max", quotaFamily: "max" },
+    { id: "glm-5.2", name: "GLM 5.2", webOnly: true },
+    { id: "GLM-5.1", name: "GLM 5.1", webOnly: true },
+    { id: "GLM-5-Turbo", name: "GLM 5 Turbo", webOnly: true },
+    { id: "glm-4.7", name: "GLM 4.7", webOnly: true },
+    { id: "glm-4-flash", name: "GLM 4 Flash", webOnly: true },
   ],
 };
