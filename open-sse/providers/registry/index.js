@@ -1,5 +1,6 @@
 import p0 from "./agentrouter.js";
 import p1 from "./ai21.js";
+import p2x from "./aionlabs.js";
 import p2 from "./alibaba.js";
 import p3 from "./alicode-intl.js";
 import p4 from "./alicode.js";
@@ -151,6 +152,7 @@ import p149 from "./vyce.js";
 export default [
   p0,
   p1,
+  p2x,
   p2,
   p3,
   p4,
