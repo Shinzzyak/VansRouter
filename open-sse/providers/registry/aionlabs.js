@@ -2,6 +2,7 @@ export default {
   id: "aionlabs",
   priority: 20,
   alias: "aionlabs",
+  aliases: ["aion-labs"],
   uiAlias: "aion",
   display: {
     name: "AionLabs",
