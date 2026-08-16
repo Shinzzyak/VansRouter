@@ -27,6 +27,7 @@ jobs:
         id: check
         run: |
           git fetch origin main
+          git fetch origin "refs/tags/$GITHUB_REF_NAME:refs/tags/release-validation"
           if test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"; then
             echo "is-main=true" >> "$GITHUB_OUTPUT"
             echo "✅ Release target is the current main commit"
@@ -36,7 +37,7 @@ jobs:
             exit 1
           fi
 
-          node cli/scripts/validate-release.cjs "$GITHUB_REF_NAME"
+          RELEASE_TAG_REF=refs/tags/release-validation node cli/scripts/validate-release.cjs "$GITHUB_REF_NAME"
 
   build-and-verify-ghcr:
     needs: check-branch

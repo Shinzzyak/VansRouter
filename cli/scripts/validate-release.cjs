@@ -45,8 +45,9 @@ if (latestCommitFiles.length !== 1 || latestCommitFiles[0] !== "CHANGELOG.md") {
   throw new Error("The commit immediately before the release tag must change only CHANGELOG.md");
 }
 if (requireAnnotatedTag) {
+  const tagRef = process.env.RELEASE_TAG_REF || `refs/tags/${refName}`;
   try {
-    execFileSync("git", ["rev-parse", "--verify", `refs/tags/${refName}^{tag}`], { encoding: "utf8" });
+    execFileSync("git", ["rev-parse", "--verify", `${tagRef}^{tag}`], { encoding: "utf8" });
   } catch {
     throw new Error(`Release tag must be annotated: ${refName}`);
   }
