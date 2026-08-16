@@ -44,8 +44,12 @@ const latestCommitFiles = execFileSync(
 if (latestCommitFiles.length !== 1 || latestCommitFiles[0] !== "CHANGELOG.md") {
   throw new Error("The commit immediately before the release tag must change only CHANGELOG.md");
 }
-if (requireAnnotatedTag && execFileSync("git", ["cat-file", "-t", refName], { encoding: "utf8" }).trim() !== "tag") {
-  throw new Error(`Release tag must be annotated: ${refName}`);
+if (requireAnnotatedTag) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", `refs/tags/${refName}^{tag}`], { encoding: "utf8" });
+  } catch {
+    throw new Error(`Release tag must be annotated: ${refName}`);
+  }
 }
 
 if (process.env.GITHUB_OUTPUT) {
