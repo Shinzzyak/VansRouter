@@ -1,3 +1,8 @@
+# v0.91.5 (2026-08-16)
+
+- **Release tag validation** — Validate the original annotated tag through a temporary ref after GitHub Actions checkout.
+- **Release recovery** — Kept failed tags `v0.91.3` and `v0.91.4` immutable; prepared the next recovery release.
+
 # v0.91.4 (2026-08-16)
 
 - **Release tag validation** — Fixed annotated-tag detection after GitHub Actions resolves a tag checkout to its commit.
