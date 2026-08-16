@@ -1,3 +1,10 @@
+# v0.91.2 (2026-08-16)
+
+- **Freebuff routing** — Updated base3 agent mapping, injected the required `end_turn` tool, added clearer upstream gate errors, and added Freebuff auth probing.
+- **Freebuff proxy safety** — Enforced proxy-only egress, persisted pool fitness, skipped unhealthy pools, and failed closed when no valid pool exists.
+- **Freebuff model assignment** — Added optional strict per-model account assignment in the dashboard and credential selector.
+- **CLI SQLite runtime** — Fixed bundled WASM packaging, runtime module resolution, and native SQLite artifact leakage in published packages.
+
 # v0.91.1 (2026-08-15)
 
 VansRouter 0.91.1 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
