@@ -19,7 +19,49 @@ const CLAUDE_CONFIG = {
 const OAUTH_429_COOLDOWN_MS = 180000;
 const oauthCooldown = new Map();
 
-export async function getClaudeUsage(accessToken, proxyOptions = null) {
+const USAGE_CACHE_TTL_MS = 300000;
+const USAGE_CACHE_MAX_ENTRIES = 100;
+const usageCache = new Map();
+
+function pruneUsageCache() {
+  const now = Date.now();
+  for (const [token, entry] of usageCache) {
+    if (!entry.promise && entry.expiresAt <= now) usageCache.delete(token);
+  }
+  while (usageCache.size > USAGE_CACHE_MAX_ENTRIES) {
+    usageCache.delete(usageCache.keys().next().value);
+  }
+}
+
+export async function getClaudeUsage(accessToken, proxyOptions = null, options = {}) {
+  const force = options.force === true;
+  pruneUsageCache();
+  if (!force && accessToken) {
+    const cached = usageCache.get(accessToken);
+    if (cached?.promise) return cached.promise;
+    if (cached?.expiresAt > Date.now()) return cached.result;
+  }
+
+  const stale = !force && accessToken ? usageCache.get(accessToken)?.result : null;
+  const promise = fetchClaudeUsageRaw(accessToken, proxyOptions).then((result) => {
+    if (accessToken && result?.quotas && Object.keys(result.quotas).length > 0) {
+      if (usageCache.get(accessToken)?.promise === promise) {
+        usageCache.set(accessToken, { result, expiresAt: Date.now() + USAGE_CACHE_TTL_MS });
+        pruneUsageCache();
+      }
+      return result;
+    }
+    if (accessToken && usageCache.get(accessToken)?.promise === promise) {
+      if (stale) usageCache.set(accessToken, { result: stale, expiresAt: Date.now() + USAGE_CACHE_TTL_MS });
+      else usageCache.delete(accessToken);
+    }
+    return stale || result;
+  });
+  if (accessToken) usageCache.set(accessToken, { promise });
+  return promise;
+}
+
+async function fetchClaudeUsageRaw(accessToken, proxyOptions = null) {
   try {
     // Skip OAuth usage call while this token is cooling down from a recent 429
     const cooldownUntil = oauthCooldown.get(accessToken);

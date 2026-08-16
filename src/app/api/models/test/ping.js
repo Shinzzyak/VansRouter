@@ -142,7 +142,7 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     headers,
     body: JSON.stringify({
       model,
-      max_tokens: 256, // reasoning models burn tokens on thinking; 16 leaves content empty
+      max_tokens: 1024,
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
@@ -159,19 +159,8 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     return { ok: false, latencyMs, error: `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`, status: res.status };
   }
 
-  // cline/clinepass upstream wraps non-streaming responses in {data:{...}} / {success,data}
-  // envelopes — unwrap before checking choices so the dashboard test isn't fooled.
-  let body = parsed;
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    if (body.data && typeof body.data === "object" && !Array.isArray(body.data) && "choices" in body.data) {
-      body = body.data;
-    } else if (body.success === true && body.data && typeof body.data === "object" && !Array.isArray(body.data)) {
-      body = body.data;
-    }
-  }
-
-  const providerStatus = body?.status;
-  const providerMsg = body?.msg || body?.message;
+  const providerStatus = parsed?.status;
+  const providerMsg = parsed?.msg || parsed?.message;
   const hasProviderErrorStatus = providerStatus !== undefined
     && providerStatus !== null
     && String(providerStatus) !== "200"
@@ -185,8 +174,8 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     };
   }
 
-  if (body?.error) {
-    const providerError = body?.error?.message || body?.error || "Provider returned an error";
+  if (parsed?.error) {
+    const providerError = parsed?.error?.message || parsed?.error || "Provider returned an error";
     return {
       ok: false,
       latencyMs,
@@ -195,7 +184,12 @@ async function pingModelByKindImpl(model, kind, baseUrl = `http://127.0.0.1:${pr
     };
   }
 
-  const hasChoices = Array.isArray(body?.choices) && body.choices.length > 0;
+  const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
+  const firstChoice = parsed?.choices?.[0] || {};
+  const hasReasoning = firstChoice.message?.reasoning || firstChoice.message?.reasoning_content || firstChoice.message?.thinking || firstChoice.message?.thinking_content;
+  if (hasChoices && firstChoice.finish_reason === "length" && !String(firstChoice.message?.content || "").trim() && hasReasoning) {
+    return { ok: true, latencyMs, error: null, status: res.status, note: "reasoning-only response (length-limited)" };
+  }
   if (!hasChoices) {
     return {
       ok: false,
