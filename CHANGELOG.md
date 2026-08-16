@@ -1,3 +1,9 @@
+# v0.91.3 (2026-08-16)
+
+- **Release pipeline** — Hardened npm/GHCR promotion with immutable staging, pinned release tooling, global release serialization, and final promotion gates.
+- **CLI artifact validation** — Validated the actual npm tarball for bundled `sql-wasm.wasm`, native SQLite exclusion, runtime startup, SQLite initialization, and legacy JSON migration without network access.
+- **Release policy** — Added mandatory AI release rules for version alignment, changelog-last commits, annotated tags, deployment checks, and rollback recovery.
+
 # v0.91.2 (2026-08-16)
 
 - **Freebuff routing** — Updated base3 agent mapping, injected the required `end_turn` tool, added clearer upstream gate errors, and added Freebuff auth probing.
