@@ -127,4 +127,13 @@ jobs:
         run: npm install --prefix cli --no-audit --no-fund
 
       - name: Build and publish CLI package
-        run: npm publish ./cli --provenance
+        run: |
+          npm run build --prefix cli
+          node <<'NODE'
+          const fs = require("fs");
+          const cp = require("child_process");
+          const files = JSON.parse(cp.execFileSync("npm", ["pack", "./cli", "--dry-run", "--json"], { encoding: "utf8" }))[0].files.map(({ path }) => path);
+          if (!files.includes("app/_nm/sql.js/dist/sql-wasm.wasm")) throw new Error("sql.js WASM missing from CLI package");
+          if (files.some((file) => file.endsWith("better_sqlite3.node"))) throw new Error("native better-sqlite3 leaked into CLI package");
+          NODE
+          npm publish ./cli --provenance
