@@ -249,6 +249,10 @@ if (require.main === module) {
     copyRecursive,
     requiredFiles: ["dist/sql-wasm.wasm"],
   });
+  // Next's standalone trace can omit these when the CLI package is built from
+  // the workspace root; the published server still requires them at startup.
+  ensureModuleInBundle("react", { cliAppDir, appDir, rootDir, copyRecursive });
+  ensureModuleInBundle("react-dom", { cliAppDir, appDir, rootDir, copyRecursive });
   ensureModuleInBundle("@swc/helpers", { cliAppDir, appDir, rootDir, copyRecursive });
   ensureModuleInBundle("@next/env", { cliAppDir, appDir, rootDir, copyRecursive });
   if (stripBundledPackage(cliAppDir, "better-sqlite3")) {
