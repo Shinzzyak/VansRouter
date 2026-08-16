@@ -1,3 +1,8 @@
+# v0.91.4 (2026-08-16)
+
+- **Release tag validation** — Fixed annotated-tag detection after GitHub Actions resolves a tag checkout to its commit.
+- **Release recovery** — Kept `v0.91.3` immutable after its gate failure and prepared the next valid release version.
+
 # v0.91.3 (2026-08-16)
 
 - **Release pipeline** — Hardened npm/GHCR promotion with immutable staging, pinned release tooling, global release serialization, and final promotion gates.
