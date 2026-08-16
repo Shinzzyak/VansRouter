@@ -45,7 +45,7 @@ async function solveCaptcha(log) {
     try {
       browser = await chromium.launch({
         headless: true,
-        executablePath: "/home/vanszs/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
+        executablePath: "/home/ubuntu/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
         args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled", "--disable-features=IsolateOrigins,site-per-process", "--window-size=1280,720"],
         ignoreDefaultArgs: ["--enable-automation"],
       });
@@ -81,9 +81,9 @@ async function solveCaptcha(log) {
           });
         }
         return new Promise((resolve) => {
-          const t = setTimeout(() => resolve(null), 25000);
+          const t = setTimeout(() => resolve(null), 15000);
           window.initAliyunCaptcha({
-            SceneId: "11xygtvd",
+            SceneId: "didk33e0",
             mode: "popup",
             getInstance: (inst) => {
               if (typeof inst.startTracelessVerification === "function") inst.startTracelessVerification();
