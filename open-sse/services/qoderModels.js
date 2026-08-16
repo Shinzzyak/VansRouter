@@ -79,7 +79,7 @@ async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
 async function fetchUserIdForJobToken(jobToken, proxyOptions = null, signal = null) {
   try {
     const res = await proxyAwareFetch(QODER_USERINFO_URL, {
-      headers: { Authorization: `Bearer ${jobToken}`, Accept: "application/json", "User-Agent": "qodercli/1.0.0" },
+      headers: { Authorization: *** ${jobToken}`, Accept: "application/json", "User-Agent": "Go-http-client/2.0" },
       signal,
     }, proxyOptions);
     if (!res.ok) return "";
