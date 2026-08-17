@@ -492,6 +492,67 @@ function QoderAutomationPanel({ providerInfo, onRefresh }) {
   );
 }
 
+function ZCodeAutomationPanel({ providerInfo, onRefresh }) {
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollResult, setPollResult] = useState(null);
+
+  async function runQuotaPoll() {
+    setIsPolling(true);
+    setPollResult(null);
+    try {
+      const res = await fetch("/api/oauth/zcode/quota-poll", { method: "POST" });
+      const data = await res.json();
+      setPollResult(data);
+    } catch (e) {
+      setPollResult({ ok: false, error: String(e) });
+    } finally {
+      setIsPolling(false);
+    }
+  }
+
+  const okCount = pollResult?.okCount ?? 0;
+  const total = pollResult?.total ?? 0;
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={runQuotaPoll} disabled={isPolling} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="refresh"
+            title={isPolling ? "Polling Quota..." : "Poll ZAI Quota"}
+            subtitle="Poll feature-quota untuk semua akun zcode (X-Signature). Reset time-based: 1 jam cooldown / 5 jam refresh."
+          />
+        </button>
+      </div>
+      {pollResult && (
+        <div className="mt-3 rounded border p-3 text-sm">
+          {pollResult.ok === false ? (
+            <span className="text-red-400">Error: {pollResult.error}</span>
+          ) : (
+            <div>
+              <span className="font-medium">
+                {okCount}/{total} akun OK
+              </span>
+              <div className="mt-2 max-h-48 overflow-y-auto text-xs">
+                {pollResult.results?.slice(0, 50).map((r, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="w-8 text-right">{r.index}</span>
+                    <span className="flex-1">{r.name}</span>
+                    <span className={r.code === "0" ? "text-green-400" : "text-red-400"}>{r.code}</span>
+                    <span className="text-gray-400">{r.resetAt}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 function FreebuffAutomationPanel({ providerInfo, onRefresh }) {
   const [isBulkOpen, setIsBulkOpen] = useState(false);
 
@@ -789,6 +850,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Import freebuff authTokens (API keys) from device-code approve flow. Models: GPT-5.6 Luna, GLM-5.2, Gemini 3.1 Pro.",
     supportedModes: ["import-token"],
     component: FreebuffAutomationPanel,
+  },
+  {
+    id: "zcode",
+    label: "ZAI (ZCode)",
+    icon: "smart_toy",
+    description: "Poll GLM-5.2 quota untuk semua akun zcode (X-Signature cracked). Reset time-based: cooldown 1 jam, refresh 5 jam.",
+    supportedModes: ["quota-poll"],
+    component: ZCodeAutomationPanel,
   },
   {
     id: "autoclaw",
