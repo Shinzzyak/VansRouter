@@ -1,0 +1,11 @@
+# Webshare proxies (dari pelerproxy bot / farm)
+# format: host:port:user:pass
+31.59.20.176:6754:wlsnoaoh:i8u8p6ljrw0b
+31.56.127.193:7684:wlsnoaoh:i8u8p6ljrw0b
+45.38.107.97:6014:wlsnoaoh:i8u8p6ljrw0b
+198.105.121.200:6462:wlsnoaoh:i8u8p6ljrw0b
+64.137.96.74:6641:wlsnoaoh:i8u8p6ljrw0b
+198.23.243.226:6361:wlsnoaoh:i8u8p6ljrw0b
+38.154.185.97:6370:wlsnoaoh:i8u8p6ljrw0b
+142.111.67.146:5611:wlsnoaoh:i8u8p6ljrw0b
+191.96.254.138:6185:wlsnoaoh:i8u8p6ljrw0b

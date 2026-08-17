@@ -1,4 +1,5 @@
 import { CLAUDE_API_HEADERS } from "../shared.js";
+// ponytail: CLAUDE_API_HEADERS masih dipakai shared; transport zcode = sidecar lokal (web free tier)
 
 export default {
   id: "zcode",
@@ -23,13 +24,13 @@ export default {
     redirectUri: "zcode://zai-auth/callback",
   },
   transport: {
-    baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
-    format: "claude",
-    headers: { ...CLAUDE_API_HEADERS },
+    baseUrl: "http://127.0.0.1:8878/v1/chat/completions",
+    format: "openai",
+    headers: { "Content-Type": "application/json" },
     auth: {
       combined: true,
-      header: "x-api-key",
-      scheme: "raw",
+      header: "Authorization",
+      scheme: "bearer",
     },
   },
   models: [

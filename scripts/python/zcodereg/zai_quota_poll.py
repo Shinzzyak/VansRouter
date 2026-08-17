@@ -50,7 +50,20 @@ def make_url_params(user_id, token, ts, request_id):
     }
     return urllib.parse.urlencode(params)
 
-def signed_get(user_id, token, path):
+def load_proxies(path="/home/ubuntu/VansRouter/scripts/python/websharereg/proxies_webshare.txt"):
+    """Load proxy pool: baris format host:port:user:pass"""
+    try:
+        out = []
+        for line in open(path):
+            line = line.strip()
+            if line and not line.startswith("#") and line.count(":") >= 3:
+                h, p, u, pw = line.split(":", 3)
+                out.append(f"http://{u}:{pw}@{h}:{p}")
+        return out
+    except Exception:
+        return []
+
+def signed_get(user_id, token, path, proxy=None):
     ts = int(time.time() * 1000)
     sig, ts2, rid = tre_signature(user_id, path, ts)
     params = make_url_params(user_id, token, ts, rid)
@@ -63,10 +76,17 @@ def signed_get(user_id, token, path):
         "Accept": "application/json",
     })
     try:
-        r = urllib.request.urlopen(req, timeout=20)
+        if proxy:
+            ph = urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+            opener = urllib.request.build_opener(ph)
+            r = opener.open(req, timeout=25)
+        else:
+            r = urllib.request.urlopen(req, timeout=20)
         return json.loads(r.read())
     except urllib.error.HTTPError as e:
         return {"_http_error": e.code, "_body": e.read()[:200].decode(errors="replace")}
+    except Exception as e:
+        return {"_error": str(e)[:100]}
 
 def load_accounts(db_path):
     conn = sqlite3.connect(db_path)
@@ -101,8 +121,13 @@ def main():
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--sleep", type=float, default=2.0, help="delay antar akun (rate limit 405 kalau terlalu cepat)")
     ap.add_argument("--limit", type=int, default=0, help="max akun (0=all)")
+    ap.add_argument("--proxies", default="/home/ubuntu/VansRouter/scripts/python/websharereg/proxies_webshare.txt",
+                    help="proxy pool file (host:port:user:pass per baris); rotasi per akun")
     args = ap.parse_args()
 
+    proxylist = load_proxies(args.proxies) if args.proxies else []
+    if proxylist:
+        print(f"Proxy pool: {len(proxylist)} proxies (rotasi)")
     accounts = load_accounts(args.db)
     if args.limit:
         accounts = accounts[:args.limit]
@@ -111,8 +136,9 @@ def main():
     results = []
     ok = err = 0
     for i, a in enumerate(accounts):
-        r = signed_get(a["uid"], a["token"], "/api/v1/dashboard/feature-quota/summary")
-        code = r.get("code", r.get("_http_error", "ERR"))
+        proxy = proxylist[i % len(proxylist)] if proxylist else None
+        r = signed_get(a["uid"], a["token"], "/api/v1/dashboard/feature-quota/summary", proxy)
+        code = r.get("code", r.get("_http_error", r.get("_error", "ERR"))) if isinstance(r, dict) else "ERR"
         if code == 0:
             ok += 1
         else:

@@ -5,13 +5,58 @@ Sidecar ini: OpenAI /v1/chat/completions → chat.z.ai/api/v2/chat/completions.
 Ambil kredensial (token+cookies) dari DB providerConnections.
 Usage: python3 zcode_sidecar.py [--port 8878] [--db /home/ubuntu/VansRouter/data/db/data.sqlite]
 """
-import sys, os, json, time, uuid, sqlite3, urllib.request, urllib.error, urllib.parse, threading
+import sys, os, json, time, uuid, sqlite3, urllib.request, urllib.error, urllib.parse, threading, base64, hmac, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 SOLVER = os.environ.get("ZCODE_SOLVER", "http://127.0.0.1:8877/solve")
 RELAY = os.environ.get("ZCODE_RELAY", "")  # vercel relay URL utk bypass IP block
-FE_VERSION = "prod-fe-1.1.84"
+FE_VERSION = "prod-fe-1.1.87"
+SECRET = "key-@@@@)))()((9))-xxxx&&&%%%%%"
+
+def b64u(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+def _fingerprint():
+    """kre() rebuild — sortedPayload + urlParams (fingerprint browser)."""
+    ts = int(time.time() * 1000)
+    o = {
+        "hostname": "chat.z.ai",
+        "protocol": "https:",
+        "referrer": "https://chat.z.ai/",
+        "title": "Z.ai",
+        "timezone_offset": str(-time.timezone // 60),
+        "local_time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "utc_time": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+        "is_mobile": "false",
+        "is_touch": "false",
+        "max_touch_points": "0",
+        "browser_name": "Chrome",
+        "os_name": "Windows",
+    }
+    params = [
+        ("timestamp", str(ts)),
+        ("requestId", str(uuid.uuid4())),
+        ("user_id", ""),  # diisi caller
+        ("version", "0.0.1"),
+        ("platform", "web"),
+        ("token", ""),  # diisi caller
+        ("user_agent", "Mozilla/5.0"),
+        ("language", "en"),
+        ("timezone", "Asia/Shanghai"),
+    ] + list(o.items())
+    # sortedPayload: entries dari o (bukan params!) di-sort key → join ","
+    sorted_payload = ",".join(v for _, v in sorted(o.items()))
+    url_params = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params)
+    return sorted_payload, url_params, ts
+
+def tre_signature(sorted_payload, message, ts):
+    """Tre(sortedPayload, message, ts) — HMAC ganda verified."""
+    m = ts // 300000
+    msg_b64 = b64u(message.encode())
+    h = f"{sorted_payload}|{msg_b64}|{ts}"
+    sig1 = hmac.new(SECRET.encode(), str(m).encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(sig1.encode(), h.encode(), hashlib.sha256).hexdigest()
+    return sig
 
 # round-robin account pool
 _pool = []
@@ -70,36 +115,39 @@ def create_chat(acc):
 
 def zcode_chat(acc, model, messages, max_tokens=2048, stream=False):
     token = acc["token"]
-    ts = int(time.time() * 1000)
+    sorted_payload, url_params, ts = _fingerprint()
+    user_msgs = [m for m in messages if m.get("role") == "user"]
+    sig_msg = user_msgs[-1]["content"] if user_msgs else "hi"
+    if isinstance(sig_msg, list):
+        sig_msg = " ".join(str(p.get("text", "")) for p in sig_msg if isinstance(p, dict))
     rid = str(uuid.uuid4())
-    params = (f"timestamp={ts}&requestId={rid}"
-              f"&user_id={urllib.parse.quote(acc['email'])}"
-              f"&version=0.0.1&platform=web"
-              f"&token={urllib.parse.quote(token)}"
-              f"&user_agent={urllib.parse.quote('Mozilla/5.0')}"
-              f"&language=en")
-    url = f"https://chat.z.ai/api/v2/chat/completions?{params}"
+    # inject user_id + token ke url_params (token kosong di _fingerprint)
+    url_params = url_params.replace("user_id=&", f"user_id={urllib.parse.quote(acc['email'])}&")
+    url_params = url_params.replace("token=&", f"token={urllib.parse.quote(token)}&")
+    url_params = url_params.replace("requestId=", f"requestId={rid}&dummy=")
+    import re as _re
+    url_params = _re.sub(r"requestId=[^&]*", f"requestId={rid}", url_params)
+    sig = tre_signature(sorted_payload, str(sig_msg)[:200], ts)
+    url = f"https://chat.z.ai/api/v2/chat/completions?{url_params}&signature_timestamp={ts}"
     solved = solve_captcha()
     if not solved.get("solved"):
         raise RuntimeError(f"captcha solve failed: {solved.get('error', 'unknown')}")
-    captcha_param = json.dumps(solved.get("token", {}))
-    # ambil pesan terakhir user sebagai signature
-    user_msgs = [m for m in messages if m.get("role") == "user"]
-    sig = user_msgs[-1]["content"] if user_msgs else "hi"
-    if isinstance(sig, list):
-        sig = " ".join(str(p.get("text", "")) for p in sig if isinstance(p, dict))
+    captcha_param = solved.get("token", {})  # object, bukan string JSON
     body = {
         "stream": True, "model": model,
         "messages": messages,
-        "signature_prompt": str(sig)[:200], "params": {}, "extra": {},
+        "signature_prompt": str(sig_msg)[:200], "params": {}, "extra": {},
         "features": {}, "variables": {},
         "captcha_verify_param": captcha_param,
     }
     req = urllib.request.Request(url, data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", "Cookie": acc["cookie"],
-                 "X-FE-Version": FE_VERSION, "X-Request-Id": rid})
+                 "X-FE-Version": FE_VERSION, "X-Request-Id": rid,
+                 "Authorization": f"Bearer {token}", "X-Signature": sig,
+                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"})
     with _req(url, req.data, {"Content-Type": "application/json", "Cookie": acc["cookie"],
-                              "X-FE-Version": FE_VERSION, "X-Request-Id": rid}) as r:
+                              "X-FE-Version": FE_VERSION, "X-Request-Id": rid,
+                              "Authorization": f"Bearer {token}", "X-Signature": sig}) as r:
         return r.read().decode()
 
 def parse_sse(text):
