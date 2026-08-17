@@ -148,6 +148,8 @@ import p146 from "./windsurf.js";
 import p147 from "./qwen.js";
 import p148 from "./tokenharbor.js";
 import p149 from "./vyce.js";
+import p150 from "./fish-audio.js";
+import p151 from "./alitp-intl.js";
 
 export default [
   p0,
@@ -299,5 +301,7 @@ export default [
   p146,
   p147,
   p148,
-  p149
+  p149,
+  p150,
+  p151
 ];

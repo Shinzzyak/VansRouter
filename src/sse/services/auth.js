@@ -2,6 +2,7 @@ import { getProviderConnections, validateApiKey, updateProviderConnection, getSe
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { classify429 } from "open-sse/utils/classify429.js";
+import { resolveAntigravityProxyConfig } from "open-sse/utils/proxyFetch.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS, AI_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers.js";
 import * as log from "../utils/logger.js";
@@ -14,6 +15,18 @@ export { isTrustedInternalRequest } from "./internalTrust.js";
 // Per-provider mutex — allows parallel credential selection across different providers
 // while preventing races within the same provider's account rotation.
 const _providerMutexes = new Map();
+
+export function filterConnectionsForModel(providerId, connections, model, settings = {}) {
+  const override = (settings.providerStrategies || {})[providerId] || {};
+  if (providerId !== "freebuff" || override.strictModelAssignment !== true || !model) return connections;
+  return connections.filter((connection) => {
+    const data = connection.providerSpecificData || {};
+    const assignedModel = Object.prototype.hasOwnProperty.call(data, "assignedModel")
+      ? data.assignedModel
+      : (providerId === "freebuff" ? data.freebuffModel : null);
+    return assignedModel === model;
+  });
+}
 
 function getProviderMutex(provider) {
   if (!_providerMutexes.has(provider)) {
@@ -82,7 +95,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       };
     }
 
-    const connections = await getProviderConnections({ provider: providerId, isActive: true });
+    let connections = await getProviderConnections({ provider: providerId, isActive: true });
+    const settings = await getSettings();
+    connections = filterConnectionsForModel(providerId, connections, model, settings);
     log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
 
     if (connections.length === 0) {
@@ -128,7 +143,6 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       return null;
     }
 
-    const settings = await getSettings();
     // Per-provider strategy overrides global setting
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
     const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
@@ -148,7 +162,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
       // Sort by lastUsed (most recent first) to find current candidate
       const byRecency = availableConnections.toSorted((a, b) => {
-        if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
+        if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority ?? 999) - (b.priority ?? 999);
         if (!a.lastUsedAt) return 1;
         if (!b.lastUsedAt) return -1;
         return new Date(b.lastUsedAt) - new Date(a.lastUsedAt);
@@ -168,7 +182,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       } else {
         // Pick the least recently used (excluding current if possible)
         const sortedByOldest = availableConnections.toSorted((a, b) => {
-          if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
+          if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority ?? 999) - (b.priority ?? 999);
           if (!a.lastUsedAt) return -1;
           if (!b.lastUsedAt) return 1;
           return new Date(a.lastUsedAt) - new Date(b.lastUsedAt);
@@ -187,11 +201,14 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       connection = availableConnections[0];
     }
 
-    // Scope the region-aware picker to this provider/model (e.g. freebuff::gpt-5.6-luna)
-    const psdForProxy = connection.providerSpecificData?.proxyPoolIds?.length
-      ? { ...connection.providerSpecificData, proxyPoolScope: `${providerId}::${model || ""}` }
-      : connection.providerSpecificData;
-    const resolvedProxy = await resolveConnectionProxyConfig(psdForProxy || {}, connection.id);
+    const psdForProxy = providerId === "freebuff"
+      ? { ...(connection.providerSpecificData || {}), proxyPoolScope: `${providerId}::${model || ""}` }
+      : connection.providerSpecificData?.proxyPoolIds?.length
+        ? { ...connection.providerSpecificData, proxyPoolScope: `${providerId}::${model || ""}` }
+        : connection.providerSpecificData;
+    const resolvedProxy = providerId === "antigravity"
+      ? resolveAntigravityProxyConfig(psdForProxy)
+      : await resolveConnectionProxyConfig(psdForProxy || {}, connection.id);
 
     return {
       authType: connection.authType,
@@ -213,6 +230,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
         vercelRelayUrl: resolvedProxy.vercelRelayUrl || "",
         proxyPoolId: resolvedProxy.proxyPoolId || null,
+        noFitPool: resolvedProxy.noFitPool === true,
         strictProxy: resolvedProxy.strictProxy === true,
       },
       connectionId: connection.id,

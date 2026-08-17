@@ -1,10 +1,50 @@
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 
+// Providers whose usage endpoint returns per-model quota rows.
+// The model filter dropdown is shown only for these providers.
+export const MULTI_MODEL_PROVIDERS = new Set([
+  "antigravity",
+  "gemini-cli",
+]);
+
+/**
+ * Build model filter options for a given provider.
+ * @param {string} provider - Provider id
+ * @returns {Array<{id: string, name: string}>}
+ */
+export function getModelOptionsForProvider(provider) {
+  if (!provider || !MULTI_MODEL_PROVIDERS.has(provider)) return [];
+  const models = getModelsByProviderId(provider);
+  return models.map((m) => ({ id: m.id, name: m.name || m.id }));
+}
+
+/**
+ * Check whether a provider supports per-model quota filtering.
+ * @param {string} provider - Provider id
+ * @returns {boolean}
+ */
+export function isMultiModelProvider(provider) {
+  return MULTI_MODEL_PROVIDERS.has(provider);
+}
+
+export function isCodexUnavailable401(connection, quotaEntry, error) {
+  if (connection?.provider !== "codex") return false;
+  const msg = typeof quotaEntry?.message === "string" ? quotaEntry.message : "";
+  const err = typeof error === "string" ? error : "";
+  return (
+    msg.includes("Usage API temporarily unavailable (401)") ||
+    msg.includes("temporarily unavailable (401)") ||
+    (msg.includes("Codex connected") && msg.includes("401")) ||
+    err.includes("temporarily unavailable (401)") ||
+    err.includes("HTTP 401")
+  );
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
 export const REFRESH_INTERVAL_MS = 60000;
 // Claude usage/quota endpoint rate-limits; poll it less often than other providers
-export const CLAUDE_REFRESH_INTERVAL_MS = 180000;
+export const CLAUDE_REFRESH_INTERVAL_MS = 600000;
 export const DEPLETED_QUOTA_THRESHOLD = 5;
 export const AUTO_REFRESH_STORAGE_KEY = "quotaAutoRefresh";
 export const CONNECTIONS_PAGE_SIZE = 20;
@@ -36,6 +76,16 @@ export function getConnectionQuotaRemaining(connection, quotaData) {
   return Number.POSITIVE_INFINITY;
 }
 
+function groupByProviderStable(connections) {
+  const groups = new Map();
+  for (const connection of connections) {
+    const provider = connection.provider || "";
+    if (!groups.has(provider)) groups.set(provider, []);
+    groups.get(provider).push(connection);
+  }
+  return Array.from(groups.values()).flat();
+}
+
 export function sortVisibleConnections(
   connections,
   quotaData,
@@ -58,7 +108,7 @@ export function sortVisibleConnections(
     });
   }
 
-  if (!expiringFirst) return connections;
+  if (!expiringFirst) return groupByProviderStable(connections);
 
   const getEarliestResetTime = (connection) => {
     const resetTimes = (quotaData[connection.id]?.quotas || [])

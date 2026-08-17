@@ -1,3 +1,57 @@
+# v0.91.5 (2026-08-16)
+
+- **Release tag validation** — Validate the original annotated tag through a temporary ref after GitHub Actions checkout.
+- **Release recovery** — Kept failed tags `v0.91.3` and `v0.91.4` immutable; prepared the next recovery release.
+
+# v0.91.4 (2026-08-16)
+
+- **Release tag validation** — Fixed annotated-tag detection after GitHub Actions resolves a tag checkout to its commit.
+- **Release recovery** — Kept `v0.91.3` immutable after its gate failure and prepared the next valid release version.
+
+# v0.91.3 (2026-08-16)
+
+- **Release pipeline** — Hardened npm/GHCR promotion with immutable staging, pinned release tooling, global release serialization, and final promotion gates.
+- **CLI artifact validation** — Validated the actual npm tarball for bundled `sql-wasm.wasm`, native SQLite exclusion, runtime startup, SQLite initialization, and legacy JSON migration without network access.
+- **Release policy** — Added mandatory AI release rules for version alignment, changelog-last commits, annotated tags, deployment checks, and rollback recovery.
+
+# v0.91.2 (2026-08-16)
+
+- **Freebuff routing** — Updated base3 agent mapping, injected the required `end_turn` tool, added clearer upstream gate errors, and added Freebuff auth probing.
+- **Freebuff proxy safety** — Enforced proxy-only egress, persisted pool fitness, skipped unhealthy pools, and failed closed when no valid pool exists.
+- **Freebuff model assignment** — Added optional strict per-model account assignment in the dashboard and credential selector.
+- **CLI SQLite runtime** — Fixed bundled WASM packaging, runtime module resolution, and native SQLite artifact leakage in published packages.
+
+# v0.91.1 (2026-08-15)
+
+VansRouter 0.91.1 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
+
+## Provider and model routing
+
+- **Gemini 3.7 Flash support** — Added Antigravity `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, and `gemini-3.7-flash-low` mapped cleanly to upstream `gemini-3.7-flash-tiered`. Removed ambiguous plain alias while preserving explicit provider ACLs.
+- **GLM updates** — Added `glm-5.3` to GLM Coding and GLM (China) provider registries.
+- **Upstream provider adoption** — Integrated latest upstream provider updates (Clinepass, Venice, Muse Spark Web, and OpenCode Go transport declarations).
+- **Prompt trigger sanitization** — Stripped competitive and identity prompt triggers (Claude, Hermes, Nous) to avoid upstream 429 and rate limit rejections.
+
+## Caching and session affinity
+
+- **Codex Responses cache accounting** — Preserved `input_tokens_details.cached_tokens` across Responses API stream conversions and request details extraction.
+- **Tool-call session affinity** — Hardened `accumulateAssistantText` in `sessionManager.js` to extract `tool_calls` and function call arguments, ensuring consistent session hashing across multi-turn agent conversations.
+- **Dashboard cache metrics** — Surfaced `Cache Hit Rate (%)` in usage overview cards and normalized input token breakdown calculation.
+- **Universal Claude cache anchoring** — Ensured `anchorClaudeCache` executes across all passthrough Claude-format targets.
+- **Connection affinity in chat** — Wired `x-connection-id` header to `getProviderCredentials` in chat routing to avoid cache-busting account rotation within a conversation thread.
+
+## Dashboard and management
+
+- **Codex 401 bulk delete** — Added batch action button on `/dashboard/quota` (under Codex filter) to bulk remove connections reporting `Usage API temporarily unavailable (401)` with confirmation and state reconciliation.
+- **Proxy pool assignments** — Hardened per-button proxy pool assignment on provider connection rows, ensuring exact pool IDs are preserved, inactive pools are disabled, and UI state reflects authoritative API responses.
+- **Performance** — Parallelized remote image prefetching using `Promise.all` during request translation.
+
+## Verification
+
+- Full Vitest suite: **243 test files passed; 2,845 tests passed; 13 skipped; 82 expected skipped/e2e**.
+- Production standalone build and PM2 deployment verified on port 3003.
+- Live Gemini 3.7 tiered execution verified (HTTP 200).
+
 # v0.9.99 (2026-08-09)
 
 VansRouter 0.9.99 hardens Qoder authentication, proxy-pool batch operations, OAuth callback handling, and SQLite fallback compatibility.

@@ -6,7 +6,7 @@ import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
 import CooldownTimer from "./CooldownTimer";
 
-export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null }) {
+export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null, modelAssignmentOptions = null, onModelAssignmentChange = null, strictModelAssignment = false }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const [selectedProxyIds, setSelectedProxyIds] = useState([]);
@@ -301,6 +301,22 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               )}
             </div>
           )}
+          {modelAssignmentOptions && onModelAssignmentChange && (
+            <select
+              value={Object.prototype.hasOwnProperty.call(connection.providerSpecificData || {}, "assignedModel")
+                ? (connection.providerSpecificData.assignedModel || "")
+                : (connection.providerSpecificData?.freebuffModel || "")}
+              onChange={(event) => onModelAssignmentChange(event.target.value)}
+              disabled={!strictModelAssignment}
+              className="mt-2 max-w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-text-main"
+              title="Model assignment"
+            >
+              <option value="">Unassigned</option>
+              {modelAssignmentOptions.map((model) => (
+                <option key={model.id} value={model.id}>{model.name || model.id}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
       <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
@@ -308,8 +324,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
           {/* Proxy button with inline dropdown */}
           {(proxyPools || []).length > 0 && (
             <div className="relative" ref={proxyDropdownRef}>
-              <button
-                onClick={() => setShowProxyDropdown((v) => !v)}
+               <button
+                 type="button"
+                 onClick={() => setShowProxyDropdown((v) => !v)}
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
                 disabled={updatingProxy}
               >
@@ -353,14 +370,6 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                       }}
                       className={`w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${selectedProxyIds.length === 0 ? "text-primary font-medium" : "text-text-main"}`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[16px]">
-                          {selectedProxyIds.length === 0 ? "check_box" : "check_box_outline_blank"}
-                        </span>
-                        <span>None</span>
-                      </div>
-                    </button>
-                    
                     {/* Select All Button (only for rotation strategies) */}
                     {rotationStrategy !== "none" && (
                       <button

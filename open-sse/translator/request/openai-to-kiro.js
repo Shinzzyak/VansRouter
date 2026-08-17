@@ -522,6 +522,10 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     toolSpecs,
     nameMap,
   });
+  if (!canonical.valid) {
+    console.error(`[Kiro] refusing invalid conversation (openai -> kiro): ${(canonical.errors || []).join(", ") || "unknown"}`);
+    return null;
+  }
   const replayCurrent = canonical.currentMessage.userInputMessage;
 
   const payload = {

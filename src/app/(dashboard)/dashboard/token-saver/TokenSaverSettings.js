@@ -111,8 +111,7 @@ export default function TokenSaverSettings({
           </p>
         </div>
         <Toggle
-          checked={headroomEnabled && headroomRunning}
-          disabled={!headroomRunning}
+          checked={headroomEnabled}
           onChange={() => handleHeadroomEnabled(!headroomEnabled)}
         />
       </div>

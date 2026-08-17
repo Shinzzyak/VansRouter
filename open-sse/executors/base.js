@@ -159,6 +159,7 @@ export class BaseExecutor {
           method: "POST",
           headers,
           body: bodyStr,
+          provider: this.provider,
           signal: mergedSignal
         }, proxyOptions);
         clearTimeout(connectTimer);

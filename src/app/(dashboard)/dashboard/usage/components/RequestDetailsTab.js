@@ -53,10 +53,10 @@ function getProviderName(providerId, cache) {
 
 function CollapsibleSection({ title, children, defaultOpen = false, icon = null }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  
+
   return (
     <div className="border border-black/5 dark:border-white/5 rounded-lg overflow-hidden">
-      <button 
+      <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between p-3 bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
@@ -72,7 +72,7 @@ function CollapsibleSection({ title, children, defaultOpen = false, icon = null 
           chevron_right
         </span>
       </button>
-      
+
       {isOpen && (
         <div className="p-4 border-t border-black/5 dark:border-white/5">
           {children}
@@ -83,9 +83,15 @@ function CollapsibleSection({ title, children, defaultOpen = false, icon = null 
 }
 
 function getInputTokens(tokens) {
-  const prompt = tokens?.prompt_tokens || tokens?.input_tokens || 0;
-  const cache = tokens?.cached_tokens || tokens?.cache_read_input_tokens || 0;
-  return prompt < cache ? cache : prompt;
+  if (!tokens) return 0;
+  if (tokens.prompt_tokens !== undefined) {
+    const prompt = Number(tokens.prompt_tokens) || 0;
+    const cache = Number(tokens.cached_tokens || tokens.cache_read_input_tokens) || 0;
+    return prompt < cache ? prompt + cache : prompt;
+  }
+  const input = Number(tokens.input_tokens) || 0;
+  const cache = Number(tokens.cache_read_input_tokens || tokens.cached_tokens) || 0;
+  return input + cache;
 }
 
 function maskKey(fullKey) {
@@ -459,7 +465,7 @@ export default function RequestDetailsTab() {
                 )}
               </div>
             )}
-            
+
             <div className="space-y-4">
               <CollapsibleSection title="1. Client Request (Input)" defaultOpen={true} icon="input">
                 <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
@@ -485,7 +491,7 @@ export default function RequestDetailsTab() {
                   </pre>
                 </CollapsibleSection>
               )}
-              
+
               <CollapsibleSection title="4. Client Response (Final)" defaultOpen={true} icon="output">
                 {selectedDetail.response?.thinking && (
                   <div className="mb-4">
@@ -498,7 +504,7 @@ export default function RequestDetailsTab() {
                     </pre>
                   </div>
                 )}
-                
+
                 <h4 className="font-semibold text-text-main mb-2 text-xs uppercase tracking-wide opacity-70">
                   Content
                 </h4>

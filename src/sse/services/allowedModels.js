@@ -146,6 +146,8 @@ function comboMatchesKinds(combo, kindFilter) {
 let _modelsFetcherCache = {};
 let _modelsFetcherCacheExpiry = {};
 const MODELS_FETCHER_CACHE_TTL_MS = 300000;
+const _liveModelsCache = new Map();
+const LIVE_MODELS_CACHE_TTL_MS = 300000;
 
 export async function fetchModelsFetcherIds(providerId, providerInfo) {
   const fetcher = providerInfo?.modelsFetcher;
@@ -166,7 +168,9 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      return _modelsFetcherCacheExpiry[providerId] > now ? _modelsFetcherCache[providerId] : [];
+    }
 
     const data = await response.json();
     let rawModels;
@@ -176,6 +180,8 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       rawModels = data.data;
     } else if (data?.models && typeof data.models === "object" && !Array.isArray(data.models)) {
       rawModels = Object.values(data.models);
+    } else if (Array.isArray(data?.results)) {
+      rawModels = data.results;
     } else if (data && typeof data === "object") {
       const providerKey = providerInfo?.id || providerId;
       const aliasKey = providerInfo?.alias || providerInfo?.uiAlias;
@@ -424,14 +430,33 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
     try {
       const live = await liveResolver(conn);
       if (live?.models?.length) {
-        rawModelIds = live.models.map((m) => m.id);
+        const liveIds = live.models
+          .map((m) => m.id)
+          .filter((id) => typeof id === "string" && id.trim() !== "");
+        rawModelIds = Array.from(new Set([...rawModelIds, ...liveIds]));
         for (const m of live.models) {
           if (m.id && m.capabilities) liveCapabilitiesById.set(m.id, m.capabilities);
         }
         liveKind = live.kind || null;
+        _liveModelsCache.set(`${providerId}:${conn.id}`, {
+          models: live.models,
+          kind: liveKind,
+          expiresAt: Date.now() + LIVE_MODELS_CACHE_TTL_MS,
+        });
       }
     } catch (err) {
       console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
+      const cachedLive = _liveModelsCache.get(`${providerId}:${conn.id}`);
+      if (cachedLive?.expiresAt > Date.now()) {
+        rawModelIds = Array.from(new Set([
+          ...rawModelIds,
+          ...cachedLive.models.map((m) => m.id).filter((id) => typeof id === "string" && id.trim() !== ""),
+        ]));
+        for (const m of cachedLive.models) {
+          if (m.id && m.capabilities) liveCapabilitiesById.set(m.id, m.capabilities);
+        }
+        liveKind = cachedLive.kind;
+      }
     }
   }
 
@@ -612,7 +637,11 @@ export async function buildModelsList(kindFilter, options = {}) {
     };
     if (entry.kind) model.kind = entry.kind;
     if (entry.capabilities) model.capabilities = entry.capabilities;
-    if (entry.context_window) model.context_window = entry.context_window;
+    const caps = entry.capabilities || {};
+    if (entry.kind === "llm" || !entry.kind) {
+      if (Number.isFinite(caps.contextWindow)) model.context_length = caps.contextWindow;
+      if (Number.isFinite(caps.maxOutput)) model.max_completion_tokens = caps.maxOutput;
+    }
     dedupedModels.push(model);
   }
 

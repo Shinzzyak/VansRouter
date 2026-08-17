@@ -2,6 +2,7 @@
 // Sinh snapshot lần đầu (baseline) → sau refactor chạy lại phải khớp y hệt.
 // Mock proxyFetch + uuid-heavy executors KHÔNG cần ở đây vì chỉ gọi buildUrl/buildHeaders (pure).
 import { describe, it, expect } from "vitest";
+import { hostname } from "node:os";
 import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { DefaultExecutor } from "../../open-sse/executors/default.js";
 
@@ -26,14 +27,20 @@ const SPECIALIZED = new Set([
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
+  const dynamicValues = [process.version, hostname()].filter(Boolean);
   for (const [k, v] of Object.entries(headers)) {
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          .replace(new RegExp(dynamicValues.map(escapeRegExp).join("|"), "g"), "<ENV>")
       : v;
   }
   return out;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const providerIds = Object.keys(PROVIDERS).filter((p) => !SPECIALIZED.has(p)).sort();

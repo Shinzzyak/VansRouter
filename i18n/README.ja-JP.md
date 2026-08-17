@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../images/9router.webp?1" alt="VansRouter Dashboard" width="800"/>
+  <img src="../images/9router.png?1" alt="VansRouter Dashboard" width="800"/>
 
   # 9Router - 無料 AI ルーター
 

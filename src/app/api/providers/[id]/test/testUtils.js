@@ -105,6 +105,21 @@ const OAUTH_TEST_CONFIG = {
     },
     refreshable: false,
   },
+  freebuff: {
+    url: "https://www.codebuff.com/api/v1/freebuff/session",
+    method: "GET",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    extraHeaders: {
+      Accept: "application/json",
+      "User-Agent": "codebuff-cli/0.0.138",
+    },
+    acceptStatuses: [403, 404],
+    softFailMessage: {
+      403: "Connected, but Freebuff is gated (403) — country blocked or account banned.",
+    },
+    refreshable: false,
+  },
   // Grok CLI / Grok Build — probe /v1/user (no inference quota). Headers mirror official CLI.
   "grok-cli": {
     url: PROVIDERS["grok-cli"]?.userUrl || "https://cli-chat-proxy.grok.com/v1/user",
@@ -796,6 +811,20 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
+      }
+      case "llm7": {
+        const baseUrl = connection.providerSpecificData?.baseUrl || "https://api.llm7.io/v1";
+        const res = await fetchWithConnectionProxy(`${baseUrl.replace(/\/$/, "")}/models`, {
+          headers: { Authorization: `Bearer ${connection.apiKey}` },
+        }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
+      }
+      case "kimchi": {
+        const url = KIMCHI_CONFIG.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers";
+        const res = await fetchWithConnectionProxy(url, {
+          headers: { Accept: "application/json", Authorization: `Bearer ${connection.apiKey}` },
+        }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
       case "xiaomi-mimo":
       case "xiaomi-tokenplan": {

@@ -2,6 +2,8 @@ import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { randomUUID } from "crypto";
+import { resolveSessionId } from "../utils/sessionManager.js";
+
 // OpenCode free tier is limited per egress IP — a 429/403 with a limit-ish
 // body means the POOL's IP is exhausted, not the account. Declare it
 // pool-scoped so chatCore marks the pool unfit, retries via another pool, and
@@ -37,7 +39,9 @@ export class OpenCodeExecutor extends BaseExecutor {
     };
   }
 
-  transformRequest(model, body) {
+  transformRequest(model, body, stream, credentials) {
+    const session = resolveSessionId({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "opencode" });
+    if (credentials) credentials.runtimeOpencodeSession = `ses_${String(session || crypto.randomUUID()).replace(/^ses_/, "").replaceAll("-", "")}`;
     return injectReasoningContent({ provider: this.provider, model, body });
   }
 
@@ -48,12 +52,17 @@ export class OpenCodeExecutor extends BaseExecutor {
       : `${base}/zen/v1/chat/completions`;
   }
 
-  buildHeaders() {
+  buildHeaders(credentials, stream = true) {
+    const raw = Object.fromEntries(Object.entries(credentials?.rawHeaders || {}).map(([k, v]) => [k.toLowerCase(), v]));
     return {
       "Content-Type": "application/json",
       "Authorization": "Bearer public",
-      "x-opencode-client": "desktop",
-      "Accept": "text/event-stream",
+      "User-Agent": raw["user-agent"]?.toLowerCase().includes("opencode") ? raw["user-agent"] : "opencode",
+      "x-opencode-client": raw["x-opencode-client"] || "desktop",
+      "x-opencode-session": raw["x-opencode-session"] || credentials?.runtimeOpencodeSession || `ses_${crypto.randomUUID().replaceAll("-", "")}`,
+      "x-opencode-request": raw["x-opencode-request"] || `msg_${crypto.randomUUID().replaceAll("-", "")}`,
+      "x-opencode-project": raw["x-opencode-project"] || "global",
+      "Accept": stream ? "text/event-stream" : "*/*",
       ...this._cliHeaders(),
     };
   }

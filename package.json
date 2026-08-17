@@ -1,6 +1,6 @@
 {
   "name": "vansrouter-app",
-  "version": "0.9.99",
+  "version": "0.91.5",
   "description": "9Router web dashboard",
   "private": true,
   "engines": {
@@ -15,10 +15,10 @@
     "test": "npx vitest run -c tests/vitest.config.js",
     "test:watch": "npx vitest -c tests/vitest.config.js",
     "build": "node scripts/build.js",
-    "start": "next start --port 20127",
+    "start": "node custom-server.js --port 20127",
     "dev:bun": "bun --bun next dev --webpack --port 20127",
     "build:bun": "bun --bun next build --webpack",
-    "start:bun": "bun ./.next/standalone/server.js",
+    "start:bun": "bun ./.next/standalone/custom-server.js",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli"
   },
@@ -70,6 +70,12 @@
     "js-yaml": "^4.2.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4",
+<<<<<<< HEAD
     "vitest": "^4.1.10"
+=======
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "js-yaml": "^4.2.0",
+    "vitest": "^3.2.4"
+>>>>>>> upstream/main
   }
 }

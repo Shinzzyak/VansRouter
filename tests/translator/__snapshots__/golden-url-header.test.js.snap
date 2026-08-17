@@ -128,6 +128,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > alims-intl → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > alitp-intl → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > anthropic → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -485,6 +504,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
+<<<<<<< HEAD
     "User-Agent": "VansRouter/0.9.99",
     "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.99",
@@ -492,12 +512,22 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v22.23.1",
+=======
+    "User-Agent": "VansRouter/0.91.5",
+    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-VERSION": "0.91.5",
+    "X-CORE-VERSION": "0.91.5",
+    "X-IS-MULTIROOT": "false",
+    "X-PLATFORM": "linux",
+    "X-PLATFORM-VERSION": "<ENV>",
+>>>>>>> upstream/main
     "X-Title": "Cline",
   },
   "nonStream": {
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
+<<<<<<< HEAD
     "User-Agent": "VansRouter/0.9.99",
     "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.99",
@@ -505,6 +535,15 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v22.23.1",
+=======
+    "User-Agent": "VansRouter/0.91.5",
+    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-VERSION": "0.91.5",
+    "X-CORE-VERSION": "0.91.5",
+    "X-IS-MULTIROOT": "false",
+    "X-PLATFORM": "linux",
+    "X-PLATFORM-VERSION": "<ENV>",
+>>>>>>> upstream/main
     "X-Title": "Cline",
   },
   "oauth": {
@@ -512,6 +551,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
+<<<<<<< HEAD
     "User-Agent": "VansRouter/0.9.99",
     "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.9.99",
@@ -519,6 +559,15 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v22.23.1",
+=======
+    "User-Agent": "VansRouter/0.91.5",
+    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-VERSION": "0.91.5",
+    "X-CORE-VERSION": "0.91.5",
+    "X-IS-MULTIROOT": "false",
+    "X-PLATFORM": "linux",
+    "X-PLATFORM-VERSION": "<ENV>",
+>>>>>>> upstream/main
     "X-Title": "Cline",
   },
 }
@@ -1129,9 +1178,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
+<<<<<<< HEAD
     "X-Msh-Device-Name": "VM-6-151-ubuntu",
+=======
+    "X-Msh-Device-Name": "<ENV>",
+>>>>>>> upstream/main
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.99",
+    "X-Msh-Version": "0.91.5",
     "x-api-key": "<CRED>",
   },
   "nonStream": {
@@ -1140,9 +1193,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
+<<<<<<< HEAD
     "X-Msh-Device-Name": "VM-6-151-ubuntu",
+=======
+    "X-Msh-Device-Name": "<ENV>",
+>>>>>>> upstream/main
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.99",
+    "X-Msh-Version": "0.91.5",
     "x-api-key": "<CRED>",
   },
   "oauth": {
@@ -1152,9 +1209,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
     "X-Msh-Device-Model": "Linux x64",
+<<<<<<< HEAD
     "X-Msh-Device-Name": "VM-6-151-ubuntu",
+=======
+    "X-Msh-Device-Name": "<ENV>",
+>>>>>>> upstream/main
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.9.99",
+    "X-Msh-Version": "0.91.5",
     "x-api-key": "<CRED>",
   },
 }
@@ -2033,6 +2094,13 @@ exports[`GOLDEN buildUrl (default executor providers) > alims-intl → url (stre
 {
   "nonStream": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
   "stream": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > alitp-intl → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
+  "stream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
 }
 `;
 

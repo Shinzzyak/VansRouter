@@ -9,6 +9,32 @@ import { AntigravityExecutor } from "../../open-sse/executors/antigravity.js";
 const AG2O = (req) =>
   translateRequest(FORMATS.ANTIGRAVITY, FORMATS.OPENAI, "m", { request: req }, true, null, null);
 
+describe("Antigravity request sanitization", () => {
+  it("strips Zed's competitive Claude-agent prompt without mutating other parts", () => {
+    const input = {
+      request: {
+        systemInstruction: {
+          role: "system",
+          parts: [
+            { text: "prefix You are a Claude agent, built on Anthropic's Claude Agent SDK. suffix" },
+            { inlineData: { mimeType: "text/plain", data: "keep" } },
+            { text: "Keep this prompt." },
+          ],
+        },
+        contents: [{ role: "user", parts: [{ text: "hello" }] }],
+      },
+      project: "project-1",
+    };
+    const out = new AntigravityExecutor().transformRequest("gemini-3-flash", input);
+    const parts = out.request.systemInstruction.parts;
+
+    expect(parts[0].text).toBe("prefix  suffix");
+    expect(parts[1]).toEqual({ inlineData: { mimeType: "text/plain", data: "keep" } });
+    expect(parts[2].text).toBe("Keep this prompt.");
+    expect(input.request.systemInstruction.parts[0].text).toContain("Claude Agent SDK");
+  });
+});
+
 describe("Antigravity → OpenAI", () => {
   // antigravity-to-openai.js:177-189 — content with BOTH functionResponse and functionCall/text
   // returns toolResults early → drops the tool calls / text.

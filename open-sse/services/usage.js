@@ -37,7 +37,7 @@ const USAGE_HANDLERS = {
   github: (c) => getGitHubUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   "gemini-cli": (c) => getGeminiUsage(c.accessToken, c.providerDataWithProjectId, c.proxyOptions),
   antigravity: (c) => getAntigravityUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
--  claude: (c) => getClaudeUsage(c.accessToken, c.proxyOptions, { force: c.force }),
+  claude: (c) => getClaudeUsage(c.accessToken, c.proxyOptions, { force: c.force }),
   codex: (c) => getCodexUsage(c.accessToken, c.proxyOptions),
   kiro: (c) => getKiroUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   qoder: async (c) => {
@@ -70,7 +70,15 @@ export async function getUsageForProvider(connection, proxyOptions = null, optio
 
   const handler = USAGE_HANDLERS[provider];
   if (!handler) return { message: `Usage API not implemented for ${provider}` };
-  return await handler({ provider, accessToken, apiKey, providerSpecificData, providerDataWithProjectId, proxyOptions, force: options.force === true });
+  return await handler({
+    provider,
+    accessToken,
+    apiKey,
+    providerSpecificData,
+    providerDataWithProjectId,
+    proxyOptions,
+    force: options.force === true,
+  });
 }
 
 // Provider yang punya usage handler — auto-detect untuk account pool benefits.
