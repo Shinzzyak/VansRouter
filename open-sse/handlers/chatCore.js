@@ -460,7 +460,6 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   let proxyOptions = buildProxyOptions(credentials?.providerSpecificData || {});
 
   if (provider === "freebuff" && credentials?.providerSpecificData?.noFitPool === true) {
-    const error = new Error(`Freebuff has no healthy proxy pool for ${model}; all assigned pools are cooling down after limited-IP errors.`);
     error.status = 503;
     error.poolScoped = { poolId: null, scope: proxyScope, reason: "no_fit_pool" };
     trackPendingRequest(model, provider, connectionId, false, true);
@@ -509,7 +508,6 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   // another pool instead of failing the account. Covers both thrown errors
   // (executor.execute) and non-ok responses declared poolScoped via
   // parseError — poolId/scope are completed here from proxyOptions.
-  const proxyScope = `${provider}::${model}`;
 
   const tryNextPool = async (poolScoped, reasonMsg) => {
     const failed = {
