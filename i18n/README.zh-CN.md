@@ -1,20 +1,20 @@
 <div align="center">
-  <img src="../images/9router.webp?1" alt="VansRouter Dashboard" width="800"/>
-  
+  <img src="../images/9router.png?1" alt="VansRouter Dashboard" width="800"/>
+
   # VansRouter - 免费 AI 路由器
-  
+
   **永不停歇的编程体验。智能回退，自动路由到免费和廉价的 AI 模型。**
-  
+
   **OpenClaw 的免费 AI 提供商。**
-  
+
   <p align="center">
     <img src="../public/providers/openclaw.webp" alt="OpenClaw" width="80"/>
   </p>
-  
+
   [![npm](https://img.shields.io/npm/v/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
   [![Downloads](https://img.shields.io/npm/dm/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
   [![License](https://img.shields.io/npm/l/vansrouter.svg)](https://github.com/Vanszs/VansRouter/blob/main/LICENSE)
-  
+
   [🚀 快速开始](#-quick-start) • [💡 特性](#-key-features) • [📖 设置](#-setup) • [🌐 网站](https://vansrouter.com)
 </div>
 
@@ -117,9 +117,9 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 ## 🎥 视频教程
 
 <div align="center">
-  
+
 ### 📺完整设置指南 - 9Router + Claude Code 免费
-  
+
 [![9Router + Claude Code Setup](https://img.youtube.com/vi/raEyZPg5xE0/maxresdefault.jpg)](https://www.youtube.com/watch?v=raEyZPg5xE0)
 
 **🎬 观看完整的分步教程：**
@@ -441,13 +441,13 @@ Combo: "my-coding-stack"
 - 优化您的 AI 支出
 
 > **💡 重要 - 理解仪表板成本：**
-> 
+>
 > 使用分析中显示的“成本”**仅用于追踪和比较目的**。
 > 9Router 本身**从不向您收费**。您只需直接向提供商付款（如果使用付费服务）。
-> 
+>
 > **示例：** 如果您的仪表板在使用 iFlow 模型时显示“$290 总成本”，这代表
 > 您直接使用付费 API 时需要支付的金额。您的实际成本 = **$0**（iFlow 是免费无限制的）。
-> 
+>
 > 将其视为“节省追踪器”，显示您通过使用免费模型或
 > 通过 9Router 路由节省了多少！
 
@@ -485,10 +485,10 @@ Combo: "my-coding-stack"
 
 **9Router 计费现实：**
 
-✅ **9Router 软件 = 永远免费**开源，从不收费）  
-✅ **仪表板“成本” = 仅显示/追踪**（非实际账单）  
-✅ **您直接向提供商付款**（订阅或 API 费用）  
-✅ **免费提供商保持免费**（iFlow, Kiro, Qwen = $0 无限制）  
+✅ **9Router 软件 = 永远免费**开源，从不收费）
+✅ **仪表板“成本” = 仅显示/追踪**（非实际账单）
+✅ **您直接向提供商付款**（订阅或 API 费用）
+✅ **免费提供商保持免费**（iFlow, Kiro, Qwen = $0 无限制）
 ❌ **9Router 从不发送发票**或向您的卡收费
 
 **成本显示如何工作：**

@@ -1,6 +1,9 @@
 const http = require("http");
+const crypto = require("crypto");
 
 const origCreate = http.createServer.bind(http);
+const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
+process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 // Wrap Next standalone HTTP server: derive client IP from the TCP socket
 // (unspoofable) and strip client-supplied forwarding headers so downstream
@@ -22,7 +25,9 @@ http.createServer = (...args) => {
     delete req.headers["x-9r-real-ip"];
     delete req.headers["x-forwarded-for"];
     delete req.headers["x-9r-via-proxy"];
+    delete req.headers["x-9r-peer-token"];
     req.headers["x-9r-real-ip"] = ip;
+    req.headers["x-9r-peer-token"] = PEER_TOKEN;
     if (viaProxy) req.headers["x-9r-via-proxy"] = "1";
     return handler(req, res);
   };

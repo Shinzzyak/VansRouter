@@ -1,22 +1,22 @@
 Dưới đây là bản dịch tiếng Việt của tài liệu Markdown, giữ nguyên toàn bộ cú pháp và cấu trúc kỹ thuật.
 
 <div align="center">
-  <img src="../images/9router.webp?1" alt="Bảng điều khiển 9Router" width="800"/>
-  
+  <img src="../images/9router.png?1" alt="Bảng điều khiển 9Router" width="800"/>
+
   # 9Router - Free AI Router
-  
+
   **Không bao giờ ngừng code. Tự động định tuyến tới các mô hình AI MIỄN PHÍ & giá rẻ với cơ chế dự phòng thông minh.**
-  
+
   **Nhà cung cấp AI Miễn cho OpenClaw.**
-  
+
   <p align="center">
     <img src="../public/providers/openclaw.webp" alt="OpenClaw" width="80"/>
   </p>
-  
+
   [![npm](https://img.shields.io/npm/v/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
   [![Downloads](https://img.shields.io/npm/dm/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
   [![License](https://img.shields.io/npm/l/vansrouter.svg)](https://github.com/Vanszs/VansRouter/blob/main/LICENSE)
-  
+
   [🚀 Bắt đầu nhanh](#-quick-start) • [💡 Tính năng](#-key-features) • [📖 Cài đặt](#-setup-guide) • [🌐 Website](https://vansrouter.com)
 </div>
 
@@ -119,9 +119,9 @@ URL mặc định:
 ## 🎥 Hướng dẫn Video
 
 <div align="center">
-  
+
 ### 📺 Hướng dẫn thiết lập hoàn chỉnh - 9Router + Claude Code MIỄN PHÍ
-  
+
 [![Thiết lập 9Router + Claude Code](https://img.youtube.com/vi/raEyZPg5xE0/maxresdefault.jpg)](https://www.youtube.com/watch?v=raEyZPg5xE0)
 
 **🎬 Xem hướng dẫn từng đầy đủ:**
@@ -443,14 +443,14 @@ Dịch chuyển liền mạch giữa các định dạng:
 - Tối ưu hóa chi tiêu AI của bạn
 
 > **💡AN TRỌNG - Hiểu về Chi phí trên Bảng điều khiển:**
-> 
-> "Chi phí" hiển thị trong Phân tích sử dụng là **chỉ để theo dõi và so sánh**. 
+>
+> "Chi phí" hiển thị trong Phân tích sử dụng là **chỉ để theo dõi và so sánh**.
 > Bản thân 9Router **không bao giờ thu phí** bạn bất cứ thứ gì. Bạn chỉ trả tiền trực tiếp cho các nhà cung cấp (nếu sử dụng dịch vụ trả phí).
-> 
-> **Ví dụ:** Nếu bảng điều khiển của bạn hiển thị "tổng chi phí $290" trong khi sử dụng các mô hìnhFlow, điều này đại diện cho 
+>
+> **Ví dụ:** Nếu bảng điều khiển của bạn hiển thị "tổng chi phí $290" trong khi sử dụng các mô hìnhFlow, điều này đại diện cho
 > số tiền bạn sẽ phải trả nếu sử dụng API trả phí trực tiếp. Chi phí thực tế của bạn = **$0** (iFlow miễn phí không giới hạn).
-> 
-> Hãy coi nó như một "trình theo dõi tiết kiệm" cho thấy bạn đang tiết kiệm được bao nhiêu bằng cách sử dụng các mô hình miễn phí hoặc 
+>
+> Hãy coi nó như một "trình theo dõi tiết kiệm" cho thấy bạn đang tiết kiệm được bao nhiêu bằng cách sử dụng các mô hình miễn phí hoặc
 > định tuyến qua 9Router!
 
 ### 🌐 Triển khai ở bất cứ đâu
@@ -487,10 +487,10 @@ Dịch chuyển liền mạch giữa các định dạng:
 
 **Thực tế Thanh toán 9Router:**
 
-✅ **Phần mềm 9Router = MIỄN PHÍ mãi mãi** (mã nguồn mở, không bao giờ thu phí)  
-✅ **"Chi phí" trên bảng điều khiển = Chỉ để Hiển thị/Theo dõi** (không phải hóa đơn thực tế)  
- **Bạn trả tiền trực tiếp cho nhà cung cấp** (gói đăng ký hoặc phí API)  
-✅ **Nhà cung cấp MIỄN PHÍ vẫn MIỄN PHÍ** (iFlow, Kiro, Qwen = $0 không giới hạn)  
+✅ **Phần mềm 9Router = MIỄN PHÍ mãi mãi** (mã nguồn mở, không bao giờ thu phí)
+✅ **"Chi phí" trên bảng điều khiển = Chỉ để Hiển thị/Theo dõi** (không phải hóa đơn thực tế)
+ **Bạn trả tiền trực tiếp cho nhà cung cấp** (gói đăng ký hoặc phí API)
+✅ **Nhà cung cấp MIỄN PHÍ vẫn MIỄN PHÍ** (iFlow, Kiro, Qwen = $0 không giới hạn)
 ❌ **9Router không bao giờ gửi hóa đơn** hoặc tính phí thẻ của bạn
 
 **Cách Hoạt động của Hiển thị Chi phí:**
@@ -617,11 +617,11 @@ Màn hình chi phí là một "trình theo dõi tiết kiệm" để giúp bạn
 <details>
 <summary><b>🆓 Các nhà cung cấp MIỄN PHÍ có thực sự không giới hạn không?</b></summary>
 
-**Có!** Các nhà cung cấp được đánh dấu là MIỄN PHÍ (iFlow, Kiro, Qwen) thực sự không giới hạn với **không có phí ẩn**. 
+**Có!** Các nhà cung cấp được đánh dấu là MIỄN PHÍ (iFlow, Kiro, Qwen) thực sự không giới hạn với **không có phí ẩn**.
 
 Đây là các dịch vụ miễn phí được cung cấp bởi các công ty tương ứng:
 - **iFlow**: Truy cập miễn phí không giới hạn vào hơn 8 mô hình qua OAuth
-- **Kiro**: Các mô hình Claude miễn phí không giới hạn qua AWS Builder ID  
+- **Kiro**: Các mô hình Claude miễn phí không giới hạn qua AWS Builder ID
 - **Qwen**: Truy cập miễn phí không giới hạn vào các mô hình Qwen qua xác thực thiết bị
 
 9Router chỉ định tuyến yêu cầu của bạn đến họ - không có "cạm bẫy" hay thanh toán trong tương lai. Đó là các dịch vụ thực sự miễn phí, và 9Router giúp chúng dễ sử dụng với hỗ trợ dự phòng.

@@ -25,6 +25,17 @@ function normalizeString(value) {
   return String(value).trim();
 }
 
+export function resolveAntigravityProxyConfig(providerSpecificData = {}) {
+  return {
+    connectionProxyEnabled: providerSpecificData.connectionProxyEnabled === true,
+    connectionProxyUrl: providerSpecificData.connectionProxyUrl || "",
+    connectionNoProxy: providerSpecificData.connectionNoProxy || "",
+    proxyPoolId: null,
+    vercelRelayUrl: "",
+    strictProxy: providerSpecificData.strictProxy === true,
+  };
+}
+
 /**
  * Resolve real IP using Google DNS (bypass system DNS)
  */
@@ -200,6 +211,15 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const targetUrl = typeof url === "string" ? url : url.toString();
+
+  // Keep native AG traffic direct unless the connection explicitly configures a proxy.
+  // Shared relay defaults change Cloud Code's account/IP identity and trigger false 429s.
+  const hasExplicitProxy = proxyOptions?.connectionProxyEnabled === true
+    || !!proxyOptions?.vercelRelayUrl
+    || !!proxyOptions?.proxyPoolId;
+  if (options.provider === "antigravity" && !hasExplicitProxy) {
+    return originalFetch(url, options);
+  }
 
   // Vercel relay: forward request via relay headers
   const vercelRelayUrl = normalizeString(proxyOptions?.vercelRelayUrl);

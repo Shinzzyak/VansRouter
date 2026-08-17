@@ -30,6 +30,12 @@ const URL_PATTERNS = {
   cursor: ["/BidiAppend", "/RunSSE", "/RunPoll", "/Run"],
 };
 
+function isChatRequest(tool, req) {
+  const patterns = URL_PATTERNS[tool] || [];
+  if (patterns.some((pattern) => (req.url || "").includes(pattern))) return true;
+  return tool === "kiro" && String(req.headers?.["x-amz-target"] || "").includes("GenerateAssistantResponse");
+}
+
 // Synonym map: rawModel from request → canonical alias key in mitmAlias DB
 const MODEL_SYNONYMS = {
   antigravity: {
@@ -86,4 +92,4 @@ function getToolForHost(host) {
   return null;
 }
 
-module.exports = { IS_DEV, LSOF_BIN, TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, MODEL_PATTERNS, MODEL_NO_MAP, LOG_BLACKLIST_URL_PARTS, getToolForHost };
+module.exports = { IS_DEV, LSOF_BIN, TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, MODEL_PATTERNS, MODEL_NO_MAP, LOG_BLACKLIST_URL_PARTS, getToolForHost, isChatRequest };

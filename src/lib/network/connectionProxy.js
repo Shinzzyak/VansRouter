@@ -180,6 +180,19 @@ export async function resolveConnectionProxyConfig(
       };
     }
 
+    if (scope?.startsWith("freebuff::")) {
+      return {
+        source: "pool",
+        proxyPoolId: null,
+        proxyPool: null,
+        noFitPool: true,
+        connectionProxyEnabled: false,
+        connectionProxyUrl: "",
+        connectionNoProxy: "",
+        strictProxy: true,
+      };
+    }
+
     /**
      * -----------------------------
      * No Proxy Config
@@ -207,7 +220,8 @@ export async function resolveConnectionProxyConfig(
       connectionProxyUrl: "",
       connectionNoProxy: "",
 
-      strictProxy: false,
+      noFitPool: providerSpecificData?.proxyPoolScope?.startsWith("freebuff::") === true,
+      strictProxy: providerSpecificData?.proxyPoolScope?.startsWith("freebuff::") === true,
     };
   }
 }

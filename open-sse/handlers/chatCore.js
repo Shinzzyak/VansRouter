@@ -2,7 +2,7 @@ import { compressWithPxpipe, formatPxpipeLog } from "../rtk/pxpipe.js";
 import { detectFormat, getTargetFormat, resolveTransport } from "../services/provider.js";
 import { translateRequest } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
-import { normalizeClaudePassthrough } from "../translator/formats/claude.js";
+import { normalizeClaudePassthrough, anchorClaudeCache } from "../translator/formats/claude.js";
 import { COLORS } from "../utils/stream.js";
 import { createStreamController } from "../utils/streamHandler.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
@@ -164,8 +164,10 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   const modelTargetFormat = getModelTargetFormat(alias, model);
   // Multi-endpoint providers: pick transport matching sourceFormat → zero translation
   const runtimeTransport = resolveTransport(provider, sourceFormat);
-  const targetFormat = modelTargetFormat || runtimeTransport?.format || getTargetFormat(provider);
-  if (runtimeTransport && credentials) credentials.runtimeTransport = runtimeTransport;
+  const supportedFormats = getModelSupportedFormats(alias, model);
+  const selectedTransport = !supportedFormats || supportedFormats.includes(sourceFormat) ? runtimeTransport : null;
+  const targetFormat = modelTargetFormat || selectedTransport?.format || getTargetFormat(provider);
+  if (selectedTransport && credentials) credentials.runtimeTransport = selectedTransport;
   const stripList = getModelStrip(alias, model);
   const upstreamModel = getModelUpstreamId(alias, model);
 
@@ -417,6 +419,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     try { onPxpipeEvent?.({ provider, model, ...pxpipeSummary }); } catch { /* stats must not break requests */ }
   }
 
+  if (passthrough && (clientTool === "claude" || targetFormat === FORMATS.CLAUDE)) anchorClaudeCache(translatedBody);
   const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
@@ -453,7 +456,27 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     strictProxy: psd?.strictProxy === true || provider === "freebuff",
     proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
   });
+  const proxyScope = `${provider}::${model}`;
   let proxyOptions = buildProxyOptions(credentials?.providerSpecificData || {});
+
+  if (provider === "freebuff" && credentials?.providerSpecificData?.noFitPool === true) {
+    const error = new Error(`Freebuff has no healthy proxy pool for ${model}; all assigned pools are cooling down after limited-IP errors.`);
+    error.status = 503;
+    error.poolScoped = { poolId: null, scope: proxyScope, reason: "no_fit_pool" };
+    trackPendingRequest(model, provider, connectionId, false, true);
+    return createErrorResult(503, error.message);
+  }
+
+  if (
+    provider === "freebuff" &&
+    !proxyOptions.vercelRelayUrl &&
+    !(proxyOptions.connectionProxyEnabled && proxyOptions.connectionProxyUrl)
+  ) {
+    const error = new Error(`Freebuff requires a configured proxy pool for ${model}; direct egress is disabled to prevent limited-IP rate limits.`);
+    error.status = 503;
+    trackPendingRequest(model, provider, connectionId, false, true);
+    return createErrorResult(503, error.message);
+  }
 
   if (proxyOptions.vercelRelayUrl) {
     const connectionName = credentials?.connectionName || credentials?.connectionId || "unknown";

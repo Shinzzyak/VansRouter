@@ -2,7 +2,7 @@ import { PROVIDERS } from "./providers.js";
 import REGISTRY from "../providers/registry/index.js";
 // PROVIDER_MODELS now built from providers/registry (transport + models co-located)
 import { PROVIDER_MODELS } from "../providers/index.js";
-import { modelQuotaFamily, modelStrip, modelTargetFormat, normalizeModelId } from "../providers/models/schema.js";
+import { modelQuotaFamily, modelStrip, modelTargetFormat, modelSupportedFormats, normalizeModelId } from "../providers/models/schema.js";
 import { CODEX_REVIEW_SUFFIX } from "../providers/models/helpers.js";
 
 export { PROVIDER_MODELS };
@@ -55,6 +55,11 @@ export function getModelTargetFormat(aliasOrId, modelId) {
   return modelTargetFormat(findModel(models, modelId, aliasOrId));
 }
 
+export function getModelSupportedFormats(aliasOrId, modelId) {
+  const models = PROVIDER_MODELS[aliasOrId];
+  return models ? modelSupportedFormats(findModel(models, modelId, aliasOrId)) : null;
+}
+
 export function getModelType(aliasOrId, modelId) {
   const models = PROVIDER_MODELS[aliasOrId];
   if (!models) return null;
@@ -71,6 +76,11 @@ export function getModelUpstreamId(aliasOrId, modelId) {
     return modelId.slice(0, -CODEX_REVIEW_SUFFIX.length);
   }
   return modelId;
+}
+
+export function resolveAntigravityUpstreamModel(model) {
+  const upstream = getModelUpstreamId("ag", model) || model;
+  return upstream.replace(/-tiered\([^)]*\)$/, "-tiered");
 }
 
 export function getModelQuotaFamily(aliasOrId, modelId) {

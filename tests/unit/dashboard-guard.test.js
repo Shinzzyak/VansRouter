@@ -35,8 +35,17 @@ vi.mock("@/lib/auth/dashboardSession", () => ({
 
 const { proxy, __test__ } = await import("../../src/dashboardGuard.js");
 
+process.env.NINEROUTER_PEER_TOKEN = "test-peer-token";
+
 function request(pathname, headers = {}) {
-  const normalizedHeaders = new Headers(headers);
+  const peerHeaders = String(headers.host || "").startsWith("localhost")
+    ? { "x-9r-real-ip": "127.0.0.1" }
+    : {};
+  const normalizedHeaders = new Headers({
+    ...peerHeaders,
+    "x-9r-peer-token": "test-peer-token",
+    ...headers,
+  });
   return {
     nextUrl: { pathname, searchParams: new URL(`http://localhost${pathname}`).searchParams },
     headers: normalizedHeaders,
