@@ -492,6 +492,34 @@ function QoderAutomationPanel({ providerInfo, onRefresh }) {
   );
 }
 
+function FreebuffAutomationPanel({ providerInfo, onRefresh }) {
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsBulkOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="key"
+            title="Import API Keys"
+            subtitle="Paste freebuff authTokens (email|authToken per line) from device-code approve flow. API key = authToken."
+          />
+        </button>
+      </div>
+      <BulkAccountAutomationModal
+        isOpen={isBulkOpen}
+        provider="freebuff"
+        title="Freebuff Bulk Import"
+        serviceName="Freebuff"
+        onSuccess={onRefresh}
+        onClose={() => setIsBulkOpen(false)}
+      />
+    </>
+  );
+}
+
 function TokenHarborAutomationPanel({ onRefresh }) {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
 
@@ -753,6 +781,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Bulk GSuite auto login via Google SSO and device flow.",
     supportedModes: ["bulk-account", "device-oauth"],
     component: QoderAutomationPanel,
+  },
+  {
+    id: "freebuff",
+    label: "Freebuff",
+    icon: "bolt",
+    description: "Import freebuff authTokens (API keys) from device-code approve flow. Models: GPT-5.6 Luna, GLM-5.2, Gemini 3.1 Pro.",
+    supportedModes: ["import-token"],
+    component: FreebuffAutomationPanel,
   },
   {
     id: "autoclaw",
