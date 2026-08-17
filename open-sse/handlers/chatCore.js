@@ -9,7 +9,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { extractThinking, applyThinking } from "../translator/concerns/thinkingUnified.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
-import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
+import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
@@ -460,6 +460,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   let proxyOptions = buildProxyOptions(credentials?.providerSpecificData || {});
 
   if (provider === "freebuff" && credentials?.providerSpecificData?.noFitPool === true) {
+    const error = new Error(`Freebuff has no healthy proxy pool for ${model}; all assigned pools are cooling down after limited-IP errors.`);
     error.status = 503;
     error.poolScoped = { poolId: null, scope: proxyScope, reason: "no_fit_pool" };
     trackPendingRequest(model, provider, connectionId, false, true);
