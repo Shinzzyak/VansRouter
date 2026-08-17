@@ -25,6 +25,8 @@ onlyBuiltDependencies:
   - inotify
   - esbuild
 
+dangerouslyAllowAllBuilds: true
+
 pnpm:
   requiredScripts:
     - build
