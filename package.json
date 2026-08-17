@@ -61,7 +61,7 @@
   "optionalDependencies": {
     "better-sqlite3": "^12.6.2"
   },
-  "comment_better_sqlite3": "kept in optionalDependencies so npm install doesn't fail on systems without build tools — sql.js is used as fallback at runtime",
+  "comment_better_sqlite3": "kept in optionalDependencies so npm install doesn't fail on systems without build tools \u2014 sql.js is used as fallback at runtime",
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "eslint": "^9",
@@ -71,5 +71,14 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4",
     "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "better-sqlite3",
+      "sharp",
+      "unrs-resolver",
+      "inotify"
+    ]
   }
 }
