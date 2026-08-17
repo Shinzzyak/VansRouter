@@ -85,6 +85,7 @@ import p82 from "./openai.js";
 import p83 from "./opencode-go.js";
 import p84 from "./opencode.js";
 import p85 from "./openrouter.js";
+import p152 from "./nous.js";
 import p86 from "./ovhcloud.js";
 import p87 from "./perplexity-agent.js";
 import p88 from "./perplexity-web.js";
@@ -303,5 +304,6 @@ export default [
   p148,
   p149,
   p150,
-  p151
+  p151,
+  p152
 ];
