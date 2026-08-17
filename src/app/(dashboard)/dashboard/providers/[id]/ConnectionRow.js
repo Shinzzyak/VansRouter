@@ -370,6 +370,8 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                       }}
                       className={`w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5 ${selectedProxyIds.length === 0 ? "text-primary font-medium" : "text-text-main"}`}
                     >
+                      <span className="font-medium">Clear selection</span>
+                    </button>
                     {/* Select All Button (only for rotation strategies) */}
                     {rotationStrategy !== "none" && (
                       <button
