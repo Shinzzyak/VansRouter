@@ -133,6 +133,22 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       yydsDomain: body?.yydsDomain,
     }),
   },
+  freebuff: {
+    label: "Freebuff",
+    errorLabel: "Freebuff bulk import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./freebuffBulkImportManager.js").then((m) => m.parseFreebuffBulkAccounts(accounts)),
+    getManager: () =>
+      import("./freebuffBulkImportManager.js").then((m) => m.getFreebuffBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+    }),
+  },
   "baseten-signup": {
     label: "Baseten Signup",
     errorLabel: "Baseten signup job",
