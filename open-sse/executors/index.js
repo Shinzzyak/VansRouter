@@ -24,6 +24,7 @@ import { MuseSparkWebExecutor } from "./muse-spark-web.js";
 import { DevinCliExecutor } from "./devin-cli.js";
 import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 import { FreebuffExecutor } from "./freebuff.js";
+import { ChatgptWebExecutor } from "./chatgpt-web.js";
 import ZedExecutor from "./zed.js";
 import TraeExecutor from "./trae.js";
 import WindsurfExecutor from "./windsurf.js";
@@ -65,6 +66,10 @@ const executors = {
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
   freebuff: new FreebuffExecutor(),
   fb: new FreebuffExecutor(), // Alias
+  "chatgpt-web": new ChatgptWebExecutor(),
+  chatgpt: new ChatgptWebExecutor(), // Alias
+  c2a: new ChatgptWebExecutor(), // Alias
+  chat2api: new ChatgptWebExecutor(), // Alias
   zed: new ZedExecutor(),
   trae: new TraeExecutor(),
   windsurf: new WindsurfExecutor(),
@@ -112,5 +117,6 @@ export { MuseSparkWebExecutor } from "./muse-spark-web.js";
 export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 export { FreebuffExecutor } from "./freebuff.js";
+export { ChatgptWebExecutor } from "./chatgpt-web.js";
 export { AutoclawExecutor } from "./autoclaw.js";
 export { QwenExecutor } from "./qwen.js";

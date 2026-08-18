@@ -308,6 +308,22 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       };
     },
   },
+  "chatgpt-web": {
+    label: "ChatGPT Web",
+    errorLabel: "ChatGPT Web import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./chatgptWebBulkImportManager.js").then((m) => m.parseChatGptWebBulkAccounts(accounts)),
+    getManager: () =>
+      import("./chatgptWebBulkImportManager.js").then((m) => m.getChatGptWebBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+    }),
+  },
 });
 
 export function isValidBulkImportProvider(providerId) {

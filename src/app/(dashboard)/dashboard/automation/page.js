@@ -748,6 +748,7 @@ function OutlookAutomationPanel({ onRefresh }) {
 
 function ChatGptAutomationPanel({ onRefresh }) {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
 
   return (
     <>
@@ -756,9 +757,18 @@ function ChatGptAutomationPanel({ onRefresh }) {
           <Card
             hover
             padding="md"
-            icon="chat"
+            icon="person_add"
             title="Signup Bulk (Go binary)"
             subtitle="Register new ChatGPT accounts via verssache/chatgpt-creator: TLS fingerprint spoofing + pluggable temp-mail (YYDS/Tempik/Driftz) → OTP verify → account saved as connection. Needs residential proxy."
+          />
+        </button>
+        <button type="button" onClick={() => setIsBulkOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="key"
+            title="Import Sessions / Chat2API Tokens"
+            subtitle="Paste ChatGPT session accessToken (JWT), __Secure-next-auth.session-token cookie, or JSON export per line untuk Chat2API."
           />
         </button>
       </div>
@@ -767,6 +777,14 @@ function ChatGptAutomationPanel({ onRefresh }) {
         isOpen={isSignupOpen}
         onSuccess={onRefresh}
         onClose={() => setIsSignupOpen(false)}
+      />
+      <BulkAccountAutomationModal
+        isOpen={isBulkOpen}
+        provider="chatgpt-web"
+        title="ChatGPT Web (Chat2API) Bulk Import"
+        serviceName="ChatGPT Web"
+        onSuccess={onRefresh}
+        onClose={() => setIsBulkOpen(false)}
       />
     </>
   );

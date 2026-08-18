@@ -24,6 +24,7 @@ import p21 from "./clinepass.js";
 import p22 from "./cloudflare-ai.js";
 import p23 from "./codebuddy-cn.js";
 import p24 from "./codestral.js";
+import p24b from "./chatgpt-web.js";
 import p25 from "./codex.js";
 import p26 from "./cohere.js";
 import p27 from "./comfyui.js";
@@ -179,6 +180,7 @@ export default [
   p22,
   p23,
   p24,
+  p24b,
   p25,
   p26,
   p27,
