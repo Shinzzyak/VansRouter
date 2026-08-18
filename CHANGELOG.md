@@ -1,3 +1,14 @@
+# v0.91.7 (2026-08-18)
+
+- **Exa Search 1:1 Integration** — Full parameter mapping (`type`, `stream`, `numResults`, `category`, `userLocation`, `includeDomains`, `excludeDomains`, dates, `moderation`, `additionalQueries`, `systemPrompt`, `outputSchema`, `compliance`, nested `contents` with text/highlights/summary/livecrawl/subpages/extras), SSE stream response handling, and response metadata preservation.
+- **Atomic Bulk Add Provider Connections** — Added `POST /api/providers/bulk` running in a single database transaction with per-batch validation and collision-safe account naming without billable probes on import.
+
+# v0.91.6 (2026-08-17)
+
+- **Kiro region routing** — Hardened commercial-region validation across executor, model catalog, OAuth, refresh, external IdP, and provider-test paths; rejected unsupported AWS partitions and duplicate regional fallbacks.
+- **Kiro request recovery** — Kept retry instructions out of the rejected top-level `systemPrompt` field and expanded regression coverage.
+- **Provider dashboard** — Reverted commit `3399f6d97c6ca3232baeb84eeeb1f7d975bb5225` per release decision.
+
 # v0.91.5 (2026-08-16)
 
 - **Release tag validation** — Validate the original annotated tag through a temporary ref after GitHub Actions checkout.
