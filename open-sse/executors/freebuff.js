@@ -178,27 +178,6 @@ function classifySessionGate(code, message, currentModel) {
   return { kind: "stale" }; // 428/410/unknown → reclaim
 }
 
-// Freebuff limited-tier model allowlist (Indonesia IPs get refused for anything else).
-const LIMITED_TIER_MODELS = [
-  "deepseek/deepseek-v4-flash",
-  "mimo/mimo-v2.5",
-];
-
-// Session gate → optional auto-switch. model_locked → switch to the session's
-// current model; limited_ip → switch to a limited-tier model. Returns null when
-// the caller should throw normally (no fallback exists).
-function resolveSessionGate(gate, { model, log }) {
-  if (gate.kind === "model_locked" && gate.currentModel && gate.currentModel !== model) {
-    log?.warn?.("AUTH", `Freebuff model_locked — auto-switching to session model "${gate.currentModel}"`);
-    return { fallbackModel: gate.currentModel };
-  }
-  if (gate.kind === "limited_ip" && !LIMITED_TIER_MODELS.includes(model)) {
-    log?.warn?.("AUTH", `Freebuff limited-IP — auto-switching to "${LIMITED_TIER_MODELS[0]}"`);
-    return { fallbackModel: LIMITED_TIER_MODELS[0] };
-  }
-  return null;
-}
-
 // Applies cooldowns and throws for non-reclaimable gates. Never returns for them.
 async function throwSessionGateError(gate, { token, model, proxyKey, poolId, log }) {
   if (gate.kind === "model_locked") {
@@ -484,7 +463,7 @@ export class FreebuffExecutor extends BaseExecutor {
     return injectEndTurnTool(injectFreebuffMarker(body));
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, _depth = 0 }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
     const token = credentials?.accessToken;
     if (!token) {
       throw new Error("Freebuff requires a connected Freebuff login (no access token found)");
@@ -515,13 +494,7 @@ export class FreebuffExecutor extends BaseExecutor {
       session = await ensureSession(token, model, proxyOptions);
     } catch (error) {
       const gate = sessionGateFromError(error);
-      if (gate) {
-        const resolved = resolveSessionGate(gate, { model, log });
-        if (resolved?.fallbackModel && _depth < 2) {
-          return this.execute({ model: resolved.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
-        }
-        await throwSessionGateError(gate, { token, model, proxyKey, poolId, log });
-      }
+      if (gate) await throwSessionGateError(gate, { token, model, proxyKey, poolId, log });
       log?.error?.("AUTH", `Freebuff session failed: ${error.message}`);
       throw error;
     }
@@ -625,10 +598,6 @@ export class FreebuffExecutor extends BaseExecutor {
         const gate = sessionGateFromText(text);
         if (gate.kind === "model_locked" || gate.kind === "limited_ip") {
           markFinished("cancelled");
-          const resolved = resolveSessionGate(gate, { model, log });
-          if (resolved?.fallbackModel && _depth < 2) {
-            return this.execute({ model: resolved.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
-          }
           await throwSessionGateError(gate, { token, model, proxyKey, poolId, log });
         }
 
@@ -640,13 +609,7 @@ export class FreebuffExecutor extends BaseExecutor {
           activeRunId = runId;
         } catch (error) {
           const gate2 = sessionGateFromError(error);
-          if (gate2) {
-            const resolved2 = resolveSessionGate(gate2, { model, log });
-            if (resolved2?.fallbackModel && _depth < 2) {
-              return this.execute({ model: resolved2.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
-            }
-            await throwSessionGateError(gate2, { token, model, proxyKey, poolId, log });
-          }
+          if (gate2) await throwSessionGateError(gate2, { token, model, proxyKey, poolId, log });
           log?.error?.("AUTH", `Freebuff session re-claim failed: ${error.message}`);
           throw error;
         }
@@ -656,10 +619,6 @@ export class FreebuffExecutor extends BaseExecutor {
           const text2 = await response.text().catch(() => "");
           const gate3 = sessionGateFromText(text2);
           if (gate3.kind === "model_locked" || gate3.kind === "limited_ip") {
-            const resolved3 = resolveSessionGate(gate3, { model, log });
-            if (resolved3?.fallbackModel && _depth < 2) {
-              return this.execute({ model: resolved3.fallbackModel, body, stream, credentials, signal, log, proxyOptions, _depth: _depth + 1 });
-            }
             await throwSessionGateError(gate3, { token, model, proxyKey, poolId, log });
           }
           const err = new Error(
@@ -709,8 +668,6 @@ export const __test__ = {
   injectFreebuffMarker,
   injectEndTurnTool,
   fetchWithNetworkRetry,
-  resolveSessionGate,
-  LIMITED_TIER_MODELS,
   FREEBUFF_SYSTEM_MARKER,
   SESSION_STALE_CODES,
 };
