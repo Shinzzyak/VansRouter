@@ -22,11 +22,32 @@ import sys
 import time
 import random
 import argparse
-from urllib import request, error
+import requests
 
 # ── config ────────────────────────────────────────────────────────────────────
-YYDS_BASE = os.environ.get("YYDS_BASE", "https://maliapi.215.im")
-YYDS_KEY = os.environ.get("YYDS_API_KEY", "").strip().strip("'\"")
+# Default working key (proven 2026-08-18)
+_DEFAULT_YYDS_KEY = "AC-e776a410e773b73824482139"
+
+# Load .env files for API keys (only if env var not already set)
+for _env_path in [
+    "/home/ubuntu/projects/router-harvest-console/.env",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"),
+    os.path.expanduser("~/.env"),
+]:
+    if os.path.exists(_env_path) and "YYDS_API_KEY" not in os.environ:
+        for _line in open(_env_path):
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _, _v = _line.partition("=")
+                _k = _k.strip()
+                _v = _v.strip().strip("'\"")
+                if _k not in os.environ:
+                    os.environ[_k] = _v
+        break
+
+YYDS_BASE = os.environ.get("YYDS_BASE", "https://maliapi.215.im/v1")
+YYDS_KEY = os.environ.get("YYDS_API_KEY", _DEFAULT_YYDS_KEY).strip().strip("'\"")
+YYDS_DOMAIN = os.environ.get("YYDS_DOMAIN", "valerius.biz.id")
 CAPTCHA_SOLVER = os.environ.get("CAPTCHA_SOLVER", "http://127.0.0.1:8877")
 RECAPTCHA_SITEKEY = "6LeHZ6UUAAAAAKat_YS--O2tj_by3gv3r_l03j9d"
 REGISTER_URL = "https://proxy.webshare.io/api/v2/register/"
@@ -36,17 +57,21 @@ OUTPUT_FILE = "/home/ubuntu/VansRouter/scripts/python/websharereg/webshare_proxi
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 def _req(url, data=None, headers=None, method=None, timeout=15):
-    """Minimal HTTP requester using stdlib."""
-    hdrs = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    """HTTP requester using requests library."""
+    hdrs = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
     if headers:
         hdrs.update(headers)
-    body = json.dumps(data).encode() if data else None
-    req = request.Request(url, data=body, headers=hdrs, method=method)
     try:
-        with request.urlopen(req, timeout=timeout) as r:
-            return r.status, json.loads(r.read())
-    except error.HTTPError as e:
-        return e.code, e.read().decode(errors="replace")[:300]
+        if data is not None:
+            r = requests.post(url, json=data, headers=hdrs, timeout=timeout)
+        else:
+            r = requests.get(url, headers=hdrs, timeout=timeout)
+        return r.status_code, r.json() if r.content else {}
+    except requests.HTTPError as e:
+        return e.response.status_code, str(e.response.text)[:300]
     except Exception as e:
         return 0, str(e)[:200]
 
@@ -54,21 +79,20 @@ def _req(url, data=None, headers=None, method=None, timeout=15):
 def create_yyds_email():
     """Create new inbox via YYDS API. Returns (email, inbox_id) or (None, None)."""
     if not YYDS_KEY:
-        print("  WARN: YYDS_API_KEY not set, skipping email creation")
+        print("  WARN: YYDS_API_KEY not set")
         return None, None
-    # Try /inboxes endpoint with Bearer token
     headers = {"Authorization": f"Bearer {YYDS_KEY}"}
-    status, body = _req(f"{YYDS_BASE}/inboxes", data={"domain": "nullz.in"}, headers=headers)
-    if status == 200 and isinstance(body, dict):
-        # Success response
+    # Try /inboxes endpoint
+    status, body = _req(f"{YYDS_BASE}/inboxes", data={"domain": YYDS_DOMAIN}, headers=headers)
+    if status == 201 and isinstance(body, dict):
         inbox = body.get("data") or body
         email = inbox.get("address") or inbox.get("email") or inbox.get("id")
-        iid = inbox.get("id") or inbox.get("inboxId")
+        iid = inbox.get("id")
         if email:
             return email, iid
     # Try /accounts endpoint
-    status, body = _req(f"{YYDS_BASE}/accounts", data={"domain": "nullz.in"}, headers=headers)
-    if status == 200 and isinstance(body, dict):
+    status, body = _req(f"{YYDS_BASE}/accounts", data={"domain": YYDS_DOMAIN}, headers=headers)
+    if status == 201 and isinstance(body, dict):
         inbox = body.get("data") or body
         email = inbox.get("address") or inbox.get("email")
         iid = inbox.get("id")
@@ -114,7 +138,6 @@ def solve_recaptcha(url, timeout_s=120):
             print(f"    Captcha solved: token len={len(token)}")
             return token
         if body.get("solved"):
-            # Some solvers return solved=True with token in different field
             return body.get("token")
     print(f"    Captcha solve failed: status={status} body={str(body)[:200]}")
     return None
@@ -137,7 +160,6 @@ def register_webshare(email, recaptcha_token):
     if status == 200 and isinstance(body, dict):
         if "token" in body:
             return True, body
-        # Check for errors
         errors = []
         for key, val in body.items():
             if isinstance(val, list):
@@ -206,17 +228,17 @@ def main():
     # Check prerequisites
     if not YYDS_KEY:
         print("ERROR: YYDS_API_KEY environment variable not set")
-        print("  Export your YYDS API key: export YYDS_API_KEY='AC-xxxxx'")
         sys.exit(1)
 
     # Check captcha solver
     status, _ = _req(CAPTCHA_SOLVER + "/health")
     if status != 200:
         print(f"ERROR: Captcha solver not available at {CAPTCHA_SOLVER}")
-        print("  Start it with: cd /home/ubuntu/research/captcha-solver && BROWSER_HEADLESS=1 .venv/bin/python server.py")
+        print("  Start it with: cd /home/ubuntu/research/captcha-solver && .venv/bin/python server.py")
         sys.exit(1)
     print(f"Captcha solver: OK ({CAPTCHA_SOLVER})")
     print(f"YYDS API key: {YYDS_KEY[:8]}... (len={len(YYDS_KEY)})")
+    print(f"YYDS domain: {YYDS_DOMAIN}")
 
     # Load existing proxies
     existing = []
@@ -284,13 +306,6 @@ def main():
         time.sleep(random.uniform(2, 5))
 
     # 5. Save proxies
-    new_proxies = []
-    for r in results:
-        if r.get("status") == "ok":
-            # We don't have the actual proxy list in results, just count
-            pass
-
-    # Re-fetch to get actual proxies for saving
     all_proxies = []
     for r in results:
         if r.get("status") == "ok":
