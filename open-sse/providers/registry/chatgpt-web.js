@@ -1,0 +1,35 @@
+export default {
+  id: "chatgpt-web",
+  priority: 150,
+  alias: "chatgpt-web",
+  aliases: ["chatgpt", "c2a", "chat2api"],
+  uiAlias: "c2a",
+  display: {
+    name: "ChatGPT Web (Chat2API)",
+    icon: "chat",
+    color: "#10A37F",
+    textIcon: "C2A",
+    website: "https://chatgpt.com",
+    notice: {
+      signupUrl: "https://chatgpt.com",
+    },
+  },
+  category: "webCookie",
+  authType: "cookie",
+  authHint: "Paste your ChatGPT session accessToken (JWT) or __Secure-next-auth.session-token cookie",
+  transport: {
+    baseUrl: "https://chatgpt.com/backend-api/conversation",
+    format: "openai",
+    authType: "cookie",
+  },
+  models: [
+    { id: "gpt-4o", name: "GPT-4o (ChatGPT Web)" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini (ChatGPT Web)" },
+    { id: "chatgpt-4o-latest", name: "ChatGPT 4o Latest" },
+    { id: "o1", name: "o1 (ChatGPT Web)" },
+    { id: "o1-mini", name: "o1-mini (ChatGPT Web)" },
+    { id: "o3-mini", name: "o3-mini (ChatGPT Web)" },
+    { id: "gpt-4", name: "GPT-4 (ChatGPT Web)" },
+  ],
+  passthroughModels: true,
+};
