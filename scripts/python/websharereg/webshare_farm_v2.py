@@ -135,6 +135,30 @@ def fetch_proxies(api_token, proxy):
     except Exception as e:
         return []
 
+def solve_recaptcha(proxy):
+    """Solve reCAPTCHA v2 via local captcha solver API."""
+    try:
+        payload = {
+            "type": "recaptcha",
+            "sitekey": "6LeHZ6UUAAAAAKat_YS--O2tj_by3gv3r_l03j9d",
+            "url": "https://proxy.webshare.io/register"
+        }
+        req = urllib.request.Request(
+            "http://127.0.0.1:8791/solve",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"}
+        )
+        r = urllib.request.urlopen(req, timeout=120)
+        result = json.loads(r.read())
+        if result.get("success") and result.get("code") == 200:
+            token = result.get("solution", {}).get("token")
+            print(f"    ✅ Captcha solved: token len={len(token) if token else 0}")
+            return token
+        print(f"    ❌ Solver error: {result}")
+    except Exception as e:
+        print(f"    ❌ Solver exception: {e}")
+    return None
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--count", type=int, default=3, help="number of accounts")
@@ -163,7 +187,7 @@ def main():
         result = None
         for attempt in range(3):
             try:
-                token = solve_recaptcha_via_browser(email, password, proxy)
+                token = solve_recaptcha(proxy)
                 result = register_account(email, password, token, proxy)
                 if result.get("token"):
                     break
