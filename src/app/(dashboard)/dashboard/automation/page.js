@@ -581,6 +581,34 @@ function FreebuffAutomationPanel({ providerInfo, onRefresh }) {
   );
 }
 
+function AntigravityAutomationPanel({ providerInfo, onRefresh }) {
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsBulkOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="rocket_launch"
+            title="Auto Login Bulk (GSuite SSO)"
+            subtitle="Paste GSuite email:password or email|password (atau upload file) untuk auto-auth Antigravity via Camoufox+WARP ke DB."
+          />
+        </button>
+      </div>
+      <BulkAccountAutomationModal
+        isOpen={isBulkOpen}
+        provider="antigravity"
+        title="Antigravity Bulk GSuite Auto Login"
+        serviceName="Antigravity"
+        onSuccess={onRefresh}
+        onClose={() => setIsBulkOpen(false)}
+      />
+    </>
+  );
+}
+
 function TokenHarborAutomationPanel({ onRefresh }) {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
 
@@ -850,6 +878,15 @@ const AUTOMATION_PROVIDERS = [
     description: "Import freebuff authTokens (API keys) from device-code approve flow. Models: GPT-5.6 Luna, GLM-5.2, Gemini 3.1 Pro.",
     supportedModes: ["import-token"],
     component: FreebuffAutomationPanel,
+  },
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    icon: "rocket_launch",
+    iconSrc: "/providers/antigravity.webp",
+    description: "Bulk Google Antigravity auto login via GSuite Workspace accounts with agy CLI OAuth exchange.",
+    supportedModes: ["bulk-account", "import-token"],
+    component: AntigravityAutomationPanel,
   },
   {
     id: "zcode",

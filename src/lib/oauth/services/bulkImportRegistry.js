@@ -149,6 +149,22 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
     }),
   },
+  antigravity: {
+    label: "Antigravity",
+    errorLabel: "Antigravity bulk import job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) =>
+      import("./antigravityBulkImportManager.js").then((m) => m.parseAntigravityBulkAccounts(accounts)),
+    getManager: () =>
+      import("./antigravityBulkImportManager.js").then((m) => m.getAntigravityBulkImportManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: body?.accounts ?? [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+    }),
+  },
   "baseten-signup": {
     label: "Baseten Signup",
     errorLabel: "Baseten signup job",

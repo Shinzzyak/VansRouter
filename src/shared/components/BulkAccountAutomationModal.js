@@ -434,9 +434,33 @@ export default function BulkAccountAutomationModal({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">
-                Bulk Accounts <span className="text-red-500">*</span>
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium">
+                  Bulk Accounts <span className="text-red-500">*</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-text-muted hover:bg-sidebar hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                  Upload File (.txt / .json)
+                  <input
+                    type="file"
+                    accept=".txt,.json,.csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const content = event.target?.result;
+                        if (typeof content === "string") {
+                          setBulkText((prev) => (prev.trim() ? `${prev.trim()}\n${content.trim()}` : content.trim()));
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <textarea
                 value={bulkText}
                 onChange={(event) => setBulkText(event.target.value)}
