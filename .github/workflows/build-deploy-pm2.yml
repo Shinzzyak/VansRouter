@@ -52,6 +52,12 @@ jobs:
         run: |
           cp -r public/. .next/standalone/public
           cp -r .next/static/. .next/standalone/.next/static/
+          # Next 16 writes server manifests (middleware-manifest.json, etc.)
+          # to .next/server/ — but standalone tracing does NOT include them by
+          # default. Copy the whole .next/server dir into the standalone so the
+          # prod server can resolve middleware-manifest.json at boot.
+          mkdir -p .next/standalone/.next/server
+          cp -r .next/server/. .next/standalone/.next/server/
           # open-sse/ is imported via bare specifier ("open-sse/...") which
           # Next.js does NOT trace into the standalone output. Without it the
           # production server cannot resolve providers/executors (FreeBuff,
