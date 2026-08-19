@@ -122,7 +122,7 @@ export default function TokenSaverSettings({
               Compression extras
               {headroomExtras.version ? ` · v${headroomExtras.version}` : ""}:
             </span>
-            {headroomExtras.available.map((extra) => {
+            {(headroomExtras.available || []).map((extra) => {
               const installed = !!headroomExtras.extras[extra];
               const pending = pendingExtras.includes(extra);
               const extraTitle =
