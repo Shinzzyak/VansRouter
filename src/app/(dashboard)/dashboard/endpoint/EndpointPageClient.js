@@ -574,7 +574,8 @@ export default function APIPageClient({ machineId }) {
 
       const keysData = await keysRes.json();
       if (keysRes.ok) {
-        let existing = keysData.keys || [];
+        // Ensure keys is always an array
+        let existing = Array.isArray(keysData.keys) ? keysData.keys : [];
         // Auto-provision a default key for first-time users so the endpoint
         // works out of the box without a manual dashboard step.
         if (existing.length === 0) {
