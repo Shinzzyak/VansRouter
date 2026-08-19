@@ -140,6 +140,7 @@ import p136 from "./llm7.js";
 import p137 from "./morph.js";
 import p138 from "./tencent.js";
 import p139 from "./freebuff.js";
+import p153 from "./bitdeer.js";
 import p140 from "./selfhosted-embedding.js";
 import p141 from "./selfhosted-stt.js";
 import p142 from "./selfhosted-tts.js";
@@ -307,5 +308,6 @@ export default [
   p149,
   p150,
   p151,
-  p152
+  p152,
+  p153
 ];
