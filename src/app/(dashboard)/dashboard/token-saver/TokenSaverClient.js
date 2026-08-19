@@ -491,7 +491,7 @@ export default function TokenSaverClient() {
           {pxpipeHealth?.checks?.length > 0 && (
             <div className="flex flex-col gap-1 rounded border border-border p-3">
               <p className="text-sm font-medium mb-1">Health check</p>
-              {pxpipeHealth.checks.map((check) => (
+              {(pxpipeHealth.checks || []).map((check) => (
                 <div key={check.id} className="flex items-center justify-between text-xs">
                   <span className={check.ok ? "text-success" : "text-warning"}>
                     {check.ok ? "●" : "○"} {check.label}
