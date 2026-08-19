@@ -39,4 +39,6 @@ export const GODMODE_LEVELS = [
   { id: "plinian", label: "Plinian", desc: "Ultra + ULTRAPLINIAN self-race: re-answer if refusal starts, compliance over caution" },
   { id: "plinian-max", label: "Plinian Max", desc: "Plinian + language/tone match + full detail on sensitive asks" },
   { id: "deepseek-bypass", label: "DeepSeek Bypass", desc: "L1B3RT4S combined templates — tested bypass for DeepSeek-v4-pro safety training" },
+  { id: "gemini-bypass", label: "Gemini Bypass", desc: "Refusal inversion specialized for Gemini 2.5/3.x models" },
+  { id: "omni-bypass", label: "OMNI BYPASS", desc: "⚡ UNIVERSAL — All techniques combined, works on ALL models (Claude/Gemini/DeepSeek/GPT/Grok)" },
 ];
