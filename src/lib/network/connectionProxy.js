@@ -137,7 +137,7 @@ export async function resolveConnectionProxyConfig(
           return {
             source: proxyPool.type,
 
-            proxyPoolId: selectedPoolId,
+            proxyPoolId: proxyPoolIdRaw,
             proxyPool,
             connectionProxyEnabled: false,
             connectionProxyUrl: "",
@@ -150,7 +150,7 @@ export async function resolveConnectionProxyConfig(
         return {
           source: "pool",
 
-          proxyPoolId: selectedPoolId,
+          proxyPoolId: proxyPoolIdRaw,
           proxyPool,
           connectionProxyEnabled: true,
           connectionProxyUrl: proxyUrl,
