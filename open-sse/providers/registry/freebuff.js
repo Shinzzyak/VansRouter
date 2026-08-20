@@ -71,6 +71,8 @@ const freebuffRegistry = {
     { id: "mimo/mimo-v2.5", name: "MiMo 2.5" },
     { id: "minimax/minimax-m3", name: "MiniMax M3" },
     { id: "openai/gpt-5.6-luna", name: "GPT-5.6 Luna" },
+    { id: "meta/muse-spark-1.2-contributor", name: "Muse Spark 1.2" },
+    { id: "crof/kimi-k3-eco", name: "Kimi K3 Eco" },
   ],
   // Login-flow host — the CLI in freebuff mode logs in via freebuff.com, and
   // the server builds loginUrl from the host it was called on, so the link the
