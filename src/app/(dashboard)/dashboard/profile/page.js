@@ -73,9 +73,6 @@ export default function ProfilePage() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyStatus, setPasskeyStatus] = useState({ type: "", message: "" });
   const [passkeyNickname, setPasskeyNickname] = useState("");
-  const [yydsApiKey, setYydsApiKey] = useState("");
-  const [yydsJwt, setYydsJwt] = useState("");
-  const [yydsSaving, setYydsSaving] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect --
      Locale sync on mount and bootstrap fetch of /api/settings. setState is
@@ -558,44 +555,6 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error("Failed to update enableObservability:", err);
-    }
-  };
-
-  const updateYydsEnabled = async (enabled) => {
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ yydsEnabled: enabled }),
-      });
-      if (res.ok) setSettings((prev) => ({ ...prev, yydsEnabled: enabled }));
-    } catch (err) {
-      console.error("Failed to update yydsEnabled:", err);
-    }
-  };
-
-  const saveYydsSettings = async () => {
-    setYydsSaving(true);
-    try {
-      const body = {};
-      if (yydsApiKey.trim()) body.yydsApiKey = yydsApiKey.trim();
-      if (yydsJwt.trim()) body.yydsJwt = yydsJwt.trim();
-      if (!Object.keys(body).length) return;
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSettings((prev) => ({ ...prev, ...data }));
-        setYydsApiKey("");
-        setYydsJwt("");
-      }
-    } catch (err) {
-      console.error("Failed to save YYDS settings:", err);
-    } finally {
-      setYydsSaving(false);
     }
   };
 
@@ -1333,63 +1292,6 @@ export default function ProfilePage() {
                 {proxyStatus.message}
               </p>
             )}
-          </div>
-        </Card>
-
-        {/* YYDS Temp Mail Settings */}
-        <Card>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
-              <span className="material-symbols-outlined text-[20px]">mail</span>
-            </div>
-            <h3 className="text-base sm:text-lg font-semibold">YYDS Temp Mail</h3>
-          </div>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start sm:items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Enable YYDS</p>
-                <p className="text-xs sm:text-sm text-text-muted">
-                  Use YYDS temp-mail (maliapi.215.im) for disposable inboxes & OTP
-                </p>
-              </div>
-              <Toggle
-                checked={settings.yydsEnabled === true}
-                onChange={updateYydsEnabled}
-                disabled={loading}
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="flex-1">
-                <label className="text-xs font-medium text-text-muted">YYDS API Key</label>
-                <Input
-                  type="password"
-                  placeholder="AC-… (from mail.215.im)"
-                  value={yydsApiKey}
-                  onChange={(e) => setYydsApiKey(e.target.value)}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs font-medium text-text-muted">YYDS JWT (write-only)</label>
-                <Input
-                  type="password"
-                  placeholder="eyJ… (account JWT — optional, API key cukup)"
-                  value={yydsJwt}
-                  onChange={(e) => setYydsJwt(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={saveYydsSettings}
-                disabled={loading || yydsSaving || (!yydsApiKey && !yydsJwt)}
-              >
-                {yydsSaving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-            <p className="text-xs text-text-muted">
-              {settings.yydsApiKeyConfigured
-                ? "✓ API key tersimpan — YYDS Mail siap dipakai (create inbox, auto-detect domain, poll OTP)."
-                : "Belum ada API key — paste key scope=own dari mail.215.im."}
-            </p>
           </div>
         </Card>
 

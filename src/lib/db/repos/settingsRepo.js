@@ -54,10 +54,6 @@ const DEFAULT_SETTINGS = {
   godmodeEnabled: false,
   godmodeLevel: "lite",
   bypassMode: "off",
-  // YYDS temp-mail support
-  yydsEnabled: false,
-  yydsApiKey: "",
-  yydsJwt: "",
 };
 
 async function readRaw() {
