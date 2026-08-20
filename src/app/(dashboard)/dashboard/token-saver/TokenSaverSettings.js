@@ -61,7 +61,7 @@ export default function TokenSaverSettings({
           <span className="material-symbols-outlined text-primary">
             bolt
           </span>
-          AI Engine
+          VansRouter
         </h2>
       </div>
       <div className="flex items-center justify-between pt-2 pb-4 border-b border-border gap-4">

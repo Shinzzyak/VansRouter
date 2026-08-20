@@ -1330,12 +1330,12 @@ export default function APIPageClient({ machineId }) {
         )}
       </Card>
 
-      {/* AI Engine (RTK + Caveman + Ponytail + Headroom + Godmode + Bypass) */}
+      {/* VansRouter (RTK + Caveman + Ponytail + Headroom + Godmode + Bypass) */}
       <Card id="rtk">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">bolt</span>
-            AI Engine
+            VansRouter
           </h2>
         </div>
         <div className="flex items-center justify-between pt-2 pb-4 border-b border-border gap-4">
