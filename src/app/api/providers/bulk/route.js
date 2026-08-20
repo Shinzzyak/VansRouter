@@ -10,7 +10,7 @@ import {
 } from "@/shared/constants/providers";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { normalizeProviderId } from "@/lib/providerNormalization";
-import { getProviderNodeById } from "@/lib/db/repos/providerNodesRepo";
+import { getProviderNodeById } from "@/lib/db/repos/nodesRepo";
 
 export async function POST(request) {
   try {
