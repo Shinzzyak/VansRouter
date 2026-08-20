@@ -10,6 +10,7 @@ import {
 } from "@/shared/constants/providers";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { getProviderNodeById } from "@/lib/db/repos/providerNodesRepo";
 
 export async function POST(request) {
   try {
@@ -31,9 +32,30 @@ export async function POST(request) {
       || isOpenAICompatibleProvider(provider)
       || isAnthropicCompatibleProvider(provider)
       || isCustomEmbeddingProvider(provider);
-    if (items.some((item) => !validProvider(item.provider) || !AI_PROVIDERS[item.provider] || !item.apiKey || !item.name)) {
+    // FIX: removed !AI_PROVIDERS[item.provider] check — custom provider nodes
+    // (openai-compatible-*, anthropic-compatible-*, custom-embedding-*) are valid
+    // but NOT in AI_PROVIDERS. validProvider() already covers all valid types.
+    if (items.some((item) => !validProvider(item.provider) || !item.apiKey || !item.name)) {
       return NextResponse.json({ error: "Every item requires a valid API-key provider, name, and apiKey" }, { status: 400 });
     }
+
+    // Enrich custom provider nodes with node-specific data (prefix, baseUrl, etc.)
+    // so the bulk insert has all the fields the single-add endpoint provides.
+    for (const item of items) {
+      if (isOpenAICompatibleProvider(item.provider) || isAnthropicCompatibleProvider(item.provider) || isCustomEmbeddingProvider(item.provider)) {
+        const node = await getProviderNodeById(item.provider);
+        if (node) {
+          item.providerSpecificData = {
+            ...(item.providerSpecificData || {}),
+            prefix: node.prefix,
+            baseUrl: node.baseUrl,
+            nodeName: node.name,
+            ...(isOpenAICompatibleProvider(item.provider) ? { apiType: node.apiType } : {}),
+          };
+        }
+      }
+    }
+
     const names = new Set();
     for (const item of items) {
       const key = `${item.provider}:${item.name}`;
