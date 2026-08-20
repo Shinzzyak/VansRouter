@@ -114,8 +114,8 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/token-saver"))
     return {
-      title: "Token Saver",
-      description: "Compress prompts and outputs to save tokens",
+      title: "AI Engine",
+      description: "Compress prompts, bypass restrictions, and optimize LLM interactions",
       icon: "savings",
       breadcrumbs: [],
     };
