@@ -24,6 +24,7 @@ export default function TokenSaverClient() {
   const [ponytailLevel, setPonytailLevel] = useState("full");
   const [godmodeEnabled, setGodmodeEnabled] = useState(false);
   const [godmodeLevel, setGodmodeLevel] = useState("lite");
+  const [bypassMode, setBypassMode] = useState("off");
   const [codeAware, setCodeAware] = useState(false);
   const [kompress, setKompress] = useState(true);
   const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
@@ -157,6 +158,11 @@ export default function TokenSaverClient() {
     patchSetting({ godmodeLevel: level });
   };
 
+  const handleBypassMode = (mode) => {
+    setBypassMode(mode);
+    patchSetting({ bypassMode: mode });
+  };
+
   const togglePendingExtra = (extra) => {
     setPendingExtras((current) =>
       current.includes(extra)
@@ -212,6 +218,7 @@ export default function TokenSaverClient() {
           setPonytailLevel(data.ponytailLevel || "full");
           setGodmodeEnabled(!!data.godmodeEnabled);
           setGodmodeLevel(data.godmodeLevel || "lite");
+          setBypassMode(data.bypassMode || "off");
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
           setGuards({
@@ -299,6 +306,8 @@ export default function TokenSaverClient() {
         handleGodmodeLevel={handleGodmodeLevel}
         godmodeLevel={godmodeLevel}
         handleGodmodeEnabled={handleGodmodeEnabled}
+        bypassMode={bypassMode}
+        handleBypassMode={handleBypassMode}
         pxpipeChipClass={pxpipeChipClass}
         pxpipeStatusLabel={pxpipeStatusLabel}
         setShowPxpipeModal={setShowPxpipeModal}

@@ -588,6 +588,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       ponytailLevel: chatSettings.ponytailLevel || "full",
       godmodeEnabled: !!chatSettings.godmodeEnabled,
       godmodeLevel: chatSettings.godmodeLevel || "lite",
+      bypassMode: chatSettings.bypassMode || "off",
       loopGuardEnabled: chatSettings.loopGuardEnabled !== false && chatSettings.loopGuardEnabled !== 0,
       providerThinking,
       // Pool-scoped failure recovery: re-resolve proxy config excluding the

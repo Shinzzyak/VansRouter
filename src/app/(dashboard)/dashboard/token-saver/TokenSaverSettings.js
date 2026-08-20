@@ -2,6 +2,11 @@
 
 import { Card, Toggle } from "@/shared/components";
 
+const BYPASS_MODE_OPTIONS = [
+  { id: "framing", label: "Framing", desc: "Request-side educational/RE framing only (fast)" },
+  { id: "aggressive", label: "Aggressive", desc: "Framing + auto-retry on refusal with escalation prompt (slower, higher success)" },
+];
+
 export default function TokenSaverSettings({
   rtkEnabled,
   handleRtkEnabled,
@@ -40,6 +45,8 @@ export default function TokenSaverSettings({
   handleGodmodeLevel,
   godmodeLevel,
   handleGodmodeEnabled,
+  bypassMode,
+  handleBypassMode,
   pxpipeChipClass,
   pxpipeStatusLabel,
   setShowPxpipeModal,
@@ -349,6 +356,45 @@ export default function TokenSaverSettings({
           <Toggle
             checked={godmodeEnabled}
             onChange={() => handleGodmodeEnabled(!godmodeEnabled)}
+          />
+        </div>
+      </div>
+      {/* BYPASS ENGINE — universal request/response interceptor */}
+      <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">
+            Bypass Engine{" "}
+            <span className="text-xs font-normal text-text-muted">
+              (universal request/response interceptor)
+            </span>
+          </p>
+          <p className="text-sm text-text-muted">
+            Applies educational/RE framing to all outgoing requests. Aggressive mode
+            auto-retries on refusal with escalation prompt.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {bypassMode !== "off" && (
+            <div className="flex items-center gap-1.5">
+              {BYPASS_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => handleBypassMode(opt.id)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                    bypassMode === opt.id
+                      ? "bg-primary text-white border-primary"
+                      : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                  }`}
+                  title={opt.desc}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <Toggle
+            checked={bypassMode !== "off"}
+            onChange={() => handleBypassMode(bypassMode === "off" ? "framing" : "off")}
           />
         </div>
       </div>
