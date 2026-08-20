@@ -6,8 +6,8 @@ import { createPortal } from "react-dom";
 import { GITHUB_CONFIG } from "@/shared/constants/config";
 
 const DEFAULT_DONATE_DATA = {
-  title: "Support VansRouter",
-  message: "Terima kasih telah mendukung pengembangan VansRouter agar infrastruktur dan fitur baru terus aktif!",
+  title: "Support AI Engine",
+  message: "Terima kasih telah mendukung pengembangan AI Engine agar infrastruktur dan fitur baru terus aktif!",
   channels: [
     {
       id: "saweria",

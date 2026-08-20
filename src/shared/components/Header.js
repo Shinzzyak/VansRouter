@@ -114,7 +114,7 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/token-saver"))
     return {
-      title: "VansRouter",
+      title: "AI Engine",
       description: "AI Router with token compression, bypass engine, and multi-provider proxy",
       icon: "savings",
       breadcrumbs: [],
