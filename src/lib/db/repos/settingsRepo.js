@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS = {
   ponytailLevel: "full",
   godmodeEnabled: false,
   godmodeLevel: "lite",
+  bypassMode: "off",
   // YYDS temp-mail support
   yydsEnabled: false,
   yydsApiKey: "",

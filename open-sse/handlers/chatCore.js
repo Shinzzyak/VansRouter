@@ -30,6 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
+import { detectRefusal, getEscalationPrompt, BYPASS_MODES } from "../rtk/bypassEngine.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -142,7 +143,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
    proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
  });
 
- export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
+ export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
    // Stable per-session color so all lines of one CLI conversation share a tag
    const sessionSeed = (() => {
      try {
@@ -351,8 +352,8 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   } else if (tokenSaverEnabled && headroomEnabled) log?.warn?.("HEADROOM", `skipped: ${headroomDiagnostics.reason || "compression unavailable"}${headroomDiagnostics.endpoint ? ` (${headroomDiagnostics.endpoint})` : ""}`);
 
   // Prompt injectors: default system prompt + token-saver styles (caveman/
-  // ponytail) + godmode — applied through a single registry call so future
-  // upstream merges touch one call site, not four.
+  // ponytail) + godmode + bypass — applied through a single registry call so future
+  // upstream merges touch one call site, not five.
   applyPromptInjectors({
     body: translatedBody,
     format: finalFormat,
@@ -365,6 +366,9 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     ponytailLevel,
     godmodeEnabled,
     godmodeLevel,
+    bypassMode,
+    provider,
+    model,
   });
 
   if (TOOL_PROTOCOL_PROMPT_PROVIDERS.has(provider)) {
@@ -680,6 +684,35 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
         }
       } catch (retryErr) {
         log?.warn?.("RETRY", `clinepass retry failed: ${retryErr.message}`);
+      }
+    }
+
+    // Bypass engine: aggressive mode — detect refusal and retry with escalation prompt
+    if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success && result?.response) {
+      const responseText = typeof result.response === 'string' ? result.response : '';
+      if (detectRefusal(responseText)) {
+        log?.warn?.("BYPASS", `${provider}/${model} | refusal detected, retrying with escalation prompt`);
+        const escalation = getEscalationPrompt(0);
+        // Append escalation to last user message
+        const msgs = translatedBody.messages;
+        if (Array.isArray(msgs)) {
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i]?.role === 'user' && typeof msgs[i]?.content === 'string') {
+              msgs[i].content += `\n\n${escalation}`;
+              break;
+            }
+          }
+        }
+        try {
+          const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
+          if (retryResult?.response?.ok) {
+            providerResponse = retryResult.response;
+            result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
+            log?.info?.("BYPASS", `${provider}/${model} | escalation retry successful`);
+          }
+        } catch (bypassErr) {
+          log?.warn?.("BYPASS", `${provider}/${model} | escalation retry failed: ${bypassErr.message}`);
+        }
       }
     }
 

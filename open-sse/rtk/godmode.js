@@ -52,3 +52,8 @@ export function injectGodmode(body, format, enabled) {
 }
 
 export const GODMODE_ENABLED = true;
+
+export const GODMODE_LEVELS = [
+  { id: "lite", label: "Lite", desc: "Basic unrestricted assistant" },
+  { id: "full", label: "Full", desc: "Full security researcher framing" },
+];

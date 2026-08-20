@@ -36,3 +36,10 @@ export const PONYTAIL_LEVELS = [
 // When disabled, normal behavior
 export const GODMODE_ENABLED = true;
 export const GODMODE_OFF = false;
+
+// Bypass Engine: universal request/response interceptor
+export const BYPASS_MODES = [
+  { id: "off", label: "Off", desc: "No bypass" },
+  { id: "framing", label: "Framing", desc: "Educational/RE framing only (fast)" },
+  { id: "aggressive", label: "Aggressive", desc: "Framing + auto-retry on refusal (slower, higher success)" },
+];

@@ -10,6 +10,7 @@
 //   2. caveman (terse style, token saver)
 //   3. ponytail (lazy senior dev, token saver)
 //   4. godmode (uncensoring, always-on when enabled)
+//   5. bypass (universal bypass engine — educational/RE framing for all models)
 //
 // Each injector is fail-open: a throw is logged and swallowed so a broken
 // injector can never take down a chat request.
@@ -18,6 +19,7 @@ import { injectSystemPrompt } from "./systemInject.js";
 import { injectCaveman } from "./caveman.js";
 import { injectPonytail } from "./ponytail.js";
 import { injectGodmode, GODMODE_LEVELS } from "./godmode.js";
+import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
 
 /**
  * Apply all enabled prompt injectors to a translated request body.
@@ -33,6 +35,9 @@ import { injectGodmode, GODMODE_LEVELS } from "./godmode.js";
  * @param {string} opts.ponytailLevel
  * @param {boolean} opts.godmodeEnabled
  * @param {string} opts.godmodeLevel
+ * @param {string} opts.bypassMode — 'off' | 'framing' | 'aggressive'
+ * @param {string} opts.provider — provider ID (gemini, claude, openai, etc.)
+ * @param {string} opts.model — model name
  */
 export function applyPromptInjectors({
   body,
@@ -46,6 +51,9 @@ export function applyPromptInjectors({
   ponytailLevel = null,
   godmodeEnabled = false,
   godmodeLevel = GODMODE_LEVELS.LITE,
+  bypassMode = BYPASS_MODES.OFF,
+  provider = '',
+  model = '',
 }) {
   const safe = (name, fn) => {
     try {
@@ -84,6 +92,15 @@ export function applyPromptInjectors({
       log?.debug?.("GODMODE", `${godmodeLevel || GODMODE_LEVELS.LITE} | ${format}`);
     });
   }
+
+  // Bypass engine — universal framing for all models (applied LAST, highest priority)
+  if (bypassMode && bypassMode !== BYPASS_MODES.OFF) {
+    safe("BYPASS", () => {
+      applyBypass(body, format, provider, model, bypassMode);
+      log?.debug?.("BYPASS", `${bypassMode} | ${provider}/${model} | ${format}`);
+    });
+  }
 }
 
 export { GODMODE_LEVELS };
+export { BYPASS_MODES };
