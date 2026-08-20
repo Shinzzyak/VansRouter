@@ -112,7 +112,7 @@ export default function PxpipeClient() {
         </h2>
         <div className="flex items-center gap-2">
           <a href="/dashboard/token-saver" className="text-xs text-primary underline hover:opacity-80">
-            VansRouter settings
+            AI Engine settings
           </a>
           <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
@@ -199,7 +199,7 @@ export default function PxpipeClient() {
           </ResponsiveContainer>
         ) : (
           <div className="h-32 flex items-center justify-center text-text-muted text-sm">
-            No savings recorded yet — enable PXPIPE in VansRouter and route a large Claude-format request.
+            No savings recorded yet — enable PXPIPE in AI Engine and route a large Claude-format request.
           </div>
         )}
       </Card>
