@@ -1,3 +1,23 @@
+# v0.91.10 (2026-08-19)
+
+- **OpenAI Responses system prompt injection** — Injected Token Saver prompts (Caveman/Ponytail) into `body.instructions` instead of `input[]` for OpenAI Responses / Codex models, preventing `Unknown parameter: 'input[0].content'` (#106 / #2497).
+- **Web fetch format routing** — Forwarded `format` parameter (`markdown`, `text`, `html`) to upstream web fetch providers (Jina Reader via `X-Respond-With`, Firecrawl via `formats`, Tavily via `format`).
+- **Chat content part type standardization** — Standardized array content parts in Chat completions to `{ type: "text" }` instead of `input_text` for strict upstream providers (#3204).
+
+# v0.91.9 (2026-08-19)
+
+- **Local font bundling** — Bundled Material Symbols locally to eliminate external Google Fonts CDN dependency and removed the fragile `visibility: hidden` font-loading gate.
+- **Sidebar changelog modal** — Replaced the external GitHub changelog link in the sidebar with an interactive modal popup matching the navbar experience.
+- **Multi-language changelog action** — Added translations for 'Check new changelog' across all 30 supported language literal files.
+
+# v0.91.8 (2026-08-18)
+
+- **Empty reasoning stream recovery** — Emitted a synthetic text delta before stream completion across Gemini and Claude translators when models finish with only thinking content, preventing `APIEmptyResponseError` in AI SDK clients.
+- **Search error isolation** — Prevented client input validation errors (HTTP 400 / 422) from triggering account lockouts or provider failovers.
+- **Exa Search Playground** — Added interactive 1:1 request playground with coding presets, live cURL preview, and dual-mode JSON/SSE decoder.
+- **Material Symbols i18n Guard** — Excluded icon font ligature containers from runtime text translation to prevent corrupted UI controls (#105).
+- **Multi-channel Donate** — Configured built-in support for Saweria, Trakteer, and Ko-fi, and updated label to 'Donate Me' with full multi-language translations.
+
 # v0.91.7 (2026-08-18)
 
 - **Exa Search 1:1 Integration** — Full parameter mapping (`type`, `stream`, `numResults`, `category`, `userLocation`, `includeDomains`, `excludeDomains`, dates, `moderation`, `additionalQueries`, `systemPrompt`, `outputSchema`, `compliance`, nested `contents` with text/highlights/summary/livecrawl/subpages/extras), SSE stream response handling, and response metadata preservation.
