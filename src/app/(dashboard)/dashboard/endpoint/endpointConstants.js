@@ -36,6 +36,10 @@ export const PONYTAIL_LEVELS = [
 // When disabled, normal behavior
 export const GODMODE_ENABLED = true;
 export const GODMODE_OFF = false;
+export const GODMODE_LEVELS = [
+  { id: "lite", label: "Lite", desc: "Basic unrestricted assistant" },
+  { id: "full", label: "Full", desc: "Full security researcher framing" },
+];
 
 // Bypass Engine: universal request/response interceptor
 export const BYPASS_MODES = [

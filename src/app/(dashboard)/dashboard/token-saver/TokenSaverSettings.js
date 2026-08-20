@@ -33,19 +33,19 @@ export default function TokenSaverSettings({
   visibleCavemanLevels,
   handleCavemanLevel,
   cavemanLevel,
-  cavemanLevels,
+  cavemanLevels = [],
   handleCavemanEnabled,
   ponytailEnabled,
-  ponytailLevels,
+  ponytailLevels = [],
   handlePonytailLevel,
   ponytailLevel,
   handlePonytailEnabled,
   godmodeEnabled,
-  godmodeLevels,
+  godmodeLevels = [],
   handleGodmodeLevel,
   godmodeLevel,
   handleGodmodeEnabled,
-  bypassMode,
+  bypassMode = "off",
   handleBypassMode,
   pxpipeChipClass,
   pxpipeStatusLabel,
@@ -61,7 +61,7 @@ export default function TokenSaverSettings({
           <span className="material-symbols-outlined text-primary">
             bolt
           </span>
-          Token Saver
+          AI Engine
         </h2>
       </div>
       <div className="flex items-center justify-between pt-2 pb-4 border-b border-border gap-4">
@@ -122,16 +122,16 @@ export default function TokenSaverSettings({
           onChange={() => handleHeadroomEnabled(!headroomEnabled)}
         />
       </div>
-      {headroomStatus.installed && (
+      {headroomStatus?.installed && (
         <div className="mb-3 ml-1 pl-3 pb-4 border-l-2 border-border">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-text-muted">
               Compression extras
-              {headroomExtras.version ? ` · v${headroomExtras.version}` : ""}:
+              {headroomExtras?.version ? ` · v${headroomExtras.version}` : ""}:
             </span>
-            {(headroomExtras.available || []).map((extra) => {
-              const installed = !!headroomExtras.extras[extra];
-              const pending = pendingExtras.includes(extra);
+            {(headroomExtras?.available || []).map((extra) => {
+              const installed = !!headroomExtras?.extras?.[extra];
+              const pending = pendingExtras?.includes(extra);
               const extraTitle =
                 extra === "code"
                   ? "tree-sitter AST compression for code responses"
@@ -186,7 +186,7 @@ export default function TokenSaverSettings({
                 </label>
               );
             })}
-            {pendingExtras.length > 0 && (
+            {pendingExtras?.length > 0 && (
               <button
                 onClick={handleInstallExtras}
                 disabled={extrasActionLoading}
@@ -241,7 +241,7 @@ export default function TokenSaverSettings({
           {cavemanEnabled && (
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1.5">
-                {visibleCavemanLevels.map((lvl) => (
+                {visibleCavemanLevels?.map((lvl) => (
                   <button
                     key={lvl.id}
                     onClick={() => handleCavemanLevel(lvl.id)}
@@ -257,7 +257,7 @@ export default function TokenSaverSettings({
                 ))}
               </div>
               <p className="text-xs text-primary">
-                {cavemanLevels.find((lvl) => lvl.id === cavemanLevel)?.desc}
+                {cavemanLevels?.find((lvl) => lvl.id === cavemanLevel)?.desc}
               </p>
             </div>
           )}
@@ -289,7 +289,7 @@ export default function TokenSaverSettings({
           {ponytailEnabled && (
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1.5">
-                {ponytailLevels.map((lvl) => (
+                {ponytailLevels?.map((lvl) => (
                   <button
                     key={lvl.id}
                     onClick={() => handlePonytailLevel(lvl.id)}
@@ -305,7 +305,7 @@ export default function TokenSaverSettings({
                 ))}
               </div>
               <p className="text-xs text-primary">
-                {ponytailLevels.find((lvl) => lvl.id === ponytailLevel)?.desc}
+                {ponytailLevels?.find((lvl) => lvl.id === ponytailLevel)?.desc}
               </p>
             </div>
           )}
@@ -330,7 +330,7 @@ export default function TokenSaverSettings({
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {godmodeEnabled && (
+          {godmodeEnabled && godmodeLevels?.length > 0 && (
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-1.5">
                 {godmodeLevels.map((lvl) => (
@@ -349,7 +349,7 @@ export default function TokenSaverSettings({
                 ))}
               </div>
               <p className="text-xs text-primary">
-                {godmodeLevels.find((lvl) => lvl.id === godmodeLevel)?.desc}
+                {godmodeLevels?.find((lvl) => lvl.id === godmodeLevel)?.desc}
               </p>
             </div>
           )}
@@ -374,7 +374,7 @@ export default function TokenSaverSettings({
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {bypassMode !== "off" && (
+          {bypassMode && bypassMode !== "off" && (
             <div className="flex items-center gap-1.5">
               {BYPASS_MODE_OPTIONS.map((opt) => (
                 <button
@@ -413,15 +413,15 @@ export default function TokenSaverSettings({
                 (PXPIPE)
               </a>
             </p>
-            <span className={`text-xs px-2 py-0.5 rounded ${pxpipeChipClass}`}>
-              {pxpipeStatusLabel}
+            <span className={`text-xs px-2 py-0.5 rounded ${pxpipeChipClass || ""}`}>
+              {pxpipeStatusLabel || "Unknown"}
             </span>
             <button
               type="button"
               onClick={() => setShowPxpipeModal(true)}
               className="text-xs text-primary underline hover:opacity-80"
             >
-              {pxpipeStatus.installed ? "Manage" : "Setup"}
+              {pxpipeStatus?.installed ? "Manage" : "Setup"}
             </button>
             <a
               href="/dashboard/pxpipe"
@@ -438,7 +438,7 @@ export default function TokenSaverSettings({
         </div>
         <Toggle
           checked={pxpipeEnabled}
-          disabled={!pxpipeStatus.installed}
+          disabled={!pxpipeStatus?.installed}
           onChange={() => handlePxpipeEnabled(!pxpipeEnabled)}
         />
       </div>
