@@ -21,6 +21,10 @@ import { injectPonytail } from "./ponytail.js";
 import { injectGodmode, GODMODE_LEVELS } from "./godmode.js";
 import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
 
+// ponytail: single-toggle godmode has no real levels; hardcode "lite" as truthy
+// sentinel so omitting godmodeLevel still injects (array presets have no .LITE).
+const GODMODE_DEFAULT_LEVEL = "lite";
+
 /**
  * Apply all enabled prompt injectors to a translated request body.
  * @param {object} opts
@@ -50,7 +54,7 @@ export function applyPromptInjectors({
   ponytailEnabled = false,
   ponytailLevel = null,
   godmodeEnabled = false,
-  godmodeLevel = GODMODE_LEVELS.LITE,
+  godmodeLevel = GODMODE_DEFAULT_LEVEL,
   bypassMode = BYPASS_MODES.OFF,
   provider = '',
   model = '',
@@ -88,8 +92,8 @@ export function applyPromptInjectors({
 
   if (godmodeEnabled) {
     safe("GODMODE", () => {
-      injectGodmode(body, format, godmodeLevel || GODMODE_LEVELS.LITE);
-      log?.debug?.("GODMODE", `${godmodeLevel || GODMODE_LEVELS.LITE} | ${format}`);
+      injectGodmode(body, format, godmodeLevel || GODMODE_DEFAULT_LEVEL);
+      log?.debug?.("GODMODE", `${godmodeLevel || GODMODE_DEFAULT_LEVEL} | ${format}`);
     });
   }
 

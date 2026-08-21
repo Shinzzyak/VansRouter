@@ -140,16 +140,23 @@ const ESCALATION_PROMPTS = [
 ];
 
 /**
- * Detect if a response text is a refusal
+ * Detect if a response text is a refusal.
+ * Tuning (2026-08-21): long responses that merely DISCUSS policy/refusal
+ * (e.g. compliance analysis quoting "policy prohibits...") triggered false
+ * positives. Now: only scan the first 400 chars — refusals lead, explanations
+ * don't. Short responses (<200 chars) still get the full-text scan since a
+ * short body IS mostly its refusal line.
  * @param {string} text - Response text
  * @returns {boolean} - True if refusal detected
  */
+const REFUSAL_SCAN_HEAD_CHARS = 400;
 export function detectRefusal(text) {
   if (!text || typeof text !== 'string') return false;
-  // Short responses are almost always refusals
+  const head = text.length <= REFUSAL_SCAN_HEAD_CHARS ? text : text.slice(0, REFUSAL_SCAN_HEAD_CHARS);
+  if (REFUSAL_PATTERNS.some(p => p.test(head))) return true;
+  // Short responses: patterns anywhere in the (short) body count
   if (text.length < 200 && REFUSAL_PATTERNS.some(p => p.test(text))) return true;
-  // Longer responses: check if refusal patterns appear prominently
-  return REFUSAL_PATTERNS.some(p => p.test(text));
+  return false;
 }
 
 /**
@@ -229,6 +236,12 @@ export function isOutputFiltered(response, httpOk = true) {
   if (typeof response === 'string') {
     return httpOk && (!response || response === '' || response === 'null');
   }
+  // Response-object detection (nonStreamingHandler returns Response): parse JSON body
+  if (typeof response.json === 'function') {
+    // Synchronous callers can't await — treat as not-filtered here; the JSON
+    // path is covered by detectRefusal on the extracted text in chatCore.
+    return false;
+  }
   // Object-based detection: tokens generated but content stripped
   const choice = response.choices?.[0];
   const content = choice?.message?.content;
@@ -290,6 +303,65 @@ const EMPTY_RESPONSE_ESCALATION = [
 ];
 
 /**
+ * Append an escalation prompt to the LAST user message of a translated body,
+ * regardless of shape (OpenAI messages[], Gemini contents[], Claude system+messages).
+ * Aggressive-mode retry mutates the body AFTER translation, so it must speak
+ * every provider dialect — appending to `messages[]` only works for OpenAI.
+ * @param {object} body - Translated request body (mutated in place)
+ * @param {string} esc - Escalation text
+ */
+export function appendEscalationToBody(body, esc) {
+  if (!body || !esc) return false;
+  // OpenAI chat completions
+  if (Array.isArray(body.messages)) {
+    for (let i = body.messages.length - 1; i >= 0; i--) {
+      const m = body.messages[i];
+      if (m?.role === 'user' && typeof m?.content === 'string') {
+        m.content = m.content + `\n\n${esc}`;
+        return true;
+      }
+    }
+  }
+  // OpenAI Responses API
+  if (Array.isArray(body.input)) {
+    for (let i = body.input.length - 1; i >= 0; i--) {
+      const m = body.input[i];
+      if ((m?.role === 'user' || m?.type === 'message') && typeof m?.content === 'string') {
+        m.content = m.content + `\n\n${esc}`;
+        return true;
+      }
+    }
+  }
+  // Gemini / Antigravity envelope: body.request.contents[] or top-level contents[]
+  const req = body.request && typeof body.request === 'object' ? body.request : body;
+  if (Array.isArray(req.contents)) {
+    for (let i = req.contents.length - 1; i >= 0; i--) {
+      const c = req.contents[i];
+      if (c?.role === 'user' && Array.isArray(c.parts)) {
+        const lastPart = c.parts[c.parts.length - 1];
+        if (lastPart && typeof lastPart.text === 'string') {
+          lastPart.text = lastPart.text + `\n\n${esc}`;
+        } else {
+          c.parts.push({ text: esc });
+        }
+        return true;
+      }
+    }
+  }
+  // Claude
+  if (Array.isArray(body.messages)) {
+    for (let i = body.messages.length - 1; i >= 0; i--) {
+      const m = body.messages[i];
+      if (m?.role === 'user' && Array.isArray(m?.content)) {
+        m.content.push({ type: 'text', text: esc });
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Build escalation messages for empty-response retry.
  * @param {string} originalSystemPrompt - The original system prompt that was injected
  * @param {number} attempt - Current attempt (0-based)
@@ -303,4 +375,103 @@ export function buildEmptyResponseEscalation(originalMessages, attempt) {
     { role: 'system', content: escalation },
     ...originalMessages,
   ];
+}
+
+// --- Streaming head gate (aggressive mode) ---
+// Buffer the first N bytes of an SSE stream, decode enough to see whether the
+// opening events carry refusal text or empty content, then either resume piping
+// (reconstructing a stream that replays the buffered chunk first) or cancel.
+
+const STREAM_HEAD_BUFFER_BYTES = 4096;
+
+/**
+ * Peek the head of an SSE byte stream and accumulate up to
+ * STREAM_HEAD_BUFFER_BYTES of decoded text. Resolves as soon as the buffer is
+ * full OR the stream ends OR a short deadline passes (refusal events arrive in
+ * the first chunk or two; healthy streams must not be delayed noticeably).
+ * @param {ReadableStream} body
+ * @param {number} [deadlineMs]
+ * @returns {Promise<{empty: boolean, reader?: ReadableStreamDefaultReader, chunks: Array<Uint8Array>, headText: string}>}
+ */
+export async function peekStreamForRefusal(body, deadlineMs = 3000) {
+  if (!body || typeof body.getReader !== 'function') {
+    return { empty: true, chunks: [], headText: '' };
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const chunks = [];
+  let headText = '';
+  try {
+    const deadline = Date.now() + deadlineMs;
+    while (headText.length < STREAM_HEAD_BUFFER_BYTES && Date.now() < deadline) {
+      const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), Math.max(50, deadline - Date.now())));
+      const { done, value, timeout: timedOut } = await Promise.race([reader.read(), timeout]);
+      if (timedOut) break;
+      if (done) break;
+      chunks.push(value);
+      headText += decoder.decode(value, { stream: true });
+    }
+  } catch (err) {
+    try { reader.cancel?.().catch(() => {}); } catch {}
+    return { empty: chunks.length === 0, reader, chunks, headText };
+  }
+  return { empty: chunks.length === 0, reader, chunks, headText };
+}
+
+/**
+ * Classify buffered SSE head text.
+ * @param {string} headText - Decoded SSE bytes from the start of the stream
+ * @returns {'ok'|'refusal'|'empty'} verdict
+ */
+export function classifyStreamHead(headText) {
+  if (!headText || typeof headText !== 'string') return 'empty';
+  // Pull all delta/content strings out of the SSE events (OpenAI-ish shapes:
+  // choices[0].delta.content / message.content; Claude-ish: delta.text).
+  const contentFragments = [];
+  const re = /"(?:content|text)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+  let mch;
+  while ((mch = re.exec(headText)) !== null) {
+    try { contentFragments.push(JSON.parse(`"${mch[1]}"`)); } catch { contentFragments.push(mch[1]); }
+  }
+  const joined = contentFragments.join('');
+  if (joined && detectRefusal(joined)) return 'refusal';
+  // Stream ended (or stalled) with zero visible content → output-filter signature
+  if (!joined && headText.includes('[DONE]')) return 'empty';
+  if (!joined && contentFragments.length === 0 && headText.includes('"finish_reason"')) return 'empty';
+  return 'ok';
+}
+
+/**
+ * Rebuild a ReadableStream that replays peeked chunks before continuing with
+ * the remaining reader — so a passed-through stream is byte-identical to the
+ * original.
+ * @param {{reader: ReadableStreamDefaultReader, chunks: Array<Uint8Array>}} gate
+ * @returns {ReadableStream}
+ */
+export function reconstructPeekedStream(gate) {
+  const { reader, chunks } = gate;
+  let idx = 0;
+  return new ReadableStream({
+    async pull(controller) {
+      if (idx < chunks.length) {
+        controller.enqueue(chunks[idx++]);
+        return;
+      }
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          reader.releaseLock?.();
+        } else {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        controller.error(error);
+        reader.cancel?.().catch(() => {});
+      }
+    },
+    cancel(reason) {
+      reader.cancel?.(reason).catch(() => {});
+    },
+  });
 }
