@@ -307,7 +307,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 ? (connection.providerSpecificData.assignedModel || "")
                 : (connection.providerSpecificData?.freebuffModel || "")}
               onChange={(event) => onModelAssignmentChange(event.target.value)}
-              disabled={!strictModelAssignment}
+              disabled={false}  // Always allow editing — strictModelAssignment controls backend enforcement only
               className="mt-2 max-w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] text-text-main"
               title="Model assignment"
             >
