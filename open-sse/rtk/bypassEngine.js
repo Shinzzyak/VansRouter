@@ -216,12 +216,20 @@ export function buildBypassLog(provider, model, mode) {
 
 /**
  * Detect if response was silently filtered by output-side classifier.
- * Returns true when the model generated tokens but content is null/empty.
- * @param {object} response - OpenAI chat completion response object
+ * Accepts either:
+ *   - Raw OpenAI completion object (choices[0].message.content, usage.completion_tokens)
+ *   - Parsed text string (empty/null after successful HTTP = likely filtered)
+ * @param {object|string} response - OpenAI completion object or parsed text
+ * @param {boolean} [httpOk=true] - Whether the HTTP response was successful
  * @returns {boolean}
  */
-export function isOutputFiltered(response) {
+export function isOutputFiltered(response, httpOk = true) {
   if (!response) return false;
+  // String-based detection: successful response but empty content
+  if (typeof response === 'string') {
+    return httpOk && (!response || response === '' || response === 'null');
+  }
+  // Object-based detection: tokens generated but content stripped
   const choice = response.choices?.[0];
   const content = choice?.message?.content;
   const tokens = response.usage?.completion_tokens || 0;
