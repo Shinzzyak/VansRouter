@@ -30,7 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation } from "../rtk/bypassEngine.js";
+import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream } from "../rtk/bypassEngine.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -689,39 +689,55 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
 
     // Bypass engine: aggressive mode — detect refusal/output-filter and retry
     if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success) {
-      const responseText = typeof result.response === 'string' ? result.response : '';
-      const outputFiltered = isOutputFiltered(result.response, providerResponse?.ok !== false);
-      if (detectRefusal(responseText) || outputFiltered) {
+      // result.response is a Response object (from nonStreamingHandler) — extract body text
+      let responseText = '';
+      let outputFiltered = false;
+      try {
+        const cloned = result.response.clone();
+        const rawBody = await cloned.text();
+        responseText = rawBody;
+        // Parse the JSON completion to check the output-filter signature
+        try {
+          const parsed = JSON.parse(rawBody);
+          outputFiltered = isOutputFiltered(parsed, true);
+        } catch { /* not JSON — treat as plain text */ }
+      } catch { /* body already consumed */ }
+      const refusalDetected = detectRefusal(responseText);
+      log?.info?.("BYPASS", `${provider}/${model} | inspect: refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
+      if (refusalDetected || outputFiltered) {
         const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
-        // Try up to 2 escalation rounds
         for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
-          const msgs = outputFiltered
-            ? buildEmptyResponseEscalation(translatedBody.messages, escAttempt)
-            : (() => {
-                const esc = getEscalationPrompt(escAttempt);
-                const m = [...(translatedBody.messages || [])];
-                for (let i = m.length - 1; i >= 0; i--) {
-                  if (m[i]?.role === 'user' && typeof m[i]?.content === 'string') {
-                    m[i] = { ...m[i], content: m[i].content + `\n\n${esc}` };
-                    break;
-                  }
-                }
-                return m;
-              })();
-          if (!msgs) break;
-          translatedBody.messages = msgs;
+          const esc = getEscalationPrompt(escAttempt);
+          // Append to the LAST user message in whatever shape the translated body is
+          // (OpenAI messages[], Gemini/Antigravity contents[], Responses input[]).
+          const appended = appendEscalationToBody(translatedBody, esc);
+          if (!appended) {
+            log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
+            break;
+          }
           try {
             const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
             if (retryResult?.response?.ok) {
               providerResponse = retryResult.response;
               result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
-              const retryText = typeof result?.response === 'string' ? result.response : '';
-              const retryFiltered = isOutputFiltered(result?.response);
-              if (retryText && !retryFiltered) {
+              let retryText = '';
+              let retryFiltered = false;
+              try {
+                const retryCloned = result?.response?.clone();
+                const retryRaw = retryCloned ? await retryCloned.text() : '';
+                retryText = retryRaw;
+                try {
+                  const retryParsed = JSON.parse(retryRaw);
+                  retryFiltered = isOutputFiltered(retryParsed, true);
+                } catch { /* plain text */ }
+              } catch { /* body already consumed */ }
+              const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText);
+              if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} successful`);
                 break;
               }
+              log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} still refused/filtered, trying next`);
             }
           } catch (bypassErr) {
             log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
@@ -737,6 +753,58 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
 
   // Streaming response
   const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
+
+  // Bypass engine: aggressive mode + streaming — buffer the first SSE events and
+  // check for refusal/empty content BEFORE anything reaches the client. If the
+  // stream opens with a refusal (or dies with zero content), cancel it and retry
+  // non-streaming with escalation, then hand the client a coherent JSON response.
+  if (bypassMode === BYPASS_MODES.AGGRESSIVE && providerResponse.ok && providerResponse.body) {
+    const gate = await peekStreamForRefusal(providerResponse.body);
+    if (!gate.empty && gate.headText) {
+      const headVerdict = classifyStreamHead(gate.headText);
+      if (headVerdict !== "ok") {
+        log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
+        try { gate.reader.cancel?.().catch(() => {}); } catch {}
+        for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
+          const esc = getEscalationPrompt(escAttempt);
+          const m = [...(translatedBody.messages || [])];
+          for (let i = m.length - 1; i >= 0; i--) {
+            if (m[i]?.role === 'user' && typeof m[i]?.content === 'string') {
+              m[i] = { ...m[i], content: m[i].content + `\n\n${esc}` };
+              break;
+            }
+          }
+          translatedBody.messages = m;
+          translatedBody.stream = false;
+          try {
+            const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
+            if (retryResult?.response?.ok) {
+              const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
+              const retryText = typeof nr?.response === 'string' ? nr.response : '';
+              if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText)) {
+                log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${escAttempt + 1} successful`);
+                streamController.handleComplete();
+                return nr;
+              }
+            }
+          } catch (bypassErr) {
+            log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
+            break;
+          }
+        }
+        // All escalations failed — fall through to normal streaming of the
+        // reconstructed original stream so the client still gets SOMETHING.
+        log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation exhausted, passing original stream through`);
+        const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: providerResponse.headers });
+        return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
+      }
+      // Head looks fine — resume piping from the buffered chunk.
+      const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: providerResponse.headers });
+      return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
+    }
+    // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
+  }
+
   return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
 }
 
