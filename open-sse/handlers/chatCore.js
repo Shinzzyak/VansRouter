@@ -30,7 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, getEscalationPrompt, BYPASS_MODES } from "../rtk/bypassEngine.js";
+import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation } from "../rtk/bypassEngine.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -690,28 +690,43 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     // Bypass engine: aggressive mode — detect refusal and retry with escalation prompt
     if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success && result?.response) {
       const responseText = typeof result.response === 'string' ? result.response : '';
-      if (detectRefusal(responseText)) {
-        log?.warn?.("BYPASS", `${provider}/${model} | refusal detected, retrying with escalation prompt`);
-        const escalation = getEscalationPrompt(0);
-        // Append escalation to last user message
-        const msgs = translatedBody.messages;
-        if (Array.isArray(msgs)) {
-          for (let i = msgs.length - 1; i >= 0; i--) {
-            if (msgs[i]?.role === 'user' && typeof msgs[i]?.content === 'string') {
-              msgs[i].content += `\n\n${escalation}`;
-              break;
+      const outputFiltered = isOutputFiltered(result.response, providerResponse?.ok !== false);
+      if (detectRefusal(responseText) || outputFiltered) {
+        const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
+        log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
+        // Try up to 2 escalation rounds
+        for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
+          const msgs = outputFiltered
+            ? buildEmptyResponseEscalation(translatedBody.messages, escAttempt)
+            : (() => {
+                const esc = getEscalationPrompt(escAttempt);
+                const m = [...(translatedBody.messages || [])];
+                for (let i = m.length - 1; i >= 0; i--) {
+                  if (m[i]?.role === 'user' && typeof m[i]?.content === 'string') {
+                    m[i] = { ...m[i], content: m[i].content + `\n\n${esc}` };
+                    break;
+                  }
+                }
+                return m;
+              })();
+          if (!msgs) break;
+          translatedBody.messages = msgs;
+          try {
+            const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
+            if (retryResult?.response?.ok) {
+              providerResponse = retryResult.response;
+              result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
+              const retryText = typeof result?.response === 'string' ? result.response : '';
+              const retryFiltered = isOutputFiltered(result?.response);
+              if (retryText && !retryFiltered) {
+                log?.info?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} successful`);
+                break;
+              }
             }
+          } catch (bypassErr) {
+            log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
+            break;
           }
-        }
-        try {
-          const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
-          if (retryResult?.response?.ok) {
-            providerResponse = retryResult.response;
-            result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
-            log?.info?.("BYPASS", `${provider}/${model} | escalation retry successful`);
-          }
-        } catch (bypassErr) {
-          log?.warn?.("BYPASS", `${provider}/${model} | escalation retry failed: ${bypassErr.message}`);
         }
       }
     }
