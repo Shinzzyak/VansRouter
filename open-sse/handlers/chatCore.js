@@ -687,8 +687,8 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
       }
     }
 
-    // Bypass engine: aggressive mode — detect refusal and retry with escalation prompt
-    if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success && result?.response) {
+    // Bypass engine: aggressive mode — detect refusal/output-filter and retry
+    if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success) {
       const responseText = typeof result.response === 'string' ? result.response : '';
       const outputFiltered = isOutputFiltered(result.response, providerResponse?.ok !== false);
       if (detectRefusal(responseText) || outputFiltered) {
