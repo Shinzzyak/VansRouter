@@ -700,6 +700,20 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Mark account unavailable (auto-calculates cooldown with classify429 for 429s, exponential backoff, or precise resetsAtMs)
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, errorText, provider, model, result.resetsAtMs);
 
+    // Kimchi quota-exhausted re-assertion: markAccountUnavailable overwrites testStatus
+    // to "unavailable", clobbering the "quota_exhausted" state written earlier in this
+    // loop. The hourly reactivation sweep only processes testStatus === "quota_exhausted",
+    // so without this re-apply the account would NEVER be auto-reactivated at month rollover.
+    if (isKimchiQuotaExhausted(provider, errorText)) {
+      try {
+        const update = buildKimchiQuotaExhaustedUpdate();
+        await updateProviderConnection(credentials.connectionId, update);
+        log.warn("AUTH", `Kimchi quota exhausted: re-asserted state for ${credentials.connectionName || credentials.connectionId} until ${update.rateLimitedUntil}`);
+      } catch (e) {
+        log.error("AUTH", `Failed to re-assert Kimchi quota-exhausted state: ${e.message}`);
+      }
+    }
+
     // Record provider-level failure for circuit breaker — skip if it's a known
     // Kimchi quota-exhaustion (not a provider-wide outage). Proxy-aware: failure
     // is attributed to the specific proxy bucket.
