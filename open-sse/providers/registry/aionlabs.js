@@ -11,6 +11,7 @@ export default {
     textIcon: "AL",
     website: "https://www.aionlabs.ai",
     notice: {
+      text: "⚠️ MASKED MODELS: aion-* models are NOT proprietary — fingerprint tests show they route to third-party models (GLM-4 / Claude 3.5 Sonnet / DeepSeek-R1, inconsistent per request). Treat as anonymous proxy pool, not a real Aion model.",
       apiKeyUrl: "https://www.aionlabs.ai/app/api-keys/",
       signupUrl: "https://www.aionlabs.ai/accounts/signup/",
     },
