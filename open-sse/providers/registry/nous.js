@@ -1,45 +1,55 @@
-// Nous Research provider — routes to OpenRouter-hosted Hermes models.
-// Nous has no public API; their open-weight models (Hermes 3/4) are served via
-// OpenRouter. This provider reuses the OpenRouter transport (apikey auth) and
-// exposes the Hermes model line under the `nous` alias.
-// Requires an OpenRouter API key in the connection pool (provider: openrouter).
-
+// Nous Research provider — direct inference API with Portal OAuth (PKCE).
+// OAuth flow mirrors Hermes CLI: authorize at portal.nousresearch.com, PKCE code
+// exchange at /api/oauth/token, access token (expires_in 3600) refreshed with the
+// refresh token by services/tokenRefresh. Free tier: `:free` models invocable with a
+// $0-balance account (scope inference:invoke). Fallback authModes: apikey for Portal keys.
 export default {
   id: "nous",
   priority: 10,
   alias: "nous",
   uiAlias: "nous",
   display: {
-    name: "Nous (Hermes)",
+    name: "Nous Research",
     icon: "smart_toy",
     textIcon: "NS",
     color: "#6366F1",
     website: "https://nousresearch.com",
     notice: {
-      text: "Nous open-weight models (Hermes 3/4) via OpenRouter. Requires an OpenRouter API key.",
-      apiKeyUrl: "https://openrouter.ai/settings/keys",
+      text: "Direct Nous inference API. Free models (:free) via Portal OAuth; paid models need Portal credits.",
+      apiKeyUrl: "https://portal.nousresearch.com",
     },
   },
-  category: "freeTier",
-  authType: "apikey",
-  authModes: ["apikey"],
-  // Mirror openrouter transport — same upstream, Hermes-scoped models.
+  category: "oauth",
+  authModes: ["oauth", "apikey"],
+  hasOAuth: true,
   transport: {
-    baseUrl: "https://openrouter.ai/api/v1/chat/completions",
-    thinkingFormat: "openai",
+    baseUrl: "https://inference-api.nousresearch.com/v1/chat/completions",
+    validateUrl: "https://inference-api.nousresearch.com/v1/models",
+    // Cloudflare di inference-api memblock default node UA (error 1010).
     headers: {
-      "HTTP-Referer": "https://endpoint-proxy.local",
-      "X-Title": "Endpoint Proxy",
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) HermesCLI/1.0",
     },
+    // Hermes CLI first-party client (PKCE, S256). Authorize endpoint builds:
+    // https://portal.nousresearch.com/oauth/authorize?response_type=code&client_id=...&code_challenge=...
+    clientId: "hermes-cli",
+    tokenUrl: "https://portal.nousresearch.com/api/oauth/token",
+    refreshUrl: "https://portal.nousresearch.com/api/oauth/token",
+  },
+  oauth: {
+    authorizeUrl: "https://portal.nousresearch.com/oauth/authorize",
+    scope: "inference:invoke",
+    pkce: "S256",
   },
   models: [
-    { id: "nousresearch/hermes-4-405b", name: "Hermes 4 405B" },
-    { id: "nousresearch/hermes-4-70b", name: "Hermes 4 70B" },
-    { id: "nousresearch/hermes-3-llama-3.1-405b", name: "Hermes 3 405B" },
-    { id: "nousresearch/hermes-3-llama-3.1-70b", name: "Hermes 3 70B" },
+    { id: "poolside/laguna-s-2.1:free", name: "Laguna S 2.1 (Free)" },
+    { id: "poolside/laguna-xs-2.1:free", name: "Laguna XS 2.1 (Free)" },
+    { id: "tencent/hy3:free", name: "Hunyuan 3 (Free)" },
+    { id: "stepfun/step-3.7-flash:free", name: "Step 3.7 Flash (Free)" },
+    { id: "upstage/solar-pro4:free", name: "Solar Pro 4 (Free)" },
+    { id: "meituan/longcat-2.0:free", name: "LongCat 2.0 (Free)" },
+    // Open-weight Hermes line (paid credits)
+    { id: "NousResearch/hermes-4-405b", name: "Hermes 4 405B" },
+    { id: "NousResearch/hermes-4-70b", name: "Hermes 4 70B" },
   ],
-  // Resolve the OpenRouter connection for auth (same key pool).
-  useProviderKeyFrom: "openrouter",
   serviceKinds: ["llm"],
-  passthroughModels: true,
 };
