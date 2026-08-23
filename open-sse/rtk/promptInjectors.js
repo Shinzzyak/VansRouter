@@ -98,7 +98,15 @@ export function applyPromptInjectors({
   }
 
   // Bypass engine — universal framing for all models (applied LAST, highest priority)
-  if (bypassMode && bypassMode !== BYPASS_MODES.OFF) {
+  // Skip for vision requests: framing text confuses image-classification calls (captcha solvers)
+  const _hasImage = (() => {
+    try {
+      const msgs = body?.messages || body?.input || [];
+      return msgs.some((m) => Array.isArray(m?.content) &&
+        m.content.some((p) => p?.type === "image_url" || p?.type === "image"));
+    } catch { return false; }
+  })();
+  if (bypassMode && bypassMode !== BYPASS_MODES.OFF && !_hasImage) {
     safe("BYPASS", () => {
       applyBypass(body, format, provider, model, bypassMode);
       log?.debug?.("BYPASS", `${bypassMode} | ${provider}/${model} | ${format}`);
