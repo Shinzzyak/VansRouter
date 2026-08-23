@@ -115,6 +115,24 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       seedInvite: body?.seedInvite,
     }),
   },
+  "llm7-signup": {
+    label: "LLM7 Signup",
+    errorLabel: "LLM7 signup job",
+    staleOnLatest404: true,
+    parseAccounts: (accounts) => Promise.resolve(accounts || []),
+    getManager: () =>
+      import("./llm7BulkSignupManager.js").then((m) => m.getLlm7SignupManager()),
+    normalizeStartArgs: (body, resolvedProxy) => ({
+      accounts: [],
+      concurrency: body?.concurrency,
+      engine: body?.engine,
+      headless: body?.headless,
+      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      registerCount: body?.registerCount,
+      yydsApiKey: body?.yydsApiKey,
+      yydsDomain: body?.yydsDomain,
+    }),
+  },
   "qoder-signup": {
     label: "Qoder Signup",
     errorLabel: "Qoder signup job",

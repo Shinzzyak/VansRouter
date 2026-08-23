@@ -51,6 +51,7 @@ export const OutlookSignupModal = lazyModal(() => import("./OutlookSignupModal")
 export const ChatGptSignupModal = lazyModal(() => import("./ChatGptSignupModal"));
 export const TokenHarborSignupModal = lazyModal(() => import("./TokenHarborSignupModal"));
 export const BasetenSignupModal = lazyModal(() => import("./BasetenSignupModal"));
+export const Llm7SignupModal = lazyModal(() => import("./Llm7SignupModal"));
 export const GrokRegisterModal = lazyModal(() =>
   import("@/app/(dashboard)/dashboard/providers/[id]/GrokRegisterModal")
 );
