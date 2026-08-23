@@ -11,7 +11,7 @@ import { DEFAULT_BULK_IMPORT_ENGINE } from "./bulkImportBrowserEngine.js";
 
 const STORAGE_NAME = "llm7-signup-jobs";
 const LLM7_PROVIDER_ID = "llm7";
-const SIGNUP_TIMEOUT_MS = 20 * 60_000;
+const SIGNUP_TIMEOUT_MS = 8 * 60_000;
 const MAX_REGISTER_COUNT = 50;
 
 const PYTHON_BIN = findPythonBinary();
@@ -99,7 +99,11 @@ class Llm7SignupManager extends KiroBulkImportManager {
     if (job?._pythonChildren) {
       for (const child of job._pythonChildren.values()) {
         if (child && !child.killed && child.exitCode === null) {
-          child.kill("SIGTERM");
+          try {
+            process.kill(-child.pid, "SIGTERM");
+          } catch {
+            child.kill("SIGTERM");
+          }
         }
       }
       job._pythonChildren.clear();
@@ -148,7 +152,13 @@ class Llm7SignupManager extends KiroBulkImportManager {
       const child = execFile(
         PYTHON_BIN,
         args,
-        { cwd: SCRIPT_DIR, env, timeout: SIGNUP_TIMEOUT_MS, maxBuffer: 2 * 1024 * 1024 },
+        {
+          cwd: SCRIPT_DIR,
+          env,
+          timeout: SIGNUP_TIMEOUT_MS,
+          maxBuffer: 2 * 1024 * 1024,
+          detached: true, // own process group → SIGTERM kills camoufox children too
+        },
         (err, stdout, stderr) => {
           if (stderr) {
             for (const line of String(stderr).split("\n")) {
@@ -203,7 +213,13 @@ class Llm7SignupManager extends KiroBulkImportManager {
     } finally {
       account.password = undefined;
       const child = job._pythonChildren?.get(cancelKey);
-      if (child && !child.killed && child.exitCode === null) child.kill("SIGTERM");
+      if (child && !child.killed && child.exitCode === null) {
+        try {
+          process.kill(-child.pid, "SIGTERM"); // negative pid = whole group
+        } catch {
+          child.kill("SIGTERM");
+        }
+      }
       job._pythonChildren?.delete(cancelKey);
     }
   }
