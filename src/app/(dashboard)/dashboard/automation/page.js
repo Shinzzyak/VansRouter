@@ -21,6 +21,7 @@ import {
   ChatGptSignupModal,
   TokenHarborSignupModal,
   BasetenSignupModal,
+  Llm7SignupModal,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { FREE_PROVIDERS } from "@/shared/constants/providers";
@@ -659,6 +660,31 @@ function BasetenAutomationPanel({ onRefresh }) {
   );
 }
 
+function Llm7AutomationPanel({ onRefresh }) {
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <button type="button" onClick={() => setIsSignupOpen(true)} className="text-left">
+          <Card
+            hover
+            padding="md"
+            icon="bolt"
+            title="Signup Bulk (YYDS + Camoufox)"
+            subtitle="Register new LLM7.io accounts with fresh YYDS inboxes: dash.llm7.io → ToS → email code (Turnstile via Camoufox+WARP) → API key saved as connection. Free tier: gpt-oss:20b + 5 more."
+          />
+        </button>
+      </div>
+      <Llm7SignupModal
+        isOpen={isSignupOpen}
+        onSuccess={onRefresh}
+        onClose={() => setIsSignupOpen(false)}
+      />
+    </>
+  );
+}
+
 function AutoclawAutomationPanel({ onRefresh }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -954,6 +980,14 @@ const AUTOMATION_PROVIDERS = [
     description: "Bulk signup with YYDS temp mail: Camoufox signup → OTP → waiting room approve → API key → saved as Baseten connection.",
     supportedModes: ["signup"],
     component: BasetenAutomationPanel,
+  },
+  {
+    id: "llm7",
+    label: "LLM7",
+    icon: "bolt",
+    description: "Bulk signup LLM7.io with YYDS temp mail: dash.llm7.io → ToS → email code verify (Turnstile via Camoufox+WARP) → API key saved as llm7 connection. Free tier: gpt-oss:20b, DeepSeek-V4-Flash, dll.",
+    supportedModes: ["signup"],
+    component: Llm7AutomationPanel,
   },
   {
     id: "cloudflare-ai",
