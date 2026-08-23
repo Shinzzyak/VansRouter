@@ -138,6 +138,7 @@ class Llm7SignupManager extends KiroBulkImportManager {
 
     const env = {
       ...process.env,
+      PYTHONPATH: SCRIPT_DIR,
       PYTHONUNBUFFERED: "1",
       YYDS_API_KEY: job.yydsApiKey,
     };
