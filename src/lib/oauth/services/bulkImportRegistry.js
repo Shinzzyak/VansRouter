@@ -119,6 +119,8 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
     label: "LLM7 Signup",
     errorLabel: "LLM7 signup job",
     staleOnLatest404: true,
+    // Turnstile invisible only passes via Camoufox+WARP — default to WARP unless
+    // an explicit custom proxy is provided (settings gateway 8081 breaks SSL).
     parseAccounts: (accounts) => Promise.resolve(accounts || []),
     getManager: () =>
       import("./llm7BulkSignupManager.js").then((m) => m.getLlm7SignupManager()),
@@ -127,7 +129,7 @@ export const BULK_IMPORT_PROVIDERS = Object.freeze({
       concurrency: body?.concurrency,
       engine: body?.engine,
       headless: body?.headless,
-      proxyUrl: resolvedProxy.proxyUrl || body?.proxyUrl,
+      proxyUrl: body?.proxyUrl || "socks5://127.0.0.1:40000",
       registerCount: body?.registerCount,
       yydsApiKey: body?.yydsApiKey,
       yydsDomain: body?.yydsDomain,
