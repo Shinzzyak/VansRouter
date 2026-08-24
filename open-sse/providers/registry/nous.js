@@ -29,16 +29,20 @@ export default {
     headers: {
       "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) HermesCLI/1.0",
     },
-    // Hermes CLI first-party client (PKCE, S256). Authorize endpoint builds:
-    // https://portal.nousresearch.com/oauth/authorize?response_type=code&client_id=...&code_challenge=...
+    // Hermes CLI first-party client. Token/refresh via /api/oauth/token.
     clientId: "hermes-cli",
     tokenUrl: "https://portal.nousresearch.com/api/oauth/token",
     refreshUrl: "https://portal.nousresearch.com/api/oauth/token",
   },
   oauth: {
-    authorizeUrl: "https://portal.nousresearch.com/oauth/authorize",
+    // Device flow (RFC 8628) — SATU-SATUNYA jalur yang diterima server untuk
+    // hermes-cli + scope inference:invoke. PKCE authorize endpoint menolak
+    // ("agent_not_found" / "unsupported scope").
+    clientId: "hermes-cli",
+    deviceCodeUrl: "https://portal.nousresearch.com/api/oauth/device/code",
+    tokenUrl: "https://portal.nousresearch.com/api/oauth/token",
+    refreshUrl: "https://portal.nousresearch.com/api/oauth/token",
     scope: "inference:invoke",
-    pkce: "S256",
   },
   // Auto-update model list dari upstream (public endpoint, no auth).
   // type "nous-free" (allowedModels.js): filter :free + stealth/* preview.
