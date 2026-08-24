@@ -115,6 +115,9 @@ export const KIMCHI_CONFIG = { ...PROVIDER_OAUTH["kimchi"] };
 // Endpoint: cli-chat-proxy.grok.com — same client_id as xai, different flow + scopes
 export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 
+// Nous Research OAuth Configuration (Device Code Flow)
+export const NOUS_CONFIG = { ...PROVIDER_OAUTH["nous"] };
+
 // Freebuff OAuth Configuration (Device Code Flow)
 export const FREEBUFF_CONFIG = { ...PROVIDER_OAUTH["freebuff"] };
 

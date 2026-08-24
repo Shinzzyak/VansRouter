@@ -194,6 +194,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "codebuddy-intl",
         "qoder",
         "grok-cli",
+        "nous",
         "freebuff",
         "qwen",
       ];

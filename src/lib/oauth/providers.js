@@ -49,6 +49,7 @@ import {
   CODEBUDDY_CONFIG,
   ZAI_CONFIG,
   GROK_CLI_CONFIG,
+  NOUS_CONFIG,
   FREEBUFF_CONFIG,
   QWEN_CONFIG,
   getOAuthClientMetadata,
@@ -407,6 +408,107 @@ const PROVIDERS = {
           userId,
           hasGrokCodeAccess: extra?.user?.hasGrokCodeAccess ?? null,
           subscriptionTier: extra?.user?.subscriptionTier ?? null,
+        },
+      };
+    },
+  },
+
+  // Nous Research — device code flow (RFC 8628) via portal.nousresearch.com.
+  // PKCE authorize endpoint rejects hermes-cli ("agent_not_found") and rejects
+  // inference:invoke on dynamic clients ("unsupported scope") — device flow is
+  // the ONLY path. verification_uri_complete opens the portal approve page;
+  // user clicks CONNECT. Token: /api/oauth/token, RT rotates per refresh.
+  nous: {
+    config: NOUS_CONFIG,
+    flowType: "device_code",
+    requestDeviceCode: async (config) => {
+      const response = await fetch(config.deviceCodeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) HermesCLI/1.0",
+        },
+        body: new URLSearchParams({
+          client_id: config.clientId,
+          scope: config.scope,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Nous device code request failed: ${error}`);
+      }
+
+      return await response.json();
+    },
+    pollToken: async (config, deviceCode) => {
+      const response = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) HermesCLI/1.0",
+        },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          device_code: deviceCode,
+          client_id: config.clientId,
+        }),
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        data = { error: "invalid_response", error_description: text };
+      }
+
+      // Device flow: 400 + authorization_pending/slow_down is expected while waiting
+      const pending =
+        data?.error === "authorization_pending" ||
+        data?.error === "slow_down";
+      return {
+        ok: response.ok || pending,
+        data,
+      };
+    },
+    postExchange: async (tokens) => {
+      // Best-effort account email from portal API (non-fatal)
+      try {
+        const res = await fetch("https://portal.nousresearch.com/api/agents", {
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`,
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) HermesCLI/1.0",
+          },
+        });
+        if (res.ok) {
+          const j = await res.json();
+          return { user: { email: j?.user?.email || null } };
+        }
+      } catch {
+        /* ignore */
+      }
+      return { user: null };
+    },
+    mapTokens: (tokens, extra) => {
+      const expiresAt = tokens.expires_in
+        ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+        : null;
+
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresIn: tokens.expires_in,
+        expiresAt,
+        scope: tokens.scope,
+        email: extra?.user?.email || undefined,
+        providerSpecificData: {
+          authMethod: "device_code",
+          email: extra?.user?.email || null,
+          inferenceBaseUrl: tokens.inference_base_url || null,
         },
       };
     },
