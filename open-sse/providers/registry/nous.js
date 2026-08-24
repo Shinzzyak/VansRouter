@@ -40,6 +40,13 @@ export default {
     scope: "inference:invoke",
     pkce: "S256",
   },
+  // Auto-update model list dari upstream (public endpoint, no auth).
+  // type "nous-free" (allowedModels.js): filter :free + stealth/* preview.
+  modelsFetcher: {
+    url: "https://inference-api.nousresearch.com/v1/models",
+    type: "nous-free",
+  },
+  passthroughModels: true,
   models: [
     { id: "poolside/laguna-s-2.1:free", name: "Laguna S 2.1 (Free)" },
     { id: "poolside/laguna-xs-2.1:free", name: "Laguna XS 2.1 (Free)" },

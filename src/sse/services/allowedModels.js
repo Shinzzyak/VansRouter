@@ -201,6 +201,18 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
         if (typeof id === "string" && id.trim() !== "" && id.endsWith("-free")) acc.push(id);
         return acc;
       }, []);
+    } else if (fetcher.type === "nous-free") {
+      // Nous free tier: explicit :free suffix + stealth preview models (ox-alpha dkk)
+      ids = rawModels.reduce((acc, m) => {
+        const id = m?.id || m?.name || m?.model;
+        if (
+          typeof id === "string" &&
+          id.trim() !== "" &&
+          (id.endsWith(":free") || id.startsWith("stealth/"))
+        )
+          acc.push(id);
+        return acc;
+      }, []);
     } else {
       ids = rawModels.reduce((acc, m) => {
         const id = m?.id || m?.name || m?.model;
