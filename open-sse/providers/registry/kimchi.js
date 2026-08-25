@@ -37,13 +37,13 @@ export default {
     },
     auth: {
       apiKey: {
-        header: "Authorization",
-        scheme: "bearer",
+        header: "x-api-key",
+        scheme: "raw",
         hooks: ["kimchiHeaders"],
       },
       oauth: {
-        header: "Authorization",
-        scheme: "bearer",
+        header: "x-api-key",
+        scheme: "raw",
         hooks: ["kimchiHeaders"],
       },
     },
