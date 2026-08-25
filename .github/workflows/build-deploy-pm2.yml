@@ -43,6 +43,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run unit tests (smoke gate)
+        run: pnpm test
+        env:
+          NODE_ENV: test
+
       - name: Build
         run: pnpm run build
         env:
@@ -266,6 +271,36 @@ jobs:
               rm -f "${TARBALL}"
             else
               echo "❌ Health check failed (HTTP $STATUS)"
+              echo "=== Auto-rollback: restoring standalone_old ==="
+              if [ -d "${DEPLOY}/.next/standalone_old" ]; then
+                rm -rf "${DEPLOY}/.next/standalone"
+                mv "${DEPLOY}/.next/standalone_old" "${DEPLOY}/.next/standalone"
+                # Restore open-sse from old build too
+                if [ -d "${DEPLOY}/.next/standalone/open-sse" ]; then
+                  rm -rf "${DEPLOY}/open-sse"
+                  cp -r "${DEPLOY}/.next/standalone/open-sse" "${DEPLOY}/open-sse"
+                  rm -rf "${DEPLOY}/node_modules/open-sse" "${DEPLOY}/node_modules/@"
+                  mkdir -p "${DEPLOY}/node_modules/@"
+                  cp -r "${DEPLOY}/open-sse" "${DEPLOY}/node_modules/open-sse"
+                  cp -r "${DEPLOY}/.next/standalone/src/." "${DEPLOY}/node_modules/@/"
+                  cp -r "${DEPLOY}/.next/standalone/src" "${DEPLOY}/node_modules/src"
+                  cp "${DEPLOY}/package.json" "${DEPLOY}/node_modules/package.json"
+                  echo "=== open-sse rolled back from old build ==="
+                fi
+                if [ -f "${DEPLOY}/.next/standalone/launcher.js" ]; then
+                  cp "${DEPLOY}/.next/standalone/launcher.js" "${DEPLOY}/server.js"
+                fi
+                pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || true
+                sleep 3
+                ROLLBACK_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/masuk")
+                if [ "$ROLLBACK_STATUS" = "200" ]; then
+                  echo "✅ Rollback successful (HTTP $ROLLBACK_STATUS) — previous version restored"
+                else
+                  echo "❌ Rollback also failed (HTTP $ROLLBACK_STATUS) — MANUAL INTERVENTION NEEDED"
+                fi
+              else
+                echo "❌ No standalone_old backup — cannot auto-rollback, MANUAL INTERVENTION NEEDED"
+              fi
               echo "=== pm2 describe ==="
               pm2 describe "${PM2_NAME}" 2>&1 | head -30
               echo "=== pm2 error log (last 40) ==="
