@@ -32,12 +32,8 @@ export default {
     auth: { header: "X-Authorization", scheme: "bearer", combined: true },
   },
   models: [
-    {
-      id: "glm-5.2",
-      name: "GLM-5.2",
-      alias: "glm52",
-      upstreamModelId: "openrouter_glm-5.2",
-    },
+    // glm-5.2/openrouter_glm-5.2 DIHAPUS — upstream balas 非法模型 (model tidak tersedia
+    // untuk akun web). Satu-satunya model valid: zai_glm-5-turbo (402 = valid, butuh points).
     {
       id: "glm-5-turbo",
       name: "GLM-5 Turbo",
