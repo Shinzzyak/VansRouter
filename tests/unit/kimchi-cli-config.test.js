@@ -14,8 +14,8 @@ describe("Kimchi CLI-aligned config", () => {
     expect(kimchiRegistry.hasOAuth).toBe(true);
     expect(kimchiRegistry.transport.baseUrl).toBe("https://llm.kimchi.dev/openai/v1/chat/completions");
     expect(kimchiRegistry.transport.auth.apiKey).toEqual({
-      header: "Authorization",
-      scheme: "bearer",
+      header: "x-api-key",
+      scheme: "raw",
       hooks: ["kimchiHeaders"],
     });
     expect(kimchiRegistry.transport.auth.oauth).toEqual(kimchiRegistry.transport.auth.apiKey);
@@ -33,10 +33,10 @@ describe("Kimchi CLI-aligned config", () => {
       .toMatch(/^kimchi\/\d+\.\d+\.\d+$/);
   });
 
-  it("builds bearer headers for API-key and OAuth credentials", () => {
+  it("builds x-api-key headers for API-key and OAuth credentials", () => {
     const executor = new DefaultExecutor("kimchi");
-    expect(executor.buildHeaders({ apiKey: "api-key" })["Authorization"]).toBe("Bearer api-key");
-    expect(executor.buildHeaders({ accessToken: "oauth-token" })["Authorization"]).toBe("Bearer oauth-token");
+    expect(executor.buildHeaders({ apiKey: "api-key" })["x-api-key"]).toBe("api-key");
+    expect(executor.buildHeaders({ accessToken: "oauth-token" })["x-api-key"]).toBe("oauth-token");
   });
 
   describe("upstream model id", () => {
