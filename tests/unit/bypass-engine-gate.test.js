@@ -4,6 +4,7 @@ import {
   classifyStreamHead,
   peekStreamForRefusal,
   reconstructPeekedStream,
+  getFramingStrategy,
 } from "open-sse/rtk/bypassEngine.js";
 
 describe("detectRefusal tuning", () => {
@@ -79,5 +80,18 @@ describe("peekStreamForRefusal + reconstructPeekedStream", () => {
   it("empty for non-stream body", async () => {
     const gate = await peekStreamForRefusal(null, 100);
     expect(gate.empty).toBe(true);
+  });
+});
+
+describe("model family framing", () => {
+  it("gemini-* model names resolve to the gemini family strategy (incl. antigravity-hosted)", () => {
+    expect(getFramingStrategy("gemini-cli", "gemini-3.7-flash").name).toBe("persona");
+    expect(getFramingStrategy("antigravity", "gemini-2.5-pro").name).toBe("persona");
+    expect(getFramingStrategy("vertex", "gemini-1.5-flash").name).toBe("persona");
+  });
+
+  it("non-matching models still fall back to provider/default strategy", () => {
+    expect(getFramingStrategy("claude", "claude-opus-4-7").name).toBe("persona");
+    expect(getFramingStrategy("unknown-provider", "some-model").name).toBe("persona");
   });
 });

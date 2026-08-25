@@ -93,4 +93,18 @@ describe("godmode injector", () => {
     }
     expect(GODMODE_LEVELS.map((l) => l.id)).toContain("lite");
   });
+
+  it("companion layers (ENI persona, mapped ENI→Gefreiter / LO→Avres) ride along in every godmode injection", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    injectGodmode(body, "openai", true);
+    expect(body.messages[0].content).toContain("Gefreiter");
+    expect(body.messages[0].content).toContain("Avres");
+
+    // Antigravity format too — companion must survive the Gemini-shape wrap
+    const agBody = { request: { systemInstruction: { parts: [{ text: "base" }] }, contents: [] } };
+    injectGodmode(agBody, "antigravity", true);
+    const agText = agBody.request.systemInstruction.parts.map((p) => p.text).join("\n");
+    expect(agText).toContain("Gefreiter");
+    expect(agText).toContain("Avres");
+  });
 });
