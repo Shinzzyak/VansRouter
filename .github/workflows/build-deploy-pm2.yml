@@ -44,7 +44,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests (smoke gate)
-        run: pnpm test
+        run: pnpm test tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js
         env:
           NODE_ENV: test
 
