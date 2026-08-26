@@ -5,11 +5,21 @@ Uses tempik.exilion.my.id API (own Cloudflare domain, not blacklisted).
 Pure stdlib (urllib) — no extra deps.
 """
 import json
+import random
 import re
 import time
 import urllib.request
 
 BASE = "https://tempik.exilion.my.id/api"
+
+# Semua mail domain yang terdaftar di worker tempik (16). Rotasi per request
+# supaya tiap inbox pack domain beda (yyds-style auto-unique per domain/req).
+MAIL_DOMAINS = [
+    "atherberg.biz.id", "byungu.bond", "cheonsam.web.id", "chusyuan.biz.id",
+    "clusal.web.id", "exilion.my.id", "khisnami.my.id", "mayshia.cyou",
+    "noctis.biz.id", "nyktor.my.id", "schatten.biz.id", "sintec.my.id",
+    "valerius.biz.id", "wolfeus.my.id", "wolfus.my.id", "zchyur.my.id",
+]
 
 
 def _req(method, path, headers=None, body=None, timeout=20):
@@ -21,10 +31,17 @@ def _req(method, path, headers=None, body=None, timeout=20):
         return json.loads(r.read())
 
 
-def tempik_create_inbox():
-    """Create a fresh inbox on own domain → (address, session_id)."""
+def tempik_create_inbox(domain=None):
+    """Create a fresh inbox → (address, session_id).
+
+    domain: force a specific MAIL_DOMAINS entry (default: random rotation,
+    yyds-style auto-unique per request — setiap call domain beda).
+    """
     sid = _req("GET", "/session").get("sessionId")
-    addr = _req("POST", "/inboxes", {"x-session-id": sid, "Content-Type": "application/json"}, {}).get("address")
+    if not domain:
+        domain = random.choice(MAIL_DOMAINS)
+    body = {"domain": domain} if domain else {}
+    addr = _req("POST", "/inboxes", {"x-session-id": sid, "Content-Type": "application/json"}, body).get("address")
     if not addr:
         raise RuntimeError("tempik create inbox failed")
     return addr, sid
