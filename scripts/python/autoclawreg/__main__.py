@@ -967,11 +967,16 @@ def _zai_flow_google(page, gmail, gpassword, device_id, invite_code="", proxy_cf
                     print(f"[flow] callback navigate_uri: {cb_nav[:110]}")
                     print(f"[flow] callback code detected ({len(code)} chars) — exchange (state len {len(ostate)})...")
                     if code:
-                        # PREFER electron_exchange_body (body yang electron as() mau kirim,
-                        # intercept oleh route handler — code TIDAK hangus karena kita abort)
+                        # PREFER electron_exchange_body, tapi device_id WAJIB dari oauth-url
+                        # (req_body). Kalau electron body device_id beda (muncul pas popup di
+                        # context mobile kosong → device baru), server autoclaw tolak 631001.
+                        # stephanie sukses = device_id oauth-url == exchange body.
+                        oauth_dev = (oauth_url_captured.get("req_body") or {}).get("device_id", "")
                         if electron_exchange_body:
                             rb = dict(electron_exchange_body)
-                            print(f"[flow] pakai ELECTRON EXCHANGE BODY (intercepted): keys={list(rb.keys())}")
+                            if oauth_dev:
+                                rb["device_id"] = oauth_dev
+                            print(f"[flow] pakai ELECTRON body, device_id OVERRIDE ke oauth-url: {oauth_dev[:18]}...")
                         else:
                             # Fallback: replay req_body dari oauth-url
                             rb = dict(oauth_url_captured.get("req_body") or {})
