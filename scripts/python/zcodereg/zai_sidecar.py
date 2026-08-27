@@ -20,7 +20,14 @@ import sys, os, json, time, sqlite3, threading, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from zai_chat_worker import load_account, inject_cookies, _read_reply
+from zai_chat_worker import (
+    load_account,
+    inject_cookies,
+    _read_reply,
+    chat_once,
+    build_tools_prompt,
+    parse_tool_calls,
+)
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 MODELS = [
@@ -54,63 +61,9 @@ def next_account():
     return email
 
 
-def do_chat(prompt, model=None):
-    """One UI-driven chat. Returns dict {content, model, email} or {error}."""
-    email = next_account()
-    if not email:
-        return {"error": "no active zcode account"}
-    acc = load_account(email)
-    if not acc:
-        return {"error": "account load failed"}
-    from camoufox.sync_api import Camoufox
-    with Camoufox(headless=True) as browser:
-        ctx = browser.new_context()
-        inject_cookies(ctx, acc["cookies"])
-        page = ctx.new_page()
-        try:
-            page.goto("https://chat.z.ai", wait_until="domcontentloaded", timeout=60000)
-        except Exception as e:
-            return {"error": f"goto: {str(e)[:80]}"}
-        page.wait_for_timeout(6000)
-        for _ in range(3):
-            try:
-                page.keyboard.press("Escape")
-                page.wait_for_timeout(600)
-            except Exception:
-                pass
-        box = page.query_selector('#chat-input') or page.query_selector('textarea')
-        if not box:
-            return {"error": "no input box"}
-        box.click()
-        box.fill(prompt)
-        page.wait_for_timeout(700)
-        sent = False
-        for sel in ['button[type="submit"]', '[data-testid="send-button"]']:
-            try:
-                s = page.query_selector(sel)
-                if s and s.is_visible(timeout=1500):
-                    s.click()
-                    sent = True
-                    break
-            except Exception:
-                pass
-        if not sent:
-            page.keyboard.press("Enter")
-        start = time.time()
-        while time.time() - start < 180:
-            try:
-                has_cap = page.evaluate(
-                    "() => !!document.querySelector('#aliyunCaptcha-img, #aliyunCaptcha-sliding-slider, #aliyunCaptcha-captcha-wrapper')")
-                if has_cap:
-                    from zai_slider import solve_slider_v2
-                    solve_slider_v2(page, max_attempts=4)
-            except Exception:
-                pass
-            txt = _read_reply(page)
-            if txt and len(txt) > 1 and txt.strip() not in ("Thinking...", "Thought Process", "Loading..."):
-                return {"content": txt, "model": model or "default", "email": email}
-            page.wait_for_timeout(1000)
-        return {"error": "timeout", "email": email}
+def do_chat(prompt, model=None, tools=None):
+    """One UI-driven chat (delegates to worker.chat_once so tool parsing is shared)."""
+    return chat_once(prompt, model=model, tools=tools)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -146,6 +99,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "bad json"}, 400)
         messages = req.get("messages", [])
         model = req.get("model")
+        tools = req.get("tools") or None
         prompt = ""
         for m in messages:
             c = m.get("content", "")
@@ -155,16 +109,24 @@ class Handler(BaseHTTPRequestHandler):
                 prompt = " ".join(str(p.get("text", "")) for p in c if isinstance(p, dict))
         if not prompt.strip():
             return self._json({"error": "empty prompt"}, 400)
-        out = do_chat(prompt, model)
+        out = do_chat(prompt, model, tools)
         if "content" in out:
+            msg = {"role": "assistant", "content": None}
+            tool_calls = out.get("tool_calls") or []
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+                finish = "tool_calls"
+            else:
+                msg["content"] = out["content"]
+                finish = "stop"
             return self._json({
                 "id": f"chatcmpl-{uuid.uuid4()}",
                 "object": "chat.completion",
                 "model": out["model"],
                 "choices": [{
                     "index": 0,
-                    "message": {"role": "assistant", "content": out["content"]},
-                    "finish_reason": "stop",
+                    "message": msg,
+                    "finish_reason": finish,
                 }],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             })
