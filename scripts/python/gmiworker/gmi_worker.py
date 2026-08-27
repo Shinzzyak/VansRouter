@@ -70,23 +70,32 @@ def solve_turnstile_pierrondi(page_url: str, sitekey: str = "0x4AAAAAAEFlfOlTZMh
 
 # ─── MAIL.TM (default) or GSuite pool ─────────────────────────
 def gen_mailtm() -> dict | None:
-    try:
-        r = requests.get(f"{MAIL_TM}/domains", timeout=10)
-        member = r.json().get("hydra:member", r.json())
-        domains = [m["domain"] for m in member if m.get("isActive", True)]
-        if not domains:
-            return None
-        email = f"{secrets.token_hex(6)}@{domains[0]}"
-        mail_pw = secrets.token_hex(16)
-        requests.post(f"{MAIL_TM}/accounts",
-                      json={"address": email, "password": mail_pw}, timeout=10)
-        t = requests.post(f"{MAIL_TM}/token",
-                          json={"address": email, "password": mail_pw}, timeout=10)
-        if t.status_code != 200:
-            return None
-        return {"email": email, "mail_token": t.json().get("token")}
-    except requests.RequestException:
-        return None
+    for attempt in range(3):
+        try:
+            r = requests.get(f"{MAIL_TM}/domains", timeout=10)
+            member = r.json().get("hydra:member", r.json())
+            domains = [m["domain"] for m in member if m.get("isActive", True)]
+            if not domains:
+                return None
+            email = f"{secrets.token_hex(6)}@{domains[0]}"
+            mail_pw = secrets.token_hex(16)
+            a = requests.post(f"{MAIL_TM}/accounts",
+                              json={"address": email, "password": mail_pw}, timeout=10)
+            if a.status_code not in (200, 201):
+                if a.status_code == 429:
+                    time.sleep(5 * (attempt + 1))
+                    continue
+                return None
+            t = requests.post(f"{MAIL_TM}/token",
+                              json={"address": email, "password": mail_pw}, timeout=10)
+            if t.status_code == 200 and t.json().get("token"):
+                return {"email": email, "mail_token": t.json().get("token")}
+            if t.status_code == 429:
+                time.sleep(5 * (attempt + 1))
+                continue
+        except requests.RequestException:
+            time.sleep(3 * (attempt + 1))
+    return None
 
 
 def get_msg_ids(mail_token: str) -> set:
