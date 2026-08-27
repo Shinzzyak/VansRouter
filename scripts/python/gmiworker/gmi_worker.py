@@ -148,30 +148,16 @@ def hdrs(auth=None):
 def do_one(email: str | None, password: str | None, silent: bool = False) -> dict | None:
     def step(n, msg, end=" "):
         if not silent:
-            print(f"  [{n}/7] {msg}", end=end, flush=True)
+            print(f"  [{n}/6] {msg}", end=end, flush=True)
 
-    # 1. temp email (or use provided GSuite)
-    if email and password:
-        step(1, f"Use provided {email}...", end=" "); log_v = f"OK  {email}"
-        # try to use mail.tm if email is mail.tm; otherwise use mail.tm for 2FA only
-        # GSuite address on mail.tm doesn't work — we use mail.tm for everything
-        # unless caller wires up a different inbox. For now, always fall through to mail.tm
-        if not silent:
-            print(log_v)
-        tmp = gen_mailtm()
-        if not tmp:
-            if not silent: print("    FAIL (mail.tm unavailable)")
-            return None
-        real_email, mail_token = tmp["email"], tmp["mail_token"]
-        # we register on mail.tm but attach custom org name
-    else:
-        step(1, "Temp email...", end=" ")
-        tmp = gen_mailtm()
-        if not tmp:
-            if not silent: print("FAIL")
-            return None
-        real_email, mail_token = tmp["email"], tmp["mail_token"]
-        if not silent: print(f"OK  {real_email}")
+    # 1. temp email (ma or use provided password)
+    step(1, "Temp email...", end=" ")
+    tmp = gen_mailtm()
+    if not tmp:
+        if not silent: print("FAIL")
+        return None
+    real_email, mail_token = tmp["email"], tmp["mail_token"]
+    if not silent: print(f"OK  {real_email}")
 
     # 2. Turnstile
     step(2, "Turnstile (pierrondi)...", end=" ")
@@ -181,7 +167,7 @@ def do_one(email: str | None, password: str | None, silent: bool = False) -> dic
         return None
     if not silent: print("OK")
 
-    # 3. Register
+    # 3. Register → emailVerificationToken
     step(3, "Register...", end=" ")
     try:
         r = requests.get(f"{GMI}/api/v1/agreements/current", timeout=15)
@@ -198,78 +184,83 @@ def do_one(email: str | None, password: str | None, silent: bool = False) -> dic
         "organization": {"name": f"Farm-{secrets.token_hex(3)}"},
     }, headers=hdrs(), timeout=25)
     if r.status_code != 201:
-        if not silent: print(f"FAIL ({r.status_code})")
+        if not silent: print(f"FAIL ({r.status_code} {r.text[:120]})")
+        return None
+    evt = r.json().get("emailVerificationToken")
+    if not evt:
+        if not silent: print("FAIL no evtoken")
         return None
     if not silent: print("OK")
 
-    # 4. Verification email
-    step(4, "Verification email...", end=" ")
+    # 4. OTP code from the verification email (subject "Confirm your email address")
+    step(4, "OTP from email...", end=" ")
     old_ids = get_msg_ids(mail_token)
-    code, link_token, old_ids = poll_code(mail_token, old_ids, "verify", timeout=60)
-    if not code:
-        if not silent: print("FAIL no code")
-        return None
-    if not silent: print(f"OK  code={code}")
-
-    # 5. Browser verify
-    step(5, "Browser verify...", end=" ")
-    if not link_token:
-        if not silent: print("FAIL no link_token"); return None
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False, args=[
-                "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
-                "--single-process", "--no-zygote"])
-            ctx = browser.new_context(user_agent=UA)
-            page = ctx.new_page()
-            page.goto(f"{GMI}/callback/email-verification?code={code}&token={link_token}",
-                      timeout=30000, wait_until="commit")
-            time.sleep(5)
-            browser.close()
-    except Exception as e:
-        if not silent: print(f"FAIL ({e})")
-        return None
-    if not silent: print("OK")
-
-    # 6. Login + 2FA
-    step(6, "Login + 2FA...", end=" ")
-    r = requests.post(f"{GMI}/api/v1/me/auth-tokens",
-                      json={"email": real_email, "password": pwd},
-                      headers=hdrs(), timeout=25)
-    auth_token = r.json().get("authToken")
-    if not auth_token:
-        if not silent: print("FAIL login"); return None
-    r = requests.post(f"{GMI}/api/v1/me/2fa-verification-code",
-                      json={"authToken": auth_token}, headers=hdrs(), timeout=25)
-    if r.status_code not in (200, 201):
-        if not silent: print("FAIL 2FA req"); return None
-    otp, _, old_ids = poll_code(mail_token, old_ids, "two-factor", timeout=60)
+    otp, _, _ = poll_code(mail_token, old_ids, "confirm", digits=6, timeout=90)
     if not otp:
-        if not silent: print("FAIL 2FA code"); return None
-    r = requests.post(f"{GMI}/api/v1/me/sessions",
-                      json={"authToken": auth_token, "otpCode": otp},
-                      headers=hdrs(), timeout=25)
-    access_token = r.json().get("accessToken")
-    if not access_token:
-        if not silent: print("FAIL session"); return None
+        for _ in range(4):
+            time.sleep(3)
+            try:
+                msgs = requests.get(f"{MAIL_TM}/messages",
+                                    headers={"Authorization": f"Bearer {mail_token}"},
+                                    timeout=10).json().get("hydra:member", [])
+                for m in msgs or []:
+                    mid = m.get("id")
+                    full = requests.get(f"{MAIL_TM}/messages/{mid}",
+                                        headers={"Authorization": f"Bearer {mail_token}"},
+                                        timeout=10).json()
+                    html = (full.get("html") or [""])[0] if isinstance(full.get("html"), list) else str(full.get("html", ""))
+                    mm = re.search(r'code=(\d+)&(?:amp;)?token=([\w._-]+)', html)
+                    if mm:
+                        otp = mm.group(1)
+                        break
+                if otp:
+                    break
+            except requests.RequestException:
+                pass
+    if not otp:
+        if not silent: print("FAIL no otp")
+        return None
     if not silent: print(f"OK  otp={otp}")
 
-    # 7. API key
-    step(7, "API key...", end=" ")
+    # 5. Verify via API: POST /users/email-verification {otpCode, emailVerificationToken}
+    step(5, "Verify→authToken...", end=" ")
+    rv = requests.post(f"{GMI}/api/v1/users/email-verification",
+                       json={"otpCode": otp, "emailVerificationToken": evt},
+                       headers=hdrs(evt), timeout=25)
+    if rv.status_code not in (200, 201):
+        if not silent: print(f"FAIL ({rv.status_code})")
+        return None
+    auth_token = rv.json().get("authToken")
+    if not auth_token:
+        if not silent: print("FAIL no authToken")
+        return None
+    if not silent: print("OK")
+
+    # 6. Session + API key
+    step(6, "Session + API key...", end=" ")
+    rs = requests.post(f"{GMI}/api/v1/me/sessions",
+                       json={"authToken": auth_token},
+                       headers=hdrs(), timeout=25)
+    access_token = rs.json().get("accessToken")
+    if not access_token:
+        if not silent: print(f"FAIL session ({rs.status_code} {rs.text[:120]})")
+        return None
     ah = hdrs(access_token)
-    r = requests.get(f"{GMI}/api/v1/me/profile", headers=ah, timeout=15)
-    org_id = r.json().get("organization", {}).get("id")
+    rp = requests.get(f"{GMI}/api/v1/me/profile", headers=ah, timeout=15)
+    org_id = rp.json().get("organization", {}).get("id")
     if not org_id:
-        if not silent: print("FAIL no org"); return None
-    r = requests.post(f"{GMI}/api/v1/organizations/{org_id}/api-keys",
-                      json={"name": f"farm-{secrets.token_hex(4)}"},
-                      headers=ah, timeout=15)
-    if r.status_code not in (200, 201):
-        if not silent: print(f"FAIL {r.status_code}"); return None
-    api_key = r.json().get("key") or r.json().get("secret") or r.json().get("token")
+        if not silent: print("FAIL no org")
+        return None
+    rk = requests.post(f"{GMI}/api/v1/organizations/{org_id}/api-keys",
+                       json={"name": f"farm-{secrets.token_hex(4)}"},
+                       headers=ah, timeout=15)
+    if rk.status_code not in (200, 201):
+        if not silent: print(f"FAIL key ({rk.status_code})")
+        return None
+    api_key = rk.json().get("key") or rk.json().get("secret") or rk.json().get("token")
     if not api_key:
-        if not silent: print("FAIL no key"); return None
+        if not silent: print("FAIL no key")
+        return None
     if not silent: print(f"OK  {api_key[:24]}…")
 
     return {
