@@ -14,7 +14,7 @@ Usage:
 Env:
   ZCODE_DB  path to data.sqlite (default VansRouter data/db/data.sqlite)
 """
-import sys, os, json, time, sqlite3, uuid
+import sys, os, json, time, sqlite3, uuid, re
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 
@@ -81,7 +81,106 @@ def _read_reply(page):
     }""")
 
 
-def chat_once(prompt, model=None, email=None, timeout_s=180):
+# ---- Tool-call helpers (text-markup protocol, ref @ai-sdk-tool/parser) ----
+
+def _tool_spec(tool):
+    """Serialize one OpenAI-format tool def into a compact XML spec."""
+    fn = tool.get("function", tool)
+    name = fn.get("name", "tool")
+    desc = fn.get("description", "")
+    params = fn.get("parameters", fn.get("input_schema", {}))
+    props = params.get("properties", {}) if isinstance(params, dict) else {}
+    required = params.get("required", []) if isinstance(params, dict) else []
+    lines = [f'<tool name="{name}">']
+    if desc:
+        lines.append(f"  <description>{desc}</description>")
+    for pname, pdef in props.items():
+        ptype = pdef.get("type", "string") if isinstance(pdef, dict) else "string"
+        preq = " required" if pname in required else ""
+        lines.append(f'  <param name="{pname}" type="{ptype}"{preq}/>')
+    lines.append("</tool>")
+    return "\n".join(lines)
+
+
+def build_tools_prompt(user_prompt, tools):
+    """Inject the XML tool spec into the prompt so the UI-driven model emits
+    <tool_call> markup that we can parse back."""
+    if not tools:
+        return user_prompt
+    spec = "\n".join(_tool_spec(t) for t in tools)
+    return (
+        "You have access to the following functions. If you need one, emit "
+        "EXACTLY one <tool_call> block with a JSON body, and nothing else:\n\n"
+        f"{spec}\n\n"
+        "Format:\n<tool_call>\n{\"name\": \"<function>\", \"arguments\": {<json>}}\n</tool_call>\n\n"
+        "Rule: if no tool is needed, answer normally.\n\n"
+        "User request:\n"
+        f"{user_prompt}"
+    )
+
+
+_TOOL_CALL_RE = re.compile(
+    r"<tool_call>\s*(?:\{.*?\}|.*?)\s*</tool_call>",
+    re.DOTALL | re.IGNORECASE,
+)
+_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def parse_tool_calls(text):
+    """Extract tool calls from model text -> OpenAI tool_calls.
+
+    Handles BOTH:
+      - explicit <tool_call>{json}</tool_call> markup
+      - bare JSON payload {"name": ..., "arguments": ...} (model emits raw JSON)
+    """
+    if not text:
+        return []
+    calls = []
+
+    def _emit(obj):
+        name = obj.get("name")
+        if not name:
+            return
+        args = obj.get("arguments", obj.get("parameters", {}))
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {"raw": args}
+        args = args if isinstance(args, dict) else {"raw": args}
+        calls.append({
+            "id": f"call_{uuid.uuid4().hex[:12]}",
+            "type": "function",
+            "function": {
+                "name": name,
+                "arguments": json.dumps(args, ensure_ascii=False),
+            },
+        })
+
+    # 1) explicit <tool_call> blocks
+    for block in _TOOL_CALL_RE.findall(text):
+        m = _JSON_RE.search(block)
+        if m:
+            try:
+                _emit(json.loads(m.group(0)))
+            except Exception:
+                continue
+
+    # 2) bare JSON payload (whole text or fenced ```json ... ```)
+    if not calls:
+        for candidate in _JSON_RE.findall(text):
+            try:
+                obj = json.loads(candidate)
+            except Exception:
+                continue
+            if isinstance(obj, dict) and "name" in obj and ("arguments" in obj or "parameters" in obj):
+                _emit(obj)
+                break  # first valid tool-call wins for a single-turn emit
+
+    return calls
+
+
+def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
     acc = load_account(email)
     if not acc:
         return {"error": "no zcode account"}
@@ -111,11 +210,12 @@ def chat_once(prompt, model=None, email=None, timeout_s=180):
             except Exception:
                 pass
         # fill + send
+        full_prompt = build_tools_prompt(prompt, tools)
         box = page.query_selector('#chat-input') or page.query_selector('textarea')
         if not box:
             return {"error": "no #chat-input"}
         box.click()
-        box.fill(prompt)
+        box.fill(full_prompt)
         page.wait_for_timeout(800)
         sent = False
         for sel in ['button[type="submit"]', '[data-testid="send-button"]']:
@@ -142,8 +242,10 @@ def chat_once(prompt, model=None, email=None, timeout_s=180):
             except Exception:
                 pass
             txt = _read_reply(page)
-            if txt and len(txt) > 1:
-                return {"content": txt, "model": model or "default", "email": acc["email"]}
+            if txt and len(txt) > 1 and txt.strip() not in ("Thinking...", "Thought Process", "Loading..."):
+                calls = parse_tool_calls(txt) if tools else []
+                return {"content": txt, "model": model or "default",
+                        "email": acc["email"], "tool_calls": calls}
             page.wait_for_timeout(1000)
         return {"error": "timeout waiting for reply", "email": acc["email"]}
 
