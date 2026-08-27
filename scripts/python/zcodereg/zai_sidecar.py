@@ -110,27 +110,59 @@ class Handler(BaseHTTPRequestHandler):
         if not prompt.strip():
             return self._json({"error": "empty prompt"}, 400)
         out = do_chat(prompt, model, tools)
-        if "content" in out:
-            msg = {"role": "assistant", "content": None}
-            tool_calls = out.get("tool_calls") or []
-            if tool_calls:
-                msg["tool_calls"] = tool_calls
-                finish = "tool_calls"
-            else:
-                msg["content"] = out["content"]
-                finish = "stop"
-            return self._json({
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "model": out["model"],
-                "choices": [{
-                    "index": 0,
-                    "message": msg,
-                    "finish_reason": finish,
-                }],
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            })
-        return self._json({"error": out}, 502)
+        if "error" in out:
+            return self._json({"error": out}, 502)
+        msg = {"role": "assistant", "content": None}
+        tool_calls = out.get("tool_calls") or []
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+            finish = "tool_calls"
+        else:
+            msg["content"] = out["content"]
+            finish = "stop"
+        # estimate tokens so the router records usage (router drops 0/0)
+        est_in = max(1, len(prompt) // 4)
+        text_out = out.get("content") or json.dumps(tool_calls)
+        est_out = max(1, len(text_out) // 4)
+        usage = {"prompt_tokens": est_in, "completion_tokens": est_out,
+                 "total_tokens": est_in + est_out}
+        completion_id = f"chatcmpl-{uuid.uuid4()}"
+        full = {
+            "id": completion_id,
+            "object": "chat.completion",
+            "model": out["model"],
+            "choices": [{"index": 0, "message": msg, "finish_reason": finish}],
+            "usage": usage,
+        }
+        # stream=true -> emit SSE (OpenAI chunks) so the router can parse usage
+        if req.get("stream"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+
+            def _sse(obj):
+                self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode())
+                self.wfile.flush()
+
+            # first chunk: role
+            _sse({"id": completion_id, "object": "chat.completion.chunk",
+                  "model": out["model"],
+                  "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]})
+            # content chunk
+            delta = {"content": out["content"]} if not tool_calls else {"tool_calls": tool_calls}
+            _sse({"id": completion_id, "object": "chat.completion.chunk",
+                  "model": out["model"],
+                  "choices": [{"index": 0, "delta": delta, "finish_reason": None}]})
+            # final chunk: finish_reason + usage
+            _sse({"id": completion_id, "object": "chat.completion.chunk",
+                  "model": out["model"],
+                  "choices": [{"index": 0, "delta": {}, "finish_reason": finish}],
+                  "usage": usage})
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
+        return self._json(full)
 
 
 def main():
