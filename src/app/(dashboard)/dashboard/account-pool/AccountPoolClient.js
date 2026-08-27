@@ -120,6 +120,7 @@ function AccountCard({ conn, busy, onToggle, onRemove, onRefresh, onSetRefreshTo
 export default function AccountPoolPage() {
   const [connections, setConnections] = useState([]);
   const [grouped, setGrouped] = useState({});
+  const [zaiQuota, setZaiQuota] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [providerFilter, setProviderFilter] = useState("");
@@ -151,6 +152,19 @@ export default function AccountPoolPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // ZAI quota summary (aggregated badge — dari sidecar cache, instant)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/account-pool/zai-quota");
+        const d = await r.json();
+        if (!cancelled && d && !d.error) setZaiQuota(d);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Load refresh schedule from settings
@@ -389,6 +403,14 @@ export default function AccountPoolPage() {
               <div className="text-xs text-zinc-400">
                 {stats.active} active · {stats.total} total
               </div>
+              {provider === "zcode" && zaiQuota && zaiQuota.ok != null && (
+                <div className="mt-1 border-t border-white/10 pt-1 text-xs">
+                  <span className="text-emerald-400">{zaiQuota.ok} quota OK</span>
+                  {zaiQuota.err > 0 && <span className="text-zinc-500"> · {zaiQuota.err} err</span>}
+                  {" · "}
+                  <span className="text-indigo-300">{zaiQuota.accounts?.filter(a => a.reset_at?.startsWith("2026-08-28"))?.length ?? "?"} reset today</span>
+                </div>
+              )}
             </button>
           ))}
         </div>
