@@ -28,6 +28,7 @@ from zai_chat_worker import (
     build_tools_prompt,
     parse_tool_calls,
 )
+from zai_quota_fetcher import get_snapshot as quota_snapshot
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 MODELS = [
@@ -86,6 +87,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "accounts": n})
         if self.path == "/v1/models" or self.path == "/models":
             return self._json({"object": "list", "data": MODELS})
+        if self.path == "/quota":
+            return self._json(quota_snapshot())
         self._json({"error": "not found"}, 404)
 
     def do_POST(self):
