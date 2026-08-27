@@ -22,7 +22,6 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const body = await request.json();
     const { isActive, name, allowedProviders, allowedCombos, allowedKinds, limits = {} } = body;
-    const { isActive, allowedProviders, allowedCombos, allowedKinds, name } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -32,10 +31,6 @@ export async function PUT(request, { params }) {
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (name !== undefined) updateData.name = name;
-    // Name is optional on update; ignore blank/whitespace-only values.
-    if ("name" in body && typeof name === "string" && name.trim()) {
-      updateData.name = name.trim();
-    }
     // null = all allowed, [] = none, [x] = specific. Only update if key present in body.
     if ("allowedProviders" in body) {
       updateData.allowedProviders = allowedProviders === null ? null : (Array.isArray(allowedProviders) ? allowedProviders : null);
