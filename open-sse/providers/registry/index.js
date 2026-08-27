@@ -66,7 +66,7 @@ import p62 from "./jina-reader.js";
 import p63 from "./kilocode.js";
 import p64 from "./kimchi.js";
 import p65 from "./kimi.js";
-import p66 from "./kiro.js";
+import p66 from "./kiro-live.js";
 import p67 from "./linkup.js";
 import p68 from "./llamagate.js";
 import p69 from "./local-device.js";
