@@ -92,6 +92,7 @@ import p87 from "./perplexity-agent.js";
 import p88 from "./perplexity-web.js";
 import p89 from "./perplexity.js";
 import p90 from "./playht.js";
+import pGatex from "./gatex.js";
 import p91 from "./predibase.js";
 import p92 from "./publicai.js";
 import p93 from "./qoder.js";
@@ -248,6 +249,7 @@ export default [
   p88,
   p89,
   p90,
+  pGatex,
   p91,
   p92,
   p93,
