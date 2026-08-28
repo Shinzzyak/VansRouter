@@ -41,20 +41,26 @@ function clampCount(value) {
   return Math.min(MAX_COUNT, Math.max(1, parsed));
 }
 
-async function defaultSaveConnection({ apiKey, keyMeta, label, phone }) {
+async function defaultSaveConnection({ accessToken, refreshToken, expiresIn, label, phone }) {
   const { createProviderConnection } = await import("../../../models/index.js");
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + (Number(expiresIn || 86400) * 1000)).toISOString();
   const connection = await createProviderConnection({
     provider: PROVIDER_ID,
-    authType: "apikey",
-    name: keyMeta?.name || label,
-    apiKey,
+    authType: "oauth",
+    name: label,
     email: label,
+    accessToken,
+    refreshToken,
+    expiresAt,
+    expiresIn: Number(expiresIn || 86400),
+    tokenType: "Bearer",
     providerSpecificData: {
-      automation: "5sim-phone",
+      automation: "5sim-phone-oauth",
       phone,
-      codebuddyApiKeyId: keyMeta?.id || null,
-      codebuddyApiKeyName: keyMeta?.name || null,
-      codebuddyApiKeyExpiresAt: keyMeta?.expiresAt || null,
+      codebuddyApiKeyId: null,
+      codebuddyApiKeyName: null,
+      codebuddyApiKeyExpiresAt: null,
     },
     testStatus: "active",
   });
@@ -194,16 +200,12 @@ export class CodeBuddyCnPhoneImportManager extends KiroBulkImportManager {
 
       if (!loginResult) throw new Error("CodeBuddy CN phone login did not complete");
 
-      const keyMeta = await this.createApiKey(page, (step, message) => {
-        this.setAccountStep(account, step, message);
-        void this.persistJobSnapshot(job, { forcePreview: false });
-      });
-
-      this.setAccountStep(account, "saving_connection", "Saving CodeBuddy CN generated API key");
+      this.setAccountStep(account, "saving_connection", "Saving CodeBuddy CN OAuth JWT connection");
       const label = loginResult.webEmail || `phone:${order.phone}`;
       const { connection } = await this.saveConnection({
-        apiKey: keyMeta.key,
-        keyMeta,
+        accessToken: loginResult.accessToken,
+        refreshToken: loginResult.refreshToken,
+        expiresIn: loginResult.expiresIn,
         label,
         phone: order.phone,
       });
@@ -212,7 +214,7 @@ export class CodeBuddyCnPhoneImportManager extends KiroBulkImportManager {
       this.finalizeAccount(account, "success", {
         connectionId: connection.id,
         step: "connection_saved",
-        message: "CodeBuddy CN connection saved with generated API key",
+        message: "CodeBuddy CN oauth connection saved with CLI JWT token",
       });
     } catch (error) {
       if (order?.id) await fiveSim.cancelOrder(order.id).catch(() => null);

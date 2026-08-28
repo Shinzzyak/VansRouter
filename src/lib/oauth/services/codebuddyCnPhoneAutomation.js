@@ -1,5 +1,8 @@
 import { randomInt } from "crypto";
 
+const CODEBUDDY_CN_STATE_URL = "https://copilot.tencent.com/v2/plugin/auth/state";
+const CODEBUDDY_CN_TOKEN_URL = "https://copilot.tencent.com/v2/plugin/auth/token";
+const CODEBUDDY_CN_REALM_BASE = "https://www.codebuddy.cn/auth/realms/copilot/protocol/openid-connect/auth";
 const CODEBUDDY_CN_LOGIN_URL = "https://www.codebuddy.cn/login/?platform=admin&state=0";
 const CODEBUDDY_CN_KEYS_URL = "https://www.codebuddy.cn/profile/keys";
 const CODEBUDDY_CN_API_KEY_ENDPOINT = "/console/api/client/v1/api-keys";
@@ -304,8 +307,13 @@ async function waitForCodeBuddyCnSession(page) {
   return page.waitForFunction?.(() => {
     const href = window.location?.href || "";
     const text = document.body?.innerText || "";
-    return /\/(profile|console|dashboard|workspace)/i.test(href)
+    const leftKeycloak = !/login-actions|authenticate|auth\/realms|login\//i.test(href);
+    const onConsole = /\/(profile|console|dashboard|workspace)/i.test(href)
       || /profile|keys|工作台|退出|账号|控制台|dashboard|API Key|密钥/i.test(text);
+    // After OTP submit the Keycloak callback redirects to /login/?platform=CLI&state=...
+    // (or the console). Leaving the Keycloak login-actions page means the code was
+    // exchanged; the token poll below is the authoritative success check.
+    return onConsole || (leftKeycloak && /codebuddy\.cn|copilot\.tencent\.com/i.test(href));
   }, { timeout: 45_000 }).then(() => true).catch(() => false);
 }
 
@@ -325,11 +333,76 @@ function manualError(message, step) {
   return error;
 }
 
+export async function requestCodeBuddyCnState({ platform = "CLI" } = {}) {
+  const response = await fetch(`${CODEBUDDY_CN_STATE_URL}?platform=${platform}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "CLI/2.137.0 CodeBuddy/2.137.0",
+      "X-Requested-With": "XMLHttpRequest",
+      "X-Domain": "copilot.tencent.com",
+      "X-No-Authorization": "true",
+      "X-No-User-Id": "true",
+      "X-Product": "SaaS",
+    },
+    body: "{}",
+  });
+  if (!response.ok) throw new Error(`CodeBuddy CN state request failed: ${response.status} ${await response.text()}`);
+  const data = await response.json();
+  if (data.code !== 0 || !data.data?.state || !data.data?.authUrl) {
+    throw new Error(`CodeBuddy CN state error: ${data.msg || "missing state/authUrl"}`);
+  }
+  return { state: data.data.state, authUrl: data.data.authUrl };
+}
+
+export async function pollCodeBuddyCnToken(state, { maxAttempts = 60, intervalMs = 5_000 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await fetch(`${CODEBUDDY_CN_TOKEN_URL}?state=${encodeURIComponent(state)}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "CLI/2.137.0 CodeBuddy/2.137.0",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-Domain": "copilot.tencent.com",
+        "X-No-Authorization": "true",
+        "X-No-User-Id": "true",
+        "X-No-Enterprise-Id": "true",
+        "X-No-Department-Info": "true",
+        "X-Product": "SaaS",
+      },
+    });
+    if (!response.ok) throw new Error(`CodeBuddy CN token request failed: ${response.status}`);
+    const data = await response.json();
+    if (data.code === 0 && data.data?.accessToken) {
+      return {
+        accessToken: data.data.accessToken,
+        refreshToken: data.data.refreshToken || "",
+        expiresIn: data.data.expiresIn || 86400,
+      };
+    }
+    // 11217 = authorization_pending — keep polling
+    if (attempt < maxAttempts - 1) await delay(intervalMs);
+  }
+  throw new Error("CodeBuddy CN token polling timed out (authorization not completed)");
+}
+
 export async function runCodeBuddyCnPhoneLogin({ page, phone, codeProvider, onStep }) {
-  onStep?.("opening_codebuddy_cn", "Opening CodeBuddy CN phone login");
-  await page.goto(CODEBUDDY_CN_LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
-  // Wait for the main page to finish loading so the #phone-iframe can start rendering.
-  // The iframe loads a Keycloak auth page which can be slow through SOCKS proxies.
+  onStep?.("requesting_codebuddy_cn_state", "Requesting CodeBuddy CN OAuth state");
+  const { state } = await requestCodeBuddyCnState({ platform: "CLI" });
+
+  // The state endpoint returns authUrl = https://copilot.tencent.com/login?platform=CLI&state=...
+  // which is NOT the Keycloak form. The working farm bot builds the realm URL itself:
+  // https://www.codebuddy.cn/auth/realms/copilot/protocol/openid-connect/auth?client_id=console&redirect_uri=...login/?platform=CLI&state=<state>&response_type=code&scope=openid
+  const keycloakUrl = `${CODEBUDDY_CN_REALM_BASE}?${new URLSearchParams({
+    client_id: "console",
+    redirect_uri: `https://www.codebuddy.cn/login/?platform=CLI&state=${state}`,
+    response_type: "code",
+    scope: "openid",
+  }).toString()}`;
+
+  onStep?.("opening_codebuddy_cn", "Opening CodeBuddy CN Keycloak login");
+  await page.goto(keycloakUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await page.waitForLoadState?.("networkidle", { timeout: 15_000 }).catch(() => null);
 
   const loginFrame = await resolveLoginScope(page, { timeoutMs: 40_000 });
@@ -398,9 +471,22 @@ export async function runCodeBuddyCnPhoneLogin({ page, phone, codeProvider, onSt
   if (!hasSession) {
     throw manualError("CodeBuddy CN login session was not confirmed after OTP", "login_session_not_confirmed");
   }
-  return { phone, webEmail: `phone:${phone}` };
+
+  // Session confirmed on the console — now exchange its OAuth state for the JWT pair.
+  onStep?.("polling_codebuddy_cn_token", "Polling CodeBuddy CN OAuth token (CLI state exchange)");
+  const tokens = await pollCodeBuddyCnToken(state, { maxAttempts: 60, intervalMs: 5_000 });
+  return {
+    phone,
+    webEmail: `phone:${phone}`,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresIn: tokens.expiresIn,
+  };
 }
 
+// Kept for reference/fallback (API-key path); the automation now prefers the
+// OAuth JWT path above. If a future page flow needs the console key, this
+// remains available.
 async function postCodeBuddyCnApiKeyFromPage(page, keyName) {
   return page.evaluate(async ({ endpoint, endpointUrl, name, userEnterpriseId }) => {
     const body = JSON.stringify({
