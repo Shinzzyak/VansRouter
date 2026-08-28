@@ -22,4 +22,15 @@ describe("CodeBuddy international registry parity", () => {
       expect(capabilities.thinkingFormat, id).toBeDefined();
     }
   });
+
+  it("resolves authoritative context/output windows for every codebuddy-cn model", () => {
+    const cn = REGISTRY.find((entry) => entry.id === "codebuddy-cn");
+    for (const { id } of cn.models) {
+      const capabilities = getCapabilitiesForModel("codebuddy-cn", id);
+      expect(capabilities.reasoning, id).toBe(true);
+      expect(capabilities.thinkingFormat, id).toBe("openai");
+      expect(capabilities.contextWindow, id).toBeGreaterThan(0);
+      expect(capabilities.maxOutput, id).toBeGreaterThan(0);
+    }
+  });
 });
