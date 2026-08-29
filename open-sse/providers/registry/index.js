@@ -154,6 +154,7 @@ import p148 from "./tokenharbor.js";
 import p149 from "./vyce.js";
 import p150 from "./fish-audio.js";
 import p151 from "./alitp-intl.js";
+import p154 from "./zai.js";
 
 export default [
   p0,
@@ -311,5 +312,6 @@ export default [
   p150,
   p151,
   p152,
-  p153
+  p153,
+  p154
 ];
