@@ -83,6 +83,30 @@ def _read_reply(page):
 
 # ---- Tool-call helpers (text-markup protocol, ref @ai-sdk-tool/parser) ----
 
+def _render_messages(messages):
+    """Render OpenAI chat messages into a single UI prompt (role-labeled), so
+    multi-turn tool flows (assistant tool_calls -> tool result -> final answer)
+    survive the single-textbox chat.z.ai UI."""
+    if not messages:
+        return ""
+    parts = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content")
+        if isinstance(content, list):
+            content = " ".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+        if role == "tool":
+            parts.append(f"[tool result] {content}")
+        elif role == "assistant" and m.get("tool_calls"):
+            tcs = json.dumps(m["tool_calls"], ensure_ascii=False)
+            parts.append(f"[assistant called tools] {tcs}")
+        elif role == "assistant":
+            parts.append(f"[assistant] {content}")
+        else:
+            parts.append(f"[user] {content}")
+    return "\n".join(parts)
+
+
 def _tool_spec(tool):
     """Serialize one OpenAI-format tool def into a compact XML spec."""
     fn = tool.get("function", tool)
