@@ -10,6 +10,7 @@ import p7 from "./assemblyai.js";
 import p8 from "./aws-polly.js";
 import p9 from "./azure.js";
 import p10 from "./baseten.js";
+import p155 from "./bai.js";
 import p11 from "./black-forest-labs.js";
 import p12 from "./blackbox.js";
 import p13 from "./brave-search.js";
@@ -313,5 +314,6 @@ export default [
   p151,
   p152,
   p153,
-  p154
+  p154,
+  p155
 ];

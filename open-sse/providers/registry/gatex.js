@@ -4,7 +4,7 @@ export default {
   alias: "gx",
   uiAlias: "gx",
   display: {
-    name: "Gate-X (Kiro farm pool)",
+    name: "Gate-X (Kiro Farm Pool)",
     icon: "vpn_key",
     color: "#7C3AED",
     textIcon: "GX",
@@ -16,9 +16,6 @@ export default {
   category: "api",
   authType: "apikey",
   transport: {
-    // Cloudflare quick tunnel -> Caddy basic-auth :18317 -> gate-x :8317.
-    // Re-baked when tunnel rotates; update here OR change to stable hostname
-    // once gate-x is exposed via permanent Cloudflare/Tailscale tunnel.
     baseUrl: "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/chat/completions",
     validateUrl: "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/models",
   },
@@ -26,5 +23,22 @@ export default {
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
     { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5" },
+    { id: "b/deepseek-v4-flash", name: "B.AI DeepSeek V4 Flash" },
+    { id: "b/deepseek-v4-flash-vision-exp", name: "B.AI DeepSeek V4 Flash Vision" },
+    { id: "b/hy3", name: "B.AI HY3" },
+    { id: "b/qwen3.8-flash", name: "B.AI Qwen3.8 Flash" },
+    { id: "unli/gpt-5.6", name: "DuckAI GPT-5.6" },
+    { id: "unli/gpt-5.6-sol", name: "DuckAI GPT-5.6 Sol" },
+    { id: "unli/gpt-5.6-luna", name: "DuckAI GPT-5.6 Luna" },
+    { id: "unli/gpt-5.1", name: "DuckAI GPT-5.1" },
+    { id: "unli/claude-haiku", name: "DuckAI Claude Haiku" },
+    { id: "unli/qwen3.8-flash", name: "DuckAI Qwen3.8 Flash" },
+    { id: "unli/deepseek-v4-flash-vision-exp", name: "DuckAI DeepSeek V4 Flash Vision" },
+    { id: "unli/gemini-2.5-flash", name: "DuckAI Gemini 2.5 Flash" },
+    { id: "unli/gemini-3-pro-preview", name: "DuckAI Gemini 3 Pro Preview" },
+    { id: "kr/deepseek/deepseek-v4-flash", name: "Kiro DeepSeek V4 Flash" },
+    { id: "kr/deepseek/deepseek-v4-pro", name: "Kiro DeepSeek V4 Pro" },
+    { id: "kr/minimax/minimax-m2.7", name: "Kiro MiniMax M2.7" },
+    { id: "kr/mistralai/codestral-2508", name: "Kiro Codestral 2508" },
   ],
 };
