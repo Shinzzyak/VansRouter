@@ -410,6 +410,22 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   const chatSettings = await getSettings();
   const circuitBreakerEnabled = chatSettings.circuitBreakerEnabled !== false && chatSettings.circuitBreakerEnabled !== 0;
 
+  // Per-provider injector overrides from providerStrategies[provider].
+  // Optional keys: bypassMode, godmodeEnabled, cavemanEnabled, ponytailEnabled,
+  // rtkEnabled, headroomEnabled. Global settings stay as default; provider node
+  // owners can opt out of global prompt injectors (e.g. claude-family upstreams
+  // that refuse educational/godmode framing → finish_reason "refusal").
+  const strategyOverride = (chatSettings.providerStrategies || {})[provider] || {};
+  const injBypassMode = strategyOverride.bypassMode ?? chatSettings.bypassMode ?? "off";
+  const injGodmode = strategyOverride.godmodeEnabled ?? chatSettings.godmodeEnabled ?? false;
+  const injGodmodeLevel = strategyOverride.godmodeLevel ?? chatSettings.godmodeLevel ?? "lite";
+  const injCaveman = strategyOverride.cavemanEnabled ?? chatSettings.cavemanEnabled ?? false;
+  const injCavemanLevel = strategyOverride.cavemanLevel ?? chatSettings.cavemanLevel ?? "full";
+  const injPonytail = strategyOverride.ponytailEnabled ?? chatSettings.ponytailEnabled ?? false;
+  const injPonytailLevel = strategyOverride.ponytailLevel ?? chatSettings.ponytailLevel ?? "full";
+  const injRtk = strategyOverride.rtkEnabled ?? chatSettings.rtkEnabled ?? false;
+  const injHeadroom = strategyOverride.headroomEnabled ?? chatSettings.headroomEnabled ?? false;
+
   // Pipeline gate: check circuit breaker state BEFORE credential lookup.
   // If ALL proxy buckets for this provider are OPEN, short-circuit immediately
   // — no point querying the DB when every bucket is blocked.
@@ -578,17 +594,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       apiKeyInfo,
       apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
-      rtkEnabled: !!chatSettings.rtkEnabled,
-      headroomEnabled: !!chatSettings.headroomEnabled,
+      rtkEnabled: injRtk,
+      headroomEnabled: injHeadroom,
       headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
       headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
-      cavemanEnabled: !!chatSettings.cavemanEnabled,
-      cavemanLevel: chatSettings.cavemanLevel || "full",
-      ponytailEnabled: !!chatSettings.ponytailEnabled,
-      ponytailLevel: chatSettings.ponytailLevel || "full",
-      godmodeEnabled: !!chatSettings.godmodeEnabled,
-      godmodeLevel: chatSettings.godmodeLevel || "lite",
-      bypassMode: chatSettings.bypassMode || "off",
+      cavemanEnabled: injCaveman,
+      cavemanLevel: injCavemanLevel,
+      ponytailEnabled: injPonytail,
+      ponytailLevel: injPonytailLevel,
+      godmodeEnabled: injGodmode,
+      godmodeLevel: injGodmodeLevel,
+      bypassMode: injBypassMode,
       loopGuardEnabled: chatSettings.loopGuardEnabled !== false && chatSettings.loopGuardEnabled !== 0,
       providerThinking,
       // Pool-scoped failure recovery: re-resolve proxy config excluding the
