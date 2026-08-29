@@ -148,6 +148,7 @@ _TOOL_CALL_RE = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
 
 
 def parse_tool_calls(text):
@@ -156,6 +157,7 @@ def parse_tool_calls(text):
     Handles BOTH:
       - explicit <tool_call>{json}</tool_call> markup
       - bare JSON payload {"name": ..., "arguments": ...} (model emits raw JSON)
+      - fenced ```json {...} ``` block
     """
     if not text:
         return []
@@ -190,7 +192,18 @@ def parse_tool_calls(text):
             except Exception:
                 continue
 
-    # 2) bare JSON payload (whole text or fenced ```json ... ```)
+    # 1b) fenced ```json {...} ```
+    if not calls:
+        for m in _FENCE_RE.findall(text):
+            try:
+                obj = json.loads(m)
+                if isinstance(obj, dict) and "name" in obj and ("arguments" in obj or "parameters" in obj):
+                    _emit(obj)
+                    break
+            except Exception:
+                continue
+
+    # 2) bare JSON payload (whole text or embedded)
     if not calls:
         for candidate in _JSON_RE.findall(text):
             try:
