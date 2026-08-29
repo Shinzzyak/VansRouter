@@ -24,7 +24,7 @@ export default {
     redirectUri: "zcode://zai-auth/callback",
   },
   transport: {
-    baseUrl: "http://127.0.0.1:8878/v1/chat/completions",
+    baseUrl: "http://127.0.0.1:8879/v1/chat/completions",
     format: "openai",
     headers: { "Content-Type": "application/json" },
     auth: {

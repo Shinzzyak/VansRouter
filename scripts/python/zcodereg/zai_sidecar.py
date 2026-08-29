@@ -27,6 +27,7 @@ from zai_chat_worker import (
     chat_once,
     build_tools_prompt,
     parse_tool_calls,
+    _render_messages,
 )
 from zai_quota_fetcher import get_snapshot as quota_snapshot
 
@@ -103,13 +104,11 @@ class Handler(BaseHTTPRequestHandler):
         messages = req.get("messages", [])
         model = req.get("model")
         tools = req.get("tools") or None
-        prompt = ""
-        for m in messages:
-            c = m.get("content", "")
-            if isinstance(c, str):
-                prompt = c
-            elif isinstance(c, list):
-                prompt = " ".join(str(p.get("text", "")) for p in c if isinstance(p, dict))
+        # Render FULL conversation into one UI prompt (chat.z.ai takes single text box).
+        # Proper role labels keep tool-call/tool-result context readable by the model.
+        prompt = _render_messages(messages)
+        if tools:
+            prompt = build_tools_prompt(prompt, tools)
         if not prompt.strip():
             return self._json({"error": "empty prompt"}, 400)
         out = do_chat(prompt, model, tools)
