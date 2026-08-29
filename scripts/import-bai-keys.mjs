@@ -8,6 +8,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 
 const DB = "/home/ubuntu/VansRouter/data/db/data.sqlite";
 const KEYS_FILE = process.argv[2] || "/home/ubuntu/.gate-x/farm-scripts/b_ai/keys-oauth.txt";
@@ -38,8 +39,8 @@ for (const line of lines) {
     providerSpecificData: { source: "gatex-bai-farm", importedAt: new Date().toISOString() },
     lastUsedAt: null, consecutiveUseCount: 0,
   });
-  db.prepare("INSERT INTO providerConnections (provider, email, data, isActive, createdAt) VALUES (?,?,?,1,?)")
-    .run("bai", email, data, new Date().toISOString());
+  db.prepare("INSERT INTO providerConnections (id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run(crypto.randomUUID(), "bai", "apikey", null, email, 1, 1, data, new Date().toISOString(), new Date().toISOString());
   added++;
 }
 
