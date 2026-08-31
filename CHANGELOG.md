@@ -1,5 +1,7 @@
 # v0.91.13 (2026-08-31)
 
+- **CI release hardening** — Smoke-test SQLite persistence now polls instead of fixed delay; release staging image moved to `ghcr.io/shinzzyak/vansrouter-release`.
+
 - **Cline token refresh in-router** — Added `cline` to `REFRESH_HANDLERS` and a `refreshClineToken` provider that refreshes WorkOS tokens via `POST /api/v1/auth/refresh` with a JSON body (`refreshToken`, `grantType`, `clientType`), normalizes the access token with the `workos:` prefix, and surfaces `invalid_grant` for dead refresh tokens. Fixes 401s when the hourly Cline access token expires between router requests.
 
 # v0.91.12 (2026-08-25)
