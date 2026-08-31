@@ -679,3 +679,70 @@ export async function refreshQwenToken(refreshToken, log) {
     return null;
   }, log);
 }
+
+// Cline (WorkOS) refresh — POST /api/v1/auth/refresh with a JSON body
+// {refreshToken, grantType, clientType} (NOT form-encoded). The access token
+// must be prefixed with "workos:" at use time (see shared/clineAuth.js).
+export async function refreshClineToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("cline", refreshToken, async () => {
+    const refreshUrl = PROVIDERS.cline?.refreshUrl || "https://api.cline.bot/api/v1/auth/refresh";
+    try {
+      const response = await fetch(refreshUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          refreshToken,
+          grantType: "refresh_token",
+          clientType: "extension",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        log?.warn?.("TOKEN_REFRESH", "Failed to refresh Cline token", {
+          status: response.status,
+          error: errorText,
+        });
+        if (response.status === 400 && errorText.includes("invalid_grant")) {
+          return { error: "invalid_grant" };
+        }
+        return null;
+      }
+
+      const payload = await response.json();
+      const data = payload?.data || payload;
+      if (!data?.accessToken) {
+        log?.warn?.("TOKEN_REFRESH", "Cline refresh returned no accessToken");
+        return null;
+      }
+
+      log?.info?.("TOKEN_REFRESH", "Successfully refreshed Cline token", {
+        hasNewRefreshToken: !!data.refreshToken,
+        expiresAt: data.expiresAt,
+      });
+
+      let accessToken = data.accessToken;
+      if (accessToken && !accessToken.startsWith("workos:")) {
+        accessToken = `workos:${accessToken}`;
+      }
+      const expiresAtMs = data.expiresAt ? new Date(data.expiresAt).getTime() : NaN;
+      return {
+        accessToken,
+        refreshToken: data.refreshToken || refreshToken,
+        expiresAt: data.expiresAt || undefined,
+        expiresIn: Number.isFinite(expiresAtMs)
+          ? Math.max(1, Math.floor((expiresAtMs - Date.now()) / 1000))
+          : undefined,
+      };
+    } catch (error) {
+      log?.warn?.("TOKEN_REFRESH", "Network error refreshing Cline token", {
+        error: error.message,
+      });
+      return null;
+    }
+  }, log);
+}
