@@ -77,11 +77,15 @@ async function main() {
       throw new Error(`Legacy db.json was not migrated: ${response.body}`);
     }
 
-    // sql.js persists on a short debounce after writes; observe the durable file,
-    // not only the in-memory HTTP response.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // sql.js persists on a debounced write — poll for the durable files instead
+    // of assuming a fixed delay is enough on slow runners.
     const dbFile = path.join(dataDir, "db", "data.sqlite");
     const marker = path.join(dataDir, "db", ".migrated-from-json");
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      if (fs.existsSync(dbFile) && fs.existsSync(marker)) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     if (!fs.existsSync(dbFile)) throw new Error(`SQLite database missing: ${dbFile}`);
     if (!fs.existsSync(marker)) throw new Error(`Migration marker missing: ${marker}`);
     console.log(`Smoke-tested vansrouter@${expectedVersion}: bundled server, SQLite, legacy migration`);

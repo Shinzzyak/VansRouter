@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GHCR_IMAGE: ghcr.io/vanszs/vansrouter
+  GHCR_IMAGE: ghcr.io/shinzzyak/vansrouter-release
 
 jobs:
   check-branch:
