@@ -1,3 +1,7 @@
+# v0.91.13 (2026-08-31)
+
+- **Cline token refresh in-router** — Added `cline` to `REFRESH_HANDLERS` and a `refreshClineToken` provider that refreshes WorkOS tokens via `POST /api/v1/auth/refresh` with a JSON body (`refreshToken`, `grantType`, `clientType`), normalizes the access token with the `workos:` prefix, and surfaces `invalid_grant` for dead refresh tokens. Fixes 401s when the hourly Cline access token expires between router requests.
+
 # v0.91.12 (2026-08-25)
 
 - **Multi-arch release CI hardening** — Added `docker/setup-qemu-action@v3` prior to `docker/setup-buildx-action@v3` in the release workflow to resolve ARM64 binfmt registration and prevent QEMU instruction stalls during multi-platform container builds.
