@@ -24,7 +24,7 @@ export default {
     deprecationNotice: "RISK_NOTICE",
   },
   category: "oauth",
-  serviceKinds: ["llm", "image"],
+  serviceKinds: ["llm", "image", "webSearch"],
   transport: {
     baseUrls: [
       "https://daily-cloudcode-pa.googleapis.com",
@@ -98,6 +98,11 @@ export default {
     refresh: {
       encoding: "form",
     },
+  },
+  searchViaChat: {
+    defaultModel: "gemini-2.5-flash",
+    endpoint: `${ANTIGRAVITY_IDE_BASE_URL}/v1internal:generateContent`,
+    freeTier: "Free — Google Search grounding through an Antigravity OAuth account.",
   },
   features: {
     usage: true,

@@ -1,19 +1,13 @@
 import { randomUUID } from "crypto";
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { commandCodeToOpenAIResponse } from "../translator/response/commandcode-to-openai.js";
-import { SSE_DONE } from "../utils/sseConstants.js";
+import { inspectAndWrapCommandCodeResponse, parseCommandCodeError } from "./commandcodeResponse.js";
 
 /**
  * CommandCodeExecutor — talks to https://api.commandcode.ai/alpha/generate
  *
  * Auth: Bearer <user_xxx> API key (stored as the connection's apiKey).
  * Adds the per-request `x-session-id` header expected by CommandCode upstream.
- *
- * Upstream returns AI SDK v5 NDJSON (one JSON event per line, no `data:` prefix).
- * We translate each event to an OpenAI chat.completion.chunk and emit it as SSE so
- * both the streaming and non-streaming (forced SSE → JSON) downstream handlers in
- * 9router can consume it without further format translation.
  */
 export class CommandCodeExecutor extends BaseExecutor {
   constructor() {
@@ -34,7 +28,6 @@ export class CommandCodeExecutor extends BaseExecutor {
 
     const token = credentials?.apiKey || credentials?.accessToken;
     if (token) headers["Authorization"] = `Bearer ${token}`;
-
     if (stream) headers["Accept"] = "text/event-stream";
     return headers;
   }
@@ -42,52 +35,18 @@ export class CommandCodeExecutor extends BaseExecutor {
   async execute(opts) {
     const result = await super.execute(opts);
     if (!result?.response?.ok || !result.response.body) return result;
-    result.response = wrapNdjsonAsOpenAISse(result.response, opts.model);
+    result.response = await inspectAndWrapCommandCodeResponse(result.response, opts.model);
     return result;
+  }
+
+  parseError(response, bodyText) {
+    let parsed = null;
+    try { parsed = JSON.parse(bodyText || "{}"); } catch { parsed = null; }
+    const errObj = parsed?.error || parsed;
+    const msg = errObj?.message || parsed?.message || bodyText || response.statusText;
+    const status = Number(errObj?.code || errObj?.statusCode || response.status) || response.status;
+    return { status, message: msg || `CommandCode upstream error: ${response.status}` };
   }
 }
 
-function wrapNdjsonAsOpenAISse(originalResponse, model) {
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-  let buffer = "";
-  const state = { model };
-
-  const emitChunks = (chunks, controller) => {
-    if (!chunks) return;
-    const list = Array.isArray(chunks) ? chunks : [chunks];
-    for (const c of list) {
-      if (c == null) continue;
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(c)}\n\n`));
-    }
-  };
-
-  const transform = new TransformStream({
-    transform(chunk, controller) {
-      buffer += decoder.decode(chunk, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        // Translate AI SDK v5 NDJSON line to one or more OpenAI chunks
-        emitChunks(commandCodeToOpenAIResponse(trimmed, state), controller);
-      }
-    },
-    flush(controller) {
-      const trimmed = buffer.trim();
-      if (trimmed) {
-        emitChunks(commandCodeToOpenAIResponse(trimmed, state), controller);
-      }
-      controller.enqueue(encoder.encode(SSE_DONE));
-    },
-  });
-
-  const newBody = originalResponse.body.pipeThrough(transform);
-  return new Response(newBody, {
-    status: originalResponse.status,
-    statusText: originalResponse.statusText,
-    headers: originalResponse.headers,
-  });
-}
-
+export { inspectAndWrapCommandCodeResponse, parseCommandCodeError };

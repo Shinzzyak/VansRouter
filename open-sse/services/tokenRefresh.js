@@ -4,6 +4,7 @@ import {
   refreshXaiToken,
   refreshAccessToken,
   refreshKimiToken,
+  refreshClineToken,
   refreshClaudeOAuthToken,
   refreshGoogleToken,
   refreshCodexToken,
@@ -13,7 +14,6 @@ import {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshQwenToken,
-  refreshClineToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
 import { refreshAutoclawToken } from "./tokenRefresh/autoclaw.js";
@@ -22,6 +22,7 @@ import { refreshAutoclawToken } from "./tokenRefresh/autoclaw.js";
 export {
   refreshAccessToken,
   refreshKimiToken,
+  refreshClineToken,
   refreshClaudeOAuthToken,
   refreshGoogleToken,
   refreshCodexToken,
@@ -31,7 +32,6 @@ export {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshQwenToken,
-  refreshClineToken,
   classifyOAuthRefreshError,
 };
 
@@ -146,6 +146,7 @@ const REFRESH_HANDLERS = {
   "codebuddy-intl": (c, log) => refreshCodebuddyToken(c.refreshToken, log, "codebuddy-intl"),
   cline: (c, log) => refreshClineToken(c.refreshToken, log),
   gitlab: (c, log) => refreshAccessToken("gitlab", c.refreshToken, c, log),
+  cline: (c, log) => refreshClineToken(c.refreshToken, log),
   // Kimi Code OAuth (merged into id `kimi`); legacy id still routes here
   kimi: (c, log) => refreshKimiToken(c.refreshToken, c, log),
   "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),

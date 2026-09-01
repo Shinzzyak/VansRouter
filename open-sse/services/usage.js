@@ -18,11 +18,12 @@ import { getFreebuffUsage } from "./usage/freebuff.js";
 import { getAutoclawBalance } from "./usage/autoclaw.js";
 import { getTokenHarborUsage } from "./usage/tokenharbor.js";
 import { resolveQoderCredentials } from "./qoderModels.js";
+import { getZedUsage } from "./usage/zed.js";
+import { getGlmUsage } from "./usage/glm.js";
 import {
   getQwenUsage,
   getIflowUsage,
   getOllamaUsage,
-  getGlmUsage,
   getVercelAiGatewayUsage,
   getQoderUsage,
 } from "./usage/misc.js";
@@ -60,6 +61,7 @@ const USAGE_HANDLERS = {
   freebuff: (c) => getFreebuffUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   autoclaw: (c) => getAutoclawBalance(c.accessToken, c.providerSpecificData, c.proxyOptions),
   tokenharbor: (c) => getTokenHarborUsage(c, c.proxyOptions),
+  zed: (c) => getZedUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {

@@ -32,6 +32,8 @@
 
 import { assertPublicUrl } from "../../../src/shared/utils/ssrfGuard.js";
 import { buildExaBody } from "./exa.js";
+import { getProviderSetting } from "./requestHelpers.js";
+import { buildXquikRequest } from "./xquik.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -57,17 +59,7 @@ export function parseDomainFilter(domainFilter) {
  * @param {string} key
  * @returns {string|undefined}
  */
-export function getProviderSetting(params, key) {
-  const fromOptions = params.providerOptions?.[key];
-  if (typeof fromOptions === "string" && fromOptions.trim().length > 0) {
-    return fromOptions.trim();
-  }
-  const fromProviderData = params.providerSpecificData?.[key];
-  if (typeof fromProviderData === "string" && fromProviderData.trim().length > 0) {
-    return fromProviderData.trim();
-  }
-  return undefined;
-}
+export { getProviderSetting };
 
 /**
  * Resolve base URL with optional override from providerOptions.baseUrl.
@@ -336,6 +328,48 @@ async function buildSearxngRequest(config, params) {
   };
 }
 
+async function buildOllamaSearchRequest(config, params) {
+  const body = { query: params.query, max_results: params.maxResults };
+  if (params.country) body.country = params.country;
+  if (params.language) body.language = params.language;
+  const baseUrl = await resolveBaseUrl(config, params);
+  return {
+    url: baseUrl,
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(params.token ? { Authorization: `Bearer ${params.token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
+async function buildGlmSearchRequest(config, params) {
+  const body = {
+    jsonrpc: "2.0",
+    id: `9r-${Date.now()}`,
+    method: "tools/call",
+    params: {
+      name: "web_search_prime",
+      arguments: { search_query: params.query, count: params.maxResults },
+    },
+  };
+  const baseUrl = await resolveBaseUrl(config, params);
+  return {
+    url: baseUrl,
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(params.token ? { Authorization: `Bearer ${params.token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────
 
 const BUILDERS = {
@@ -349,6 +383,9 @@ const BUILDERS = {
   "searchapi": buildSearchApiRequest,
   "youcom": buildYouComRequest,
   "searxng": buildSearxngRequest,
+  "xquik": buildXquikRequest,
+  "ollama-search": buildOllamaSearchRequest,
+  "glm": buildGlmSearchRequest,
 };
 
 /**

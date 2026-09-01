@@ -34,6 +34,7 @@ import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, bui
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
+import { defaultClaudeToolType } from "../translator/concerns/toolCall.js";
 
 const MAX_POOL_RETRIES = 2;
 const TOOL_PROTOCOL_PROMPT_PROVIDERS = new Set(["kimchi", "nvidia"]);
@@ -103,57 +104,34 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
  * @param {object} options.modelInfo - { provider, model }
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
-  */
 // Pool-scoped failure retry: when an executor tags an error as belonging to a
 // proxy pool (region gate, dead proxy, per-IP limit), mark the pool unfit and
 // re-resolve the proxy config excluding it, then retry instead of failing the
 // whole account. resolveProxyConfig is injected by the SSE handler; when absent
 // (e.g. direct callers) the retry path degrades to the original behavior.
 
- /**
-  * Remove translator-internal continuity fields from the outbound upstream
-  * body: the Responses→Chat request translator stashes reasoning continuity
-  * (`encrypted_content` / `reasoning_encrypted_content`) on assistant messages
-  * so a later openai→responses round-trip can restore the store=false
-  * continuity blob; that stash must never reach an upstream provider.
-  * Chat-native proxies reject the unknown assistant-message field and answer
-  * every turn with a literal "400" body (observed with multi-turn Codex
-  * sessions via OpenAI-compatible nodes).
-  */
- export function stripContinuityFields(body) {
-   if (!body || !Array.isArray(body.messages)) return body;
-   for (const msg of body.messages) {
-     if (msg && typeof msg === "object") {
-       delete msg.encrypted_content;
-       delete msg.reasoning_encrypted_content;
-     }
-   }
-   return body;
- }
+ */
+/**
+ * Remove translator-internal continuity fields from the outbound upstream
+ * body. The Responses→Chat request translator stashes reasoning
+ * `encrypted_content` on assistant messages so a later openai→responses
+ * round-trip can restore the store=false continuity blob; that stash must
+ * never reach an upstream provider. Chat-native proxies reject the unknown
+ * assistant-message field and answer every turn with a literal "400" body
+ * (observed with multi-turn Codex sessions via OpenAI-compatible nodes).
+ */
+export function stripContinuityFields(body) {
+  if (!body || !Array.isArray(body.messages)) return body;
+  for (const msg of body.messages) {
+    if (msg && typeof msg === "object") {
+      delete msg.encrypted_content;
+      delete msg.reasoning_encrypted_content;
+    }
+  }
+  return body;
+}
 
- // Build proxy options from resolved provider-specific data. `strictProxy` is
- // forced for freebuff so a dead/limited pool can never leak the request to the
- // caller's real IP (the freebuff session tier is per-egress-IP).
- const buildProxyOptions = (psd = {}, provider = "") => ({
-   connectionProxyEnabled: psd?.connectionProxyEnabled === true,
-   connectionProxyUrl: psd?.connectionProxyUrl || "",
-   connectionNoProxy: psd?.connectionNoProxy || "",
-   vercelRelayUrl: psd?.vercelRelayUrl || "",
-   strictProxy: psd?.strictProxy === true || provider === "freebuff",
-   proxyPoolId: psd?.proxyPoolId || psd?.connectionProxyPoolId || null,
- });
-
- export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
-   // Stable per-session color so all lines of one CLI conversation share a tag
-   const sessionSeed = (() => {
-     try {
-       return resolveSessionId({ headers: clientRawRequest?.headers, body, connectionId, scope: provider });
-     } catch {
-       return connectionId || "";
-     }
-   })();
-   const reqTag = log?.tagForSession ? log.tagForSession(sessionSeed) : (log?.nextTag ? log.nextTag() : "");
-   const sourceFormat = sourceFormatOverride || detectFormat(body);
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -166,9 +144,18 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
   // Multi-endpoint providers: pick transport matching sourceFormat → zero translation
   const runtimeTransport = resolveTransport(provider, sourceFormat);
   const supportedFormats = getModelSupportedFormats(alias, model);
-  const selectedTransport = !supportedFormats || supportedFormats.includes(sourceFormat) ? runtimeTransport : null;
-  const targetFormat = modelTargetFormat || selectedTransport?.format || getTargetFormat(provider);
-  if (selectedTransport && credentials) credentials.runtimeTransport = selectedTransport;
+  // Per-model guard: when a model declares supportedFormats, only use the
+  // sourceFormat-matched transport if that format is declared (opencode-go models
+  // differ — kimi/glm only do /chat/completions). Undeclared models keep the
+  // upstream default (use the transport), preserving behavior for glm/deepseek/...
+  const useTransport = (!supportedFormats || supportedFormats.includes(sourceFormat)) ? runtimeTransport : null;
+  // A source-format-matched endpoint keeps the request lossless. Prefer it
+  // over a model-level targetFormat, which is only the fallback for clients
+  // whose wire format has no supported transport (for example MiniMax-M3:
+  // OpenAI clients should stay on /chat/completions; other clients can fall
+  // back to its declared Claude target).
+  const targetFormat = useTransport?.format || modelTargetFormat || getTargetFormat(provider, credentials);
+  if (useTransport && credentials) credentials.runtimeTransport = useTransport;
   const stripList = getModelStrip(alias, model);
   const upstreamModel = getModelUpstreamId(alias, model);
 
@@ -331,6 +318,12 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
     delete translatedBody.tools;
   }
 
+  // Claude tool schema requires `type` to be explicitly set; strict gateways (e.g., MiniMax)
+  // reject legacy payloads that omit it with HTTP 400. Default to "custom" when missing.
+  if (finalFormat === FORMATS.CLAUDE && Array.isArray(translatedBody.tools)) {
+    translatedBody.tools = defaultClaudeToolType(translatedBody.tools);
+  }
+
   // Per-request opt-out: client can bypass all token savers via header
   const tokenSaverEnabled = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
 
@@ -341,7 +334,7 @@ export function applyLoopGuard(translatedBody, finalFormat, provider, model, log
 
   // Headroom: optional external proxy compression; fail open if proxy is absent.
   const headroomDiagnostics = {};
-  const headroomStats = await compressWithHeadroom(translatedBody, { enabled: tokenSaverEnabled && headroomEnabled, url: headroomUrl, model: upstreamModel, format: finalFormat, compressUserMessages: headroomCompressUserMessages, diagnostics: headroomDiagnostics });
+  const headroomStats = await compressWithHeadroom(translatedBody, { enabled: tokenSaverEnabled && headroomEnabled, url: headroomUrl, model: upstreamModel, format: finalFormat, compressUserMessages: headroomCompressUserMessages, timeoutMs: headroomTimeoutMs, diagnostics: headroomDiagnostics });
   const headroomLine = formatHeadroomLog(headroomStats);
   const headroomSizeLine = formatHeadroomSizeLog(headroomDiagnostics);
   if (headroomLine) {
