@@ -277,6 +277,36 @@ export function isOutputFiltered(response, httpOk = true) {
 }
 
 /**
+ * Detect if an upstream HTTP error is a content-safety REJECTION (not a
+ * transient/infra error). Output-side classifier models (muse-spark family)
+ * return a generic HTTP 400 with `code: "invalid_request_error"` and a vague
+ * "the model's provider rejected this request" message when the prompted
+ * content trips their safety classifier. It LOOKS like a bad request but is
+ * really a request-level refusal — the same signal `isOutputFiltered` catches
+ * for the empty-content case, just surfaced as an error instead.
+ *
+ * Must be checked BEFORE treating a 400 as fatal, so `chatCore` can escalate
+ * (re-frame + retry) instead of locking the model and returning the error.
+ *
+ * @param {number} statusCode - HTTP status of the upstream response
+ * @param {string} message - Parsed upstream error message
+ * @returns {boolean} - True if the error is a content-safety rejection
+ */
+export function isContentSafetyRejected(statusCode, message) {
+  if (!statusCode || !message) return false;
+  const status = Number(statusCode);
+  // Only 4xx client errors are candidates — 5xx/network errors are infra, not
+  // safety, and retrying them just burns quota.
+  if (status < 400 || status >= 500) return false;
+  const msg = String(message);
+  // kenari.id + similar relay gates emit this exact generic refusal.
+  if (/provider rejected this request/i.test(msg)) return true;
+  // Generic invalid_request_error body with content-safety wording.
+  if (/content.?safety|content.?policy|safety (?:filter|system|policy)|not (?:allowed|permitted)|policy (?:violation|restriction)|refus(?:e|ed)\b/i.test(msg)) return true;
+  return false;
+}
+
+/**
  * Get provider prefix from full model name (e.g. "oc/deepseek-v4-flash" → "oc")
  * @param {string} model - Full model name with optional provider prefix
  * @returns {string} - Provider prefix or empty string

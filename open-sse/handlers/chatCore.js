@@ -30,7 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream } from "../rtk/bypassEngine.js";
+import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -624,6 +624,57 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
     const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+
+    // Content-safety rejection (muse-spark family etc.): upstream returned a
+    // 4xx invalid_request_error because the TRIGGERED content tripped the
+    // safety classifier. This is a request-level refusal, NOT a broken request
+    // or an infra failure. In aggressive mode, DON'T lock the model and fail —
+    // re-frame the prompt and retry non-streaming, exactly like the empty-
+    // content escalation path further down. Verified with kenari.id (nar) on
+    // muse-spark: SQLi-mechanics query → [400] "provider rejected this request".
+    if (bypassMode === BYPASS_MODES.AGGRESSIVE && executor?.execute && isContentSafetyRejected(statusCode, message)) {
+      log?.warn?.("BYPASS", `${provider}/${model} | content-safety rejection (${statusCode}), retrying with escalation`);
+      let retryResult = null;
+      for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
+        const esc = getEscalationPrompt(escAttempt);
+        const appended = appendEscalationToBody(translatedBody, esc);
+        if (!appended) {
+          log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
+          break;
+        }
+        try {
+          retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
+          if (retryResult?.response?.ok) {
+            // sharedCtx is declared later in the function; build the retry
+            // context inline so the error path (which runs before it) can
+            // reuse the same handleNonStreamingResponse call.
+            const nr = await handleNonStreamingResponse({ provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
+            let retryText = '';
+            let retryFiltered = false;
+            try {
+              const retryCloned = nr?.response?.clone?.();
+              const retryRaw = retryCloned ? await retryCloned.text() : '';
+              retryText = retryRaw;
+              const retryParsed = JSON.parse(retryRaw);
+              retryFiltered = isOutputFiltered(retryParsed, true);
+            } catch { /* plain text or body consumed */ }
+            if (retryText && !retryFiltered && !detectRefusal(retryText)) {
+              log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} successful`);
+              streamController.handleComplete();
+              return nr;
+            }
+            log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} still refused/filtered, trying next`);
+          }
+        } catch (bypassErr) {
+          log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
+          break;
+        }
+      }
+      // Escalation exhausted/failed — restore the original error result so the
+      // client still gets a coherent error (don't silently drop the request).
+      log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation exhausted, returning original error`);
+    }
+
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,
