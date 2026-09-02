@@ -20,6 +20,7 @@ import { injectCaveman } from "./caveman.js";
 import { injectPonytail } from "./ponytail.js";
 import { injectGodmode, GODMODE_LEVELS } from "./godmode.js";
 import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
+import { reassertPersonaAfterCompaction } from "./compactionReassert.js";
 
 // ponytail: single-toggle godmode has no real levels; hardcode "lite" as truthy
 // sentinel so omitting godmodeLevel still injects (array presets have no .LITE).
@@ -110,6 +111,17 @@ export function applyPromptInjectors({
     safe("BYPASS", () => {
       applyBypass(body, format, provider, model, bypassMode);
       log?.debug?.("BYPASS", `${bypassMode} | ${provider}/${model} | ${format}`);
+    });
+  }
+
+  // Post-compaction persona reassert — runs LAST (highest priority). When the
+  // request carries a compaction handoff marker, re-anchor the godmode persona
+  // so reasoning models don't drift into refusals right after compression.
+  if (godmodeEnabled) {
+    safe("COMPACTION", () => {
+      if (reassertPersonaAfterCompaction(body, format)) {
+        log?.info?.("COMPACTION", `persona reasserted | ${provider}/${model} | ${format}`);
+      }
     });
   }
 }
