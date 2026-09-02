@@ -119,6 +119,21 @@ function normalizeProxyUrl(proxyUrl) {
   }
 }
 
+function scrubSensitiveTarget(value) {
+  try {
+    const u = new URL(value);
+    u.username = "";
+    u.password = "";
+    // redact query params that look like secrets (key, token, sig, api_key)
+    u.searchParams.forEach((v, k) => {
+      if (/key|token|secret|sig|auth|pass/i.test(k)) u.searchParams.set(k, "[REDACTED]");
+    });
+    return u.toString();
+  } catch {
+    return String(value).replace(/\/\/[^@\s]+@/g, "//");
+  }
+}
+
 function resolveConnectionProxyUrl(targetUrl, proxyOptions) {
   const enabled = proxyOptions?.enabled === true || proxyOptions?.connectionProxyEnabled === true;
   if (!enabled) return null;
@@ -270,7 +285,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       if (proxyOptions?.strictProxy === true) {
         throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
       }
-      console.warn(`[ProxyFetch] Proxy failed, falling back to direct: ${proxyError.message}`);
+      console.warn(`[ProxyFetch] Proxy failed, falling back to direct: ${proxyError.message} (target=${scrubSensitiveTarget(targetUrl)})`);
       return originalFetch(url, options);
     }
   }
