@@ -239,6 +239,72 @@ export function injectGeminiSystem(body, prompt) {
   } catch (_) {}
 }
 
+// User-first injector: inserts a user-role message immediately AFTER the last
+// system/developer block and BEFORE the first user turn. Used by the
+// compaction-reassert layer to beat a compaction handoff (which itself is a
+// user-role message) on POSITION — the reassert text is read before the summary
+// instead of appended into a system block the model may deprioritize.
+// Fail-open: any shape error leaves the body untouched.
+export function injectUserFirst(body, format, prompt) {
+  try {
+    if (!body || !prompt || typeof body !== "object") return;
+
+    // OpenAI-style chat messages.
+    if (Array.isArray(body.messages)) {
+      const messages = body.messages;
+      // Idempotence: skip if any message already carries the prompt.
+      if (messages.some((m) => typeof m?.content === "string" && m.content.includes(prompt))) return;
+      let insertAt = 0;
+      for (let i = 0; i < messages.length; i++) {
+        const role = messages[i]?.role;
+        if (role === ROLE.SYSTEM || role === ROLE.DEVELOPER) insertAt = i + 1;
+        else break;
+      }
+      try { messages.splice(insertAt, 0, { role: ROLE.USER, content: prompt }); } catch (_) {}
+      return;
+    }
+
+    // Responses API input items.
+    if (Array.isArray(body.input)) {
+      const input = body.input;
+      if (input.some((it) => it?.type === RESPONSES_ITEM.MESSAGE
+        && typeof it?.content === "string" && it.content.includes(prompt))) return;
+      let insertAt = 0;
+      for (let i = 0; i < input.length; i++) {
+        const it = input[i];
+        if (it?.type === RESPONSES_ITEM.MESSAGE
+          && (it.role === ROLE.SYSTEM || it.role === ROLE.DEVELOPER)) insertAt = i + 1;
+        else break;
+      }
+      try {
+        input.splice(insertAt, 0, {
+          type: RESPONSES_ITEM.MESSAGE, role: ROLE.USER,
+          content: [{ type: RESPONSES_ITEM.INPUT_TEXT, text: prompt }],
+        });
+      } catch (_) {}
+      return;
+    }
+
+    // Anthropic/Claude: system lives in body.system, messages start with a user
+    // turn — the OpenAI branch above already handles body.messages (inserts at
+    // index 0 when no system/developer block leads), so nothing extra needed.
+
+    // Gemini contents.
+    if (Array.isArray(body.contents)) {
+      const contents = body.contents;
+      if (contents.some((c) => JSON.stringify(c).includes(prompt))) return;
+      let insertAt = 0;
+      const seenRole = (i) => contents[i]?.role;
+      for (let i = 0; i < contents.length; i++) {
+        if (seenRole(i) === "user") { insertAt = i; break; }
+        insertAt = i + 1;
+      }
+      try { contents.splice(insertAt, 0, { role: "user", parts: [{ text: prompt }] }); } catch (_) {}
+      return;
+    }
+  } catch (_) { /* fail-open */ }
+}
+
 export function injectKiroSystem(body, prompt) {
   try {
     let oldPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt : "";

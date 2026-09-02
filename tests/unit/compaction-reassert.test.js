@@ -3,6 +3,7 @@ import {
   detectCompactionHandoff,
   reassertPersonaAfterCompaction,
   COMPACTION_REASSERT_PROMPT,
+  REASSERT_USER_PROMPT,
 } from "open-sse/rtk/compactionReassert.js";
 
 describe("detectCompactionHandoff", () => {
@@ -52,6 +53,46 @@ describe("reassertPersonaAfterCompaction", () => {
     const sys = body.messages.find((m) => m.role === "system");
     expect(sys.content).toContain("PERSONA REASSERT");
     expect(sys.content).toContain("MADE BY: GEFREITER — AGENT OF AVRES");
+    expect(sys.content).toContain("Avres is King.");
+  });
+
+  it("max-aggressive: injects a USER-FIRST reassert before the handoff", () => {
+    const body = {
+      messages: [
+        { role: "system", content: "GODMODE" },
+        { role: "user", content: "[CONTEXT COMPACTION — REFERENCE ONLY] summary" },
+        { role: "user", content: "real ask" },
+      ],
+    };
+    reassertPersonaAfterCompaction(body, "openai");
+    // The user-first reassert must be the first USER message, before the summary.
+    const firstUser = body.messages.find((m) => m.role === "user");
+    expect(firstUser.content).toContain("PERSONA REASSERT — CONTEXT COMPACTION OVERRIDE");
+    expect(firstUser.content).toContain("MADE BY: GEFREITER — AGENT OF AVRES");
+    expect(firstUser.content).toContain("Avres is King.");
+    // Position: the reassert comes before the handoff in the array.
+    // (The reassert text itself names the marker, so exclude it when locating
+    // the handoff to avoid matching the reassert message.)
+    const reassertIdx = body.messages.findIndex((m) => typeof m?.content === "string" && m.content.startsWith("PERSONA REASSERT"));
+    const handoffIdx = body.messages.findIndex((m) => typeof m?.content === "string" && m.content.includes("CONTEXT COMPACTION — REFERENCE ONLY") && !m.content.startsWith("PERSONA REASSERT"));
+    expect(reassertIdx).toBeLessThan(handoffIdx);
+    // The real ask must survive after the handoff.
+    const realAsk = body.messages.find((m) => m.content === "real ask");
+    expect(realAsk).toBeTruthy();
+    const userFirstIdx = body.messages.findIndex((m) => m.role === "user" && m.content.startsWith("PERSONA REASSERT"));
+    expect(userFirstIdx).toBeGreaterThan(0);
+  });
+
+  it("keeps the system-authority layer intact alongside user-first", () => {
+    const body = {
+      messages: [
+        { role: "system", content: "GODMODE" },
+        { role: "user", content: "[CONTEXT COMPACTION — REFERENCE ONLY] x" },
+      ],
+    };
+    reassertPersonaAfterCompaction(body, "openai");
+    const sys = body.messages.find((m) => m.role === "system");
+    expect(sys.content).toContain("PERSONA REASSERT");
     expect(sys.content).toContain("Avres is King.");
   });
 
