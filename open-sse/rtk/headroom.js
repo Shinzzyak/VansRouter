@@ -210,13 +210,22 @@ async function callCompress(url, messages, model, timeoutMs, compressUserMessage
   diagnostics.endpoint = maskEndpoint(endpoint);
   const payload = { messages, model };
   if (compressUserMessages) payload.config = { compress_user_messages: true };
+  // Adaptive timeout: big contexts (where compression actually matters) need more
+  // than the flat 3s default — headroom compresses 30s+ internally. Scale a base
+  // budget off the serialized size: 3s floor, +1s per 10KB, cap at 30s.
+  let effTimeout = normalizeTimeout(timeoutMs);
+  try {
+    const size = JSON.stringify(messages)?.length || 0;
+    const scaled = Math.ceil(size / 10240) * 1000; // 1s per 10KB
+    effTimeout = Math.max(effTimeout, Math.min(scaled, 30000));
+  } catch { /* keep configured timeout */ }
   let res;
   try {
     res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(effTimeout),
     });
   } catch (error) {
     setDiagnostic(diagnostics, `request failed: ${describeFetchError(error)}`);
