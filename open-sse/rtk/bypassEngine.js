@@ -273,7 +273,13 @@ export function isOutputFiltered(response, httpOk = true) {
   const choice = response.choices?.[0];
   const content = choice?.message?.content;
   const tokens = response.usage?.completion_tokens || 0;
-  return tokens > 0 && (!content || content === '' || content === null);
+  if (tokens === 0) return false;
+  // Reasoning models (DeepSeek/GLM/Qwen thinking) return content=null with
+  // reasoning_content filled + completion_tokens>0 — NOT an output filter.
+  // Must NOT escalate these, or BYPASS burns 2 extra attempts for nothing.
+  const reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning;
+  if (reasoning && String(reasoning).trim().length > 0) return false;
+  return !content || content === '' || content === null;
 }
 
 /**

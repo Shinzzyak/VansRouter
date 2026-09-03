@@ -68,7 +68,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       let pickedId = override.proxyPoolId || null;
       if (strategy !== "none") {
         const allPools = await getProxyPools({ isActive: true });
-        const poolIds = allPools.filter(p => p.proxyUrl).map(p => p.id);
+        // Respect targetProxyPoolIds if set; else fall back to all active pools
+        const targetIds = Array.isArray(override.targetProxyPoolIds) && override.targetProxyPoolIds.length > 0
+          ? override.targetProxyPoolIds
+          : null;
+        const poolIds = targetIds && targetIds.length > 0
+          ? allPools.filter(p => p.proxyUrl && targetIds.includes(p.id)).map(p => p.id)
+          : allPools.filter(p => p.proxyUrl).map(p => p.id);
         const scope = `${providerId}::${model || "*"}`;
         pickedId = pickProxyPoolId(poolIds, strategy, providerId, { scope });
       }
