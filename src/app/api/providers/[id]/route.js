@@ -175,8 +175,14 @@ export async function PUT(request, { params }) {
       }
 
       if (proxyPoolResult.hasProxyPoolField) {
-        // Handle new multi-proxy format
-        if (proxyPoolResult.proxyPoolIds !== undefined) {
+        // Distinguish legacy vs multi by the BODY key, not by the normalized
+        // result: legacy responses carry proxyPoolIds: [] (defined!), which
+        // previously fell into the multi branch and WIPED the binding instead
+        // of setting the singular proxy (bulk single-pool assign was a no-op
+        // that silently cleared).
+        const isLegacyPoolBody = !Object.prototype.hasOwnProperty.call(body, "proxyPoolIds");
+        if (!isLegacyPoolBody) {
+          // Handle new multi-proxy format
           updateData.providerSpecificData.proxyPoolIds = proxyPoolResult.proxyPoolIds;
           updateData.providerSpecificData.proxyRotationStrategy = proxyPoolResult.proxyRotationStrategy;
           delete updateData.providerSpecificData.proxyPoolId;
@@ -187,11 +193,6 @@ export async function PUT(request, { params }) {
           } else {
             updateData.providerSpecificData.proxyPoolId = proxyPoolResult.proxyPoolId;
           }
-        }
-        if (proxyPoolResult.proxyPoolIds?.length) {
-          updateData.providerSpecificData.proxyPoolIds = proxyPoolResult.proxyPoolIds;
-          updateData.providerSpecificData.proxyRotationStrategy = proxyPoolResult.proxyRotationStrategy;
-        } else {
           delete updateData.providerSpecificData.proxyPoolIds;
           delete updateData.providerSpecificData.proxyRotationStrategy;
         }
