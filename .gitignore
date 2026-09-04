@@ -130,3 +130,4 @@ scripts/python/th_signup_*.py
 scripts/python/tokenharborreg/_th_*.py
 # Farmed account credentials — private only (vansrouter-credentials repo)
 scripts/python/gmiworker/results/
+/src/agents/
