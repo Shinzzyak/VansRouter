@@ -282,7 +282,12 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
         return acc;
       }, []);
     } else {
-
+      ids = rawModels.reduce((acc, m) => {
+        const id = m?.id || m?.name || m?.model;
+        if (typeof id === "string" && id.trim() !== "") acc.push(id);
+        return acc;
+      }, []);
+    }
     const result = Array.from(new Set(ids));
     _modelsFetcherCache[providerId] = result;
     _modelsFetcherCacheExpiry[providerId] = now + MODELS_FETCHER_CACHE_TTL_MS;
