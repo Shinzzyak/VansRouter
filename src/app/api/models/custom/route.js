@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
+import { getCustomModels, addCustomModel, addCustomModelsBulk, deleteCustomModel } from "@/models";
 import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
 import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
 
@@ -16,10 +16,17 @@ export async function GET() {
   }
 }
 
-// POST /api/models/custom - Add custom model
+// POST /api/models/custom - Add custom model (single or bulk)
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name } = await request.json();
+    const body = await request.json();
+    if (Array.isArray(body?.models)) {
+      const addedCount = await addCustomModelsBulk(body.models);
+      invalidateAllowedModelsCache();
+      clearCachedProviderModels().catch(() => {});
+      return NextResponse.json({ success: true, count: addedCount });
+    }
+    const { providerAlias, id, type, name } = body || {};
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
