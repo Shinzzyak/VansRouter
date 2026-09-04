@@ -882,6 +882,252 @@ function GrokAutomationPanel({ onRefresh }) {
   );
 }
 
+// ── GitHub Harvest (id_007-github-farm) ─────────────────────────────────────
+// Docs + email alias generator (client-side port of email_engine.py) + token
+// inject via /api/automation/github (thin wrapper over createProviderConnection).
+const GH_PLATFORMS = [
+  { id: "tabiai", label: "Tabi AI", prefix: "tb", authType: "apikey", grant: "$120 welcome + $5-10/day check-in" },
+  { id: "gorouter", label: "GoRouter", prefix: "gr", authType: "apikey", grant: "$70 welcome + $5-10/day check-in" },
+  { id: "codebuddy-intl", label: "CodeBuddy Global", prefix: "cbai", authType: "oauth", grant: "250 bonus + 100/month credits" },
+];
+
+function ghGenerateDotEmails(username, domain, maxCount = 50) {
+  const cleaned = username.replace(/\./g, "").trim().toLowerCase();
+  if (!cleaned) return [];
+  // ponytail: recursive 2^n enumeration is fine for n<=20; cap at maxCount like python
+  const build = (s) => (s.length <= 1 ? [s] : build(s.slice(1)).flatMap((v) => [s[0] + v, s[0] + "." + v]));
+  const seen = new Set();
+  for (const v of build(cleaned)) {
+    seen.add(`${v}@${domain}`);
+    if (seen.size >= maxCount) break;
+  }
+  return [...seen];
+}
+
+function ghGeneratePlusEmails(username, domain, count = 20, prefix = "gh") {
+  const cleaned = username.trim().toLowerCase();
+  if (!cleaned) return [];
+  return Array.from({ length: count }, (_, i) => `${cleaned}+${prefix}${String(i + 1).padStart(2, "0")}@${domain}`);
+}
+
+function GitHubHarvestPanel({ onRefresh }) {
+  const [tab, setTab] = useState("docs");
+  const [mode, setMode] = useState("dot");
+  const [user, setUser] = useState("");
+  const [domain, setDomain] = useState("gmail.com");
+  const [count, setCount] = useState(10);
+  const [emails, setEmails] = useState([]);
+  const [platform, setPlatform] = useState("tabiai");
+  const [token, setToken] = useState("");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [injecting, setInjecting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const generate = () => {
+    const list = mode === "dot" ? ghGenerateDotEmails(user, domain, count) : ghGeneratePlusEmails(user, domain, count, "gh");
+    setEmails(list);
+  };
+
+  const copyAll = async () => {
+    try { await navigator.clipboard.writeText(emails.join("\n")); } catch { /* clipboard blocked */ }
+  };
+
+  const inject = async () => {
+    if (!token.trim()) return;
+    setInjecting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/automation/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, token: token.trim(), email: email.trim(), name: name.trim() }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) {
+        setToken("");
+        onRefresh?.();
+      }
+    } catch (e) {
+      setResult({ success: false, error: e.message });
+    } finally {
+      setInjecting(false);
+    }
+  };
+
+  const tabs = [
+    { id: "docs", label: "Docs & Prereqs" },
+    { id: "generate", label: "Email Generator" },
+    { id: "inject", label: "Inject Token" },
+  ];
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === t.id
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border bg-surface text-text-muted hover:border-primary/30"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "docs" && (
+        <div className="flex flex-col gap-3 rounded-[10px] border border-border bg-background/50 p-4 text-xs leading-relaxed text-text-muted">
+          <div>
+            <span className="font-semibold text-text-main">Framework:</span> id_007-github-farm di <code className="rounded bg-border/50 px-1 py-0.5">src/agents/id_007-github-farm/</code> — CLI <code className="rounded bg-border/50 px-1 py-0.5">python3 main.py --help</code> (generate / listen-otp / inject, semua support --json).
+          </div>
+          <div>
+            <span className="font-semibold text-text-main">Allowance matrix:</span>
+            <ul className="mt-1 list-disc pl-5">
+              {GH_PLATFORMS.map((p) => (
+                <li key={p.id}><span className="text-text-main">{p.label}</span> ({p.prefix}/) — {p.grant}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <span className="font-semibold text-text-main">Proxy rule (WAJIB):</span> Mobile 4G/5G CGNAT atau residential bersih, 1 IP per sesi signup. Datacenter ASN (Cloudflare/AWS/DO) = langsung WAF &quot;Access is temporarily restricted&quot;.
+          </div>
+          <div>
+            <span className="font-semibold text-text-main">OTP listener:</span> butuh Google App Password 16 digit (myaccount.google.com/apppasswords). Jalankan:
+            <code className="mt-1 block rounded bg-border/50 px-2 py-1.5 font-mono text-[10px] text-text-main break-all">
+              python3 src/agents/id_007-github-farm/main.py listen-otp --user master@gmail.com --password &lt;16digit&gt; --timeout 120 --json
+            </code>
+          </div>
+          <div>
+            <span className="font-semibold text-text-main">Signup links:</span>{" "}
+            <a className="text-brand-500 hover:underline" href="https://tabitoken.com/sign-up?aff=sn7K" target="_blank" rel="noreferrer">Tabi AI</a>
+            {" · "}
+            <a className="text-brand-500 hover:underline" href="https://gorouter.app/sign-up?aff=ivjz" target="_blank" rel="noreferrer">GoRouter</a>
+            {" · "}
+            <a className="text-brand-500 hover:underline" href="https://www.codebuddy.ai/profile/plans-usage" target="_blank" rel="noreferrer">CodeBuddy Global</a>
+          </div>
+        </div>
+      )}
+
+      {tab === "generate" && (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-md border border-border p-0.5">
+              {[["dot", "Dot-Trick"], ["plus", "Plus-Addressing"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => { setMode(id); setEmails([]); }}
+                  className={`rounded px-3 py-1 text-xs font-medium ${mode === id ? "bg-primary/10 text-primary" : "text-text-muted"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none"
+              placeholder="base username"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+            />
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none"
+              placeholder="domain (gmail.com)"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+            />
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none"
+              type="number"
+              min={1}
+              max={50}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value) || 1)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="primary" onClick={generate} disabled={!user.trim()}>
+              Generate
+            </Button>
+            {emails.length > 0 && (
+              <Button size="sm" variant="outline" onClick={copyAll}>
+                Copy {emails.length}
+              </Button>
+            )}
+          </div>
+          {emails.length > 0 && (
+            <div className="max-h-64 overflow-y-auto rounded-[10px] border border-border bg-background/50 p-3 font-mono text-[11px] leading-relaxed text-text-main">
+              {emails.map((em) => (
+                <div key={em} className="whitespace-nowrap">{em}</div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-text-muted">
+            Identik dengan email_engine.py (RFC-5322 dot-trick / plus-addressing). Pakai 1 email per signup, pairing dgn proxy bersih.
+          </p>
+        </div>
+      )}
+
+      {tab === "inject" && (
+        <div className="flex flex-col gap-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none"
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value)}
+            >
+              {GH_PLATFORMS.map((p) => (
+                <option key={p.id} value={p.id}>{p.label} ({p.prefix}/)</option>
+              ))}
+            </select>
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none"
+              placeholder="connection name (opsional)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-brand-500/40 focus:outline-none sm:col-span-2"
+              placeholder="email akun (opsional)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <textarea
+              className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs focus:border-brand-500/40 focus:outline-none sm:col-span-2"
+              rows={4}
+              placeholder="JWT / access token (CodeBuddy) atau session key (GoRouter / Tabi AI) — satu per baris untuk bulk"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="primary" onClick={inject} loading={injecting} disabled={!token.trim()}>
+              Inject to Router
+            </Button>
+          </div>
+          {result && (
+            <div className={`rounded-[10px] p-3 text-xs ${result.success ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+              {result.success
+                ? `Injected: ${result.inserted ?? 0} baru, ${result.duplicates ?? 0} duplikat, ${result.failed ?? 0} gagal.`
+                : result.error || "Inject failed"}
+            </div>
+          )}
+          <p className="text-[11px] text-text-muted">
+            Sama dengan <code className="rounded bg-border/50 px-1 py-0.5">python3 main.py inject --platform &lt;p&gt; --token &lt;t&gt;</code>. Dedup by token; CodeBuddy JWT di-parse (email/sub/exp), GoRouter & Tabi AI disimpan apa adanya.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 const AUTOMATION_PROVIDERS = [
   {
     id: "kiro",
@@ -1005,6 +1251,14 @@ const AUTOMATION_PROVIDERS = [
     description: "xAI Grok auto-register → CPA mint → grok-cli OAuth. Or import existing SSO (email/password/sso) → mint.",
     supportedModes: ["auto-register", "import-sso", "cpa-mint"],
     component: GrokAutomationPanel,
+  },
+  {
+    id: "github-harvest",
+    label: "GitHub Harvest",
+    icon: "hub",
+    description: "Dot-trick/plus email generator + multi-platform OAuth inject (Tabi / GoRouter / CodeBuddy Global). Script di src/agents/id_007-github-farm/.",
+    supportedModes: ["docs", "generate", "inject"],
+    component: GitHubHarvestPanel,
   },
 ];
 
