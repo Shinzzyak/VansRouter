@@ -122,7 +122,8 @@ export class OpenCodeExecutor extends BaseExecutor {
     const raw = Object.fromEntries(Object.entries(credentials?.rawHeaders || {}).map(([k, v]) => [k.toLowerCase(), v]));
     return {
       "Content-Type": "application/json",
-      "Authorization": "Bearer public",
+      // Paid/personal key takes priority; "public" is the anonymous free-tier fallback.
+      "Authorization": `Bearer ${credentials?.apiKey || credentials?.accessToken || "public"}`,
       "User-Agent": raw["user-agent"]?.toLowerCase().includes("opencode") ? raw["user-agent"] : "opencode",
       "x-opencode-client": raw["x-opencode-client"] || "desktop",
       "x-opencode-session": raw["x-opencode-session"] || credentials?.runtimeOpencodeSession || `ses_${crypto.randomUUID().replaceAll("-", "")}`,

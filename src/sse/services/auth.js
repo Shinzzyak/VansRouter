@@ -61,7 +61,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const providerId = resolveProviderId(provider);
 
     // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
+    // UNLESS real connections exist in DB (e.g. opencode with a personal paid key) —
+    // real connections always win over the anonymous "public" identity.
     if (FREE_PROVIDERS[providerId]?.noAuth) {
+      const realConns = await getProviderConnections({ provider: providerId, isActive: true });
+      if (realConns.length > 0) {
+        log.info("AUTH", `${providerId} | noAuth provider but ${realConns.length} real connection(s) found — using them instead of virtual public identity`);
+      } else {
       const settings = await getSettings();
       const override = (settings.providerStrategies || {})[providerId] || {};
       const strategy = override.rotateStrategy || "none";
@@ -100,6 +106,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           proxyPoolScope: `${providerId}::${model || "*"}`,
         },
       };
+      }
     }
 
     let connections = await getProviderConnections({ provider: providerId, isActive: true });
