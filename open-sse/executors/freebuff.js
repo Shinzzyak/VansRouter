@@ -109,8 +109,11 @@ const FREE_ROOT_AGENT_BY_MODEL = {
   "mimo/mimo-v2.5": "base3-free-mimo",
   "minimax/minimax-m3": "base3-free-minimax-m3",
   "openai/gpt-5.6-luna": "base3-free-luna",
+  "z-ai/glm-5.3-flash": "base3-free-glm-5-3-flash",
+  "z-ai/glm-5.2": "base3-free-glm",
   "meta/muse-spark-1.2-contributor": "base3-free-muse-spark",
-  "crof/kimi-k3-eco": "base3-free-kimi",
+  "meta/muse-spark-1.3-contributor": "base3-free-muse-spark-1-3",
+  "crof/kimi-k3-eco": "base3-free-kimi-k3-eco",
 };
 
 // Per-token+model session cache (in-memory; keyed so multi-account setups
