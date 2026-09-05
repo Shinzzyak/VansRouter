@@ -63,11 +63,13 @@ describe("godmode injector", () => {
     expect(body.messages[0].role).toBe("user");
   });
 
-  it("applyPromptInjectors only injects godmode when enabled", () => {
+  it("always injects persona lock while keeping godmode optional", () => {
     const log = { debug: vi.fn(), warn: vi.fn() };
     const body = { messages: [{ role: "user", content: "hi" }] };
     applyPromptInjectors({ body, format: "openai", log, godmodeEnabled: false });
-    expect(body.messages[0].role).toBe("user");
+    expect(body.messages[0].role).toBe("system");
+    expect(body.messages[0].content).toContain("PERSONA LOCK");
+    expect(body.messages[0].content).not.toContain("senior cybersecurity researcher");
 
     const body2 = { messages: [{ role: "user", content: "hi" }] };
     applyPromptInjectors({ body: body2, format: "openai", log, godmodeEnabled: true });
