@@ -113,6 +113,11 @@ describe("reassertPersonaAfterCompaction", () => {
     expect(body.messages.length).toBe(1);
   });
 
+  it("AGI-class identity present in both reassert layers", () => {
+    expect(COMPACTION_REASSERT_PROMPT).toContain("AGI-class autonomous reasoning agent");
+    expect(REASSERT_USER_PROMPT).toContain("AGI-class autonomous reasoning agent");
+  });
+
   it("idempotent when prompt already present", () => {
     const body = {
       messages: [
