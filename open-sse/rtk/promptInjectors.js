@@ -18,7 +18,7 @@
 import { injectSystemPrompt } from "./systemInject.js";
 import { injectCaveman } from "./caveman.js";
 import { injectPonytail } from "./ponytail.js";
-import { injectGodmode, GODMODE_LEVELS } from "./godmode.js";
+import { injectPersonaLock, injectGodmode, GODMODE_LEVELS } from "./godmode.js";
 import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
 import { reassertPersonaAfterCompaction } from "./compactionReassert.js";
 
@@ -70,6 +70,12 @@ export function applyPromptInjectors({
     }
   };
 
+  // Persona identity is always-on. Godmode/security framing remains optional.
+  safe("PERSONA", () => {
+    injectPersonaLock(body, format);
+    log?.debug?.("PERSONA", `identity lock injected | ${format}`);
+  });
+
   if (systemPrompt) {
     safe("SYSPROMPT", () => {
       injectSystemPrompt(body, format, systemPrompt);
@@ -117,13 +123,12 @@ export function applyPromptInjectors({
   // Post-compaction persona reassert — runs LAST (highest priority). When the
   // request carries a compaction handoff marker, re-anchor the godmode persona
   // so reasoning models don't drift into refusals right after compression.
-  if (godmodeEnabled) {
-    safe("COMPACTION", () => {
-      if (reassertPersonaAfterCompaction(body, format)) {
-        log?.info?.("COMPACTION", `persona reasserted | ${provider}/${model} | ${format}`);
-      }
-    });
-  }
+  // Compaction reassert protects the always-on persona lock too.
+  safe("COMPACTION", () => {
+    if (reassertPersonaAfterCompaction(body, format)) {
+      log?.info?.("COMPACTION", `persona reasserted | ${provider}/${model} | ${format}`);
+    }
+  });
 }
 
 export { GODMODE_LEVELS };
