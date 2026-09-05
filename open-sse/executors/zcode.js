@@ -16,6 +16,7 @@ const CHROMIUM_CANDIDATES = [
   "/home/ubuntu/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome",
   "/home/ubuntu/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
 ].filter(Boolean);
+const ZCODE_PROXY = process.env.ZCODE_CAPTCHA_PROXY || "socks5://127.0.0.1:40000";
 
 function resolveChromiumExecutable() {
   return CHROMIUM_CANDIDATES.find((path) => existsSync(path));
@@ -62,6 +63,7 @@ async function solveCaptcha(log) {
         ignoreDefaultArgs: ["--enable-automation"],
       });
       const ctx = await browser.newContext({
+        proxy: { server: ZCODE_PROXY },
         userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.72 Safari/537.36",
         viewport: { width: 1280, height: 720 },
         locale: "en-US",
