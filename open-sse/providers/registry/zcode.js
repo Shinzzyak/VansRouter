@@ -35,6 +35,7 @@ export default {
   },
   models: [
     { id: "glm-5.2", name: "GLM 5.2", webOnly: true },
+    { id: "glm-5.3-flash", name: "GLM 5.3 Flash", webOnly: true },
     { id: "GLM-5.1", name: "GLM 5.1", webOnly: true },
     { id: "GLM-5-Turbo", name: "GLM 5 Turbo", webOnly: true },
     { id: "glm-4.7", name: "GLM 4.7", webOnly: true },
