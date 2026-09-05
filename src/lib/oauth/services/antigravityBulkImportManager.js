@@ -152,7 +152,10 @@ export class AntigravityBulkImportManager extends KiroBulkImportManager {
       }
 
       const tokenData = JSON.parse(fs.readFileSync(path.join(tokenDir, targetTokenFile), "utf8"));
-      if (!tokenData.access_token && !tokenData.accessToken) {
+      const flatTokenData = tokenData?.token
+        ? { ...tokenData, ...tokenData.token }
+        : tokenData;
+      if (!flatTokenData.access_token && !flatTokenData.accessToken) {
         throw new Error("Invalid token payload extracted");
       }
 
@@ -160,11 +163,11 @@ export class AntigravityBulkImportManager extends KiroBulkImportManager {
       await this.persistJobSnapshot(job, { forcePreview: true });
 
       const connection = await this.saveConnection({
-        accessToken: tokenData.access_token || tokenData.accessToken,
-        refreshToken: tokenData.refresh_token || tokenData.refreshToken,
+        accessToken: flatTokenData.access_token || flatTokenData.accessToken,
+        refreshToken: flatTokenData.refresh_token || flatTokenData.refreshToken,
         email: account.email,
         displayName: account.email.split("@")[0],
-        expiresIn: tokenData.expires_in || 3599,
+        expiresIn: flatTokenData.expires_in || 3599,
       });
 
       this.finalizeAccount(account, "success", {
