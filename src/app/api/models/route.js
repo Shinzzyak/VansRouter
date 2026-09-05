@@ -73,6 +73,7 @@ async function buildModelsResponse() {
 
     // Include dynamic fetcher models for noAuth/passthrough providers (e.g. opencode)
     // so the ACL dialog can list models for providers whose catalog is not static.
+    const extra = [];
     const fetcherEntries = await Promise.all(
       Object.entries(AI_PROVIDERS)
         .filter(([, providerInfo]) => providerInfo?.noAuth && providerInfo?.modelsFetcher)

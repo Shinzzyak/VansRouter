@@ -5,7 +5,10 @@ import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
 const STORAGE_PREFIX = "vansrouter:model-caps:v1:";
 let cache = null;
+let cacheKey = null;
 let inflight = null;
+let inflightKey = null;
+let identityPromise = null;
 
 function storageKey(userKey) {
   return `${STORAGE_PREFIX}${encodeURIComponent(userKey || "anonymous")}`;
@@ -42,25 +45,41 @@ function writeStored(userKey, maps) {
   }
 }
 
+function getDashboardUserKey() {
+  if (identityPromise) return identityPromise;
+  identityPromise = fetch("/api/auth/status", { headers: { Accept: "application/json" } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((status) => {
+      // Use non-secret identity fields only. Password sessions intentionally share
+      // a generic namespace because the server exposes no per-password user ID.
+      const identity = status?.oidcEmail || status?.oidcName;
+      return identity ? `identity:${identity}` : "password-user";
+    })
+    .catch(() => "password-user");
+  return identityPromise;
+}
+
 function loadModelCaps(userKey) {
-  if (cache) return Promise.resolve(cache);
+  if (cache && cacheKey === userKey) return Promise.resolve(cache);
   const stored = readStored(userKey);
   if (stored) {
     cache = stored.maps;
-    // Revalidate in background. Fresh server data replaces local snapshot.
+    cacheKey = userKey;
   }
-  if (inflight) return inflight;
+  if (inflight && inflightKey === userKey) return inflight;
+  inflightKey = userKey;
   inflight = fetch("/api/models", { headers: { Accept: "application/json" } })
     .then(async (res) => {
       if (!res.ok) throw new Error(`models ${res.status}`);
       const data = await res.json();
       const maps = buildMaps(data.models);
       cache = maps;
+      cacheKey = userKey;
       writeStored(userKey, maps);
       return maps;
     })
-    .catch(() => cache || { byFull: {}, byId: {} })
-    .finally(() => { inflight = null; });
+    .catch(() => cache && cacheKey === userKey ? cache : { byFull: {}, byId: {} })
+    .finally(() => { inflight = null; inflightKey = null; });
   return inflight;
 }
 
@@ -74,18 +93,30 @@ function resolveCaps(byFull, byId, key) {
   return { vision: c.vision, search: c.search, reasoning: c.reasoning, contextWindow: c.contextWindow, maxOutput: c.maxOutput };
 }
 
-export function useModelCaps({ userKey = "anonymous" } = {}) {
-  const [byFull, setByFull] = useState(() => cache?.byFull || readStored(userKey)?.maps.byFull || {});
-  const [byId, setById] = useState(() => cache?.byId || readStored(userKey)?.maps.byId || {});
+export function useModelCaps({ userKey = null } = {}) {
+  const [resolvedUserKey, setResolvedUserKey] = useState(() => userKey || "password-user");
+  const initial = readStored(userKey || "password-user")?.maps;
+  const [byFull, setByFull] = useState(() => cache?.byFull || initial?.byFull || {});
+  const [byId, setById] = useState(() => cache?.byId || initial?.byId || {});
 
   useEffect(() => {
     let alive = true;
-    loadModelCaps(userKey).then((maps) => {
-      if (alive) { setByFull(maps.byFull); setById(maps.byId); }
+    const identity = userKey ? Promise.resolve(userKey) : getDashboardUserKey();
+    identity.then((key) => {
+      if (!alive) return;
+      setResolvedUserKey(key);
+      const stored = readStored(key);
+      if (stored) {
+        setByFull(stored.maps.byFull);
+        setById(stored.maps.byId);
+      }
+      loadModelCaps(key).then((maps) => {
+        if (alive) { setByFull(maps.byFull); setById(maps.byId); }
+      });
     });
     return () => { alive = false; };
   }, [userKey]);
 
   const getCaps = useCallback((key) => resolveCaps(byFull, byId, key), [byFull, byId]);
-  return { getCaps };
+  return { getCaps, userKey: resolvedUserKey };
 }
