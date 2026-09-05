@@ -3,6 +3,7 @@ import { PROVIDERS } from "../config/providers.js";
 import { HTTP_STATUS, DEFAULT_RETRY_CONFIG, resolveRetryEntry, FETCH_CONNECT_TIMEOUT_MS, capRetryAttemptsByAccountCount } from "../config/runtimeConfig.js";
 import { shouldRefreshCredentials } from "../services/oauthCredentialManager.js";
 import os from "os";
+import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
@@ -10,6 +11,15 @@ import { dbg } from "../utils/debugLog.js";
 
 const ZCODE_PLAN_BASE = "https://zcode.z.ai/api/v1/zcode-plan/anthropic";
 const CAPTCHA_TTL_MS = 4 * 60 * 1000;
+const CHROMIUM_CANDIDATES = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  "/home/ubuntu/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome",
+  "/home/ubuntu/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+].filter(Boolean);
+
+function resolveChromiumExecutable() {
+  return CHROMIUM_CANDIDATES.find((path) => existsSync(path));
+}
 
 let _zcodeSourceHeaders = null;
 function buildZCodeSourceHeaders() {
@@ -43,9 +53,11 @@ async function solveCaptcha(log) {
     const { chromium } = await import("playwright-core");
     let browser;
     try {
+      const executablePath = resolveChromiumExecutable();
+      if (!executablePath) throw new Error("Playwright Chromium executable not found");
       browser = await chromium.launch({
         headless: true,
-        executablePath: "/home/ubuntu/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
+        executablePath,
         args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled", "--disable-features=IsolateOrigins,site-per-process", "--window-size=1280,720"],
         ignoreDefaultArgs: ["--enable-automation"],
       });
