@@ -31,6 +31,7 @@ import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/termin
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -624,6 +625,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
     const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+    const failureClass = classifyResponseFailure({ status: statusCode, message });
+    log?.debug?.("ROUTE", `${provider}/${model} | failure=${failureClass}`);
 
     // Content-safety rejection (muse-spark family etc.): upstream returned a
     // 4xx invalid_request_error because the TRIGGERED content tripped the
