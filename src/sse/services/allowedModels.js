@@ -291,7 +291,6 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       _modelsFetcherCacheExpiry[providerId] = Date.now() + MODELS_FETCHER_CACHE_TTL_MS;
       return resolved;
     }
-    let rawModels;
     if (Array.isArray(data)) {
       rawModels = data;
     } else if (Array.isArray(data?.data)) {
