@@ -130,6 +130,12 @@ async function runHeavyStartup() {
   import("@/shared/services/accountPoolRefreshScheduler.js")
     .then(({ startAccountPoolRefreshScheduler }) => startAccountPoolRefreshScheduler())
     .catch((e) => console.log("[AccountPoolRefresh] scheduler start failed:", e.message));
+
+  // Proactive OAuth refresh for every active connection with a refresh token.
+  // The scheduler owns its interval/single-flight guards and stays fail-open.
+  import("@/sse/services/backgroundTokenRefresh.js")
+    .then(({ startBackgroundTokenRefresh }) => startBackgroundTokenRefresh())
+    .catch((e) => console.log("[BGTokenRefresh] scheduler start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {
