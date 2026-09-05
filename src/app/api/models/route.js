@@ -7,8 +7,41 @@ import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { fetchModelsFetcherIds } from "@/sse/services/allowedModels.js";
 
 // GET /api/models - Get models with aliases
+let modelsPromise = null;
+let modelsPromiseAt = 0;
+const MODELS_RESPONSE_CACHE_MS = 15000;
+let modelsResponse = null;
+let modelsRefreshing = false;
+
 export async function GET() {
   try {
+    const now = Date.now();
+    if (modelsPromise && now - modelsPromiseAt < MODELS_RESPONSE_CACHE_MS) {
+      return NextResponse.json(await modelsPromise, { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" } });
+    }
+    if (modelsResponse && now - modelsPromiseAt >= MODELS_RESPONSE_CACHE_MS) {
+      if (!modelsRefreshing) {
+        modelsRefreshing = true;
+        modelsPromise = buildModelsResponse()
+          .then((payload) => { modelsResponse = payload; modelsPromiseAt = Date.now(); return payload; })
+          .catch((error) => { console.log("Background model refresh failed:", error?.message || error); return modelsResponse; })
+          .finally(() => { modelsRefreshing = false; });
+      }
+      return NextResponse.json(modelsResponse, { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" } });
+    }
+    modelsPromiseAt = now;
+    modelsPromise = buildModelsResponse();
+    const payload = await modelsPromise;
+    modelsResponse = payload;
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" } });
+  } catch (error) {
+    modelsPromise = null;
+    console.log("Error fetching models:", error);
+    return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
+  }
+}
+
+async function buildModelsResponse() {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
 
@@ -40,10 +73,16 @@ export async function GET() {
 
     // Include dynamic fetcher models for noAuth/passthrough providers (e.g. opencode)
     // so the ACL dialog can list models for providers whose catalog is not static.
-    let extra = [];
-    for (const [providerId, providerInfo] of Object.entries(AI_PROVIDERS)) {
-      if (!providerInfo?.noAuth || !providerInfo?.modelsFetcher) continue;
-      const fetcherIds = await fetchModelsFetcherIds(providerId, providerInfo);
+    const fetcherEntries = await Promise.all(
+      Object.entries(AI_PROVIDERS)
+        .filter(([, providerInfo]) => providerInfo?.noAuth && providerInfo?.modelsFetcher)
+        .map(async ([providerId, providerInfo]) => ({
+          providerId,
+          providerInfo,
+          fetcherIds: await fetchModelsFetcherIds(providerId, providerInfo),
+        }))
+    );
+    for (const { providerId, providerInfo, fetcherIds } of fetcherEntries) {
       if (!fetcherIds.length) continue;
       const providerAlias = getProviderAlias(providerId) || providerInfo.alias || providerId;
       for (const modelId of fetcherIds) {
@@ -71,10 +110,10 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ models: [...models, ...extra] });
+    return { models: [...models, ...extra] };
   } catch (error) {
     console.log("Error fetching models:", error);
-    return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
+    throw error;
   }
 }
 
