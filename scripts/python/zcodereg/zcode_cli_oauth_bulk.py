@@ -8,6 +8,7 @@ import sys, os, json, time, secrets, sqlite3, urllib.request, urllib.error, subp
 DB = "/home/ubuntu/VansRouter/data/db/data.sqlite"
 WARP_PROXY = "socks5://127.0.0.1:40000"
 LOCK_PATH = "/tmp/zcode-oauth-refresh.lock"
+BACKUP_DIR = "/tmp/zcode-refresh-backups"
 
 import socks
 from urllib.parse import urlparse
@@ -181,8 +182,10 @@ def main():
     ap.add_argument("--limit", type=int, default=None, help="proses N akun pertama saja")
     ap.add_argument("--email", action="append", default=[], help="proses email tertentu (bisa berulang)")
     ap.add_argument("--lock", action="store_true", help="cegah dua bulk refresh berjalan bersamaan")
+    ap.add_argument("--no-backup", action="store_true", help="lewati backup SQLite (manual/testing saja)")
     args = ap.parse_args()
     lock_fd = None
+    backup_path = None
     if args.lock:
         try:
             lock_fd = os.open(LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -191,6 +194,16 @@ def main():
             print(f"refresh already running: {LOCK_PATH}")
             return 2
     try:
+        if not args.no_backup:
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            backup_path = os.path.join(BACKUP_DIR, time.strftime("data-%Y%m%d-%H%M%S.sqlite"))
+            src = sqlite3.connect(DB)
+            dst = sqlite3.connect(backup_path)
+            with dst:
+                src.backup(dst)
+            dst.close()
+            src.close()
+            print(f"sqlite backup: {backup_path}")
         if args.email:
             accounts = [a for a in get_accounts() if a["email"] in args.email]
         else:
