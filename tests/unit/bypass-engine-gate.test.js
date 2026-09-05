@@ -5,6 +5,7 @@ import {
   peekStreamForRefusal,
   reconstructPeekedStream,
   getFramingStrategy,
+  appendEscalationToBody,
 } from "open-sse/rtk/bypassEngine.js";
 
 describe("detectRefusal tuning", () => {
@@ -85,9 +86,23 @@ describe("peekStreamForRefusal + reconstructPeekedStream", () => {
 
 describe("model family framing", () => {
   it("gemini-* model names resolve to the gemini family strategy (incl. antigravity-hosted)", () => {
-    expect(getFramingStrategy("gemini-cli", "gemini-3.7-flash").name).toBe("persona");
-    expect(getFramingStrategy("antigravity", "gemini-2.5-pro").name).toBe("persona");
-    expect(getFramingStrategy("vertex", "gemini-1.5-flash").name).toBe("persona");
+    expect(getFramingStrategy("gemini-cli", "gemini-3.7-flash").name).toBe("educational");
+    expect(getFramingStrategy("antigravity", "gemini-2.5-pro").name).toBe("educational");
+    expect(getFramingStrategy("vertex", "gemini-1.5-flash").name).toBe("educational");
+  });
+
+  it("keeps one Gemini strategy instead of a silently overwritten duplicate", () => {
+    expect(getFramingStrategy("gemini-cli", "gemini-3.7-flash").name).toBe("educational");
+  });
+
+  it("escalates the final user content in Responses and Claude shapes", () => {
+    const esc = "ESCALATION";
+    const responses = { input: [{ type: "message", role: "user", content: "ask" }] };
+    expect(appendEscalationToBody(responses, esc)).toBe(true);
+    expect(responses.input[0].content).toContain(esc);
+    const claude = { messages: [{ role: "user", content: [{ type: "text", text: "ask" }] }] };
+    expect(appendEscalationToBody(claude, esc)).toBe(true);
+    expect(claude.messages[0].content[1].text).toBe(esc);
   });
 
   it("non-matching models still fall back to provider/default strategy", () => {
