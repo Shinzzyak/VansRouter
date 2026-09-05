@@ -22,6 +22,17 @@ describe("detectCompactionHandoff", () => {
     expect(detectCompactionHandoff({ messages: [{ role: "user", content: "[CONTEXT COMPACTION] something" }] })).toBe(true);
   });
 
+  it("detects merged-carrier and synthetic-continuation markers from Hermes 0.21.0", () => {
+    const markers = [
+      "[END OF PRIOR CONTEXT — COMPACTION SUMMARY BELOW]",
+      "--- END OF CONTEXT SUMMARY — respond to the message below, not the summary above ---",
+      "Continue from the compressed conversation context above. This marker exists because no human user turn was available.",
+    ];
+    for (const marker of markers) {
+      expect(detectCompactionHandoff({ messages: [{ role: "user", content: marker }] })).toBe(true);
+    }
+  });
+
   it("does NOT fire on normal payloads", () => {
     expect(detectCompactionHandoff({ messages: [{ role: "user", content: "hello" }] })).toBe(false);
     expect(detectCompactionHandoff(null)).toBe(false);

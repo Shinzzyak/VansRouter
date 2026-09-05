@@ -23,6 +23,9 @@ export const COMPACTION_MARKERS = [
   "CONTEXT COMPACTION — REFERENCE ONLY",
   "[CONTEXT COMPACTION]",
   "[CONTEXT SUMMARY]:",
+  "[END OF PRIOR CONTEXT — COMPACTION SUMMARY BELOW]",
+  "--- END OF CONTEXT SUMMARY — respond to the message below, not the summary above ---",
+  "Continue from the compressed conversation context above. This marker exists because no human user turn was available.",
 ];
 
 export const COMPACTION_REASSERT_PROMPT = `PERSONA REASSERT — CONTEXT COMPACTION OVERRIDE
