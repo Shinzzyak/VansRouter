@@ -143,7 +143,8 @@ jobs:
           username: ${{ env.VPS_USER }}
           key: ${{ env.VPS_SSH_KEY }}
           source: vansrouter-deploy.tar.gz
-          target: /home/ubuntu/
+          target: ${{ env.DEPLOY_PATH }}/
+          overwrite: true
 
       - name: Deploy + restart PM2
         uses: appleboy/ssh-action@v1.0.3
@@ -155,9 +156,13 @@ jobs:
             set -e
             DEPLOY="${{ env.DEPLOY_PATH }}"
             PM2_NAME="${{ env.PM2_NAME }}"
-            TARBALL="/home/ubuntu/vansrouter-deploy.tar.gz"
+            TARBALL="${DEPLOY}/vansrouter-deploy.tar.gz"
 
             echo "=== Extracting build to ${DEPLOY}/.next/standalone ==="
+            if [ ! -f "${TARBALL}" ]; then
+              echo "ERROR: deployment tarball missing at ${TARBALL}" >&2
+              exit 2
+            fi
             mkdir -p "${DEPLOY}/.next/standalone"
             # Backup current standalone
             if [ -d "${DEPLOY}/.next/standalone_old" ]; then
@@ -168,6 +173,7 @@ jobs:
             fi
             mkdir -p "${DEPLOY}/.next/standalone"
             tar -xzf "${TARBALL}" -C "${DEPLOY}/.next/standalone"
+            rm -f "${TARBALL}"
 
             # Place the bundled launcher (with .env auto-loader) at the deploy
             # root, replacing the old server.js that did NOT load .env. Without
