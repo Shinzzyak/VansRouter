@@ -240,7 +240,57 @@ export async function fetchModelsFetcherIds(providerId, providerInfo) {
       return _modelsFetcherCacheExpiry[providerId] > now ? _modelsFetcherCache[providerId] : [];
     }
 
-    const data = await response.json();
+    const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      data = { __rawText: rawBody };
+    }
+    let rawModels;
+    if (data?.__rawText && fetcher.type === "freebuff") {
+      // Codebuff CLI source of truth: parse the CLI base3 agent map out of
+      // free-agents.ts. New upstream models appear here on merge — no deploy.
+      const idsText = data.__rawText;
+      const mapBlock = idsText.match(
+        /FREEBUFF_CLI_BASE3_AGENT_ID_BY_MODEL[^{]*\{([\s\S]*?)\n\}/
+      );
+      const mapKeys = mapBlock
+        ? [...mapBlock[1].matchAll(/\[([A-Z0-9_]+)\]:/g)].map((m) => m[1])
+        : [];
+      // Resolve *_MODEL_ID constants from the sibling constants files.
+      const constUrls = [
+        "https://raw.githubusercontent.com/CodebuffAI/freebuff/main/common/src/constants/freebuff-model-ids.ts",
+        "https://raw.githubusercontent.com/CodebuffAI/freebuff/main/common/src/constants/freebuff-model-entitlements.ts",
+        "https://raw.githubusercontent.com/CodebuffAI/freebuff/main/common/src/constants/freebuff-models.ts",
+        "https://raw.githubusercontent.com/CodebuffAI/freebuff/main/common/src/constants/model-config.ts",
+      ];
+      let constText = idsText;
+      for (const u of constUrls) {
+        try {
+          const r = await fetch(u, { cache: "no-store", signal: controller.signal });
+          if (r.ok) constText += "\n" + (await r.text());
+        } catch {}
+      }
+      const consts = {};
+      for (const m of constText.matchAll(
+        /export const (FREEBUFF_[A-Z0-9_]+_MODEL_ID)\s*=\s*\n?\s*'([^']+)'/g
+      )) {
+        consts[m[1]] = m[2];
+      }
+      const mimo = constText.match(/mimoV25:\s*'([^']+)'/);
+      if (mimo) consts.FREEBUFF_MIMO_V25_MODEL_ID = mimo[1];
+      const solar = constText.match(
+        /SOLAR_PRO_4_ENTITLEMENT\s*=\s*\{[\s\S]*?modelId:\s*'([^']+)'/
+      );
+      if (solar) consts.FREEBUFF_SOLAR_PRO_4_MODEL_ID = solar[1];
+      const resolved = mapKeys
+        .map((k) => consts[k])
+        .filter((id) => typeof id === "string" && id.trim() !== "");
+      _modelsFetcherCache[providerId] = resolved;
+      _modelsFetcherCacheExpiry[providerId] = Date.now() + MODELS_FETCHER_CACHE_TTL_MS;
+      return resolved;
+    }
     let rawModels;
     if (Array.isArray(data)) {
       rawModels = data;
@@ -498,9 +548,13 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
   }
 
   const providerInfo = AI_PROVIDERS[providerId];
-  if (providerInfo?.noAuth && providerInfo?.modelsFetcher) {
+  if (providerInfo?.modelsFetcher) {
+    // Fetcher merge for ANY provider carrying modelsFetcher (noAuth free tiers
+    // AND oauth providers like freebuff whose catalog lives upstream).
     const fetcherIds = await fetchModelsFetcherIds(providerId, providerInfo);
-    rawModelIds = Array.from(new Set([...rawModelIds, ...fetcherIds]));
+    if (fetcherIds.length > 0) {
+      rawModelIds = Array.from(new Set([...rawModelIds, ...fetcherIds]));
+    }
   }
 
   if (isPassthroughProvider && rawModelIds.length === 0) {

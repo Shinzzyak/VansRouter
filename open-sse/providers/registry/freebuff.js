@@ -62,16 +62,30 @@ const freebuffRegistry = {
   features: {
     usage: true,
   },
-  // Mirrors the CLI's free picker (FREEBUFF_ROOT_AGENT_ID_BY_MODEL).
+  // Auto-update: sync the live picker from the Codebuff CLI source of truth
+  // (common/src/constants/free-agents.ts BASE3 map). The JSON at this URL is
+  // generated from the upstream repo's free-agent roots, so a new model
+  // (e.g. the next glm flash) shows up without a router deploy.
+  modelsFetcher: {
+    url: "https://raw.githubusercontent.com/CodebuffAI/freebuff/main/common/src/constants/free-agents.ts",
+    type: "freebuff",
+  },
+  // Mirrors the CLI's free picker (base3 roots, common/src/constants/free-agents.ts).
   // mimo/mimo-v2.5-pro is intentionally absent — it is not a free-tier model
   // and would bill credits or be rejected under the base3-free agent.
+  // NOTE: 'upstage/solar-pro4' exists upstream (base3-free-solar-pro4) but is
+  // entitlement-gated ('limited-time trial') and NOT in the limited-tier
+  // rateLimitsByModel, so it stays off this list.
   models: [
     { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
     { id: "deepseek/deepseek-v4-pro", name: "DeepSeek V4 Pro" },
     { id: "mimo/mimo-v2.5", name: "MiMo 2.5" },
     { id: "minimax/minimax-m3", name: "MiniMax M3" },
     { id: "openai/gpt-5.6-luna", name: "GPT-5.6 Luna" },
+    { id: "z-ai/glm-5.3-flash", name: "GLM 5.3 Flash" },
+    { id: "z-ai/glm-5.2", name: "GLM 5.2 (earned sessions)" },
     { id: "meta/muse-spark-1.2-contributor", name: "Muse Spark 1.2" },
+    { id: "meta/muse-spark-1.3-contributor", name: "Muse Spark 1.3" },
     { id: "crof/kimi-k3-eco", name: "Kimi K3 Eco" },
   ],
   // Login-flow host — the CLI in freebuff mode logs in via freebuff.com, and
