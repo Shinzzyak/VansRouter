@@ -112,10 +112,6 @@ async function buildModelsResponse() {
     }
 
     return { models: [...models, ...extra] };
-  } catch (error) {
-    console.log("Error fetching models:", error);
-    throw error;
-  }
 }
 
 // PUT /api/models - Update model alias
