@@ -143,6 +143,10 @@ export function injectPersonaLock(body, format) {
   injectSystemPrompt(body, format, PERSONA_LOCK_PROMPT);
 }
 
+// Exported for the instruction plan (instructionPlan.js) so the plan can hash
+// and record the godmode block without duplicating the prompt text.
+export const GODMODE_ON_PROMPT_EXPORT = GODMODE_ON_PROMPT;
+
 export function injectGodmode(body, format, enabled) {
   if (!enabled) return; // Optional security-research framing remains toggleable
 

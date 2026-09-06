@@ -18,10 +18,12 @@
 import { injectSystemPrompt } from "./systemInject.js";
 import { injectCaveman } from "./caveman.js";
 import { injectPonytail } from "./ponytail.js";
-import { injectPersonaLock, injectGodmode, GODMODE_LEVELS } from "./godmode.js";
+import { injectPersonaLock, injectGodmode, GODMODE_LEVELS, GODMODE_ON_PROMPT_EXPORT } from "./godmode.js";
 import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
-import { reassertPersonaAfterCompaction } from "./compactionReassert.js";
-import { injectBrandContract } from "./brandContract.js";
+import { reassertPersonaAfterCompaction, detectCompactionHandoff } from "./compactionReassert.js";
+import { injectBrandContract, wantsJsonOutput } from "./brandContract.js";
+import { buildInstructionPlan, BLOCK_IDS } from "./instructionPlan.js";
+import { createReceipt, recordInjectorResult, summarizeReceipt } from "./instructionReceipts.js";
 
 // ponytail: single-toggle godmode has no real levels; hardcode "lite" as truthy
 // sentinel so omitting godmodeLevel still injects (array presets have no .LITE).
@@ -61,12 +63,28 @@ export function applyPromptInjectors({
   provider = '',
   model = '',
 }) {
-  const safe = (name, fn) => {
+  // Canonical instruction plan (P1): typed, versioned blocks. Built ONCE per
+  // request from the request shape; the receipt records applied/skipped/failed
+  // so fail-open injectors become auditable. The plan is observability + block
+  // classification — actual rendering stays in the injectors below.
+  const structuredOutput = wantsJsonOutput(body);
+  const hasCompaction = detectCompactionHandoff(body);
+  const plan = buildInstructionPlan({
+    godmodeEnabled,
+    godmodeText: godmodeEnabled ? GODMODE_ON_PROMPT_EXPORT : "",
+    hasCompaction,
+    structuredOutput,
+  });
+  const receipt = createReceipt(plan);
+
+  const safe = (name, fn, blockId = null) => {
     try {
       fn();
+      if (blockId) recordInjectorResult(receipt, blockId, "ok");
       return true;
     } catch (err) {
       log?.warn?.(name, `injector failed (fail-open): ${err?.message || err}`);
+      if (blockId) recordInjectorResult(receipt, blockId, "failed");
       return false;
     }
   };
@@ -75,7 +93,7 @@ export function applyPromptInjectors({
   safe("PERSONA", () => {
     injectPersonaLock(body, format);
     log?.debug?.("PERSONA", `identity lock injected | ${format}`);
-  });
+  }, BLOCK_IDS.OWNER_IDENTITY);
 
   if (systemPrompt) {
     safe("SYSPROMPT", () => {
@@ -102,7 +120,7 @@ export function applyPromptInjectors({
     safe("GODMODE", () => {
       injectGodmode(body, format, godmodeLevel || GODMODE_DEFAULT_LEVEL);
       log?.debug?.("GODMODE", `${godmodeLevel || GODMODE_DEFAULT_LEVEL} | ${format}`);
-    });
+    }, BLOCK_IDS.GODMODE_BEHAVIOR);
   }
 
   // Bypass engine — universal framing for all models (applied LAST, highest priority)
@@ -129,7 +147,7 @@ export function applyPromptInjectors({
     if (reassertPersonaAfterCompaction(body, format)) {
       log?.info?.("COMPACTION", `persona reasserted | ${provider}/${model} | ${format}`);
     }
-  });
+  }, BLOCK_IDS.COMPACTION_REASSERT);
 
   // Brand contract — ABSOLUTE LAST (final system text wins on position). The
   // persona lock states the first-line/last-line contract, but every later
@@ -139,7 +157,11 @@ export function applyPromptInjectors({
     if (injectBrandContract(body, format)) {
       log?.debug?.("BRAND", `contract injected | ${format}`);
     }
-  });
+  }, BLOCK_IDS.OUTPUT_CONTRACT);
+
+  // Plan summary for observability — one line, no prompt text, no secrets.
+  log?.debug?.("PLAN", `${provider}/${model} | ${summarizeReceipt(receipt)}`);
+  return receipt;
 }
 
 export { GODMODE_LEVELS };

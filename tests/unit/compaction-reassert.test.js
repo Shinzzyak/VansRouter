@@ -129,4 +129,47 @@ describe("reassertPersonaAfterCompaction", () => {
     reassertPersonaAfterCompaction(body, "openai");
     expect(body.messages[0].content.length).toBe(before);
   });
+
+  it("does NOT fire on a message that merely DISCUSSES compaction (start-anchored)", () => {
+    const body = {
+      messages: [
+        { role: "user", content: "hey, what does [CONTEXT COMPACTION — REFERENCE ONLY] mean in my logs?" },
+      ],
+    };
+    expect(detectCompactionHandoff(body)).toBe(false);
+    expect(reassertPersonaAfterCompaction(body, "openai")).toBe(false);
+    expect(body.messages.length).toBe(1);
+  });
+
+  it("does not false-positive on marker text quoted mid-string", () => {
+    const body = {
+      messages: [
+        { role: "user", content: 'the doc says "[CONTEXT SUMMARY]: old" — explain that' },
+      ],
+    };
+    expect(detectCompactionHandoff(body)).toBe(false);
+  });
+
+  it("detects handoff with leading whitespace (start-anchored tolerates it)", () => {
+    const body = { messages: [{ role: "user", content: "\n  [CONTEXT COMPACTION — REFERENCE ONLY] summary" }] };
+    expect(detectCompactionHandoff(body)).toBe(true);
+  });
+
+  it("detects handoff nested in gemini parts (content-walk, not JSON)", () => {
+    const gemini = { contents: [{ role: "user", parts: [{ text: "[CONTEXT COMPACTION] hi" }] }] };
+    expect(detectCompactionHandoff(gemini)).toBe(true);
+  });
+
+  it("does not re-trigger when only our own reassert quotes the marker", () => {
+    const body = {
+      messages: [
+        { role: "system", content: "sys" },
+        { role: "user", content: `${REASSERT_USER_PROMPT}` },
+        { role: "user", content: "real ask" },
+      ],
+    };
+    // The reassert prompt quotes the canonical marker mid-string; detection
+    // must NOT treat that as a fresh handoff.
+    expect(detectCompactionHandoff(body)).toBe(false);
+  });
 });
