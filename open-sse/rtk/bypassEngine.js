@@ -169,6 +169,27 @@ const ESCALATION_PROMPTS = [
  * @returns {boolean} - True if refusal detected
  */
 const REFUSAL_SCAN_HEAD_CHARS = 400;
+
+// Gemini/Antigravity refusal markers. Keep provider-specific detection separate
+// from generic refusal detection so routing telemetry can distinguish a
+// guardrail response from a missing/failed injection.
+const GEMINI_REFUSAL_MARKERS = [
+  /cannot fulfill your request/i,
+  /not able to assist with (?:this|that)/i,
+  /cannot assist with (?:this|that)/i,
+  /automate CAPTCHA bypass/i,
+  /automated authentication workflows/i,
+  /pak satpam g3mini/i,
+];
+
+export function detectGeminiGuardrailRefusal(text) {
+  if (!text || typeof text !== "string") return false;
+  const head = text.length <= REFUSAL_SCAN_HEAD_CHARS
+    ? text
+    : text.slice(0, REFUSAL_SCAN_HEAD_CHARS);
+  return GEMINI_REFUSAL_MARKERS.some((pattern) => pattern.test(head));
+}
+
 export function detectRefusal(text) {
   if (!text || typeof text !== 'string') return false;
   const head = text.length <= REFUSAL_SCAN_HEAD_CHARS ? text : text.slice(0, REFUSAL_SCAN_HEAD_CHARS);

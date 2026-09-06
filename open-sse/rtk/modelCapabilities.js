@@ -70,9 +70,30 @@ export function getModelCapabilityProfile(provider, model) {
   return { ...BASE_PROFILE, ...(FAMILY_PROFILES[family] || {}), family };
 }
 
-export function classifyResponseFailure({ status = 200, body = null, message = "" } = {}) {
+const GEMINI_GUARDRAIL_PATTERNS = [
+  /cannot fulfill your request/i,
+  /not able to assist with (?:this|that)/i,
+  /cannot assist with (?:this|that)/i,
+  /automate CAPTCHA bypass/i,
+  /automated authentication workflows/i,
+  /pak satpam g3mini/i,
+];
+
+function extractResponseText(body) {
+  if (!body || typeof body !== "object") return "";
+  const choice = body.choices?.[0];
+  return String(choice?.message?.content || body.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join(" ") || "");
+}
+
+function isGeminiGuardrailText(text) {
+  return GEMINI_GUARDRAIL_PATTERNS.some((pattern) => pattern.test(String(text || "").slice(0, 400)));
+}
+
+export function classifyResponseFailure({ status = 200, body = null, message = "", provider = "", model = "" } = {}) {
   const code = Number(status) || 0;
   const text = String(message || body?.error?.message || "");
+  const responseText = extractResponseText(body);
+  if ((String(provider).toLowerCase() === "gemini" || String(provider).toLowerCase() === "antigravity" || /gemini/i.test(String(model))) && isGeminiGuardrailText(`${text}\n${responseText}`)) return "gemini_guardrail_refusal";
   if (code === 401 || code === 403) return "auth";
   if (code === 429) return "quota";
   if (code >= 500 || code === 0) return "infrastructure";
