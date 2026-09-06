@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reasoningStatePolicy, stripReasoningState } from "open-sse/rtk/reasoningState.js";
+import { reasoningStatePolicy, stripReasoningState, prepareBodyForCandidate } from "open-sse/rtk/reasoningState.js";
 
 describe("reasoningStatePolicy", () => {
   it("preserves within the same gemini family", () => {
@@ -52,5 +52,45 @@ describe("stripReasoningState", () => {
   it("no-ops on garbage", () => {
     expect(stripReasoningState(null)).toEqual([]);
     expect(stripReasoningState("x")).toEqual([]);
+  });
+});
+
+describe("prepareBodyForCandidate", () => {
+  const bodyWithState = () => ({
+    previous_response_id: "resp_1",
+    messages: [
+      { role: "assistant", content: [{ type: "thinking", thinking: "t", signature: "sig" }, { type: "text", text: "answer" }] },
+      { role: "user", content: "next question" },
+    ],
+  });
+
+  it("no-ops on first candidate (no prev)", () => {
+    const body = bodyWithState();
+    const r = prepareBodyForCandidate(body, null, { provider: "claude", model: "claude-sonnet-4-6" });
+    expect(r.action).toBe("preserve");
+    expect(body.previous_response_id).toBe("resp_1"); // untouched
+  });
+
+  it("strips reasoning state on provider change, keeps visible content", () => {
+    const body = bodyWithState();
+    const r = prepareBodyForCandidate(body, { provider: "gemini", model: "gemini-3-flash" }, { provider: "claude", model: "claude-sonnet-4-6" });
+    expect(r.action).toBe("strip");
+    expect(r.reason).toBe("provider_changed");
+    expect(body.previous_response_id).toBeUndefined();
+    expect(body.messages[0].content[0].signature).toBeUndefined();
+    expect(body.messages[1].content).toBe("next question");
+  });
+
+  it("preserves state within same provider family", () => {
+    const body = bodyWithState();
+    const r = prepareBodyForCandidate(body, { provider: "gemini", model: "gemini-3-flash" }, { provider: "gemini", model: "gemini-3-pro" });
+    expect(r.action).toBe("preserve");
+    expect(body.previous_response_id).toBe("resp_1"); // untouched
+  });
+
+  it("fail-opens (preserve) on garbage without throwing", () => {
+    expect(() => prepareBodyForCandidate(null, { provider: "a", model: "m" }, { provider: "b", model: "n" })).not.toThrow();
+    const r = prepareBodyForCandidate(undefined, { provider: "a", model: "m" }, { provider: "b", model: "n" });
+    expect(["preserve", "strip"]).toContain(r.action);
   });
 });

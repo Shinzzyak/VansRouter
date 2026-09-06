@@ -11,6 +11,8 @@ import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, sav
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
+import { classifyResponse } from "../../rtk/responseIntegrity.js";
+import { recordIntegrity } from "../../rtk/refusalDrift.js";
 
 /**
  * Convert OpenAI chat.completion response to Claude message format.
@@ -367,6 +369,15 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   const respFinish = finalResponse?.choices?.[0]?.finish_reason
     || finalResponse?.stop_reason
     || "unknown";
+
+  // Drift tracking: classify the assembled non-stream output and record the
+  // per-model integrity verdict. Fail-open, runs once per request.
+  try {
+    const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body });
+    recordIntegrity(provider, model, integrity.status);
+  } catch (e) {
+    console.warn("[INTEGRITY] non-stream classify error (fail-open):", e?.message || e);
+  }
 
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId, apiKey, apiKeyName,

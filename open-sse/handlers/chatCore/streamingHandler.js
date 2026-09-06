@@ -9,6 +9,9 @@ import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamH
 import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requestDetail.js";
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
+import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
+import { INTEGRITY } from "../../rtk/responseIntegrity.js";
+import { recordIntegrity } from "../../rtk/refusalDrift.js";
 
 const STREAM_EARLY_EOF_STATUS = 502;
 
@@ -195,6 +198,19 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     };
     const safeContent = contentObj?.content || "[Empty streaming response]";
     const safeThinking = contentObj?.thinking || null;
+
+    // Stream integrity gate (shadow mode): classify the assembled visible text
+    // AFTER the stream completes. Zero hot-path cost — runs once per stream.
+    // Reports only; never mutates the bytes already sent to the client.
+    try {
+      const integrity = classifyStreamContent(safeContent, { requestBody: body });
+      recordIntegrity(provider, model, integrity.status);
+      if (integrity.status !== INTEGRITY.OK) {
+        console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | ${integrity.status} | chars=${integrity.chars}${integrity.refusal ? " | refusal" : ""}`);
+      }
+    } catch (e) {
+      console.warn("[STREAM-INTEGRITY] classify error (fail-open):", e?.message || e);
+    }
 
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,

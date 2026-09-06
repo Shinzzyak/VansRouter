@@ -8,6 +8,8 @@ import { DEFAULT_COMBO_TARGET_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { getRoleAdapterModel, stripHistoryForContext } from "./capacityAdapter.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
+import { parseModel } from "./model.js";
+import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
 export function stripComboPrefix(modelStr) {
@@ -341,6 +343,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   let lastError = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
+  // Track the previously-attempted candidate so the reasoning-state policy can
+  // strip stale provider-native state (signatures, previous_response_id) before
+  // it leaks into a different provider/family on fallback (400 / drift).
+  let prevCandidate = null;
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
@@ -352,6 +358,14 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         JSON.stringify({ error: { message: "Client disconnected" } }),
         { status: 499, headers: { "Content-Type": "application/json" } }
       );
+    }
+
+    // Reasoning-state gate: prepare the shared body for THIS candidate. First
+    // candidate (prevCandidate=null) is a no-op; later candidates strip stale
+    // state when crossing provider/model-family. Fail-open; never throws.
+    const nextCandidate = parseModel(modelStr);
+    if (prevCandidate) {
+      prepareBodyForCandidate(body, prevCandidate, nextCandidate, log);
     }
 
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
@@ -450,11 +464,15 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       lastError = errorText || String(result.status);
       if (!lastStatus) lastStatus = result.status;
       log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
+      // Record this candidate so the next iteration's reasoning-state gate can
+      // decide whether to strip its provider-native state before fallback.
+      prevCandidate = nextCandidate;
     } catch (error) {
       // Catch unexpected exceptions to ensure fallback continues
       lastError = error.message || String(error);
       if (!lastStatus) lastStatus = 500;
       log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });
+      prevCandidate = nextCandidate;
     }
   }
 
