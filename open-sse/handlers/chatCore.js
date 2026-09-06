@@ -625,7 +625,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
     const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
-    const failureClass = classifyResponseFailure({ status: statusCode, message });
+    const failureClass = classifyResponseFailure({ status: statusCode, message, provider, model });
     log?.debug?.("ROUTE", `${provider}/${model} | failure=${failureClass}`);
 
     // Content-safety rejection (muse-spark family etc.): upstream returned a
