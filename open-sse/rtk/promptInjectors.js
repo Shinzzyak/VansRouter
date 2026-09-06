@@ -21,6 +21,7 @@ import { injectPonytail } from "./ponytail.js";
 import { injectPersonaLock, injectGodmode, GODMODE_LEVELS } from "./godmode.js";
 import { applyBypass, BYPASS_MODES } from "./bypassEngine.js";
 import { reassertPersonaAfterCompaction } from "./compactionReassert.js";
+import { injectBrandContract } from "./brandContract.js";
 
 // ponytail: single-toggle godmode has no real levels; hardcode "lite" as truthy
 // sentinel so omitting godmodeLevel still injects (array presets have no .LITE).
@@ -127,6 +128,16 @@ export function applyPromptInjectors({
   safe("COMPACTION", () => {
     if (reassertPersonaAfterCompaction(body, format)) {
       log?.info?.("COMPACTION", `persona reasserted | ${provider}/${model} | ${format}`);
+    }
+  });
+
+  // Brand contract — ABSOLUTE LAST (final system text wins on position). The
+  // persona lock states the first-line/last-line contract, but every later
+  // append outranks it and cold-start turns dropped the brand line (observed
+  // 2026-09-06). Always-on; skipped for JSON-output requests.
+  safe("BRAND", () => {
+    if (injectBrandContract(body, format)) {
+      log?.debug?.("BRAND", `contract injected | ${format}`);
     }
   });
 }
