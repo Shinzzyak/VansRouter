@@ -36,6 +36,24 @@ function getProviderMutex(provider) {
   return _providerMutexes.get(provider);
 }
 
+export function applyProviderProxyOverride(connectionProviderSpecificData = {}, providerOverride = {}) {
+  const accountProxy = connectionProviderSpecificData || {};
+  const accountPoolId = typeof accountProxy.proxyPoolId === "string"
+    ? accountProxy.proxyPoolId.trim()
+    : "";
+  const hasExplicitAccountProxy =
+    (Array.isArray(accountProxy.proxyPoolIds) && accountProxy.proxyPoolIds.length > 0)
+    || (accountPoolId.length > 0 && accountPoolId !== "__none__")
+    || (accountProxy.connectionProxyEnabled === true && Boolean(accountProxy.connectionProxyUrl))
+    || Boolean(accountProxy.vercelRelayUrl);
+  const providerPoolId = typeof providerOverride.proxyPoolId === "string"
+    ? providerOverride.proxyPoolId.trim()
+    : "";
+
+  if (hasExplicitAccountProxy || !providerPoolId || providerPoolId === "__none__") return accountProxy;
+  return { ...accountProxy, proxyPoolId: providerPoolId };
+}
+
 /**
  * Get provider credentials from localDb
  * Filters out unavailable accounts and returns the selected account based on strategy
@@ -234,11 +252,15 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       connection = availableConnections[0];
     }
 
+    const proxyProviderData = applyProviderProxyOverride(
+      connection.providerSpecificData,
+      providerOverride,
+    );
     const psdForProxy = providerId === "freebuff"
-      ? { ...(connection.providerSpecificData || {}), proxyPoolScope: `${providerId}::${model || ""}` }
-      : connection.providerSpecificData?.proxyPoolIds?.length
-        ? { ...connection.providerSpecificData, proxyPoolScope: `${providerId}::${model || ""}` }
-        : connection.providerSpecificData;
+      ? { ...proxyProviderData, proxyPoolScope: `${providerId}::${model || ""}` }
+      : proxyProviderData?.proxyPoolIds?.length
+        ? { ...proxyProviderData, proxyPoolScope: `${providerId}::${model || ""}` }
+        : proxyProviderData;
     const resolvedProxy = providerId === "antigravity"
       ? resolveAntigravityProxyConfig(psdForProxy)
       : await resolveConnectionProxyConfig(psdForProxy || {}, connection.id);

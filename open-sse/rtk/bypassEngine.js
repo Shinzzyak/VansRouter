@@ -454,25 +454,39 @@ export async function peekStreamForRefusal(body, deadlineMs = 3000) {
   if (!body || typeof body.getReader !== 'function') {
     return { empty: true, chunks: [], headText: '' };
   }
-  const reader = body.getReader();
+  // Keep a pristine downstream branch. The probe may time out while its
+  // reader is still waiting; passing the original body onward would leave it
+  // locked and the streaming handler's second getReader() would throw.
+  const [probeBody, replayBody] = body.tee();
+  const reader = probeBody.getReader();
   const decoder = new TextDecoder();
   const chunks = [];
   let headText = '';
+  const releaseProbe = () => {
+    // Do not await cancel here. A provider can leave the read pending while
+    // its transport is stalled; awaiting cancellation would hang chatCore.
+    try { reader.cancel().catch(() => {}); } catch { /* best effort */ }
+    try { reader.releaseLock(); } catch { /* already released */ }
+  };
   try {
     const deadline = Date.now() + deadlineMs;
     while (headText.length < STREAM_HEAD_BUFFER_BYTES && Date.now() < deadline) {
       const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), Math.max(50, deadline - Date.now())));
       const { done, value, timeout: timedOut } = await Promise.race([reader.read(), timeout]);
       if (timedOut) break;
-      if (done) break;
+      if (done) {
+        try { reader.releaseLock(); } catch { /* already released */ }
+        return { empty: chunks.length === 0, reader, replayBody, chunks, headText };
+      }
       chunks.push(value);
       headText += decoder.decode(value, { stream: true });
     }
   } catch (err) {
-    try { reader.cancel?.().catch(() => {}); } catch {}
-    return { empty: chunks.length === 0, reader, chunks, headText };
+    releaseProbe();
+    return { empty: chunks.length === 0, reader, replayBody, chunks, headText };
   }
-  return { empty: chunks.length === 0, reader, chunks, headText };
+  releaseProbe();
+  return { empty: chunks.length === 0, reader: null, replayBody, chunks, headText };
 }
 
 /**
@@ -506,6 +520,7 @@ export function classifyStreamHead(headText) {
  * @returns {ReadableStream}
  */
 export function reconstructPeekedStream(gate) {
+  if (gate?.replayBody) return gate.replayBody;
   const { reader, chunks } = gate;
   let idx = 0;
   return new ReadableStream({

@@ -808,11 +808,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // non-streaming with escalation, then hand the client a coherent JSON response.
   if (bypassMode === BYPASS_MODES.AGGRESSIVE && providerResponse.ok && providerResponse.body) {
     const gate = await peekStreamForRefusal(providerResponse.body);
+    // The gate tees the upstream body. Always continue with its untouched
+    // replay branch, including timeout/empty-head cases. Reusing the original
+    // body after the probe would call getReader() while its probe reader still
+    // owns the lock and surface `ReadableStream is locked`.
+    const gatedResponse = gate.replayBody
+      ? new Response(gate.replayBody, { status: providerResponse.status, headers: providerResponse.headers })
+      : providerResponse;
     if (!gate.empty && gate.headText) {
       const headVerdict = classifyStreamHead(gate.headText);
       if (headVerdict !== "ok") {
         log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
-        try { gate.reader.cancel?.().catch(() => {}); } catch {}
+        try { gate.replayBody?.cancel?.().catch(() => {}); } catch {}
         for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
           const esc = getEscalationPrompt(escAttempt);
           const m = [...(translatedBody.messages || [])];
@@ -851,6 +858,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
     }
     // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
+    providerResponse = gatedResponse;
   }
 
   return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });

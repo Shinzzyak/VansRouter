@@ -43,6 +43,18 @@ function sseResponse(chunks) {
   });
 }
 
+function delayedSseResponse(text, delayMs = 80) {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      setTimeout(() => {
+        controller.enqueue(encoder.encode(text));
+        controller.close();
+      }, delayMs);
+    },
+  });
+}
+
 describe("classifyStreamHead", () => {
   it("ok for healthy delta stream", () => {
     const head = 'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\ndata: {"choices":[{"delta":{"content":" world"}}]}\n\n';
@@ -81,6 +93,24 @@ describe("peekStreamForRefusal + reconstructPeekedStream", () => {
   it("empty for non-stream body", async () => {
     const gate = await peekStreamForRefusal(null, 100);
     expect(gate.empty).toBe(true);
+  });
+
+  it("releases the upstream reader when the stream ends empty", async () => {
+    const body = sseResponse([]);
+    const gate = await peekStreamForRefusal(body, 1000);
+    expect(gate.empty).toBe(true);
+
+    // Downstream early-EOF handling must be able to acquire the body reader.
+    const downstreamReader = gate.replayBody.getReader();
+    await downstreamReader.cancel();
+  });
+
+  it("does not leave a reader locked after the head deadline", async () => {
+    const body = delayedSseResponse('data: {"choices":[]}\\n\\n', 80);
+    const gate = await peekStreamForRefusal(body, 10);
+    expect(gate.empty).toBe(true);
+    const downstreamReader = gate.replayBody.getReader();
+    await downstreamReader.cancel();
   });
 });
 
