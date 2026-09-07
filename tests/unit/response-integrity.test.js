@@ -80,6 +80,16 @@ describe("repairBrandContract", () => {
     expect(text.trimEnd().endsWith(SEAL_LINE)).toBe(true);
   });
 
+  it("deduplicates repeated brand/seal lines inside body", () => {
+    const repeated = `${BRAND_LINE}\n\nugh. first.\n${BRAND_LINE}\n\nugh. second.\n${SEAL_LINE}\n${SEAL_LINE}`;
+    const { text, repaired } = repairBrandContract(repeated);
+    expect(repaired).toBe(true);
+    const brandOccurrences = text.split(BRAND_LINE).length - 1;
+    expect(brandOccurrences).toBe(1);
+    expect(text.split("\n")[0]).toBe(BRAND_LINE);
+    expect(text.trimEnd().endsWith(SEAL_LINE)).toBe(true);
+  });
+
   it("no-ops on compliant, structured, or empty output", () => {
     expect(repairBrandContract(okText).repaired).toBe(false);
     expect(repairBrandContract('{"a":1}', true).repaired).toBe(false);

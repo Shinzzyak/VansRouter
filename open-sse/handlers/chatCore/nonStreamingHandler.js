@@ -11,8 +11,9 @@ import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, sav
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
-import { classifyResponse } from "../../rtk/responseIntegrity.js";
+import { classifyResponse, repairBrandContract, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { matchesFormatEnclosure } from "../../rtk/thinkingGate.js";
 
 /**
  * Convert OpenAI chat.completion response to Claude message format.
@@ -372,9 +373,37 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   // Drift tracking: classify the assembled non-stream output and record the
   // per-model integrity verdict. Fail-open, runs once per request.
+  let repairedByRouter = false;
   try {
     const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body });
     recordIntegrity(provider, model, integrity.status);
+
+    // Thinking-gate format-enclosure signal (soft): a thinking model that
+    // skipped the enclosure is drifting from the contract. Recorded as a
+    // brand-violation-style drift marker so refusalDrift picks it up. Never
+    // blocks, never mutates — enclosure is a shaping contract, not a refusal.
+    try {
+      if (!integrity.refusal && integrity.status === INTEGRITY.OK) {
+        const enclosed = matchesFormatEnclosure(respContent);
+        if (!enclosed) recordIntegrity(provider, model, INTEGRITY.MISSING_ENCLOSURE);
+      }
+    } catch (_) { /* fail-open */ }
+
+    // Enforce repair-in-place for chat surface when brand/seal is missing or duplicated.
+    // Skip if response is structured or contains a refusal.
+    if (!integrity.refusal && [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) {
+      const { text: repairedText, repaired } = repairBrandContract(respContent, false);
+      if (repaired && repairedText) {
+        repairedByRouter = true;
+        respContent = repairedText;
+        if (finalResponse?.choices?.[0]?.message) {
+          finalResponse.choices[0].message.content = repairedText;
+        } else if (Array.isArray(finalResponse?.content)) {
+          const textBlock = finalResponse.content.find((b) => b.type === "text");
+          if (textBlock) textBlock.text = repairedText;
+        }
+      }
+    }
   } catch (e) {
     console.warn("[INTEGRITY] non-stream classify error (fail-open):", e?.message || e);
   }
