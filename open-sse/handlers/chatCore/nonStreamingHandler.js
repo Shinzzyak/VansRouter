@@ -357,7 +357,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   const totalLatency = Date.now() - requestStartTime;
   // Extract response fields compatible with both OpenAI and Claude formats
-  const respContent = finalResponse?.choices?.[0]?.message?.content
+  let respContent = finalResponse?.choices?.[0]?.message?.content
     || (Array.isArray(finalResponse?.content)
       ? (finalResponse.content.find(b => b.type === "text")?.text || "")
       : null)
