@@ -49,8 +49,11 @@ async function normalizeProxyPoolId(proxyPoolId) {
 }
 
 // GET /api/providers - List all connections
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request?.url || "http://localhost");
+    const mode = searchParams.get("mode");
+
     const connections = await getProviderConnections();
 
     // Build nodeNameMap for compatible providers (id → name)
@@ -62,6 +65,46 @@ export async function GET() {
       }
     } catch { }
 
+    // Fast path: summary mode for main dashboard/providers overview page
+    // Needs only connection status, model locks, and basic metadata for card badges
+    if (mode === "summary") {
+      const summaryConnections = connections.map(c => {
+        const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
+        const name = isCompatible
+          ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
+          : c.name;
+        const providerDef = AI_PROVIDERS[c.provider];
+
+        const item = {
+          id: c.id,
+          provider: c.provider,
+          authType: c.authType,
+          name,
+          email: c.email,
+          priority: c.priority,
+          isActive: c.isActive,
+          testStatus: c.testStatus,
+          lastErrorAt: c.lastErrorAt,
+          lastError: c.lastError,
+          errorCode: c.errorCode,
+          alias: providerDef?.alias || null,
+        };
+
+        // Pass modelLock_* entries for cooldown status calculation
+        for (const [k, v] of Object.entries(c)) {
+          if (k.startsWith("modelLock_")) item[k] = v;
+        }
+
+        return item;
+      });
+
+      return NextResponse.json({
+        connections: summaryConnections,
+        summary: true,
+      });
+    }
+
+    // Full mode (e.g. detail provider page /dashboard/providers/[id])
     // Hide sensitive fields, enrich name for compatible providers
     const safeConnections = connections.map(c => {
       const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
