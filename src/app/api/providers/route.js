@@ -69,11 +69,21 @@ export async function GET() {
         ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
         : c.name;
       const providerDef = AI_PROVIDERS[c.provider];
+
+      // Strip heavy session dumps / cookies from providerSpecificData for UI delivery
+      // Backend / SQLite database remains untouched and retains full raw credentials
+      let safePsd = c.providerSpecificData;
+      if (safePsd && typeof safePsd === "object") {
+        const { cookies, businessToken, zcodeJwtToken, zaiAccessToken, rawProfile, profile, ...restPsd } = safePsd;
+        safePsd = restPsd;
+      }
+
       return {
         ...c,
         name,
         alias: providerDef?.alias || null,
-        apiKey: undefined,
+        providerSpecificData: safePsd,
+        apiKey: ***
         accessToken: undefined,
         refreshToken: undefined,
         idToken: undefined,
