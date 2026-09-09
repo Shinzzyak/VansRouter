@@ -471,6 +471,12 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       // Catch unexpected exceptions to ensure fallback continues
       lastError = error.message || String(error);
       if (!lastStatus) lastStatus = 500;
+      // Edge runtime body errors (ReadableStream disturbed/locked) are transient
+      // infra issues, not provider auth or model errors — map to 503 for accurate
+      // upstream status propagation.
+      if (/disturbed or locked/i.test(lastError)) {
+        if (!lastStatus || lastStatus === 500) lastStatus = 503;
+      }
       log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });
       prevCandidate = nextCandidate;
     }

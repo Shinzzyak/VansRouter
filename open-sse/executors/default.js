@@ -118,7 +118,16 @@ export class DefaultExecutor extends BaseExecutor {
 
   async _peekTransientBodyError(response) {
     if (!response?.body) return { matched: null, replacementBody: null };
-    const reader = response.body.getReader();
+    // tee() split: probe branch reads first 8KB, upstream branch stays pristine
+    // for downstream. Without tee, getReader() on the original body after reading
+    // throws "Response body object should not be disturbed or locked".
+    let probeBody, upstreamBody;
+    try {
+      [probeBody, upstreamBody] = response.body.tee();
+    } catch {
+      return { matched: null, replacementBody: null };
+    }
+    const reader = probeBody.getReader();
     const decoder = new TextDecoder();
     const chunks = [];
     let text = "";
@@ -133,13 +142,16 @@ export class DefaultExecutor extends BaseExecutor {
         if (hit) { matched = text.slice(text.search(hit), text.search(hit) + 80); break; }
       }
     } catch {}
-    reader.releaseLock();
-    const upstream = response.body;
+    // Cancel probe branch — upstream branch is untouched and still readable.
+    try { reader.cancel().catch(() => {}); } catch {}
+    try { reader.releaseLock(); } catch {}
+    // Reconstruct: enqueue the chunks we already consumed, then pipe the rest
+    // from the clean upstream branch.
     let upstreamReader = null;
     const replacementBody = new ReadableStream({
       start(controller) {
         for (const c of chunks) controller.enqueue(c);
-        upstreamReader = upstream.getReader();
+        upstreamReader = upstreamBody.getReader();
       },
       async pull(controller) {
         try {
