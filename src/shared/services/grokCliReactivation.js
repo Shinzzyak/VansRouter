@@ -86,6 +86,10 @@ function isCooldownActive(conn, now = Date.now()) {
   return Number.isFinite(until) && until > now;
 }
 
+export function isSuccessfulGrokReactivationProbe(response, _bodyText = "") {
+  return response?.ok === true;
+}
+
 async function readResponseText(response) {
   try {
     if (typeof response?.text === "function") return await response.text();
@@ -195,8 +199,8 @@ export async function runGrokCliReactivationTick(deps = createDefaultDeps(), for
     for (const conn of targets) {
       try {
         const { response: res, bodyText } = await probeGrokCli(conn, deps);
-        if (res.ok || res.status === 400) {
-          // 400 often means auth succeeded but request shape rejected; free-exhausted usually returns 429/402
+        if (isSuccessfulGrokReactivationProbe(res, bodyText)) {
+          // Only an upstream 2xx response proves the account is usable.
           await deps.updateProviderConnection(conn.id, {
             isActive: true,
             testStatus: "active",

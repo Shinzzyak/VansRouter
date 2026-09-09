@@ -83,7 +83,7 @@ export async function GET() {
         name,
         alias: providerDef?.alias || null,
         providerSpecificData: safePsd,
-        apiKey: ***
+        apiKey: undefined,
         accessToken: undefined,
         refreshToken: undefined,
         idToken: undefined,
