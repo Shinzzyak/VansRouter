@@ -81,9 +81,8 @@ import p79 from "./kilo-gateway.js";
 import p80 from "./kilocode.js";
 import p81 from "./kimchi.js";
 import p82 from "./kimi.js";
-import p83 from "./kiro-live.js";
-import p84 from "./kiro.js";
-import p85 from "./linkup.js";
+import p83 from "./kiro.js";
+import p84 from "./linkup.js";
 import p86 from "./llamagate.js";
 import p87 from "./llm7.js";
 import p88 from "./local-device.js";
@@ -158,6 +157,7 @@ import p156 from "./zai.js";
 import p157 from "./zcode.js";
 import p158 from "./zed.js";
 import p159 from "./zenmux.js";
+import p160 from "./alysis.js";
 
 const PROVIDER_REGISTRY = [
   p0,
@@ -245,7 +245,6 @@ const PROVIDER_REGISTRY = [
   p82,
   p83,
   p84,
-  p85,
   p86,
   p87,
   p88,
@@ -320,6 +319,7 @@ const PROVIDER_REGISTRY = [
   p157,
   p158,
   p159,
+  p160,
 ];
 
 export default PROVIDER_REGISTRY;
