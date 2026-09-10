@@ -858,7 +858,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
     }
     // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
-    providerResponse = gatedResponse;
+    const fallbackStream = gate.replayBody || reconstructPeekedStream(gate);
+    providerResponse = fallbackStream ? new Response(fallbackStream, { status: providerResponse.status, headers: providerResponse.headers }) : providerResponse;
   }
 
   return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
