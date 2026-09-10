@@ -119,11 +119,11 @@ describe("Post-merge: model.js RESERVED_PROVIDER_PREFIXES works", () => {
   });
 });
 
-describe("Post-merge: layout.js Schatt branding preserved", () => {
+describe("Post-merge: layout.js Vans Router branding preserved", () => {
   const src = read("src/app/layout.js");
 
-  it("has Schatt Router title", () => {
-    expect(src).toContain("Schatt Router");
+  it("has Vans Router title", () => {
+    expect(src).toContain("Vans Router");
   });
 
   it("bundles Material Symbols locally without fragile CDN scripts", () => {
@@ -133,7 +133,7 @@ describe("Post-merge: layout.js Schatt branding preserved", () => {
   it("does NOT have upstream 9Router title", () => {
     // Should not contain "9Router - AI Infrastructure"
     const titleMatch = src.match(/title:\s*["']([^"']+)["']/);
-    expect(titleMatch[1]).toContain("Schatt Router");
+    expect(titleMatch[1]).toContain("Vans Router");
     expect(titleMatch[1]).not.toContain("9Router");
   });
 });

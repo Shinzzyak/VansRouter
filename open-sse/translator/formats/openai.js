@@ -8,9 +8,41 @@ export { VALID_OPENAI_CONTENT_TYPES, VALID_OPENAI_MESSAGE_TYPES };
 // Filter messages to OpenAI standard format
 // Remove: thinking, redacted_thinking, signature, and other non-OpenAI blocks
 // opts.preserveCacheControl: keep cache_control on content blocks (e.g. for DashScope/alicode)
+// opts.flattenToolsForProvider: convert role: "tool" and assistant tool_calls to plain dialogue (e.g. for providers whose backend chokes on tool messages like Alysis/DeepSeek web bridge)
 export function filterToOpenAIFormat(body, opts = {}) {
   if (!body.messages || !Array.isArray(body.messages)) return body;
   const keepCache = !!opts.preserveCacheControl;
+  const flattenTools = !!opts.flattenToolsForProvider;
+
+  if (flattenTools) {
+    const flattened = [];
+    for (const msg of body.messages) {
+      if (msg.role === ROLE.TOOL) {
+        // Convert tool result message to user message with plain content
+        const toolContent = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        flattened.push({
+          role: ROLE.USER,
+          content: `[Tool Output (${msg.tool_call_id || "call"})]:\n${toolContent}`,
+        });
+      } else if (msg.role === ROLE.ASSISTANT && msg.tool_calls) {
+        // Convert assistant message with tool_calls to regular assistant message text
+        const callsDesc = msg.tool_calls
+          .map(tc => `${tc.function?.name || "tool"}(${tc.function?.arguments || ""})`)
+          .join("\n");
+        const baseContent = msg.content ? (typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)) : "";
+        flattened.push({
+          role: ROLE.ASSISTANT,
+          content: baseContent ? `${baseContent}\n[Invoking Tools:\n${callsDesc}]` : `[Invoking Tools:\n${callsDesc}]`,
+        });
+      } else {
+        flattened.push(msg);
+      }
+    }
+    body.messages = flattened;
+    // Don't send strict tools definition if provider doesn't support them natively
+    delete body.tools;
+    delete body.tool_choice;
+  }
 
   function stripBlock(block) {
     const { signature, cache_control, ...rest } = block;
