@@ -19,7 +19,7 @@ export default {
     headers: {
       "content-type": "application/json",
     },
-    auth: { header: "Authorization", scheme: "bearer" },
+    auth: { combined: true, header: "Authorization", scheme: "bearer" },
   },
   models: [
     {
