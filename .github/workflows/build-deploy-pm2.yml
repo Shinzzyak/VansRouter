@@ -175,6 +175,40 @@ jobs:
             tar -xzf "${TARBALL}" -C "${DEPLOY}/.next/standalone"
             rm -f "${TARBALL}"
 
+            # --- INTEGRITY GATE (incident 2026-09-11) --------------------------
+            # A corrupt route chunk (4903.js, "Missing catch or finally after
+            # try") once went live and 500'd EVERY /v1/chat/completions request
+            # while /masuk stayed HTTP 200, so the health check passed a dead
+            # router. Syntax-check the extracted server bundle BEFORE restarting
+            # PM2. Fail-open only if node itself is missing; a corrupt bundle
+            # restores the previous build and aborts (same guarantee as the
+            # health-check rollback below). NEVER hand-edit files under
+            # .next/standalone on the VPS — that is how the corrupt chunk got
+            # in (single-file mtime, no CI run).
+            echo "=== Integrity gate: syntax-check extracted server bundle ==="
+            if command -v node >/dev/null 2>&1; then
+              GATE_FAIL=0
+              for f in "${DEPLOY}/.next/standalone/.next/server/chunks/"*.js "${DEPLOY}/.next/standalone/.next/server/"*.js; do
+                [ -e "$f" ] || continue
+                node --check "$f" >/dev/null 2>&1 || { echo "CORRUPT BUNDLE FILE: $f" >&2; GATE_FAIL=1; }
+              done
+              if [ "$GATE_FAIL" != "0" ]; then
+                echo "ERROR: fresh bundle failed integrity gate — restoring standalone_old, aborting" >&2
+                if [ -d "${DEPLOY}/.next/standalone_old" ]; then
+                  rm -rf "${DEPLOY}/.next/standalone"
+                  mv "${DEPLOY}/.next/standalone_old" "${DEPLOY}/.next/standalone"
+                  pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || true
+                  echo "=== previous build restored, deploy aborted ==="
+                else
+                  echo "❌ No standalone_old backup — MANUAL INTERVENTION NEEDED" >&2
+                fi
+                exit 1
+              fi
+              echo "✅ Bundle integrity gate passed"
+            else
+              echo "⚠️ node not on PATH — skipping bundle integrity gate (fail-open)"
+            fi
+
             # Place the bundled launcher (with .env auto-loader) at the deploy
             # root, replacing the old server.js that did NOT load .env. Without
             # this, INITIAL_PASSWORD/JWT_SECRET from .env are never picked up.
