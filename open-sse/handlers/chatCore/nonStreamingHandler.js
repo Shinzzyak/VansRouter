@@ -7,6 +7,7 @@ import { createErrorResult } from "../../utils/error.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { unwrapClinepassEnvelope } from "../../utils/clinepassEnvelope.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
+import { parseLenientJson } from "../../utils/lenientJson.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats } from "./requestDetail.js";
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
@@ -235,11 +236,31 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     responseBody = parsed;
   } else {
     try {
-      responseBody = await providerResponse.json();
+      const text = await providerResponse.text();
+      try {
+        responseBody = JSON.parse(text);
+      } catch (jsonErr) {
+        console.error(`[ChatCore] Raw text received from ${provider} (len=${text.length}):`, text);
+        // Lenient recovery for small-gateway bodies (concatenated JSON,
+        // trailing garbage/HTML, BOM, NDJSON). Fail-open: null → SSE fallback.
+        responseBody = parseLenientJson(text);
+        if (responseBody) {
+          console.log(`[ChatCore] Recovered JSON with lenient parser (raw len=${text.length})`);
+        } else {
+          // Fallback: provider might have returned SSE format even with
+          // content-type application/json or missing header.
+          responseBody = parseSSEToOpenAIResponse(text, model, extractToolNames(body?.tools));
+        }
+        if (!responseBody) {
+          appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
+          console.error(`[ChatCore] Failed to parse JSON or SSE from ${provider}:`, jsonErr.message, `(raw len=${text.length})`);
+          return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`);
+        }
+      }
     } catch (err) {
       appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
-      console.error(`[ChatCore] Failed to parse JSON from ${provider}:`, err.message);
-      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`);
+      console.error(`[ChatCore] Failed to read response from ${provider}:`, err.message);
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid response from ${provider}`);
     }
   }
 
