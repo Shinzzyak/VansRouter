@@ -294,20 +294,39 @@ jobs:
               # the tarball never touches. A missing/corrupt bundle degrades the
               # router to a plain proxy — working, but NOT the product. Verify
               # it actually loaded instead of trusting that the file is there.
-              echo "=== Engine gate: private bundle must be loaded ==="
+              echo "=== Engine gate: private bundle must be reachable from the runtime ==="
               if [ ! -f "${DEPLOY}/data/engine/engine.cjs" ]; then
                 echo "❌ ENGINE MISSING: ${DEPLOY}/data/engine/engine.cjs not found" >&2
                 echo "   Router is running in degraded (plain proxy) mode — no godmode/bypass/persona layer." >&2
                 echo "   Restore it: node scripts/engine-bundle.mjs (from a machine holding data/engine/src)" >&2
                 exit 3
               fi
-              ENGINE_LOG=$(pm2 logs "${PM2_NAME}" --lines 400 --nostream 2>/dev/null | grep -c "\[ENGINE\] loaded" || true)
-              if [ "${ENGINE_LOG:-0}" -gt 0 ]; then
-                echo "✅ Engine gate passed — private bundle loaded"
+
+              # Presence is not reachability. The loader anchors on the live cwd
+              # and on the shim's own location, which differ between a developer
+              # shell and the standalone server (Next.js chdirs into
+              # .next/standalone, and import.meta.url of a bundled module is
+              # frozen at build time). Probe the real resolution path.
+              ENGINE_PROBE="$(cd "${DEPLOY}/.next/standalone" && node scripts/engine-probe.mjs 2>&1 | tail -1)"
+              case "${ENGINE_PROBE}" in
+                LOADED:*)
+                  echo "✅ Engine gate passed — ${ENGINE_PROBE}"
+                  ;;
+                *)
+                  echo "❌ ENGINE GATE FAILED — router is running WITHOUT the engine (degraded plain proxy)." >&2
+                  echo "   probe output: ${ENGINE_PROBE}" >&2
+                  echo "   The router answers requests but is not the product. Failing the deploy." >&2
+                  exit 3
+                  ;;
+              esac
+
+              # Belt and braces: if any request already ran, the shim logs a boot
+              # line. Absent log is not fatal on its own (the shim loads lazily
+              # on first use), so this is informational only.
+              if pm2 logs "${PM2_NAME}" --lines 400 --nostream 2>/dev/null | grep -q "\[ENGINE\] loaded"; then
+                echo "ℹ️  '[ENGINE] loaded' seen in recent logs"
               else
-                echo "⚠️ Engine gate: bundle present but no '[ENGINE] loaded' line in the last 400 log lines." >&2
-                echo "   The process may not have re-imported the engine yet, or the bundle is corrupt." >&2
-                echo "   Continuing (the fail-open path keeps the router alive), but verify by hand." >&2
+                echo "ℹ️  No '[ENGINE] loaded' line yet — expected, the shim loads on first chat request"
               fi
               # Verify the configured password actually authenticates (not just
               # the page rendering). Read INITIAL_PASSWORD from the VPS .env

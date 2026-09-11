@@ -13,24 +13,45 @@
 //
 // Resolution order (first hit wins):
 //   1. $VR_ENGINE_BUNDLE                     explicit override
-//   2. <cwd>/data/engine/engine.cjs          production (PM2 cwd = repo root)
-//   3. <this file>/../../../data/engine/engine.cjs
-//   4. <this file>/../../../../data/engine/engine.cjs   (standalone nesting)
+//   2. walk up from <cwd>/data/engine/engine.cjs     production (PM2 cwd = repo root)
+//   3. walk up from <this file>/../../../data/engine/engine.cjs
+//   4. walk up from <this file>/../../../../data/engine/engine.cjs   (standalone nesting)
+//
+// The walk-up matters: Next.js bundles this module into .next/server, so
+// `import.meta.url` is FROZEN AT BUILD TIME (it points at the CI runner's
+// checkout) and the standalone server chdirs into .next/standalone. Anchoring
+// only on those two paths silently misses the bundle on a real deploy — the
+// router then degrades with no visible error. Walking up from the live cwd
+// finds <repo>/data/engine/engine.cjs from either location.
 
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require_ = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+/** Collect `<dir>/data/engine/engine.cjs` for dir and every ancestor. */
+function walkUp(startDir, maxLevels = 6) {
+  const out = [];
+  let dir = resolve(startDir);
+  for (let i = 0; i < maxLevels; i++) {
+    out.push(resolve(dir, "data/engine/engine.cjs"));
+    const parent = dirname(dir);
+    if (parent === dir || dir === parse(dir).root) break;
+    dir = parent;
+  }
+  return out;
+}
+
 const CANDIDATES = [
   process.env.VR_ENGINE_BUNDLE || null,
-  resolve(process.cwd(), "data/engine/engine.cjs"),
-  resolve(HERE, "../../../data/engine/engine.cjs"),
-  resolve(HERE, "../../../../data/engine/engine.cjs"),
-].filter(Boolean);
+  // Live cwd first — this is the one that works in production.
+  ...walkUp(process.cwd()),
+  ...walkUp(resolve(HERE, "../../..")),
+  ...walkUp(resolve(HERE, "../../../..")),
+].filter((p, i, a) => p && a.indexOf(p) === i);
 
 let _bundle;      // undefined = not resolved yet, null = absent
 let _loadedPath = null;
