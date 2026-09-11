@@ -63,6 +63,7 @@ export default {
     { id: "hy4-preview-x", name: "Hy4 Preview-X" },
     { id: "hy4-preview-f", name: "Hy4 Preview-F" },
     { id: "hy3", name: "Hy3" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
     { id: "gpt-6-astra", name: "GPT-6 Astra" },
     { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" },
     { id: "gpt-5.5", name: "GPT-5.5" },

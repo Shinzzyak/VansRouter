@@ -70,6 +70,7 @@ export default {
     { id: "hy3-preview-agent", name: "Hy3 Preview Agent" },
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
     { id: "deepseek-v3-2-volc", name: "DeepSeek-V3.2" },
   ],
   oauth: {

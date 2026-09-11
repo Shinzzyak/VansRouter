@@ -26,7 +26,7 @@ describe("CodeBuddy international registry parity", () => {
       "kimi-k3", "kimi-k3-1", "kimi-k2.7", "kimi-k2.6", "kimi-k2.5",
       "hy4-preview", "hy4-preview-f", "hy3", "hy3-x", "hy3-preview",
       "hy3-preview-agent", "deepseek-v4-pro", "deepseek-v4-flash",
-      "deepseek-v3-2-volc",
+      "deepseek-v4.1-flash", "deepseek-v3-2-volc",
     ]);
   });
 
@@ -36,6 +36,7 @@ describe("CodeBuddy international registry parity", () => {
       "glm-5.3", "glm-5.2", "glm-5.1", "glm-5.0", "glm-5v-turbo",
       "minimax-m3", "kimi-k3", "kimi-k2.7", "kimi-k2.6", "kimi-k2.5",
       "hy4-preview", "hy4-preview-x", "hy4-preview-f", "hy3",
+      "deepseek-v4.1-flash",
       "gpt-6-astra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex",
     ]);
   });
