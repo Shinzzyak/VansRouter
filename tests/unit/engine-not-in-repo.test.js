@@ -12,7 +12,8 @@
 // tokens in the first place.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve, join } from "node:path";
 
 const ROOT = resolve(__dirname, "../..");
@@ -40,25 +41,19 @@ const ENGINE_MARKERS = [
   "my mind is broken, but he is fixed",
 ];
 
-// Directories that are never part of the shipped source tree.
-const SKIP_DIRS = new Set([
-  "node_modules", ".next", ".git", "data", "dist", "coverage", ".turbo", "backups",
-]);
-
-function walk(dir, acc = []) {
-  for (const name of readdirSync(dir)) {
-    if (SKIP_DIRS.has(name)) continue;
-    const p = join(dir, name);
-    let st;
-    try {
-      st = statSync(p);
-    } catch {
-      continue;
-    }
-    if (st.isDirectory()) walk(p, acc);
-    else if (/\.(js|jsx|ts|tsx|mjs|cjs|json|md)$/.test(name)) acc.push(p);
-  }
-  return acc;
+// The gate is about what the repository actually SHIPS. Untracked working
+// directories are not repo content: `data/engine/src` holds the real sources
+// during a local bundle run, and `.engine/` is the CI-only checkout of the
+// private source repo. Scanning the filesystem instead of the index made the
+// gate fail on exactly those two paths while every tracked file was clean.
+// Use `git ls-files` so "tracked" means tracked.
+function trackedFiles() {
+  const out = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8" });
+  return out
+    .split("\0")
+    .filter(Boolean)
+    .filter((rel) => /\.(js|jsx|ts|tsx|mjs|cjs|json|md)$/.test(rel))
+    .map((rel) => join(ROOT, rel));
 }
 
 // This file lists the markers by necessity, so it must not scan itself.
@@ -82,7 +77,7 @@ describe("engine is not in the repository", () => {
 
   it("no tracked source file contains engine payload", () => {
     const hits = [];
-    for (const file of walk(ROOT)) {
+    for (const file of trackedFiles()) {
       if (file === SELF) continue;
       const text = readFileSync(file, "utf8");
       for (const marker of ENGINE_MARKERS) {
