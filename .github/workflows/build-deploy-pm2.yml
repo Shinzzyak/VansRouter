@@ -307,7 +307,10 @@ jobs:
               # shell and the standalone server (Next.js chdirs into
               # .next/standalone, and import.meta.url of a bundled module is
               # frozen at build time). Probe the real resolution path.
-              ENGINE_PROBE="$(cd "${DEPLOY}/.next/standalone" && node scripts/engine-probe.mjs 2>&1 | tail -1)"
+              # The probe lives in open-sse/rtk/ because open-sse is copied into
+              # the standalone artifact on every build; scripts/ is not reliable
+              # there.
+              ENGINE_PROBE="$(cd "${DEPLOY}/.next/standalone" && node open-sse/rtk/engineProbe.mjs 2>&1 | tail -1)"
               case "${ENGINE_PROBE}" in
                 LOADED:*)
                   echo "✅ Engine gate passed — ${ENGINE_PROBE}"
