@@ -38,3 +38,23 @@ export function bodyHasContentMarker(body, marker) {
     return false;
   }
 }
+
+// Line-anchored variant. Our own injected blocks BEGIN a line — either at the
+// start of a content string (prepended) or after a blank line (appended into an
+// existing system prompt). A body that merely QUOTES the marker mid-sentence
+// must not be mistaken for an already-injected body: substring matching fails
+// closed there, and the reassert silently never fires on a request that happens
+// to quote the marker — exactly when a compaction handoff is present.
+export function bodyHasMarkerAtLineStart(body, marker) {
+  try {
+    if (!marker) return false;
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|\\n)[ \\t]*${escaped}`);
+    for (const s of iterContents(body)) {
+      if (typeof s === "string" && re.test(s)) return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
