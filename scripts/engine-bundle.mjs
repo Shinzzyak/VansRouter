@@ -238,8 +238,35 @@ async function writeShims(bundle) {
   }
 }
 
+/**
+ * The bundle is compiled with `new Function` at runtime (see engineLoader.js),
+ * so it must not require anything but node builtins — webpack rewrites
+ * require/createRequire in the Next.js server bundle and they throw for
+ * absolute paths. Catch a stray external dependency here, at build time.
+ */
+function assertBuiltinOnlyBundle() {
+  const src = readFileSync(OUT, "utf8");
+  const offenders = new Set();
+  const re = /\brequire\(\s*(["'])([^"']+)\1\s*\)/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const id = m[2];
+    if (!id.startsWith("node:")) offenders.add(id);
+  }
+  if (offenders.size) {
+    console.error(
+      `bundle requires non-builtin module(s): ${[...offenders].join(", ")}\n` +
+        "The engine bundle is loaded without require() at runtime — keep every\n" +
+        "dependency bundled (no `external`) or a node builtin."
+    );
+    process.exit(1);
+  }
+  console.log("  ok bundle requires node builtins only");
+}
+
 async function verify(bundle) {
   let bad = 0;
+  assertBuiltinOnlyBundle();
   for (const m of ENGINE_MODULES) {
     const want = await exportSurface(m);
     const ns = bundle[m];

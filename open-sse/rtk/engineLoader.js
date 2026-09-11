@@ -13,23 +13,31 @@
 //
 // Resolution order (first hit wins):
 //   1. $VR_ENGINE_BUNDLE                     explicit override
-//   2. walk up from <cwd>/data/engine/engine.cjs     production (PM2 cwd = repo root)
+//   2. walk up from <cwd>/data/engine/engine.cjs
 //   3. walk up from <this file>/../../../data/engine/engine.cjs
-//   4. walk up from <this file>/../../../../data/engine/engine.cjs   (standalone nesting)
+//   4. walk up from <this file>/../../../../data/engine/engine.cjs
 //
-// The walk-up matters: Next.js bundles this module into .next/server, so
-// `import.meta.url` is FROZEN AT BUILD TIME (it points at the CI runner's
-// checkout) and the standalone server chdirs into .next/standalone. Anchoring
-// only on those two paths silently misses the bundle on a real deploy — the
-// router then degrades with no visible error. Walking up from the live cwd
-// finds <repo>/data/engine/engine.cjs from either location.
+// Two traps this file exists to survive:
+//
+//   (a) Next.js bundles this module into .next/server/chunks/*, so
+//       `import.meta.url` is FROZEN AT BUILD TIME — it points at the CI
+//       runner's checkout (/home/runner/work/...), not the VPS. And the
+//       standalone server runs from .next/standalone, not the repo root.
+//       Anchoring only on those two paths silently misses the bundle on
+//       every real deploy. Hence the walk-up from the live cwd.
+//
+//   (b) webpack rewrites `createRequire(import.meta.url)` into its own
+//       require factory, which throws `Cannot find module` for an absolute
+//       path that plainly exists on disk. So the bundle is NOT loaded with
+//       require/createRequire at all — it is read and compiled directly,
+//       with `process.getBuiltinModule` serving any `node:*` import.
+//       scripts/engine-bundle.mjs enforces that the bundle requires nothing
+//       but node builtins.
 
-import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve, parse } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const require_ = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Collect `<dir>/data/engine/engine.cjs` for dir and every ancestor. */
@@ -53,6 +61,50 @@ const CANDIDATES = [
   ...walkUp(resolve(HERE, "../../../..")),
 ].filter((p, i, a) => p && a.indexOf(p) === i);
 
+/**
+ * Minimal require for the bundle: node builtins only.
+ * Deliberately does NOT go through require/createRequire — webpack rewrites
+ * those in a Next.js server bundle and they throw for absolute paths.
+ */
+function builtinRequire(id) {
+  const g = process.getBuiltinModule;
+  if (typeof g === "function") {
+    const mod = g(id);
+    if (mod) return mod;
+  }
+  if (id.startsWith("node:")) {
+    const mod = g ? g(id.slice(5)) : null;
+    if (mod) return mod;
+  }
+  throw new Error(
+    `engine bundle requested "${id}" — only node builtins are available to it`
+  );
+}
+
+/**
+ * Compile a CJS bundle from disk without touching require machinery.
+ * @param {string} path
+ */
+function compileBundle(path) {
+  const src = readFileSync(path, "utf8");
+  const module_ = { exports: {} };
+  // eslint-disable-next-line no-new-func
+  const factory = new Function(
+    "module",
+    "exports",
+    "require",
+    "__filename",
+    "__dirname",
+    src
+  );
+  factory(module_, module_.exports, builtinRequire, path, dirname(path));
+  const out = module_.exports;
+  if (!out || typeof out !== "object" || Object.keys(out).length === 0) {
+    throw new Error("bundle compiled but exported nothing");
+  }
+  return out;
+}
+
 let _bundle;      // undefined = not resolved yet, null = absent
 let _loadedPath = null;
 
@@ -68,7 +120,7 @@ function resolveBundle() {
   for (const p of CANDIDATES) {
     try {
       if (existsSync(p)) {
-        _bundle = require_(p);
+        _bundle = compileBundle(p);
         _loadedPath = p;
         // One boot line. The deploy pipeline greps for it to prove the engine
         // actually came up, instead of trusting that the file is on disk.

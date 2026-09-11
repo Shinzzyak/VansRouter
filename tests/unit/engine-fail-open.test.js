@@ -8,10 +8,41 @@
 
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { engineAvailable } from "./_engineAvailable.js";
 
 const ROOT = resolve(__dirname, "../..");
+
+// Next.js bundles engineLoader.js into .next/server/chunks/*, where webpack
+// rewrites createRequire/require into its own factory. That factory throws
+// `Cannot find module` for an absolute path that exists on disk — which is
+// exactly how the router shipped "green" while running with no engine. The
+// loader must therefore never use require machinery to load the bundle.
+// Static guard so the trap cannot come back silently.
+describe("engineLoader survives the webpack rewrite", () => {
+  const src = readFileSync(resolve(ROOT, "open-sse/rtk/engineLoader.js"), "utf8");
+  // Strip comments so prose about the trap is not read as code.
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("//"))
+    .join("\n");
+
+  it("does not import createRequire", () => {
+    expect(code).not.toMatch(/createRequire/);
+  });
+
+  it("does not call require() to load the bundle", () => {
+    expect(code).not.toMatch(/(^|[^.\w])require\s*\(/);
+  });
+
+  it("compiles the bundle from source instead", () => {
+    expect(code).toMatch(/readFileSync/);
+    expect(code).toMatch(/new Function/);
+    expect(code).toMatch(/getBuiltinModule/);
+  });
+});
 
 // Child program: import every shim under VR_ENGINE_DISABLE and assert that
 // nothing throws and that each function keeps its documented shape.
