@@ -76,14 +76,32 @@ jobs:
           # Guard: engine-bundle.mjs hydrates open-sse/rtk with the real sources
           # to resolve their relative imports, then re-shims. If it dies in
           # between, real source would reach the build and ship in the artifact.
-          for m in godmode bypassEngine promptInjectors potatoMechanics compactionReassert instructionPlan responseIntegrity; do
+          # The module list is read from the bundler so it can never drift from
+          # the list that was actually bundled.
+          mods=$(node -e 'const s=require("fs").readFileSync("scripts/engine-bundle.mjs","utf8");const m=s.match(/const ENGINE_MODULES = \[([\s\S]*?)\];/)[1];console.log([...m.matchAll(/"([^"]+)"/g)].map(x=>x[1]).join(" "))')
+          echo "engine modules: $mods"
+          for m in $mods; do
             grep -q "GENERATED SHIM" "open-sse/rtk/${m}.js" \
               || { echo "❌ open-sse/rtk/${m}.js is NOT a shim — real engine source would ship" >&2; exit 1; }
           done
           echo "✅ open-sse/rtk is shimmed"
 
       - name: Engine gates (bundle present)
-        run: pnpm test tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js tests/unit/post-merge-verification.test.js tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js
+        run: >-
+          pnpm test
+          tests/unit/godmode-injector.test.js
+          tests/unit/bypass-engine-gate.test.js
+          tests/unit/post-merge-verification.test.js
+          tests/unit/engine-not-in-repo.test.js
+          tests/unit/engine-fail-open.test.js
+          tests/unit/model-capabilities.test.js
+          tests/unit/gemini-guardrail-recovery.test.js
+          tests/unit/reasoning-state.test.js
+          tests/unit/refusal-drift.test.js
+          tests/unit/stream-integrity.test.js
+          tests/unit/voice-cadence.test.js
+          tests/unit/thinking-gate.test.js
+          tests/unit/instruction-plan.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs

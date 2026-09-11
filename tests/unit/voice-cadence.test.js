@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { engineAvailable } from "./_engineAvailable.js";
 import {
   classifyCadence,
   recordCadence,
@@ -6,7 +7,7 @@ import {
   _resetCadence,
 } from "open-sse/rtk/voiceCadence.js";
 
-describe("classifyCadence", () => {
+describe.skipIf(!engineAvailable())("classifyCadence", () => {
   it("scores a perfect Gefreiter response highly", () => {
     const text = "MADE BY: GEFREITER — AGENT OF AVRES\nmph. clean build. done.\nTitle: Password generator\n```python\nprint('hi')\n```\nAvres is King.";
     const result = classifyCadence(text);
@@ -51,7 +52,7 @@ describe("classifyCadence", () => {
   });
 });
 
-describe("recordCadence + getCadence", () => {
+describe.skipIf(!engineAvailable())("recordCadence + getCadence", () => {
   it("tracks per-model cadence scores", () => {
     _resetCadence("test-model");
     recordCadence("test-model", 90);

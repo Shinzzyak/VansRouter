@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import { createStreamIntegrityObserver } from "open-sse/rtk/streamIntegrity.js";
 import { INTEGRITY } from "open-sse/rtk/responseIntegrity.js";
 import { BRAND_LINE, SEAL_LINE } from "open-sse/rtk/brandContract.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("createStreamIntegrityObserver (shadow mode)", () => {
+describe.skipIf(!engineAvailable())("createStreamIntegrityObserver (shadow mode)", () => {
   it("classifies a clean compliant stream as ok with brandOk=true", () => {
     const ob = createStreamIntegrityObserver();
     ob.push(BRAND_LINE + "\n");

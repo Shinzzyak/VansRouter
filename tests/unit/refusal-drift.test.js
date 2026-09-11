@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { recordIntegrity, getDrift, getAllDrift, _resetDrift } from "open-sse/rtk/refusalDrift.js";
 import { INTEGRITY } from "open-sse/rtk/responseIntegrity.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("refusalDrift tracker", () => {
+describe.skipIf(!engineAvailable())("refusalDrift tracker", () => {
   beforeEach(() => _resetDrift());
 
   it("no data → zero stats, not drifted", () => {

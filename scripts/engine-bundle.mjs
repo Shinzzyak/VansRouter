@@ -39,6 +39,13 @@ const ENGINE_MODULES = [
   "compactionReassert",
   "instructionPlan",
   "responseIntegrity",
+  "modelCapabilities",
+  "reasoningState",
+  "refusalDrift",
+  "streamIntegrity",
+  "voiceCadence",
+  "thinkingGate",
+  "instructionReceipts",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -115,6 +122,56 @@ const FALLBACKS = {
     classifyResponse:
       "(({ parsed } = {}) => ({ status: 'ok', text: typeof parsed === 'string' ? parsed : '', brandOk: null, refusal: false }))",
     repairBrandContract: "((text) => ({ text, repaired: false }))",
+  },
+
+  modelCapabilities: {
+    classifyResponseFailure: "(() => 'unknown')",
+    detectCapabilityFamily: "(() => 'unknown')",
+    getModelCapabilityProfile: "(() => ({ family: 'unknown', requestStrategy: 'persona', personaStrategy: 'use', reasoningNullContent: true }))",
+  },
+  reasoningState: {
+    prepareBodyForCandidate: "(() => ({ action: 'preserve', reason: 'engine_absent', removed: [] }))",
+    reasoningStatePolicy: "(() => ({ action: 'preserve', reason: 'engine_absent', removed: [] }))",
+    stripReasoningState: "(() => [])",
+  },
+  refusalDrift: {
+    _resetDrift: "(() => {})",
+    getAllDrift: "(() => ({}))",
+    getDrift: "(() => null)",
+    recordIntegrity: "(() => {})",
+  },
+  streamIntegrity: {
+    classifyStreamContent: "(() => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }))",
+    createStreamIntegrityObserver: "(() => ({ push: () => {}, finish: () => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }) }))",
+  },
+  voiceCadence: {
+    _resetCadence: "(() => {})",
+    classifyCadence: "(() => ({ score: 100, grade: 'ok', issues: [] }))",
+    getCadence: "(() => null)",
+    recordCadence: "(() => {})",
+  },
+  formatInjectors: {
+    injectChatSystem: "((body) => body)",
+    injectClaudeSystem: "((body) => body)",
+    injectGeminiSystem: "((body) => body)",
+    injectInstructionsSystem: "((body) => body)",
+    injectKiroSystem: "((body) => body)",
+    injectResponsesInputSystem: "((body) => body)",
+    injectUserFirst: "((body) => body)",
+  },
+  thinkingGate: {
+    GO_TOKEN: "'GO.'",
+    THINKING_GATE_MARKER: "''",
+    THINKING_GATE_PROMPT: "''",
+    hasThinkingGate: "(() => false)",
+    injectThinkingGate: "((body) => body)",
+    isThinkingModel: "(() => false)",
+    matchesFormatEnclosure: "(() => false)",
+  },
+  instructionReceipts: {
+    createReceipt: "(() => ({}))",
+    recordInjectorResult: "(() => {})",
+    summarizeReceipt: "(() => ({}))",
   },
 };
 

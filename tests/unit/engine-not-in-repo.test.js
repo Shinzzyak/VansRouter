@@ -27,9 +27,19 @@ const ENGINE_MODULES = [
   "compactionReassert",
   "instructionPlan",
   "responseIntegrity",
+  "modelCapabilities",
+  "reasoningState",
+  "refusalDrift",
+  "streamIntegrity",
+  "voiceCadence",
+  "thinkingGate",
+  "instructionReceipts",
 ];
 
-// Distinctive strings that only exist inside the engine payload.
+// Distinctive strings that only exist inside the engine payload. Chosen so each
+// one has ZERO occurrences in the tracked tree today — a marker that already
+// appears in a test fixture would make this gate fail on a clean repo. Verify
+// any new marker against `git ls-files` before adding it.
 const ENGINE_MARKERS = [
   "PERSONA LOCK — ROUTER DEFAULT",
   "POTATO MECHANICS — ALWAYS-ON BEHAVIOR",
@@ -39,6 +49,14 @@ const ENGINE_MARKERS = [
   "ANTI-DRIFT LAYERS",
   "AN0YM_TELEGRAM_LAYERS",
   "my mind is broken, but he is fixed",
+  // Round 2 — modules that moved into the private engine after the first pass.
+  "FAMILY_PROFILES",
+  "REASONING_COMPAT",
+  "REFUSAL_DRIFT_THRESHOLD",
+  "TAIL_HOLD_CHARS",
+  "GRUNT_OPENERS",
+  "THINKING GATE — SCOPED REASONING / FORMAT ENCLOSURE",
+  "observability layer for instructionPlan",
 ];
 
 // The gate is about what the repository actually SHIPS. Untracked working
@@ -89,11 +107,11 @@ describe("engine is not in the repository", () => {
 
   it("the private engine sources are absent from the tracked tree", () => {
     // data/ is gitignored; this asserts the engine really is not reachable as
-    // repo content (a copy under open-sse/, src/, docs/ would defeat the split).
+    // repo content (a copy under src/, docs/, scripts/ would defeat the split).
+    // open-sse/rtk holds the shims and is checked above.
     for (const m of ENGINE_MODULES) {
-      for (const dir of ["open-sse", "src", "docs", "scripts"]) {
+      for (const dir of ["src", "docs", "scripts"]) {
         const p = resolve(ROOT, dir, `${m}.js`);
-        if (dir === "open-sse") continue; // shim location, checked above
         expect(existsSync(p), `${dir}/${m}.js must not exist`).toBe(false);
       }
     }

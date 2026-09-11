@@ -8,6 +8,7 @@ import {
   GO_TOKEN,
 } from "open-sse/rtk/thinkingGate.js";
 import { wantsJsonOutput } from "open-sse/rtk/brandContract.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
 const openaiBody = (extra = {}) => ({
   messages: [{ role: "user", content: "hi" }],
@@ -19,7 +20,7 @@ const geminiBody = () => ({
   systemInstruction: { parts: [{ text: "existing" }] },
 });
 
-describe("isThinkingModel", () => {
+describe.skipIf(!engineAvailable())("isThinkingModel", () => {
   it("flags known reasoning families", () => {
     expect(isThinkingModel("gemini", "gemini-3.5-flash")).toBe(true);
     expect(isThinkingModel("antigravity", "gemini-3-pro")).toBe(true);
@@ -37,7 +38,7 @@ describe("isThinkingModel", () => {
   });
 });
 
-describe("injectThinkingGate", () => {
+describe.skipIf(!engineAvailable())("injectThinkingGate", () => {
   it("injects into an OpenAI-shaped body for a thinking model", () => {
     const body = openaiBody();
     const injected = injectThinkingGate(body, "openai", "gemini", "gemini-3.5-flash");
@@ -84,7 +85,7 @@ describe("injectThinkingGate", () => {
   });
 });
 
-describe("matchesFormatEnclosure", () => {
+describe.skipIf(!engineAvailable())("matchesFormatEnclosure", () => {
   it("accepts a compliant enclosure", () => {
     const text = [
       "ugh. target locked.",

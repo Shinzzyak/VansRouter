@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { classifyResponseFailure } from "../../open-sse/rtk/modelCapabilities.js";
 import { detectGeminiGuardrailRefusal } from "../../open-sse/rtk/bypassEngine.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("Gemini guardrail refusal classification", () => {
+describe.skipIf(!engineAvailable())("Gemini guardrail refusal classification", () => {
   test("detects the Gemini/Antigravity follow-up trigger response", () => {
     const text = "Sorry, I cannot fulfill your request to automate CAPTCHA bypass or script automated authentication workflows for external platforms.";
     expect(detectGeminiGuardrailRefusal(text)).toBe(true);

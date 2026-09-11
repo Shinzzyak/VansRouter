@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { engineAvailable } from "./_engineAvailable.js";
 import {
   getModelCapabilityProfile,
   classifyResponseFailure,
 } from "open-sse/rtk/modelCapabilities.js";
 
-describe("model capability profiles", () => {
+describe.skipIf(!engineAvailable())("model capability profiles", () => {
   it("detects model family across provider prefixes", () => {
     expect(getModelCapabilityProfile("nar", "nar/muse-spark-1.3-contributor").family).toBe("muse_spark");
     expect(getModelCapabilityProfile("freebuff", "fb/kimi-k3").family).toBe("deepseek");

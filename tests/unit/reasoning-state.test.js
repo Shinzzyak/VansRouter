@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { reasoningStatePolicy, stripReasoningState, prepareBodyForCandidate } from "open-sse/rtk/reasoningState.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("reasoningStatePolicy", () => {
+describe.skipIf(!engineAvailable())("reasoningStatePolicy", () => {
   it("preserves within the same gemini family", () => {
     expect(reasoningStatePolicy({ provider: "gemini", model: "gemini-3-flash" }, { provider: "gemini", model: "gemini-3-pro" }).action).toBe("preserve");
   });
@@ -28,7 +29,7 @@ describe("reasoningStatePolicy", () => {
   });
 });
 
-describe("stripReasoningState", () => {
+describe.skipIf(!engineAvailable())("stripReasoningState", () => {
   it("removes previous_response_id", () => {
     const body = { previous_response_id: "resp_1", messages: [{ role: "user", content: "hi" }] };
     const removed = stripReasoningState(body);
@@ -55,7 +56,7 @@ describe("stripReasoningState", () => {
   });
 });
 
-describe("prepareBodyForCandidate", () => {
+describe.skipIf(!engineAvailable())("prepareBodyForCandidate", () => {
   const bodyWithState = () => ({
     previous_response_id: "resp_1",
     messages: [

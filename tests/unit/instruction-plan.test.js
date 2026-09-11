@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { buildInstructionPlan, BLOCK_IDS, PLAN_VERSION } from "open-sse/rtk/instructionPlan.js";
 import { createReceipt, recordInjectorResult, summarizeReceipt } from "open-sse/rtk/instructionReceipts.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("buildInstructionPlan", () => {
+describe.skipIf(!engineAvailable())("buildInstructionPlan", () => {
   it("always includes owner identity and task execution", () => {
     const plan = buildInstructionPlan({});
     const ids = plan.blocks.map((b) => b.id);
@@ -46,7 +47,7 @@ describe("buildInstructionPlan", () => {
   });
 });
 
-describe("receipts", () => {
+describe.skipIf(!engineAvailable())("receipts", () => {
   it("records blocks without leaking text", () => {
     const plan = buildInstructionPlan({ godmodeEnabled: true, godmodeText: "SECRET_GODMODE_TEXT" });
     const receipt = createReceipt(plan);
