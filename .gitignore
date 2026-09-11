@@ -128,6 +128,21 @@ scripts/python/*-venv/
 scripts/python/debug_*.py
 scripts/python/th_signup_*.py
 scripts/python/tokenharborreg/_th_*.py
+# =============================================================================
 # Farmed account credentials — private only (vansrouter-credentials repo)
+# =============================================================================
 scripts/python/gmiworker/results/
 /src/agents/
+
+# =============================================================================
+# NEVER commit — commercial pack sources & credential dumps
+# =============================================================================
+# The pack is the product that gets sold. Its sources were once committed here
+# while this repo was public and had to be purged from all history (2026-09-11).
+# Sources now live outside any repo. Do not re-add.
+docs/commercial-pack-v1.2/
+docs/ag_tokens.tsv
+docs/PROVIDER_FARMING_GSUITE.md
+docs/PROVIDER_GSUITE_ANALYSIS.md
+docs/opencode-bypass-handover.md
+**/ag_tokens.tsv
