@@ -351,6 +351,16 @@ jobs:
               # corrupt bundle degrades the router to a plain proxy — working,
               # but NOT the product. Verify it actually LOADED instead of
               # trusting that the file unpacked.
+              #
+              # A stale hand-placed copy at the deploy root would shadow the
+              # artifact (engineLoader prefers the standalone path, but leaving
+              # the old file around invites the next manual build). Remove it.
+              if [ -f "${DEPLOY}/data/engine/engine.cjs" ]; then
+                echo "=== Removing stale hand-placed engine bundle at deploy root (superseded by the CI artifact) ==="
+                rm -f "${DEPLOY}/data/engine/engine.cjs"
+                rmdir "${DEPLOY}/data/engine" 2>/dev/null || true
+              fi
+
               echo "=== Engine gate: private bundle must be reachable from the runtime ==="
               if [ ! -f "${DEPLOY}/.next/standalone/data/engine/engine.cjs" ]; then
                 echo "❌ ENGINE MISSING: ${DEPLOY}/.next/standalone/data/engine/engine.cjs not found" >&2

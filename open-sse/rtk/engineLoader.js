@@ -12,17 +12,16 @@
 // exercised by tests/unit/engine-fail-open.test.js.
 //
 // Resolution order (first hit wins):
-//   1. $VR_ENGINE_BUNDLE                             explicit override
-//   2. walk up from <cwd>/data/engine/engine.cjs
-//   3. walk up from <cwd>/.next/standalone/data/engine/engine.cjs
+//   1. $VR_ENGINE_BUNDLE
+//   2. walk up from <cwd>/.next/standalone/data/engine/engine.cjs   <- production
+//   3. walk up from <cwd>/data/engine/engine.cjs                    <- dev machine
 //   4. walk up from <this file>/../../../data/engine/engine.cjs
 //   5. walk up from <this file>/../../../../data/engine/engine.cjs
 //
-// Candidate 3 is the one production uses. The deploy tarball carries the
-// bundle at <standalone>/data/engine/engine.cjs (compiled in CI, never built on
-// the host), while the PM2 process runs with cwd = the deploy root. Anchoring
-// on cwd alone would find a stale hand-placed copy at the repo root and miss
-// the artifact that actually shipped — so the standalone path is explicit.
+// Candidate 2 is the one production uses. The deploy tarball carries the bundle
+// at <standalone>/data/engine/engine.cjs, compiled in CI and never built on the
+// host. It deliberately outranks candidate 3: a stale hand-placed copy at the
+// deploy root must never win over the artifact that actually shipped.
 //
 // Two traps this file exists to survive:
 //
@@ -62,10 +61,14 @@ function walkUp(startDir, maxLevels = 6) {
 
 const CANDIDATES = [
   process.env.VR_ENGINE_BUNDLE || null,
-  // Live cwd first — this is the one that works in production.
-  ...walkUp(process.cwd()),
-  // The shipped artifact: <cwd>/.next/standalone/data/engine/engine.cjs.
+  // The shipped artifact first: <cwd>/.next/standalone/data/engine/engine.cjs.
+  // This is what the CI-built tarball carries, and it must win over any stale
+  // copy left at the deploy root — otherwise a hand-placed file from an old
+  // manual build silently overrides every deploy.
   ...walkUp(resolve(process.cwd(), ".next/standalone")),
+  // Then the live cwd itself. This is what makes the dev-machine and
+  // probe-from-standalone cases work.
+  ...walkUp(process.cwd()),
   ...walkUp(resolve(HERE, "../../..")),
   ...walkUp(resolve(HERE, "../../../..")),
 ].filter((p, i, a) => p && a.indexOf(p) === i);
