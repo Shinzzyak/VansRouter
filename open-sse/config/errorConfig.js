@@ -35,7 +35,10 @@ export const BACKOFF_CONFIG = {
   maxLevel: 15
 };
 
-// Default cooldown for transient/unknown errors
+// Default cooldown for transient/unknown errors.
+// Only reached by statuses with NO rule below — known upstream-transient
+// statuses (5xx) get COOLDOWN.short instead. Keep this cautious: an unknown
+// status must not hammer the upstream.
 export const TRANSIENT_COOLDOWN_MS = 30 * 1000;
 
 // Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h)
@@ -76,6 +79,17 @@ export const ERROR_RULES = [
   { status: 404, cooldownMs: COOLDOWN.long },
   { status: 499, shouldFallback: false, cooldownMs: 0 },
   { status: 429, backoff: true },
+
+  // Upstream-transient 5xx: the ACCOUNT is healthy, the relay hiccuped
+  // (doubled/garbled body, connection reset, timeout, edge down for a second).
+  // Without these rules a single upstream hiccup inherited the 30s transient
+  // default — one bad byte turned a 1s blip into a 30s model-wide lock plus a
+  // 30s client wait on the retry. Short verdict: fall back immediately, let
+  // the same account be retried seconds later.
+  { status: 500, cooldownMs: COOLDOWN.short },
+  { status: 502, cooldownMs: COOLDOWN.short },
+  { status: 503, cooldownMs: COOLDOWN.short },
+  { status: 504, cooldownMs: COOLDOWN.short },
 ];
 
 // Backward compat: COOLDOWN_MS object (used by index.js re-export)
