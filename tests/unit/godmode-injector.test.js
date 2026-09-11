@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { applyPromptInjectors, GODMODE_LEVELS } from "open-sse/rtk/promptInjectors.js";
 import { injectGodmode } from "open-sse/rtk/godmode.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("godmode injector", () => {
+// The engine lives outside the repo (data/engine/engine.cjs). On a CI runner it
+// is absent by design, so this suite skips there; the degraded path is covered
+// by engine-fail-open.test.js, which must pass everywhere.
+describe.skipIf(!engineAvailable())("godmode injector", () => {
   it("injects into OpenAI-shaped body (messages)", () => {
     const body = { messages: [{ role: "user", content: "hi" }] };
     injectGodmode(body, "openai", true);

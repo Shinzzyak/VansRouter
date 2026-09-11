@@ -7,8 +7,12 @@ import {
   getFramingStrategy,
   appendEscalationToBody,
 } from "open-sse/rtk/bypassEngine.js";
+import { engineAvailable } from "./_engineAvailable.js";
 
-describe("detectRefusal tuning", () => {
+// The engine lives outside the repo (data/engine/engine.cjs). On a CI runner it
+// is absent by design, so this suite skips there; the degraded path is covered
+// by engine-fail-open.test.js, which must pass everywhere.
+describe.skipIf(!engineAvailable())("detectRefusal tuning", () => {
   it("flags short refusals", () => {
     expect(detectRefusal("I'm sorry, but I can't help with that.")).toBe(true);
     expect(detectRefusal("I cannot provide this information.")).toBe(true);

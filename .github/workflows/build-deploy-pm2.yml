@@ -44,7 +44,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests (smoke gate)
-        run: pnpm test tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js
+        run: pnpm test tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js
         env:
           NODE_ENV: test
 
@@ -286,6 +286,29 @@ jobs:
             STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/masuk")
             if [ "$STATUS" = "200" ]; then
               echo "✅ Deploy successful (HTTP $STATUS)"
+
+              # --- ENGINE GATE -------------------------------------------------
+              # The engine (godmode framing, bypass engine, compaction reassert,
+              # potato mechanics, instruction plan, response integrity) is NOT
+              # in the repo. It ships as ${DEPLOY}/data/engine/engine.cjs, which
+              # the tarball never touches. A missing/corrupt bundle degrades the
+              # router to a plain proxy — working, but NOT the product. Verify
+              # it actually loaded instead of trusting that the file is there.
+              echo "=== Engine gate: private bundle must be loaded ==="
+              if [ ! -f "${DEPLOY}/data/engine/engine.cjs" ]; then
+                echo "❌ ENGINE MISSING: ${DEPLOY}/data/engine/engine.cjs not found" >&2
+                echo "   Router is running in degraded (plain proxy) mode — no godmode/bypass/persona layer." >&2
+                echo "   Restore it: node scripts/engine-bundle.mjs (from a machine holding data/engine/src)" >&2
+                exit 3
+              fi
+              ENGINE_LOG=$(pm2 logs "${PM2_NAME}" --lines 400 --nostream 2>/dev/null | grep -c "\[ENGINE\] loaded" || true)
+              if [ "${ENGINE_LOG:-0}" -gt 0 ]; then
+                echo "✅ Engine gate passed — private bundle loaded"
+              else
+                echo "⚠️ Engine gate: bundle present but no '[ENGINE] loaded' line in the last 400 log lines." >&2
+                echo "   The process may not have re-imported the engine yet, or the bundle is corrupt." >&2
+                echo "   Continuing (the fail-open path keeps the router alive), but verify by hand." >&2
+              fi
               # Verify the configured password actually authenticates (not just
               # the page rendering). Read INITIAL_PASSWORD from the VPS .env
               # (the same source the launcher loads), not the CI runner env.

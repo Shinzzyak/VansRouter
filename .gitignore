@@ -79,6 +79,11 @@ README1.md
 *.db
 data/
 
+# Private engine (capability layer): sources + bundle live OUTSIDE the repo.
+# The public files in open-sse/rtk/ are generated shims. See scripts/engine-bundle.mjs.
+# Never commit these — the engine is the product.
+data/engine/
+
 # =============================================================================
 # Misc exclusions
 # =============================================================================
