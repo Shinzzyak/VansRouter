@@ -1,11 +1,17 @@
 // Post-merge verification tests for conflicted files.
 // Ensures upstream merge didn't silently strip our custom logic.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (p) => readFileSync(resolve(ROOT, p), "utf8");
+
+// The injector registry is part of the private engine, so in the repo it is a
+// generated shim. Read the private source when it is present; skip elsewhere
+// (CI has no engine by design — engine-not-in-repo.test.js guards that).
+const ENGINE_SRC = "data/engine/src/promptInjectors.js";
+const engineSrcReadable = existsSync(resolve(ROOT, ENGINE_SRC));
 
 describe("Post-merge: chat.js ACL enforcement preserved", () => {
   const src = read("src/sse/handlers/chat.js");
@@ -170,7 +176,6 @@ describe("Post-merge: xiaomi-tokenplan.js upstream fix taken", () => {
 
 describe("Post-merge: ponytail still wired in chatCore", () => {
   const src = read("open-sse/handlers/chatCore.js");
-  const registry = read("open-sse/rtk/promptInjectors.js");
 
   it("routes injectors through the promptInjectors registry", () => {
     expect(src).toContain("applyPromptInjectors");
@@ -185,10 +190,15 @@ describe("Post-merge: ponytail still wired in chatCore", () => {
     expect(src).toContain("ponytailLevel");
   });
 
-  it("registry applies ponytail injector when enabled", () => {
-    expect(registry).toMatch(/ponytailEnabled/);
-    expect(registry).toContain("injectPonytail");
-    expect(registry).toMatch(/ponytailLevel/);
+  describe.skipIf(!engineSrcReadable)("injector registry (private engine source)", () => {
+    it("applies the ponytail injector when enabled", () => {
+      // Read inside the test: vitest still evaluates a skipped describe's body
+      // to collect tests, so a top-level read() would ENOENT on CI.
+      const registry = read(ENGINE_SRC);
+      expect(registry).toMatch(/ponytailEnabled/);
+      expect(registry).toContain("injectPonytail");
+      expect(registry).toMatch(/ponytailLevel/);
+    });
   });
 });
 
