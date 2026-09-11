@@ -808,14 +808,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // non-streaming with escalation, then hand the client a coherent JSON response.
   if (bypassMode === BYPASS_MODES.AGGRESSIVE && providerResponse.ok && providerResponse.body) {
     const gate = await peekStreamForRefusal(providerResponse.body);
-    // The gate tees the upstream body. Always continue with its untouched
-    // replay branch, including timeout/empty-head cases. Reusing the original
-    // body after the probe would call getReader() while its probe reader still
-    // owns the lock and surface `ReadableStream is locked`.
-    const gatedResponse = gate.replayBody
+    // Fail-open: without the private engine bundle peekStreamForRefusal
+    // resolves null. A missing gate must never kill the request — fall
+    // through to plain proxy streaming below.
+    // When the gate exists it tees the upstream body. Always continue with
+    // its untouched replay branch, including timeout/empty-head cases.
+    // Reusing the original body after the probe would call getReader() while
+    // its probe reader still owns the lock and surface `ReadableStream is
+    // locked`.
+    const gatedResponse = gate?.replayBody
       ? new Response(gate.replayBody, { status: providerResponse.status, headers: providerResponse.headers })
       : providerResponse;
-    if (!gate.empty && gate.headText) {
+    if (gate && !gate.empty && gate.headText) {
       const headVerdict = classifyStreamHead(gate.headText);
       if (headVerdict !== "ok") {
         log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
@@ -858,7 +862,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
     }
     // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
-    const fallbackStream = gate.replayBody || reconstructPeekedStream(gate);
+    // (gate is null without the engine bundle: reconstruct has nothing to replay)
+    const fallbackStream = gate?.replayBody || (gate ? reconstructPeekedStream(gate) : null);
     providerResponse = fallbackStream ? new Response(fallbackStream, { status: providerResponse.status, headers: providerResponse.headers }) : providerResponse;
   }
 
