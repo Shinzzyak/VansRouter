@@ -1,9 +1,11 @@
 // Anti-regression gate: the engine must NOT live in this repository.
 //
 // The engine (persona/godmode framing, bypass engine, compaction reassert,
-// potato mechanics, instruction plan, response integrity) is the product. It
-// ships as a private bundle at data/engine/engine.cjs — gitignored, and outside
-// the deploy tarball. The public files are shims.
+// potato mechanics, instruction plan, response integrity) is the product. Its
+// canonical sources live in the PRIVATE repo Shinzzyak/VansRouter-engine; the
+// build job compiles them into a single bundle and ships it inside the deploy
+// tarball at <standalone>/data/engine/engine.cjs. The public files here are
+// shims.
 //
 // This test fails the moment someone pastes engine content back into a tracked
 // file. That is the failure mode that leaked the pack sources and 108 OAuth

@@ -79,8 +79,14 @@ README1.md
 *.db
 data/
 
+# CI-only checkout of the private engine source repo (Shinzzyak/VansRouter-engine).
+# Present only inside a workflow run; never committed.
+.engine/
+
 # Private engine (capability layer): sources + bundle live OUTSIDE the repo.
 # The public files in open-sse/rtk/ are generated shims. See scripts/engine-bundle.mjs.
+# The bundle is compiled in CI and shipped inside the deploy tarball at
+# .next/standalone/data/engine/engine.cjs — never built on the VPS.
 # Never commit these — the engine is the product.
 data/engine/
 

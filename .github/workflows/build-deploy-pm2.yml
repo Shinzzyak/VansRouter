@@ -43,10 +43,50 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests (smoke gate)
-        run: pnpm test tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js
+      - name: Run unit tests (smoke gate — engine absent)
+        run: pnpm test tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js
         env:
           NODE_ENV: test
+
+      # --- PRIVATE ENGINE -------------------------------------------------
+      # The capability layer (godmode framing, bypass engine, persona reassert,
+      # potato mechanics, instruction plan, response integrity) is NOT in this
+      # repository — this repo ships generated shims only. It is compiled HERE,
+      # in CI, from the private source repo. Nothing is ever built on the VPS:
+      # the tarball below carries the bundle, and the VPS only unpacks it.
+      #
+      # The smoke gate above deliberately runs with the bundle ABSENT — that is
+      # the Zero Break Guarantee (engine missing => plain proxy, no crash). The
+      # behavior tests below then run WITH the bundle, so both paths are proven
+      # on every build.
+      - name: Fetch private engine sources
+        uses: actions/checkout@v4
+        with:
+          repository: Shinzzyak/VansRouter-engine
+          token: ${{ secrets.ENGINE_REPO_TOKEN }}
+          path: .engine
+
+      - name: Build private engine bundle
+        run: |
+          set -e
+          mkdir -p data/engine/src
+          cp .engine/src/*.js data/engine/src/
+          node scripts/engine-bundle.mjs
+          ls -l data/engine/engine.cjs
+          # Guard: engine-bundle.mjs hydrates open-sse/rtk with the real sources
+          # to resolve their relative imports, then re-shims. If it dies in
+          # between, real source would reach the build and ship in the artifact.
+          for m in godmode bypassEngine promptInjectors potatoMechanics compactionReassert instructionPlan responseIntegrity; do
+            grep -q "GENERATED SHIM" "open-sse/rtk/${m}.js" \
+              || { echo "❌ open-sse/rtk/${m}.js is NOT a shim — real engine source would ship" >&2; exit 1; }
+          done
+          echo "✅ open-sse/rtk is shimmed"
+
+      - name: Engine gates (bundle present)
+        run: pnpm test tests/unit/godmode-injector.test.js tests/unit/bypass-engine-gate.test.js tests/unit/post-merge-verification.test.js tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js
+        env:
+          NODE_ENV: test
+          VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
 
       - name: Build
         run: pnpm run build
@@ -110,6 +150,21 @@ jobs:
           cp server.js .next/standalone/launcher.js
           # Bundle runtime Python scripts (YYDS temp-mail client) into standalone
           cp -r scripts .next/standalone/scripts
+
+      # Ship the CI-built engine bundle inside the artifact. This is the only
+      # path the bundle takes to production — there is no hand-placed copy on
+      # the VPS and no build step there. engineLoader.js walks up from the live
+      # cwd, so <standalone>/data/engine/engine.cjs is the first candidate it
+      # tries when the server runs from .next/standalone.
+      - name: Ship engine bundle into the standalone artifact
+        run: |
+          set -e
+          mkdir -p .next/standalone/data/engine
+          cp data/engine/engine.cjs .next/standalone/data/engine/engine.cjs
+          # Reachability, not presence: run the probe from the exact layout the
+          # standalone server boots in. A bundle that cannot be found from there
+          # is the failure this whole step exists to catch.
+          cd .next/standalone && node open-sse/rtk/engineProbe.mjs
 
       - name: Create deployment tarball
         run: |
@@ -290,15 +345,17 @@ jobs:
               # --- ENGINE GATE -------------------------------------------------
               # The engine (godmode framing, bypass engine, compaction reassert,
               # potato mechanics, instruction plan, response integrity) is NOT
-              # in the repo. It ships as ${DEPLOY}/data/engine/engine.cjs, which
-              # the tarball never touches. A missing/corrupt bundle degrades the
-              # router to a plain proxy — working, but NOT the product. Verify
-              # it actually loaded instead of trusting that the file is there.
+              # in the repo and is NOT built here. It is compiled in GitHub
+              # Actions from the private source repo and arrives inside this
+              # tarball at <standalone>/data/engine/engine.cjs. A missing or
+              # corrupt bundle degrades the router to a plain proxy — working,
+              # but NOT the product. Verify it actually LOADED instead of
+              # trusting that the file unpacked.
               echo "=== Engine gate: private bundle must be reachable from the runtime ==="
-              if [ ! -f "${DEPLOY}/data/engine/engine.cjs" ]; then
-                echo "❌ ENGINE MISSING: ${DEPLOY}/data/engine/engine.cjs not found" >&2
+              if [ ! -f "${DEPLOY}/.next/standalone/data/engine/engine.cjs" ]; then
+                echo "❌ ENGINE MISSING: ${DEPLOY}/.next/standalone/data/engine/engine.cjs not found" >&2
                 echo "   Router is running in degraded (plain proxy) mode — no godmode/bypass/persona layer." >&2
-                echo "   Restore it: node scripts/engine-bundle.mjs (from a machine holding data/engine/src)" >&2
+                echo "   The tarball did not carry it. Re-run the build workflow; do NOT build on this host." >&2
                 exit 3
               fi
 

@@ -12,10 +12,17 @@
 // exercised by tests/unit/engine-fail-open.test.js.
 //
 // Resolution order (first hit wins):
-//   1. $VR_ENGINE_BUNDLE                     explicit override
+//   1. $VR_ENGINE_BUNDLE                             explicit override
 //   2. walk up from <cwd>/data/engine/engine.cjs
-//   3. walk up from <this file>/../../../data/engine/engine.cjs
-//   4. walk up from <this file>/../../../../data/engine/engine.cjs
+//   3. walk up from <cwd>/.next/standalone/data/engine/engine.cjs
+//   4. walk up from <this file>/../../../data/engine/engine.cjs
+//   5. walk up from <this file>/../../../../data/engine/engine.cjs
+//
+// Candidate 3 is the one production uses. The deploy tarball carries the
+// bundle at <standalone>/data/engine/engine.cjs (compiled in CI, never built on
+// the host), while the PM2 process runs with cwd = the deploy root. Anchoring
+// on cwd alone would find a stale hand-placed copy at the repo root and miss
+// the artifact that actually shipped — so the standalone path is explicit.
 //
 // Two traps this file exists to survive:
 //
@@ -57,6 +64,8 @@ const CANDIDATES = [
   process.env.VR_ENGINE_BUNDLE || null,
   // Live cwd first — this is the one that works in production.
   ...walkUp(process.cwd()),
+  // The shipped artifact: <cwd>/.next/standalone/data/engine/engine.cjs.
+  ...walkUp(resolve(process.cwd(), ".next/standalone")),
   ...walkUp(resolve(HERE, "../../..")),
   ...walkUp(resolve(HERE, "../../../..")),
 ].filter((p, i, a) => p && a.indexOf(p) === i);
