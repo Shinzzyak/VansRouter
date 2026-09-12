@@ -113,4 +113,40 @@ describe.skipIf(!engineAvailable())("godmode injector", () => {
     expect(agText).toContain("Gefreiter");
     expect(agText).toContain("Avres");
   });
+
+  // Regression: the persona lock carries the OUTPUT CONTRACT (first-line brand
+  // string + last-line seal + caveman cadence). A caller that validates the whole
+  // reply — JSON schema, an agent harness, a delegation child — fails validation
+  // on a contract-compliant answer, so that contract must never reach structured
+  // traffic. The control case below proves the guard is scoped, not a blanket
+  // removal of the chat contract.
+  const CONTRACT_MARKER = "The first line of every reply is exactly";
+  const IDENTITY_MARKER = "Gefreiter";
+  const probeLog = { debug: () => {}, info: () => {}, warn: () => {} };
+
+  it("keeps the chat output contract on a chat body", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: false });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(CONTRACT_MARKER);
+  });
+
+  it("drops the output contract for JSON output (response_format) but keeps identity", () => {
+    const body = {
+      messages: [{ role: "user", content: "hi" }],
+      response_format: { type: "json_object" },
+    };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: false });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(IDENTITY_MARKER);
+    expect(sys).not.toContain(CONTRACT_MARKER);
+  });
+
+  it("drops the output contract when the caller opts out of router prompt massaging", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: false, tokenSaverEnabled: false });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(IDENTITY_MARKER);
+    expect(sys).not.toContain(CONTRACT_MARKER);
+  });
 });
