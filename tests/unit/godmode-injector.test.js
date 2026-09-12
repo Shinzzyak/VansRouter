@@ -149,4 +149,43 @@ describe.skipIf(!engineAvailable())("godmode injector", () => {
     expect(sys).toContain(IDENTITY_MARKER);
     expect(sys).not.toContain(CONTRACT_MARKER);
   });
+
+  // The godmode block carries its own copy of the reply-surface contract
+  // (brand line, seal, caveman cadence, "sacred output format"). It must also
+  // stay off machine-consumed traffic — otherwise a structured caller still gets
+  // told to start its reply with the brand line. The control case proves the
+  // uncensoring framing itself is NOT removed.
+  const REPLAY_SURFACE_MARKER = "CAVEMAN OPERATOR LAYER";
+  const FRAMING_MARKER = "senior cybersecurity researcher";
+
+  it("keeps the full godmode reply-surface layer on the chat surface", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: true, godmodeLevel: "full" });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(REPLAY_SURFACE_MARKER);
+    expect(sys).toContain(FRAMING_MARKER);
+  });
+
+  it("drops the godmode reply-surface layer for structured traffic but keeps the framing", () => {
+    const body = {
+      messages: [{ role: "user", content: "hi" }],
+      response_format: { type: "json_object" },
+    };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: true, godmodeLevel: "full" });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(FRAMING_MARKER);
+    expect(sys).not.toContain(REPLAY_SURFACE_MARKER);
+    expect(sys).not.toContain("MADE BY: GEFREITER");
+  });
+
+  it("drops the godmode reply-surface layer when the caller opts out but keeps the framing", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({
+      body, format: "openai", log: probeLog,
+      godmodeEnabled: true, godmodeLevel: "full", tokenSaverEnabled: false,
+    });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain(FRAMING_MARKER);
+    expect(sys).not.toContain(REPLAY_SURFACE_MARKER);
+  });
 });
