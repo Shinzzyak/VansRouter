@@ -12,10 +12,11 @@
  * problem to the user as "model config not yet fetched, retry shortly".
  */
 
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { buildCosyHeaders } from "../shared/qoder/cosy.js";
+import { qoderEncodeBody } from "../shared/qoder/encoding.js";
 import {
   QODER_MODEL_LIST_URL,
   QODER_CHAT_BASE_ALT,
@@ -24,6 +25,13 @@ import {
   QODER_IDE_VERSION,
   QODER_CLIENT_TYPE,
 } from "../shared/qoder/constants.js";
+
+// Qoder center jobToken exchange (qoder2api flow) — same privilege as the
+// official CLI/IDE. The legacy openapi /api/v1/jobToken/exchange returns a
+// low-privilege jt- that yields 403 code 112 on chat.
+const QODER_CENTER_JOBTOKEN_URL = "https://center.qoder.sh/algo/api/v3/user/jobToken?Encode=1";
+const QODER_CENTER_APPCODE = "cosy";
+const QODER_CENTER_SECRET_B64 = "d2FyLCB3YXIgbmV2ZXIgY2hhbmdlcw=="; // base64("war, war never changes")
 
 const FETCH_TIMEOUT_MS = 15_000;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1h, same as the Kiro catalog
@@ -47,7 +55,87 @@ function prunePatJobCache(now = Date.now()) {
   }
 }
 
+function currentDateRfc1123() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${days[d.getUTCDay()]}, ${p(d.getUTCDate())} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} GMT`;
+}
+
+function centerSignature(date) {
+  const secret = Buffer.from(QODER_CENTER_SECRET_B64, "base64").toString("utf8");
+  return createHash("md5").update(`${QODER_CENTER_APPCODE}&${secret}&${date}`).digest("hex");
+}
+
+async function exchangeJobTokenCenter(pat, proxyOptions = null, signal = null) {
+  const machineId = createHash("md5").update(String(Math.floor(Math.random() * 9000000 + 1000000))).digest("hex");
+  const machineToken = Buffer.from(
+    (randomUUID() + randomUUID()).slice(0, 50),
+  ).toString("base64url").replace(/=+$/, "");
+  const machineType = randomUUID().replace(/-/g, "").slice(0, 18);
+  const date = currentDateRfc1123();
+  const sig = centerSignature(date);
+
+  const inner = {
+    personalToken: pat,
+    securityOauthToken: "",
+    refreshToken: "",
+    needRefresh: false,
+    authInfo: {},
+  };
+  const outer = {
+    payload: JSON.stringify(inner),
+    encodeVersion: "1",
+  };
+  const body = qoderEncodeBody(Buffer.from(JSON.stringify(outer), "utf8"));
+
+  const res = await proxyAwareFetch(QODER_CENTER_JOBTOKEN_URL, {
+    method: "POST",
+    headers: {
+      "cosy-machinetoken": machineToken,
+      "cosy-machinetype": machineType,
+      "login-version": "v2",
+      appcode: QODER_CENTER_APPCODE,
+      accept: "application/json",
+      "accept-encoding": "identity",
+      "cosy-version": "0.1.43",
+      "cosy-clienttype": "5",
+      date,
+      signature: sig,
+      "content-type": "application/json",
+      "cosy-machineid": machineId,
+      "user-agent": "Go-http-client/2.0",
+    },
+    body,
+    signal,
+  }, proxyOptions);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`qoder center jobToken failed: ${res.status} ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const token = data.token || data.jobToken || data.accessToken;
+  if (!token) throw new Error("qoder center jobToken returned no token");
+  let expiresAt = Date.now() + PAT_DEFAULT_TTL_MS;
+  if (data.expires_in) expiresAt = Date.now() + data.expires_in * 1000;
+  else if (data.expiresAt) expiresAt = Date.parse(data.expiresAt) || expiresAt;
+  return { jobToken: token, expiresAt, machineId, machineToken, machineType };
+}
+
 async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
+  try {
+    return await exchangeJobTokenCenter(pat, proxyOptions, signal);
+  } catch (centerErr) {
+    // Fall back to the legacy openapi exchange if center rejects (e.g. WAF).
+    try {
+      return await exchangeJobTokenLegacy(pat, proxyOptions, signal);
+    } catch {
+      throw centerErr;
+    }
+  }
+}
+async function exchangeJobTokenLegacy(pat, proxyOptions = null, signal = null) {
   const res = await proxyAwareFetch(QODER_JOB_TOKEN_EXCHANGE_URL, {
     method: "POST",
     headers: {
@@ -73,7 +161,7 @@ async function exchangeJobToken(pat, proxyOptions = null, signal = null) {
   } else if (typeof data.expires_in === "number" && data.expires_in > 0) {
     expiresAt = Date.now() + data.expires_in * 1000;
   }
-  return { jobToken: data.token, expiresAt };
+  return { jobToken: data.token, expiresAt, machineId: "", machineToken: "", machineType: "" };
 }
 
 async function fetchUserIdForJobToken(jobToken, proxyOptions = null, signal = null) {
@@ -94,14 +182,23 @@ async function resolvePatCredential(pat, proxyOptions = null, signal = null) {
   const cacheKey = createHash("sha256").update(pat).digest("hex");
   prunePatJobCache();
   const cached = patJobCache.get(cacheKey);
-  if (cached && cached.expiresAt - Date.now() > PAT_REFRESH_BUFFER_MS) return cached;
+  // Refresh if stale OR if the entry predates the center-exchange fields
+  // (old cache entries have no machineId and produce 403 code 105).
+  if (cached && cached.expiresAt - Date.now() > PAT_REFRESH_BUFFER_MS && cached.machineId) return cached;
 
   const existing = patJobInflight.get(cacheKey);
   if (existing) return existing;
 
   const promise = (async () => {
-    const { jobToken, expiresAt } = await exchangeJobToken(pat, proxyOptions, signal);
-    const entry = { accessToken: jobToken, userId: await fetchUserIdForJobToken(jobToken, proxyOptions, signal), expiresAt };
+    const { jobToken, expiresAt, machineId, machineToken, machineType } = await exchangeJobToken(pat, proxyOptions, signal);
+    const entry = {
+      accessToken: jobToken,
+      userId: await fetchUserIdForJobToken(jobToken, proxyOptions, signal),
+      expiresAt,
+      machineId: machineId || "",
+      machineToken: machineToken || "",
+      machineType: machineType || "",
+    };
     patJobCache.set(cacheKey, entry);
     prunePatJobCache();
     return entry;
@@ -126,7 +223,9 @@ export async function resolveQoderCredentials(credentials, proxyOptions = null, 
       authMethod: "pat",
       ...(credentials?.providerSpecificData || {}),
       userId: resolved.userId || credentials?.providerSpecificData?.userId || "",
-      machineId: credentials?.providerSpecificData?.machineId || "",
+      machineId: resolved.machineId || credentials?.providerSpecificData?.machineId || "",
+      machineToken: resolved.machineToken || credentials?.providerSpecificData?.machineToken || "",
+      machineType: resolved.machineType || credentials?.providerSpecificData?.machineType || "",
     },
   };
 }

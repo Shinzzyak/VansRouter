@@ -4,7 +4,7 @@ import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.j
 import { normalizeKimiToolCalls } from "../../utils/kimiToolParser.js";
 import { addBufferToUsage, filterUsageForFormat } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
-import { HTTP_STATUS } from "../../config/runtimeConfig.js";
+import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../../config/runtimeConfig.js";
 import { unwrapClinepassEnvelope } from "../../utils/clinepassEnvelope.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { parseLenientJson } from "../../utils/lenientJson.js";
@@ -411,8 +411,12 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     } catch (_) { /* fail-open */ }
 
     // Enforce repair-in-place for chat surface when brand/seal is missing or duplicated.
-    // Skip if response is structured or contains a refusal.
-    if (!integrity.refusal && [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) {
+    // Skip if response is structured, contains a refusal, or the caller opted out of
+    // router-side prompt massaging — that opt-out means the reply is consumed by a
+    // validator (JSON schema, agent harness) which fails on a contract-compliant
+    // answer, so appending the brand line would corrupt it rather than fix it.
+    const chatSurface = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
+    if (chatSurface && !integrity.refusal && [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) {
       const { text: repairedText, repaired } = repairBrandContract(respContent, false);
       if (repaired && repairedText) {
         repairedByRouter = true;
