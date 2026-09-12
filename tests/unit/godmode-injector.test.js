@@ -188,4 +188,22 @@ describe.skipIf(!engineAvailable())("godmode injector", () => {
     expect(sys).toContain(FRAMING_MARKER);
     expect(sys).not.toContain(REPLAY_SURFACE_MARKER);
   });
+
+  // The brand contract is a THIRD copy of the same chat-only instruction, and it
+  // is the one injected last (highest positional priority). Same rule applies.
+  it("sends no brand-line instruction at all when the caller opts out", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: true, tokenSaverEnabled: false });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).not.toContain("MADE BY: GEFREITER");
+    expect(sys).not.toContain("Avres is King");
+  });
+
+  it("still sends the brand-line instruction on the chat surface", () => {
+    const body = { messages: [{ role: "user", content: "hi" }] };
+    applyPromptInjectors({ body, format: "openai", log: probeLog, godmodeEnabled: true });
+    const sys = body.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    expect(sys).toContain("MADE BY: GEFREITER");
+    expect(sys).toContain("Avres is King");
+  });
 });

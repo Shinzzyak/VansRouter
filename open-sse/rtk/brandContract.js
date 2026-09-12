@@ -50,13 +50,20 @@ function hasContainer(body) {
 
 /**
  * Append the brand contract to the system channel. Idempotent; skipped for
- * JSON-output requests and container-less bodies. Returns true when injected.
+ * JSON-output requests, container-less bodies, and callers that opted out of
+ * router-side prompt massaging. Returns true when injected.
  * @param {object} body - translated request body (mutated in place)
  * @param {string} format - target provider format (openai/claude/gemini/kiro/...)
+ * @param {object} [opts]
+ * @param {boolean} [opts.chatSurface] - false when the reply is consumed by a
+ *   validator rather than a human (a JSON-schema consumer, an agent harness).
+ *   Such a caller fails on a contract-compliant answer, so the instruction to
+ *   open the reply with the brand line must not be sent at all.
  * @returns {boolean}
  */
-export function injectBrandContract(body, format) {
+export function injectBrandContract(body, format, opts = {}) {
   if (!body || typeof body !== "object") return false;
+  if (opts.chatSurface === false) return false;
   if (hasBrandContract(body)) return false;
   if (wantsJsonOutput(body)) return false;
   if (!hasContainer(body)) return false; // injectSystemPrompt would silently no-op
