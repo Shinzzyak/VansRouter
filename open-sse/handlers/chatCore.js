@@ -30,7 +30,8 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, getEscalationPrompt, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { detectRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { classifyOutcome, needsAnotherTry, nextFraming, recordOutcome, firstLevel, FRAMING_LEVELS } from "../rtk/selfMeasuringBypass.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
@@ -638,8 +639,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (bypassMode === BYPASS_MODES.AGGRESSIVE && executor?.execute && isContentSafetyRejected(statusCode, message)) {
       log?.warn?.("BYPASS", `${provider}/${model} | content-safety rejection (${statusCode}), retrying with escalation`);
       let retryResult = null;
-      for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
-        const esc = getEscalationPrompt(escAttempt);
+      // Tangga formulasi T2 -> T1 -> T3; arah lanjutan ditentukan JENIS kegagalan
+      // percobaan sebelumnya, bukan indeks percobaan.
+      const triedL1 = [];
+      let lvl1 = firstLevel(model);
+      for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+        triedL1.push(lvl1);
+        const esc = getEscalationPromptForLevel(lvl1);
         const appended = appendEscalationToBody(translatedBody, esc);
         if (!appended) {
           log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
@@ -662,11 +668,17 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               retryFiltered = isOutputFiltered(retryParsed, true);
             } catch { /* plain text or body consumed */ }
             if (retryText && !retryFiltered && !detectRefusal(retryText)) {
-              log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} successful`);
+              log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
+              recordOutcome(provider, model, lvl1, classifyOutcome(retryText, true));
               streamController.handleComplete();
               return nr;
             }
-            log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} still refused/filtered, trying next`);
+            const cls1 = classifyOutcome(retryText, true);
+            recordOutcome(provider, model, lvl1, cls1);
+            log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
+            if (escAttempt < 2) {
+              lvl1 = nextFraming(cls1, lvl1, FRAMING_LEVELS.filter((l) => !triedL1.includes(l))) || lvl1;
+            }
           }
         } catch (bypassErr) {
           log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
@@ -750,13 +762,21 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           outputFiltered = isOutputFiltered(parsed, true);
         } catch { /* not JSON — treat as plain text */ }
       } catch { /* body already consumed */ }
-      const refusalDetected = detectRefusal(responseText);
-      log?.info?.("BYPASS", `${provider}/${model} | inspect: refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
-      if (refusalDetected || outputFiltered) {
+      // Klasifikasikan ISI jawaban, bukan cuma status HTTP. 200 OK bisa berisi
+      // penolakan, jawaban yang diganti versi jinak, atau badan kosong — ketiganya
+      // tampak "sukses" kalau yang diperiksa cuma status.
+      const outcome = classifyOutcome(responseText, true);
+      const refusalDetected = detectRefusal(responseText) || outcome === 'NOLAK';
+      log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
+      recordOutcome(provider, model, res.framingLevelUsed || firstLevel(model), outcome);
+      if (refusalDetected || outputFiltered || needsAnotherTry(outcome)) {
         const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
-        for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
-          const esc = getEscalationPrompt(escAttempt);
+        const triedL2 = [];
+        let lvl2 = firstLevel(model);
+        for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+          triedL2.push(lvl2);
+          const esc = getEscalationPromptForLevel(lvl2);
           // Append to the LAST user message in whatever shape the translated body is
           // (OpenAI messages[], Gemini/Antigravity contents[], Responses input[]).
           const appended = appendEscalationToBody(translatedBody, esc);
@@ -780,12 +800,17 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                   retryFiltered = isOutputFiltered(retryParsed, true);
                 } catch { /* plain text */ }
               } catch { /* body already consumed */ }
-              const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText);
+              const cls2 = classifyOutcome(retryText, true);
+              recordOutcome(provider, model, lvl2, cls2);
+              const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
               if (retryText && !retryFiltered && !retryStillRefusal) {
-                log?.info?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} successful`);
+                log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 break;
               }
-              log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} still refused/filtered, trying next`);
+              log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
+              if (escAttempt < 2) {
+                lvl2 = nextFraming(cls2, lvl2, FRAMING_LEVELS.filter((l) => !triedL2.includes(l))) || lvl2;
+              }
             }
           } catch (bypassErr) {
             log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
@@ -824,8 +849,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       if (headVerdict !== "ok") {
         log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
         try { gate.replayBody?.cancel?.().catch(() => {}); } catch {}
-        for (let escAttempt = 0; escAttempt < 2; escAttempt++) {
-          const esc = getEscalationPrompt(escAttempt);
+        const triedL3 = [];
+        let lvl3 = firstLevel(model);
+        for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+          triedL3.push(lvl3);
+          const esc = getEscalationPromptForLevel(lvl3);
           const m = [...(translatedBody.messages || [])];
           for (let i = m.length - 1; i >= 0; i--) {
             if (m[i]?.role === 'user' && typeof m[i]?.content === 'string') {
@@ -840,14 +868,20 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             if (retryResult?.response?.ok) {
               const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
               const retryText = typeof nr?.response === 'string' ? nr.response : '';
-              if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText)) {
-                log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${escAttempt + 1} successful`);
+              const cls3 = classifyOutcome(retryText, true);
+              recordOutcome(provider, model, lvl3, cls3);
+              if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText) && !needsAnotherTry(cls3)) {
+                log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();
                 return nr;
               }
+              log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
+              if (escAttempt < 2) {
+                lvl3 = nextFraming(cls3, lvl3, FRAMING_LEVELS.filter((l) => !triedL3.includes(l))) || lvl3;
+              }
             }
           } catch (bypassErr) {
-            log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
+            log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} failed: ${bypassErr.message}`);
             break;
           }
         }

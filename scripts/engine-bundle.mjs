@@ -46,6 +46,9 @@ const ENGINE_MODULES = [
   "voiceCadence",
   "thinkingGate",
   "instructionReceipts",
+  "selfMeasuringBypass",
+  "routeGuardMemory",
+  "modelImmunityHints",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -70,6 +73,7 @@ const FALLBACKS = {
     detectRefusal: "(() => false)",
     getFramingStrategy: "(() => null)",
     getEscalationPrompt: "(() => null)",
+    getEscalationPromptForLevel: "(() => null)",
     applyBypass: "((body) => body)",
     buildBypassLog: '(() => "")',
     isOutputFiltered: "(() => false)",
@@ -172,6 +176,35 @@ const FALLBACKS = {
     createReceipt: "(() => ({}))",
     recordInjectorResult: "(() => {})",
     summarizeReceipt: "(() => ({}))",
+  },
+  // Fail-SAFE, bukan fail-open: tanpa bundle, engine tidak boleh mengulang
+  // percobaan (sebuah 200 OK dianggap selesai) dan tidak boleh memblokir jalur.
+  selfMeasuringBypass: {
+    classifyOutcome: "(() => 'PATUH')",
+    needsAnotherTry: "(() => false)",
+    nextFraming: "(() => null)",
+    recordOutcome: "(() => {})",
+    preferredLevel: "(() => null)",
+    firstLevel: "(() => 'T2')",
+    ledgerSnapshot: "(() => ({}))",
+    resetLedger: "(() => {})",
+    DEFAULT_LEVEL: "'T2'",
+    FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3'])",
+  },
+  routeGuardMemory: {
+    isRouteFiltered: "(() => false)",
+    recordRouteOutcome: "(() => {})",
+    routeHint: "(() => null)",
+    routeSnapshot: "(() => [])",
+    resetRouteMemory: "(() => {})",
+    isDeadRoute: "(() => false)",
+    routePrefix: "(() => '')",
+  },
+  modelImmunityHints: {
+    immunityHint: "(() => null)",
+    suggestedFirstLevel: "(() => null)",
+    immunitySnapshot: "(() => [])",
+    IMMUNITY_HINTS: "Object.freeze({})",
   },
 };
 

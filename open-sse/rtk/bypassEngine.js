@@ -21,6 +21,7 @@ export const detectModelFamily = __E.detectModelFamily ?? (() => null);
 export const detectRefusal = __E.detectRefusal ?? (() => false);
 export const extractProviderPrefix = __E.extractProviderPrefix ?? ((m) => m);
 export const getEscalationPrompt = __E.getEscalationPrompt ?? (() => null);
+export const getEscalationPromptForLevel = __E.getEscalationPromptForLevel ?? (() => null);
 export const getFramingStrategy = __E.getFramingStrategy ?? (() => null);
 export const isContentSafetyRejected = __E.isContentSafetyRejected ?? (() => false);
 export const isOutputFiltered = __E.isOutputFiltered ?? (() => false);

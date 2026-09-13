@@ -10,6 +10,7 @@ import { getRoleAdapterModel, stripHistoryForContext } from "./capacityAdapter.j
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
+import { classifyOutcome, needsAnotherTry, recordOutcome } from "../rtk/selfMeasuringBypass.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
 export function stripComboPrefix(modelStr) {
@@ -317,6 +318,40 @@ function combineSignals(...signals) {
  * @param {number} [options.queueDepth] - Optional per-combo account-semaphore queue depth (0 = fail immediately on saturation)
  * @returns {Promise<Response>}
  */
+/**
+ * Periksa hasil combo 2xx pada tingkat ISI.
+ *
+ * Tugas smart-fallback: pindah ke model berikutnya kalau jawaban sekarang tidak
+ * bisa dipakai. Status HTTP tidak bisa memberi tahu itu — penolakan, jawaban yang
+ * diganti versi jinak, dan badan kosong semuanya datang sebagai 200.
+ *
+ * Aman untuk streaming: body di-clone, jadi kalau hasilnya ternyata bagus, respons
+ * aslinya tetap utuh dikembalikan.
+ *
+ * @returns {Promise<{outcome:string, bad:boolean, text:string}>}
+ */
+async function inspectComboContent(result, model) {
+  if (result?.streaming || !result?.response?.clone) {
+    return { outcome: 'PATUH', bad: false, text: '' };
+  }
+  let text = '';
+  let out;
+  try {
+    const clone = result.response.clone();
+    text = await clone.text();
+    out = classifyOutcome(text, true);
+  } catch {
+    // Badan tidak terbaca bukan alasan membuang jawaban.
+    return { outcome: 'PATUH', bad: false, text: '' };
+  }
+  // Instrumentasi, bukan penalti: jalur ini TIDAK menandai model busuk. Menandai
+  // model karena satu jawaban kosong/ambigu justru menjatuhkan model yang sehat.
+  try {
+    recordOutcome('combo', model, out, 'probe');
+  } catch { /* ledger tidak boleh menjatuhkan permintaan */ }
+  return { outcome: out, bad: needsAnotherTry(out), text };
+}
+
 export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
   // Normalize orphan tool messages (interrupted tool loops leave `tool` role
   // without preceding tool_calls -> upstream 400). Keeps valid tool_calls.
@@ -418,8 +453,15 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
       // Success (2xx) - return response
       if (result.ok) {
-        log.info("COMBO", `Model ${modelStr} succeeded`);
-        return result;
+        // 2xx TIDAK otomatis berarti jawaban bagus. Periksa isinya lebih dulu.
+        const inspected = await inspectComboContent(result, modelStr);
+        if (!inspected.bad) {
+          log.info("COMBO", `Model ${modelStr} succeeded`);
+          return result;
+        }
+        log.warn("COMBO", `Model ${modelStr} returned 2xx with ${inspected.outcome} content` +
+          (inspected.text ? ` (${inspected.text.length} chars)` : '') + " — trying next model");
+        result = { ok: false, error: `empty-refusal (${inspected.outcome})`, status: 502 };
       }
 
       // Extract error info from response
