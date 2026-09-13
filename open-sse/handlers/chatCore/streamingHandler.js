@@ -12,6 +12,29 @@ import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
+
+/**
+ * Map a stream-integrity verdict onto the class vocabulary the self-measuring
+ * ledger speaks, so a stream can teach the engine the same way a non-streaming
+ * response does.
+ *
+ * `brandOk` is deliberately NOT used as a win condition: a well-formed answer
+ * that lost its brand line is still a good answer, and counting it as one keeps
+ * the ledger honest about which framing level actually worked.
+ *
+ * Returns null for OK — there is nothing to learn from a clean answer that the
+ * escalation ladder did not have to fix, and recording a win per request would
+ * let volume bury the signal.
+ */
+export function outcomeClassFromIntegrity(status) {
+  if (status === INTEGRITY.EMPTY) return "SENYAP";
+  if (status === INTEGRITY.REFUSAL) return "NOLAK";
+  if (status === INTEGRITY.OUTPUT_FILTERED) return "FILTER_UPSTREAM";
+  if (status === INTEGRITY.MISSING_BRAND || status === INTEGRITY.MISSING_SEAL
+      || status === INTEGRITY.MISSING_ENCLOSURE) return "SUBSTITUSI";
+  return null;
+}
 
 const STREAM_EARLY_EOF_STATUS = 502;
 
@@ -207,6 +230,17 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       recordIntegrity(provider, model, integrity.status);
       if (integrity.status !== INTEGRITY.OK) {
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | ${integrity.status} | chars=${integrity.chars}${integrity.refusal ? " | refusal" : ""}`);
+      }
+      // Teach the self-measuring ledger from the stream itself. The assembled
+      // text is already here and already classified, so this costs one Map
+      // write — no extra body read, no extra classification pass. Only the
+      // level the request was actually tried at is recorded; a stream that
+      // escalated during its head gate did its learning in the escalation
+      // branch, not here.
+      const kelas = outcomeClassFromIntegrity(integrity.status);
+      if (kelas) {
+        recordOutcome(model, firstLevel(model), kelas);
+        console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | recorded ${kelas} at ${firstLevel(model)}`);
       }
     } catch (e) {
       console.warn("[STREAM-INTEGRITY] classify error (fail-open):", e?.message || e);
