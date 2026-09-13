@@ -102,6 +102,11 @@ jobs:
           tests/unit/voice-cadence.test.js
           tests/unit/thinking-gate.test.js
           tests/unit/instruction-plan.test.js
+          tests/unit/engine-source-parity.test.js
+          tests/unit/engine-escalation-wiring.test.js
+          tests/unit/engine-shim-selfmeasuring.test.js
+          tests/unit/eng-modelImmunityHints.test.js
+          tests/unit/eng-routeGuardMemory.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
