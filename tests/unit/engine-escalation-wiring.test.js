@@ -44,8 +44,26 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
   });
 
   it('hasil klasifikasi dicatat ke buku catatan di ketiga jalur', () => {
-    const rekam = chatCore.match(/recordOutcome\(provider, model/g) || [];
+    const rekam = chatCore.match(/recordOutcome\(/g) || [];
     expect(rekam.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('recordOutcome dipanggil dengan (model, level, kelas) — BUKAN (provider, model, ...)', () => {
+    // Insiden 2026-09-13: kelima panggilan mengirim `provider` sebagai argumen
+    // pertama dan `res.framingLevelUsed` (variabel hantu) sebagai ketiga. Build
+    // mati di lint no-undef, dan kalau lolos bukunya akan mencatat kunci
+    // `provider` — bukan model. Tangkap bentuknya, bukan cuma jumlahnya.
+    expect(chatCore).not.toMatch(/recordOutcome\(\s*provider\s*,/);
+    expect(chatCore).not.toMatch(/recordOutcome\([^)]*framingLevelUsed/);
+    const benar = chatCore.match(/recordOutcome\(model,/g) || [];
+    expect(benar.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('tidak ada variabel hantu di jalur eskalasi', () => {
+    // `res` tidak pernah dideklarasi di chatCore.js. Setiap rujukan ke sana
+    // = ReferenceError saat runtime, atau error lint yang mematikan build.
+    const hantu = chatCore.match(/\bres\./g) || [];
+    expect(hantu.length).toBe(0);
   });
 
   it('badan kosong / substitusi / penolakan sama-sama memicu percobaan berikutnya', () => {

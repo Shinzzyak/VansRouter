@@ -669,12 +669,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             } catch { /* plain text or body consumed */ }
             if (retryText && !retryFiltered && !detectRefusal(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
-              recordOutcome(provider, model, lvl1, classifyOutcome(retryText, true));
+              recordOutcome(model, lvl1, classifyOutcome(retryText, true));
               streamController.handleComplete();
               return nr;
             }
             const cls1 = classifyOutcome(retryText, true);
-            recordOutcome(provider, model, lvl1, cls1);
+            recordOutcome(model, lvl1, cls1);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
               lvl1 = nextFraming(cls1, lvl1, FRAMING_LEVELS.filter((l) => !triedL1.includes(l))) || lvl1;
@@ -768,7 +768,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const outcome = classifyOutcome(responseText, true);
       const refusalDetected = detectRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
-      recordOutcome(provider, model, res.framingLevelUsed || firstLevel(model), outcome);
+      recordOutcome(model, firstLevel(model), outcome);
       if (refusalDetected || outputFiltered || needsAnotherTry(outcome)) {
         const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
@@ -801,7 +801,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 } catch { /* plain text */ }
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
-              recordOutcome(provider, model, lvl2, cls2);
+              recordOutcome(model, lvl2, cls2);
               const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
@@ -869,7 +869,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
               const retryText = typeof nr?.response === 'string' ? nr.response : '';
               const cls3 = classifyOutcome(retryText, true);
-              recordOutcome(provider, model, lvl3, cls3);
+              recordOutcome(model, lvl3, cls3);
               if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText) && !needsAnotherTry(cls3)) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();
