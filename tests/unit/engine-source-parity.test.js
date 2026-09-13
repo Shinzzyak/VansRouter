@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
 import { classifyOutcome, needsAnotherTry } from '../../data/engine/src/selfMeasuringBypass.js';
 import { isDeadRoute, resetRouteMemory, recordRouteOutcome } from '../../data/engine/src/routeGuardMemory.js';
 import { immunityHint } from '../../data/engine/src/modelImmunityHints.js';
