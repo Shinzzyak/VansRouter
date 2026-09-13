@@ -105,6 +105,7 @@ jobs:
           tests/unit/engine-source-parity.test.js
           tests/unit/engine-escalation-wiring.test.js
           tests/unit/engine-stream-ledger.test.js
+          tests/unit/antigravity-bulk-import.test.js
           tests/unit/engine-shim-selfmeasuring.test.js
           tests/unit/eng-modelImmunityHints.test.js
           tests/unit/eng-routeGuardMemory.test.js
