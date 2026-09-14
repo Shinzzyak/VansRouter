@@ -162,6 +162,28 @@ exports[`GOLDEN buildHeaders (default executor providers) > alitp-intl → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > alysis → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > anthropic → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2201,6 +2223,13 @@ exports[`GOLDEN buildUrl (default executor providers) > alitp-intl → url (stre
 {
   "nonStream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
   "stream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > alysis → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/llm/v1/chat/completions",
+  "stream": "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/llm/v1/chat/completions",
 }
 `;
 
