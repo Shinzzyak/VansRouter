@@ -140,6 +140,23 @@ export const PROVIDER_CAPABILITIES = {
     "nemotron-3-ultra-fp4":   { reasoning: false, contextWindow: 128000, maxOutput: 8192 },
     "deepseek-v4-flash":      { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 50000 },
   },
+  // Atria (Shanghai AI Lab) — OpenAI-compatible, TAPI tool calling-nya
+  // mengembalikan format XML di `content` dengan tool_calls[] KOSONG dan
+  // finish_reason:"tool_calls" (bohong). Tanpa tool_choice:"required" tool
+  // diabaikan total. response_format json_object keluarkan JSON invalid.
+  // -> tools:false + structuredOutput:false supaya router tidak meneruskan
+  // request bertool ke provider ini (diam-diam gagal = bahaya senyap).
+  atria: {
+    "Atria-Dawn-Preview": {
+      tools: false,
+      structuredOutput: false,
+      reasoning: true,
+      thinkingFormat: "openai",
+      contextWindow: 131072,
+      maxOutput: 32768,
+      supportsTemperature: true,
+    },
+  },
   // AgentRouter — multi-model gateway (Claude format).
   agentrouter: {
     "claude-opus-4-6":         { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000, search: true },

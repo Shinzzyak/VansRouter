@@ -10,6 +10,7 @@ import p8 from "./alitp-intl.js";
 import p9 from "./anthropic.js";
 import p10 from "./antigravity.js";
 import p11 from "./api-airforce.js";
+import p161 from "./atria.js";
 import p12 from "./assemblyai.js";
 import p13 from "./autoclaw.js";
 import p14 from "./aws-polly.js";
@@ -320,6 +321,7 @@ const PROVIDER_REGISTRY = [
   p158,
   p159,
   p160,
+  p161,
 ];
 
 export default PROVIDER_REGISTRY;
