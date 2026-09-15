@@ -140,15 +140,26 @@ export const PROVIDER_CAPABILITIES = {
     "nemotron-3-ultra-fp4":   { reasoning: false, contextWindow: 128000, maxOutput: 8192 },
     "deepseek-v4-flash":      { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 50000 },
   },
-  // Atria (Shanghai AI Lab) — OpenAI-compatible, TAPI tool calling-nya
-  // mengembalikan format XML di `content` dengan tool_calls[] KOSONG dan
-  // finish_reason:"tool_calls" (bohong). Tanpa tool_choice:"required" tool
-  // diabaikan total. response_format json_object keluarkan JSON invalid.
-  // -> tools:false + structuredOutput:false supaya router tidak meneruskan
-  // request bertool ke provider ini (diam-diam gagal = bahaya senyap).
+  // Atria (Shanghai AI Lab) — OpenAI-compatible, tool calling JALAN.
+  //
+  // Hasil audit langsung (/tmp/atria_tool_audit.json):
+  //   tool_choice:"auto"      -> tool_calls[] terisi, arguments JSON valid  OK
+  //   tool_choice:"required"  -> tool_calls[] terisi                        OK
+  //   tool_choice:"none"      -> nol tool call                              OK
+  //   tool_choice:{type:function,function:{name}} (format OBJEK)
+  //                           -> QUIRK: keluar XML <tool_call> di `content`
+  //                              dengan tool_calls[] kosong. BUKAN bug fatal —
+  //                              hanya format objek yang tidak didukung.
+  //                              Pakai "auto"/"required", atau kirim array.
+  //   multi-tool              -> memilih tool yang BENAR, kadang emit 2x
+  //                              (satu tanpa param opsional). Caller ambil
+  //                              panggilan terlengkap.
+  //
+  // Catatan: response_format json_object tetap TIDAK didukung (JSON invalid).
+  // max_tokens terlalu kecil -> token habis di reasoning_content, content null.
   atria: {
     "Atria-Dawn-Preview": {
-      tools: false,
+      tools: true,
       structuredOutput: false,
       reasoning: true,
       thinkingFormat: "openai",
