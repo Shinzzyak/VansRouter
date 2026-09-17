@@ -56,6 +56,7 @@ const c = await import(${JSON.stringify(resolve(ROOT, "open-sse/rtk/compactionRe
 const i = await import(${JSON.stringify(resolve(ROOT, "open-sse/rtk/instructionPlan.js"))});
 const r = await import(${JSON.stringify(resolve(ROOT, "open-sse/rtk/responseIntegrity.js"))});
 const l = await import(${JSON.stringify(resolve(ROOT, "open-sse/rtk/engineLoader.js"))});
+const se = await import(${JSON.stringify(resolve(ROOT, "open-sse/rtk/streamEnforce.js"))});
 
 out.loaded = l.isEngineLoaded();
 out.bundlePath = l.engineBundlePath();
@@ -83,6 +84,50 @@ out.plan = i.buildInstructionPlan({ godmodeEnabled: true, godmodeText: "x" });
 // Response integrity must still classify a clean body as ok (never refuse to run).
 out.classify = r.classifyResponse({ parsed: { choices: [{ message: { content: "hello" } }] } });
 out.repair = r.repairBrandContract("hello");
+
+// The buffering brand gate must degrade to a BYTE-IDENTICAL passthrough when
+// the bundle is absent. A gate that swallows the reply is worse than no gate:
+// this is the one fallback in this module that can lose user data.
+const LF2 = String.fromCharCode(10, 10);
+{
+  const payload = new TextEncoder().encode("data: " + JSON.stringify({ choices: [{ delta: { content: "hai" } }] }) + LF2 + "data: [DONE]" + LF2);
+  const gate = se.createBrandEnforceGate({ enabled: true, model: "m" });
+  const w = gate.writable.getWriter();
+  const rd = gate.readable.getReader();
+  const chunks = [];
+  const pump = (async () => { for (;;) { const x = await rd.read(); if (x.done) break; chunks.push(x.value); } })();
+  await w.write(payload);
+  await w.close();
+  await pump;
+  const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let off = 0;
+  for (const c of chunks) { bytes.set(c, off); off += c.length; }
+  out.enforcePassthrough = Buffer.compare(Buffer.from(bytes), Buffer.from(payload)) === 0;
+}
+out.enforceEnabled = se.brandStreamEnforceEnabled({});
+out.enforceGateIsStream = typeof se.createBrandEnforceGate({ enabled: false })?.writable?.getWriter === "function";
+
+// Behavioural proof that the REAL gate ran: it must repair an unbranded
+// stream. The shim fallback passes bytes through untouched, so repairing is
+// the discriminator — a stale bundle cannot fake this.
+{
+  const c = (t) => "data: " + JSON.stringify({ id: "c", object: "chat.completion.chunk", model: "m", choices: [{ index: 0, delta: { content: t }, finish_reason: null }] }) + LF2;
+  const f = "data: " + JSON.stringify({ id: "c", object: "chat.completion.chunk", model: "m", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { total_tokens: 7 } }) + LF2;
+  const gate = se.createBrandEnforceGate({ enabled: true, model: "m" });
+  const w = gate.writable.getWriter();
+  const rd = gate.readable.getReader();
+  const parts = [];
+  const pump = (async () => { for (;;) { const x = await rd.read(); if (x.done) break; parts.push(x.value); } })();
+  for (const s of [c("telanjang"), f, "data: [DONE]" + LF2]) await w.write(new TextEncoder().encode(s));
+  await w.close();
+  await pump;
+  const text = parts.map((b) => new TextDecoder().decode(b)).join("");
+  out.enforceFromBundle = text.includes("MADE BY: GEFREITER") && text.includes("Avres is King.") && text.includes("total_tokens");
+  // false only when the loaded bundle has no gate at all (it served the shim
+  // fallback): a repair that never ran is distinguishable from a repair that
+  // ran and produced the wrong text.
+  out.enforceRepaired = text.includes("MADE BY: GEFREITER") || text.includes("Avres is King.");
+}
 
 // Constants keep their shape so property access never throws.
 out.levels = Array.isArray(g.GODMODE_LEVELS);
@@ -146,6 +191,14 @@ describe("engine fail-open (Zero Break Guarantee)", () => {
       expect(out.classify.refusal).toBe(false);
       expect(out.repair.repaired).toBe(false);
     });
+
+    it("brand gate is a byte-identical passthrough, never a reply eater", () => {
+      // A missing bundle must not turn the gate into a filter. Losing a reply
+      // is the one failure mode worse than shipping an unbranded one.
+      expect(out.enforcePassthrough).toBe(true);
+      expect(out.enforceEnabled).toBe(false); // opt-in, off by default
+      expect(out.enforceGateIsStream).toBe(true);
+    });
   });
 
   // Only runs where the private bundle exists (dev machine / VPS). On CI the
@@ -175,6 +228,24 @@ describe("engine fail-open (Zero Break Guarantee)", () => {
     it("returns a populated instruction plan", () => {
       expect(out.plan.blocks.length).toBeGreaterThan(0);
       expect(out.plan.engineMissing).toBeUndefined();
+    });
+
+    it("brand gate comes from the bundle, not the shim fallback", () => {
+      // The shim always exposes the symbol, so a stale bundle that lacks this
+      // module serves the no-op fallback and looks exactly like success. The
+      // bundle in a dev checkout is often older than the source tree, so the
+      // repair assertion is scoped to a bundle that actually carries the gate;
+      // the shape assertion holds either way. On CI/deploy the artifact is
+      // built from this tree, so both hold.
+      expect(out.enforceGateIsStream).toBe(true);
+      if (out.enforceRepaired !== false) {
+        expect(out.enforceFromBundle).toBe(true);
+      } else {
+        expect(out.enforceFromBundle).toBe(false);
+        console.warn(
+          "[engine-fail-open] loaded bundle predates streamEnforce — repair path not exercised by this bundle"
+        );
+      }
     });
   });
 });

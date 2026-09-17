@@ -43,6 +43,7 @@ const ENGINE_MODULES = [
   "reasoningState",
   "refusalDrift",
   "streamIntegrity",
+  "streamEnforce",
   "voiceCadence",
   "thinkingGate",
   "instructionReceipts",
@@ -147,6 +148,15 @@ const FALLBACKS = {
   streamIntegrity: {
     classifyStreamContent: "(() => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }))",
     createStreamIntegrityObserver: "(() => ({ push: () => {}, finish: () => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }) }))",
+  },
+  // Gate enforces the first/last line contract on the SSE path. Without the
+  // bundle it must degrade to a byte-identical passthrough, never to a gate
+  // that swallows a reply — that is the Zero Break Guarantee.
+  streamEnforce: {
+    brandStreamEnforceEnabled: "(() => false)",
+    assembleVisibleText: "((t = '') => ({ visible: String(t), structured: false }))",
+    rebuildStreamWithText: "(() => null)",
+    createBrandEnforceGate: "(() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }))",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",

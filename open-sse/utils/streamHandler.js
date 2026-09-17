@@ -174,7 +174,7 @@ export function createDisconnectAwareStream(transformStream, streamController, o
  * @param {TransformStream} transformStream - Transform stream for SSE
  * @param {object} streamController - Stream controller from createStreamController
  */
-export function pipeWithDisconnect(providerResponse, transformStream, streamController, onAbortTerminal = null, stallTimeoutMs = STREAM_STALL_TIMEOUT_MS) {
+export function pipeWithDisconnect(providerResponse, transformStream, streamController, onAbortTerminal = null, stallTimeoutMs = STREAM_STALL_TIMEOUT_MS, brandGate = null) {
   let stallTimer = null;
   let chunkCount = 0;
   let totalBytes = 0;
@@ -227,9 +227,13 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     flush() { dbg(tag, `upstream EOF | chunks=${chunkCount} | bytes=${totalBytes} | dur=${Date.now() - t0}ms`); clearStall(); }
   });
 
-  const transformedBody = providerResponse.body
-    .pipeThrough(upstreamTap)
-    .pipeThrough(transformStream);
+  // Brand gate sits AFTER translation and BEFORE the client: the only place in
+  // the SSE path where the whole visible answer exists and no byte has left yet.
+  // Buffering costs TTFB on every request it handles, so the caller passes a
+  // gate only when enforcement is enabled (BRAND_STREAM_ENFORCE).
+  const transformedBody = brandGate
+    ? providerResponse.body.pipeThrough(upstreamTap).pipeThrough(transformStream).pipeThrough(brandGate)
+    : providerResponse.body.pipeThrough(upstreamTap).pipeThrough(transformStream);
 
   return createDisconnectAwareStream(
     { readable: transformedBody, writable: { getWriter: () => ({ abort: () => Promise.resolve() }) } },

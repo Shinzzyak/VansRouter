@@ -3,6 +3,8 @@ import { needsTranslation } from "../../translator/index.js";
 import { createSSETransformStreamWithLogger, createPassthroughStreamWithLogger } from "../../utils/stream.js";
 import { normalizeKimiToolCalls } from "../../utils/kimiToolParser.js";
 import { pipeWithDisconnect } from "../../utils/streamHandler.js";
+import { createBrandEnforceGate, brandStreamEnforceEnabled } from "../../rtk/streamEnforce.js";
+import { wantsJsonOutput } from "../../rtk/brandContract.js";
 import { PROVIDERS } from "../../config/providers.js";
 import { STREAM_STALL_TIMEOUT_MS } from "../../config/runtimeConfig.js";
 import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamHelpers.js";
@@ -186,7 +188,17 @@ export async function handleStreamingResponse({
     statusText: providerResponse.statusText,
     headers: providerResponse.headers
   });
-  const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
+  // Brand/seal enforcement (opt-in, buffering). Only the chat surface gets it:
+  // a JSON-output request would be corrupted by a brand line, and a caller that
+  // asked for structured data is not a human reading a reply.
+  const brandGate = brandStreamEnforceEnabled() && !wantsJsonOutput(body)
+    ? createBrandEnforceGate({
+        enabled: true,
+        model,
+        log: { warn: (...a) => console.warn(`[${a[0]}]`, ...a.slice(1)) },
+      })
+    : null;
+  const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs, brandGate);
 
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId, apiKey, apiKeyName,
