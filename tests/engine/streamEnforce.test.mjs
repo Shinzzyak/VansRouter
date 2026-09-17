@@ -1,14 +1,31 @@
 // Uji streamEnforce: buktikan memperbaiki, buktikan TIDAK merusak yang sudah benar.
-// Jalankan: node tests/streamEnforce.test.mjs
+// Jalankan: VR_ENGINE_BUNDLE=<repo>/data/engine/engine.cjs node tests/engine/streamEnforce.test.mjs
+//
+// Impor lewat SHIM (open-sse/rtk/), bukan data/engine/src/, karena:
+//   1. itu jalur yang benar-benar dipakai router saat jalan;
+//   2. data/engine/src/ butuh brandContract.js yang tinggal di open-sse/rtk/
+//      (dan di CI tidak ada) — impor langsung lolos lokal tapi gagal CI;
+//   3. shim memuat BUNDLE yang di-ship, jadi yang diuji adalah artefak nyata,
+//      bukan kebetulan susunan sumber di mesin pengembang.
+// Tanpa VR_ENGINE_BUNDLE, shim jatuh ke fallback no-op dan tes ini WAJAR merah.
 import {
   createBrandEnforceGate,
   assembleVisibleText,
   rebuildStreamWithText,
   brandStreamEnforceEnabled,
-} from "../../data/engine/src/streamEnforce.js";
+} from "../../open-sse/rtk/streamEnforce.js";
 
-// Modul diuji lewat impor ASLI: repair + classify datang dari implementasi
-// produksi yang sama-sama dijalankan router, bukan tiruan.
+// Gerbang: kalau bundle tidak punya streamEnforce, shim jatuh ke fallback no-op
+// dan sebagian tes jadi hijau karena kebetulan — laporan yang menyesatkan.
+// Tanya loader langsung, jangan menebak dari bentuk objek (fallback juga
+// mengembalikan TransformStream passthrough, jadi bentuk tidak membedakan).
+import { loadEngine, engineBundlePath } from "../../open-sse/rtk/engineLoader.js";
+const __mod = loadEngine("streamEnforce");
+if (!__mod || typeof __mod.createBrandEnforceGate !== "function") {
+  console.error(`FATAL: bundle tidak punya streamEnforce (bundle=${engineBundlePath() ?? "none"}).`);
+  console.error("       Set VR_ENGINE_BUNDLE ke bundle yang baru dibangun: node scripts/engine-bundle.mjs");
+  process.exit(2);
+}
 
 const BRAND = "MADE BY: GEFREITER — AGENT OF AVRES";
 const SEAL = "Avres is King.";
