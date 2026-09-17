@@ -19,6 +19,12 @@ const authMocks = vi.hoisted(() => ({
   clearAccountError: vi.fn(async () => {}),
   extractApiKey: vi.fn(() => null),
   isValidApiKey: vi.fn(async () => true),
+  // The handler asks whether the caller is a trusted internal request before it
+  // enforces the API key. Resolve as "no" so these tests keep exercising the
+  // public API-key path they were written for.
+  isTrustedInternalRequest: vi.fn(async () => false),
+  isProviderAllowed: vi.fn(async () => true),
+  isKindAllowed: vi.fn(async () => true),
 }));
 const tokenMocks = vi.hoisted(() => ({
   checkAndRefreshToken: vi.fn(async (_p, creds) => creds),
@@ -32,6 +38,9 @@ vi.mock("@/lib/localDb", () => ({
   getComboByName: vi.fn(async () => null),
   getModelAliases: vi.fn(async () => ({})),
   getProviderNodes: vi.fn(async () => []),
+  // The polling path resolves the connection id before it forwards upstream;
+  // an unresolved id is a 404, so hand back a usable connection.
+  getProviderConnectionById: vi.fn(async (id) => (id ? { id, provider: "xai", isActive: true } : null)),
 }));
 vi.mock("@/sse/utils/logger.js", () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }));
 
@@ -210,10 +219,18 @@ describe("handleVideoGet", () => {
   });
 
   it("records the failure when polling hits a terminal auth error", async () => {
-    authMocks.getProviderCredentials.mockResolvedValueOnce(account({ refreshToken: null }));
+    // Polling is pinned to one connection now: the handler resolves the provider
+    // from x-connection-id and rejects a response served by any other account,
+    // so the header and the served account have to agree.
+    authMocks.getProviderCredentials.mockResolvedValueOnce(
+      account({ refreshToken: null, connectionId: "conn-5" })
+    );
     global.fetch.mockResolvedValueOnce(jsonResponse({ error: "unauthorized" }, 401));
 
-    const res = await handleVideoGet(new Request("http://localhost/v1/videos/req-1"), "req-1");
+    const res = await handleVideoGet(
+      new Request("http://localhost/v1/videos/req-1", { headers: { "x-connection-id": "conn-5" } }),
+      "req-1"
+    );
 
     expect(res.status).toBe(401);
     expect(authMocks.markAccountUnavailable).toHaveBeenCalled();
