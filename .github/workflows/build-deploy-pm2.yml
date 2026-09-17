@@ -114,6 +114,14 @@ jobs:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
 
+      # The stream-enforce gate has its own runner (plain node, not vitest —
+      # it is .mjs and vitest only collects **/*.test.js). Run it here so a
+      # gate that stops repairing the stream fails the build instead of
+      # reaching production silently. It self-reports: "RINGKAS: N LULUS, M MERAH"
+      # and exits non-zero on any red.
+      - name: Stream enforce gate
+        run: node tests/engine/streamEnforce.test.mjs
+
       - name: Build
         run: pnpm run build
         env:
