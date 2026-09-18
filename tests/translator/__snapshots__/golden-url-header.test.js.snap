@@ -253,6 +253,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > assemblyai → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > atria → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > autoclaw → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -583,7 +602,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.91.21",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.91.21",
     "X-CORE-VERSION": "0.91.21",
     "X-IS-MULTIROOT": "false",
@@ -596,7 +615,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.91.21",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.91.21",
     "X-CORE-VERSION": "0.91.21",
     "X-IS-MULTIROOT": "false",
@@ -610,7 +629,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
     "User-Agent": "VansRouter/0.91.21",
-    "X-CLIENT-TYPE": "vansrouter",
+    "X-CLIENT-TYPE": "extension",
     "X-CLIENT-VERSION": "0.91.21",
     "X-CORE-VERSION": "0.91.21",
     "X-IS-MULTIROOT": "false",
@@ -1217,21 +1236,21 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimchi → headers (
 {
   "apiKey": {
     "Accept": "text/event-stream,application/json",
-    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "kimchi/0.1.58",
+    "x-api-key": "<CRED>",
   },
   "nonStream": {
     "Accept": "text/event-stream,application/json",
-    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "kimchi/0.1.58",
+    "x-api-key": "<CRED>",
   },
   "oauth": {
     "Accept": "text/event-stream,application/json",
-    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "kimchi/0.1.58",
+    "x-api-key": "<CRED>",
   },
 }
 `;
@@ -1831,9 +1850,23 @@ exports[`GOLDEN buildHeaders (default executor providers) > together → headers
 
 exports[`GOLDEN buildHeaders (default executor providers) > tokenharbor → headers (apiKey / oauth) 1`] = `
 {
-  "apiKey": "THROW: Cannot read properties of undefined (reading 'header')",
-  "nonStream": "THROW: Cannot read properties of undefined (reading 'header')",
-  "oauth": "THROW: Cannot read properties of undefined (reading 'header')",
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "content-type": "application/json",
+  },
 }
 `;
 
@@ -2101,23 +2134,17 @@ exports[`GOLDEN buildHeaders (default executor providers) > zcode → headers (a
 {
   "apiKey": {
     "Accept": "text/event-stream",
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
+    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
-    "x-api-key": "<CRED>",
   },
   "nonStream": {
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
+    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
-    "x-api-key": "<CRED>",
   },
   "oauth": {
     "Accept": "text/event-stream",
-    "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14",
-    "Anthropic-Version": "2023-06-01",
+    "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
-    "x-api-key": "<CRED>",
   },
 }
 `;
@@ -2251,6 +2278,13 @@ exports[`GOLDEN buildUrl (default executor providers) > assemblyai → url (stre
 {
   "nonStream": "https://api.assemblyai.com/v1/audio/transcriptions",
   "stream": "https://api.assemblyai.com/v1/audio/transcriptions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > atria → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.atria-asi.ai/v1/chat/completions",
+  "stream": "https://api.atria-asi.ai/v1/chat/completions",
 }
 `;
 
@@ -2767,8 +2801,8 @@ exports[`GOLDEN buildUrl (default executor providers) > tokenharbor → url (str
 
 exports[`GOLDEN buildUrl (default executor providers) > tokenrouter → url (stream + non-stream) 1`] = `
 {
-  "nonStream": "https://www.tokenrouter.com/v1/chat/completions",
-  "stream": "https://www.tokenrouter.com/v1/chat/completions",
+  "nonStream": "https://api.tokenrouter.com/v1/chat/completions",
+  "stream": "https://api.tokenrouter.com/v1/chat/completions",
 }
 `;
 
@@ -2858,8 +2892,8 @@ exports[`GOLDEN buildUrl (default executor providers) > zai → url (stream + no
 
 exports[`GOLDEN buildUrl (default executor providers) > zcode → url (stream + non-stream) 1`] = `
 {
-  "nonStream": "https://api.z.ai/api/anthropic/v1/messages",
-  "stream": "https://api.z.ai/api/anthropic/v1/messages",
+  "nonStream": "http://127.0.0.1:8879/v1/chat/completions",
+  "stream": "http://127.0.0.1:8879/v1/chat/completions",
 }
 `;
 

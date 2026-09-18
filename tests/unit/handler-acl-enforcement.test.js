@@ -110,11 +110,18 @@ vi.mock("open-sse/services/combo.js", () => ({
   stripComboPrefix: vi.fn((s) => s),
   detectRequiredCapabilities: vi.fn(() => new Set()),
 }));
+// The mock must list EVERY export `src/sse/handlers/chat.js` imports from this
+// module. Vitest throws at import time for a missing one, which took out 10 ACL
+// tests that had nothing to do with capacity adapters — the ACL assertions
+// themselves were fine. When chat.js starts importing something new from here,
+// add it below in the same commit.
 vi.mock("open-sse/services/capacityAdapter.js", () => ({
   augmentModelsWithCapacityAdapter: vi.fn((models) => models),
   withCapacityAdapterStripping: vi.fn((fn) => fn),
   getActiveAdapterStrategy: vi.fn(() => "fallback"),
   getCapacityAdapterModels: vi.fn(() => []),
+  getRoleAdapterModel: vi.fn(() => null),
+  getCompactAdapterModel: vi.fn(() => null),
 }));
 vi.mock("open-sse/utils/claudeHeaderCache.js", () => ({ cacheClaudeHeaders: mocks.cacheClaudeHeaders }));
 vi.mock("open-sse/translator/formats.js", () => ({ detectFormatByEndpoint: mocks.detectFormatByEndpoint }));

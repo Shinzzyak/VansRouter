@@ -110,6 +110,8 @@ jobs:
           tests/unit/engine-shim-selfmeasuring.test.js
           tests/unit/eng-modelImmunityHints.test.js
           tests/unit/eng-routeGuardMemory.test.js
+          tests/translator/golden-url-header.test.js
+          tests/unit/handler-acl-enforcement.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs

@@ -55,6 +55,18 @@ jobs:
       - name: Run no-undef lint (catch undefined before build)
         run: pnpm lint:undef
 
+      # These two suites lock behaviour that silently rotted: the golden snapshot
+      # recorded pre-change headers for six providers, and a stale vi.mock took
+      # out ten ACL tests. Neither ran anywhere, so both drifted unnoticed for
+      # days. They are pure (no engine bundle needed) and cheap, so they run on
+      # every pull request. Add a suite here only once it passes without the
+      # engine bundle.
+      - name: Regression guards (golden URL/headers, handler ACL)
+        run: >-
+          pnpm test
+          tests/translator/golden-url-header.test.js
+          tests/unit/handler-acl-enforcement.test.js
+
       - name: Build application
         run: node scripts/build.js
 
