@@ -24,11 +24,21 @@ const SPECIALIZED = new Set([
   "xiaomi-tokenplan", "mimo-free",
 ]);
 
+// Host-dependent headers carry os.platform()/os.type()+arch(), so a snapshot recorded on one
+// runner mismatches on another (cline X-PLATFORM "linux"/"darwin"/"win32", kimi X-Msh-Device-Model
+// "Linux x64"/"macOS arm64"/"Windows x64"). This suite runs in the cross-platform matrix, so pin
+// them. A NEW host-dependent header surfaces as a matrix failure — add it here, do not drop the OS.
+const HOST_DEPENDENT_HEADERS = new Set(["X-PLATFORM", "X-Msh-Device-Model"]);
+
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
   const dynamicValues = [process.version, hostname()].filter(Boolean);
   for (const [k, v] of Object.entries(headers)) {
+    if (HOST_DEPENDENT_HEADERS.has(k)) {
+      out[k] = "<OS>";
+      continue;
+    }
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
