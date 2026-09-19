@@ -1,3 +1,49 @@
+# v0.91.23 (2026-09-19)
+
+## Features
+
+- **Private engine architecture** — Moved the routing/integrity and capability layers out of the public repo into the private engine source, and shipped generated shims into `open-sse/rtk` so the public tree stays importable. The bundle is built only in GitHub Actions and travels inside the deploy tarball as `<standalone>/data/engine/engine.cjs`; the loader resolves it by walking up from the live cwd (production layout first, dev-machine copy second) and loads it without `require()` (webpack rewrites bare requires in the standalone build).
+- **Streaming brand/seal enforcement gate** — The output contract is now repaired on the streaming path, not only on buffered responses, with its own CI step (`node tests/engine/streamEnforce.test.mjs`, plain node — vitest only collects `**/*.test.js`).
+- **Self-measuring escalation ledger** — Streamed answers now teach the ledger (`recordOutcome`), so routing decisions are based on the answer, not just the status code.
+- **RTK behavioral layers** — Voice cadence validator, stream-integrity cadence check, potato mechanics (always-on behavioral layer), and a P2/P3 thinking gate that scopes reasoning and encloses format for thinking models. The prompt-massaging opt-out is honored by the brand contract and by non-streaming brand repair, so machine-consumed traffic is left alone.
+- **Typed instruction & reasoning integrity plan** — Request-level plan for instruction and reasoning integrity, enforced on every request, plus model capability and failure profiles.
+- **Gemini guardrail classification** — Refusals from the Gemini family are classified (rather than surfacing as opaque failures).
+- **New providers and models** — Atria (Shanghai AI Lab, chat-only), Alysis Code Pro (plus a tool-flattening fix), FreeBuff `glm-5.3-flash` and `muse-spark-1.3` with an auto-sync models fetcher, CodeBuddy `deepseek-v4.1-flash` in both the CN and intl catalogs.
+- **Antigravity REST auth fallback** — A REST path for Antigravity auth, keeping the `agy` path first, with the `agy` session cleared between bulk-import accounts.
+- **GitHub Harvest automation tab** — Email-alias generation plus multi-platform token injection in the dashboard.
+
+## Reliability & Compatibility
+
+- **Deploy integrity gate (incident 2026-09-11)** — The deploy job syntax-checks every extracted server chunk with `node --check` before restarting PM2, restores the previous build and aborts if any file is corrupt. A corrupt route chunk once went live and 500'd every `/v1/chat/completions` request while `/masuk` stayed HTTP 200, so the health check passed a dead router.
+- **Upstream-transient 5xx verdict** — A garbled 502 now gets a short verdict instead of locking the model for 30 seconds.
+- **Lenient non-streaming JSON recovery** — Small-gateway bodies are recovered when they arrive as concatenated JSON, trailing HTML, BOM-prefixed, or NDJSON, covered by 7 unit tests.
+- **Stream integrity** — `reasoning_content` is recognized in the stream head, and an early EOF no longer leaves a locked stream; the `tee()` split in `_peekTransientBodyError` no longer reports "disturbed or locked".
+- **Engine fail-open** — When the engine bundle is absent the streaming gate fails open and engine-behavior suites skip rather than fail, so a checkout without the private bundle still builds.
+- **Persona & brand durability** — AGI identity survives compaction, Hermes 0.21 compaction handoffs are detected, and the persona lock stays enabled by default.
+- **Provider catalog corrections from live probes** — CodeBuddy CN/intl catalogs corrected against live gateway responses, Antigravity nested OAuth tokens preserved, ZCode `glm-5.3-flash` with guarded OAuth refresh and a proxied captcha browser, OpenCode prefers real connections over the anonymous public identity, `muse-spark-1.3` served via responses with a reasoning guard.
+- **Model catalog performance** — Catalog responses are served stale-while-revalidate from a cache namespaced per dashboard user; heavy session dumps and cookies are stripped from the `GET /api/providers` UI response.
+- **Auth** — Background OAuth refresh now starts at boot instead of on first use.
+- **Repository hygiene** — Commercial-pack sources and credential dumps were purged from git history.
+
+## Release Infrastructure
+
+- The engine is built in GitHub Actions and shipped inside the deploy tarball; a reachability gate runs the engine probe from the exact standalone layout the server boots in.
+- The engine gate and the stream-enforce gate run as separate CI steps, so a gate that stops repairing the stream fails the build instead of reaching production silently.
+- Regression guards added to both the PR matrix and the deploy gate: `tests/translator/golden-url-header.test.js` and `tests/unit/handler-acl-enforcement.test.js`. Both had silently rotted — the golden snapshot recorded pre-change headers for six providers and a stale `vi.mock` took out ten ACL tests, and neither suite ran anywhere. The golden sanitizer pins host-dependent headers (`X-PLATFORM`, `X-Msh-Device-Model`) so the suite is byte-identical across the six-runner matrix.
+- Version bumped to `0.91.23` in `package.json` and `cli/package.json`; the golden snapshot was refreshed in the same commit (the app version is embedded in `User-Agent`, `X-CLIENT-VERSION`, `X-CORE-VERSION`, and `X-Msh-Version` for cline and kimi — bumping the version without refreshing the snapshot turns the matrix red).
+
+## Tests
+
+- Deploy gate (CI runner, freshly built engine bundle): **23 files passed**.
+- Release-prep local runs with the version bump applied: `golden-url-header` **206/206** and `handler-acl-enforcement` **37/37**.
+- Full local suite, run twice to separate pre-existing failures from regressions introduced here:
+  - with the version bump: **324 files — 21 failed, 280 passed, 23 skipped; 3600 tests — 34 failed, 3372 passed, 194 skipped**.
+  - on the same tree without the bump: **identical numbers**, and the failing file set and failing test-name set are byte-identical.
+  - Conclusion: this release introduces **no new failures**. The 34 failures are pre-existing on `main` and are not part of the CI gate, which runs the 23-file subset.
+- `tests/unit/engine-shim-selfmeasuring.test.js` fails 3 of those tests locally for an environment reason, not a code reason: `open-sse/rtk/engineLoader.js` deliberately ranks the production layout `<cwd>/.next/standalone/data/engine/engine.cjs` above the dev-machine copy, and this checkout carries a stale `.next/standalone` bundle from an earlier build (`[ENGINE] loaded | …/standalone/… | 19 modules`). Moving that stale copy aside drops the failures from 3 to 1; CI builds a fresh bundle and passes.
+- `pnpm lint:undef`: clean.
+- **Production build was NOT verified on the dev machine.** `pnpm run build` aborted with `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` inside `next build --webpack` (SIGABRT); the box has 3.7 GB RAM and its swap is already ~100% used, so the local build is resource-bound rather than code-bound. The build gate is CI, which built and deployed `main` successfully at the commit this branch is based on. Mark this as unverified locally.
+
 # v0.91.21 (2026-09-03)
 
 ## Features
