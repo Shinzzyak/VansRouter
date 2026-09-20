@@ -166,6 +166,33 @@ export function withSelectedConnectionHeader(response, connectionId) {
 }
 
 /**
+ * Tag a response with how a request was classified, so clients can tell whether
+ * an auto-detected route (compaction) actually fired. Detection is invisible
+ * otherwise — a client has no way to know if its compact intent was recognised.
+ *
+ * Additive: merges into existing headers and never clobbers a value the
+ * response already set. Returns the response unchanged when nothing to report.
+ *
+ * @param {Response} response - the response to tag
+ * @param {Record<string,string>} tags - header name → value
+ * @returns {Response}
+ */
+export function withRouteTags(response, tags) {
+  if (!response || !tags) return response;
+  const entries = Object.entries(tags).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  if (entries.length === 0) return response;
+  const headers = new Headers(response.headers);
+  for (const [k, v] of entries) {
+    if (!headers.has(k)) headers.set(k, String(v));
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
  * Format provider error with context
  * @param {Error} error - Original error
  * @param {string} provider - Provider name

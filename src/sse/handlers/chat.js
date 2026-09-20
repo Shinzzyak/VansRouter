@@ -40,9 +40,10 @@ import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
-import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
+import { errorResponse, unavailableResponse, withSelectedConnectionHeader, withRouteTags } from "open-sse/utils/error.js";
 import { handleComboChat, handleFusionChat, handleThinkExecuteChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy, getCapacityAdapterModels, getRoleAdapterModel, getCompactAdapterModel } from "open-sse/services/capacityAdapter.js";
+import { detectCompactRequest, buildCompactBody } from "open-sse/services/compactEngine.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
@@ -172,19 +173,34 @@ export async function handleChat(request, clientRawRequest = null) {
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
   if (bypassResponse) return bypassResponse.response || bypassResponse;
 
-  // Compact adapter: /v1/responses/compact sets body._compact = true (client
-  // asks the router to compact the conversation). Route it to the dedicated
-  // compact model from capacityAdapter.compact when configured; otherwise fall
-  // through to the normal pipeline.
-  if (body._compact === true) {
+  // Compact: auto-detected compaction capability. The slot previously only
+  // PICKED a model and forwarded the transcript untouched, so the summarizer
+  // received no task at all. detectCompactRequest recognises compact intent
+  // from any client shape (Codex endpoint flag, explicit header, or an
+  // instruction in the conversation tail), and buildCompactBody turns it into
+  // a real summarization request. When no compact model is configured the
+  // detected request still runs the normal pipeline (fail-open).
+  const compactDetection = detectCompactRequest(body, request.headers);
+  if (compactDetection.compact) {
     const compactModel = getCompactAdapterModel(settings);
     if (compactModel) {
-      log.info("CHAT", `Compact request → ${compactModel} (compact adapter)`);
-      const cleanBody = { ...body };
-      delete cleanBody._compact;
-      return handleSingleModelChat(cleanBody, compactModel, clientRawRequest, request, apiKey, apiKeyInfo);
+      const compactBody = buildCompactBody(body, compactDetection.kind);
+      delete compactBody._compact;
+      delete compactBody._isCompact;
+      log.info(
+        "CHAT",
+        `Compact detected (${compactDetection.kind}, via ${compactDetection.via}) → ${compactModel}`
+      );
+      // Tag the response so the client can prove the auto-detected route fired
+      // instead of silently continuing with the original body.
+      const compactResponse = await handleSingleModelChat(compactBody, compactModel, clientRawRequest, request, apiKey, apiKeyInfo);
+      return withRouteTags(compactResponse, {
+        "X-VansRoute-Task": "compact",
+        "X-VansRoute-Compact-Via": compactDetection.via,
+        "X-VansRoute-Compact-Kind": compactDetection.kind,
+      });
     }
-    log.info("CHAT", "Compact request, no compact adapter configured — using normal pipeline");
+    log.info("CHAT", `Compact detected (${compactDetection.kind}, via ${compactDetection.via}) — no compact model configured, normal pipeline`);
   }
 
   // Capacity adapter: if the request needs a capability (vision/pdf/audio/video)
