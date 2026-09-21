@@ -108,6 +108,12 @@ export function createSSEStream(options = {}) {
   let totalContentLength = 0;
   let accumulatedContent = "";
   let accumulatedThinking = "";
+  // A stream that produced no VISIBLE text is not necessarily a failed stream:
+  // tool-call-only and reasoning-only turns are normal for agent clients. Without
+  // these two flags the request log cannot tell a healthy agent turn from a dead
+  // stream, and every tool-call turn gets recorded as an empty response.
+  let sawToolCalls = false;
+  let lastFinishReason = null;
   let ttftAt = null;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
@@ -153,7 +159,9 @@ export function createSSEStream(options = {}) {
     if (onStreamComplete) {
       onStreamComplete({
         content: accumulatedContent,
-        thinking: accumulatedThinking
+        thinking: accumulatedThinking,
+        finishReason: lastFinishReason,
+        sawToolCalls
       }, finalUsage, ttftAt);
     }
   };
@@ -167,7 +175,7 @@ export function createSSEStream(options = {}) {
     if (streamCompleteFired) return;
     streamCompleteFired = true;
     if (onStreamComplete) {
-      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking }, usage, ttftAt);
+      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking, finishReason: lastFinishReason, sawToolCalls }, usage, ttftAt);
     }
   };
 
@@ -304,6 +312,7 @@ export function createSSEStream(options = {}) {
               // argument chunk length so totalContentLength isn't stuck at 0
               // and the zero-completion / estimation fallbacks below can fire.
               if (Array.isArray(delta?.tool_calls)) {
+                if (delta.tool_calls.length > 0) sawToolCalls = true;
                 for (const tc of delta.tool_calls) {
                   if (typeof tc?.function?.name === "string") totalContentLength += tc.function.name.length;
                   if (typeof tc?.function?.arguments === "string") totalContentLength += tc.function.arguments.length;
@@ -318,6 +327,7 @@ export function createSSEStream(options = {}) {
               responsesTerminal = isOpenAIResponsesTerminalEvent(currentOpenAIResponsesEvent, parsed);
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              if (isFinishChunk) lastFinishReason = isFinishChunk;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -429,6 +439,7 @@ export function createSSEStream(options = {}) {
         // this, tool-call-only turns leave totalContentLength at 0 and the
         // zero-completion/estimation usage fallbacks never fire.
         if (Array.isArray(parsed.choices?.[0]?.delta?.tool_calls)) {
+          if (parsed.choices[0].delta.tool_calls.length > 0) sawToolCalls = true;
           for (const tc of parsed.choices[0].delta.tool_calls) {
             if (typeof tc?.function?.name === "string") totalContentLength += tc.function.name.length;
             if (typeof tc?.function?.arguments === "string") totalContentLength += tc.function.arguments.length;
@@ -488,6 +499,7 @@ export function createSSEStream(options = {}) {
         // Same-format translate short-circuits in translateResponse() and never
         // sets state.finishReason — mark it here so the usage-injection block
         // below (state.finishReason && isFinishChunk) can fire for openai→openai.
+        if (parsed.choices?.[0]?.finish_reason) lastFinishReason = parsed.choices[0].finish_reason;
         if (!state.finishReason && parsed.choices?.[0]?.finish_reason) {
           state.finishReason = parsed.choices[0].finish_reason;
         }

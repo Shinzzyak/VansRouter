@@ -234,6 +234,21 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     const safeContent = contentObj?.content || "[Empty streaming response]";
     const safeThinking = contentObj?.thinking || null;
 
+    // Why the visible text was empty. A tool-call-only or reasoning-only turn is a
+    // NORMAL agent turn that succeeded; a stream that died is not. Both used to be
+    // recorded as the same "[Empty streaming response]" with no way to tell them
+    // apart. safeContent is intentionally left untouched: the stream-integrity
+    // classifier below reads it and must keep seeing exactly what it saw before.
+    const finishReason = contentObj?.finishReason ?? null;
+    const sawToolCalls = contentObj?.sawToolCalls === true;
+    const emptyReason = contentObj?.content
+      ? null
+      : (sawToolCalls || finishReason === "tool_calls")
+        ? "tool_calls"
+        : finishReason
+          ? `no_text:${finishReason}`
+          : "no_text";
+
     // Stream integrity gate (shadow mode): classify the assembled visible text
     // AFTER the stream completes. Zero hot-path cost — runs once per stream.
     // Reports only; never mutates the bytes already sent to the client.
@@ -265,7 +280,10 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       request: extractRequestConfig(body, stream),
       providerRequest: finalBody || translatedBody || null,
       providerResponse: safeContent,
-      response: { content: safeContent, thinking: safeThinking, type: "streaming" },
+      response: {
+        content: safeContent, thinking: safeThinking, type: "streaming",
+        finish_reason: finishReason, tool_calls: sawToolCalls, empty_reason: emptyReason
+      },
       pxpipe,
       status: "success"
     }, { id: streamDetailId })).catch(err => {

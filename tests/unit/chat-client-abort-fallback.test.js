@@ -102,11 +102,21 @@ vi.mock("open-sse/services/combo.js", () => ({
   stripComboPrefix: vi.fn((s) => s),
   detectRequiredCapabilities: vi.fn(() => new Set()),
 }));
+// Every named export the module under test imports MUST be listed here: a strict
+// vi.mock throws "No <name> export is defined" and the whole file dies at import,
+// so a missing entry silently turns these tests into no-ops rather than failures
+// anyone notices. getRoleAdapterModel/getCompactAdapterModel were added to the
+// real module and never mirrored here.
 vi.mock("open-sse/services/capacityAdapter.js", () => ({
   augmentModelsWithCapacityAdapter: vi.fn((models) => models),
   withCapacityAdapterStripping: vi.fn((fn) => fn),
   getActiveAdapterStrategy: vi.fn(() => "fallback"),
   getCapacityAdapterModels: vi.fn(() => []),
+  getRoleAdapterModel: vi.fn(() => null),
+  getCompactAdapterModel: vi.fn(() => null),
+  getCapacityAdapterConfig: vi.fn(() => ({})),
+  getCapacityAdapterStrategy: vi.fn(() => null),
+  stripHistoryForContext: vi.fn((body) => body),
 }));
 vi.mock("open-sse/utils/claudeHeaderCache.js", () => ({ cacheClaudeHeaders: mocks.cacheClaudeHeaders }));
 vi.mock("open-sse/translator/formats.js", async (importOriginal) => {

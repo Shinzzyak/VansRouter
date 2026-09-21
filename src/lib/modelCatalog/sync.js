@@ -59,6 +59,32 @@ function writeAtomic(file, contents) {
   fs.renameSync(`${file}.tmp`, file);
 }
 
+// Upstream is ~4.3MB. response.json() buffers whatever the endpoint chooses to
+// send, and this endpoint is a third party — cap the read so a hostile or
+// broken response cannot grow without bound inside the server process.
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
+
+async function readCappedJson(response) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("empty body");
+  const decoder = new TextDecoder();
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > MAX_BODY_BYTES) throw new Error(`body over ${MAX_BODY_BYTES} bytes`);
+      chunks.push(decoder.decode(part.value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    return JSON.parse(chunks.join(""));
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // Trimmed copy of the upstream catalog, kept for the add-models skill: same
 // models, ~470KB instead of 4.3MB.
 function slim(catalog) {
@@ -173,7 +199,15 @@ export async function syncModelCatalog() {
   try {
     const headers = { accept: "application/json" };
     if (state.etag) headers["if-none-match"] = state.etag;
-    const response = await fetch(CATALOG_URL, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    // redirect:"error" — a redirected catalog fetch would silently turn into a
+    // download from an origin nobody vetted. The URL is https by construction;
+    // assert it so a future edit cannot quietly downgrade it.
+    if (!CATALOG_URL.startsWith("https://")) throw new Error("catalog URL must be https");
+    const response = await fetch(CATALOG_URL, {
+      headers,
+      redirect: "error",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    });
 
     let result;
     if (response.status === 304) {
@@ -183,10 +217,18 @@ export async function syncModelCatalog() {
     } else {
       // ~23ms to parse, once a day, on a server that is otherwise idle at this
       // point — not worth a worker thread.
-      const catalog = await response.json();
+      const catalog = await readCappedJson(response);
       const etag = response.headers.get("etag") || null;
       const entries = await collectEntries();
       const { models, providers } = build(catalog, entries);
+      // A rollback, a partial outage, or an upstream shape change builds to an
+      // EMPTY catalog. Writing it would destroy the previous good file and blank
+      // every catalog-derived capability until the next successful sync — up to
+      // 24h. Fail instead and leave the existing file in place; the caller
+      // already treats a throw as "keep what we have".
+      if (Object.keys(models).length === 0) {
+        throw new Error("upstream catalog produced 0 models — keeping previous file");
+      }
       const serialized = JSON.stringify({ v: 1, etag, syncedAt: Date.now(), models, providers });
 
       writeAtomic(CATALOG_FILE, serialized);
