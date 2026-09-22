@@ -66,7 +66,13 @@ jobs:
       # DATA_DIR + real SQLite, no engine bundle), and it locks the write
       # contract for the nested settings maps. A regression there is invisible —
       # it silently eats adapter pools instead of erroring.
-      - name: Regression guards (golden URL/headers, handler ACL, settings write path)
+      #
+      # The capabilities pair guards the OTHER silent class: a model that loses
+      # fields without erroring. capabilities.test.js pins families whose only
+      # source is MODEL_CAPABILITIES (a merge once dropped four of them);
+      # capabilities-refine-exact.test.js pins the catalog install and the
+      # refine() step on exact entries.
+      - name: Regression guards (golden URL/headers, handler ACL, settings write path, capabilities)
         run: >-
           pnpm test
           tests/translator/golden-url-header.test.js
@@ -74,6 +80,8 @@ jobs:
           tests/unit/settings-nested-merge.test.js
           tests/unit/settings-map-write-contract.test.js
           tests/unit/settings-route-write-e2e.test.js
+          tests/unit/capabilities.test.js
+          tests/unit/capabilities-refine-exact.test.js
 
       - name: Build application
         run: node scripts/build.js

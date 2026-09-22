@@ -128,6 +128,23 @@ export const MODEL_CAPABILITIES = {
   // the client's effort) and a 200k/64k window instead of 1M/128k.
   "muse-spark-1.2-contributor": { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
   "muse-spark-1.3-contributor": { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+
+  // GPT-5.6 Luna — 1.5M window. Every field the `*gpt-5*` pattern would supply is
+  // restated on purpose: the entry must stay correct even if that pattern is
+  // reordered or narrowed, and step 1 (PROVIDER_CAPABILITIES) short-circuits
+  // refine() so the per-provider entries below keep their own truth.
+  // A catalog entry for this model still wins on the gateway it describes —
+  // models.dev declares 1050000 for opencode-go, so that provider reports the
+  // catalog number rather than 1.5M. That is the intended precedence.
+  "gpt-5.6-luna": {
+    vision: true,
+    pdf: true,
+    search: true,
+    reasoning: true,
+    thinkingFormat: "openai",
+    contextWindow: 1500000,
+    maxOutput: 128000,
+  },
 };
 
 const KIRO_GPT_5_6_CAPABILITIES = { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 };
@@ -433,6 +450,20 @@ const MODALITY_KEYS = ["vision", "pdf", "audioInput", "videoInput"];
 
 // Catalog lookups, installed by the server at startup. Left as no-ops in the
 // browser bundle, where there is no file to read.
+//
+// The install is published on globalThis because Next compiles `instrumentation`
+// in its own webpack layer: `capabilities.js` is emitted TWICE into the
+// standalone bundle under two module ids (one for instrumentation+sync, one for
+// every route and the chat path). `setCatalogSource` assigns a module-local
+// variable, so an install landing on one copy was invisible to the other — the
+// catalog was fetched, parsed and written to disk, then ignored by every
+// request. Observed: /api/models reported the pattern floor (200000) for models
+// whose only source is the catalog while data/model-catalog.json held the real
+// number. Publishing on globalThis makes every copy in the process adopt it.
+//
+// Clearing the source deletes the shared entry too, so the daily sync can detach
+// the reader while it diffs the hand-written tables against the catalog (without
+// that detach the file erases itself over two runs — see collectEntries).
 let catalogSource = null;
 
 /**
@@ -441,23 +472,37 @@ let catalogSource = null;
  */
 export function setCatalogSource(source) {
   catalogSource = source;
+  if (source) globalThis.__vrCatalogSource = source;
+  else delete globalThis.__vrCatalogSource;
+}
+
+// This instance's reader, else whatever another bundle copy installed.
+function currentSource() {
+  return catalogSource || globalThis.__vrCatalogSource || null;
 }
 
 // Apply the synced catalog + name heuristic on top of a table-resolved result.
 // Strictly additive: a capability already true stays true, and a false one only
 // flips when an outside source positively declares support.
+//
+// Every resolution step except PROVIDER_CAPABILITIES goes through here — an
+// exact MODEL_CAPABILITIES entry used to bypass it, which silently dropped the
+// pattern's vision/search AND the catalog's limits for the 98 models that have
+// one. Restoring gpt-5.6-luna's upstream entry that way turned vision off and
+// made stripUnsupportedModalities delete image blocks from the request.
 function refine(base, provider, model) {
   const result = { ...DEFAULT_CAPABILITIES, ...base };
 
-  if (catalogSource) {
-    const modalities = catalogSource.getModalities(model);
+  const source = currentSource();
+  if (source) {
+    const modalities = source.getModalities(model);
     if (modalities) {
       for (const key of MODALITY_KEYS) {
         if (modalities[key] === true) result[key] = true;
       }
     }
 
-    const limits = catalogSource.getLimits(provider, model);
+    const limits = source.getLimits(provider, model);
     if (limits) {
       if (limits.contextWindow > 0) result.contextWindow = limits.contextWindow;
       if (limits.maxOutput > 0) result.maxOutput = limits.maxOutput;
@@ -475,16 +520,19 @@ export function getCapabilitiesForModel(provider, model) {
   // Canonical exact lookup strips vendor prefix: "anthropic/claude-opus-4.7" -> "claude-opus-4.7".
   const baseModel = model.includes("/") ? model.split("/").pop() : model;
 
-  // 1. Provider-specific override
+  // 1. Provider-specific override. Deliberately NOT refined: these entries are
+  // per-provider truths (kiro's 272k, codex's own ceiling) that the catalog must
+  // not overwrite.
   if (provider) {
     const providerCaps = PROVIDER_CAPABILITIES[provider];
     if (providerCaps?.[model]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[model] };
     if (providerCaps?.[baseModel]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[baseModel] };
   }
 
-  // 2. Canonical exact
-  if (MODEL_CAPABILITIES[baseModel]) return { ...DEFAULT_CAPABILITIES, ...MODEL_CAPABILITIES[baseModel] };
-  if (MODEL_CAPABILITIES[model]) return { ...DEFAULT_CAPABILITIES, ...MODEL_CAPABILITIES[model] };
+  // 2. Canonical exact — refined, so an entry only has to declare what differs
+  // from the pattern table and the catalog.
+  if (MODEL_CAPABILITIES[baseModel]) return refine(MODEL_CAPABILITIES[baseModel], provider, model);
+  if (MODEL_CAPABILITIES[model]) return refine(MODEL_CAPABILITIES[model], provider, model);
 
   // 3. Pattern match (first match wins), refined by catalog + name heuristic
   for (const { pattern, caps } of PATTERN_CAPABILITIES) {
