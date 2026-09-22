@@ -14,6 +14,11 @@ export default {
   noAuth: true,
   transport: {
     baseUrl: "https://opencode.ai",
+    // The free tier serves a request only when it is streaming; chatCore turns
+    // the SSE back into JSON for non-streaming clients. Without this, a client
+    // that sends stream:false reaches the upstream as stream:false (BaseExecutor
+    // mirrors the effective flag onto the body) and gets a 403 FreeTierError.
+    forceStream: true,
     headers: {
       "x-opencode-client": "desktop",
     },
