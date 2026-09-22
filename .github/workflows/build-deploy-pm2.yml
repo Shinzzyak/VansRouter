@@ -116,6 +116,7 @@ jobs:
           tests/translator/golden-url-header.test.js
           tests/unit/handler-acl-enforcement.test.js
           tests/unit/opencode-free-tier-gate.test.js
+          tests/unit/forced-sse-upstream-format.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs

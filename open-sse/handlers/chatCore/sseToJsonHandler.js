@@ -165,7 +165,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel, validToolNames =
  * Handle case: provider forced streaming but client wants JSON.
  * Supports both Codex/Responses API SSE and standard Chat Completions SSE.
  */
-export async function handleForcedSSEToJson({ providerResponse, sourceFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, trackDone, appendLog, comboName, toolNameMap }) {
+export async function handleForcedSSEToJson({ providerResponse, sourceFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, trackDone, appendLog, comboName, toolNameMap, providerResponseFormat }) {
   const contentType = providerResponse.headers.get("content-type") || "";
   const isSSE = contentType.includes("text/event-stream") || (contentType === "" && isResponsesProvider(provider));
   if (!isSSE) return null; // not handled here
@@ -178,8 +178,13 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
     providerRequest: finalBody || translatedBody || null
   };
 
-  // Codex/Responses API SSE path
-  const isCodexResponsesApi = isResponsesProvider(provider) || sourceFormat === FORMATS.OPENAI_RESPONSES;
+  // Codex/Responses API SSE path. A provider whose format is openai but that
+  // serves some models from a Responses endpoint (opencode: muse-spark) sets
+  // providerResponseFormat per model — the responses branch is only correct when
+  // the UPSTREAM spoke Responses, not merely because the client did.
+  const isCodexResponsesApi = isResponsesProvider(provider)
+    || providerResponseFormat === FORMATS.OPENAI_RESPONSES
+    || sourceFormat === FORMATS.OPENAI_RESPONSES;
   if (isCodexResponsesApi) {
     try {
       const jsonResponse = await convertResponsesStreamToJson(providerResponse.body);
