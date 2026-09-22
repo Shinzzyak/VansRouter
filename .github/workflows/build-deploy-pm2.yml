@@ -110,6 +110,9 @@ jobs:
           tests/unit/engine-shim-selfmeasuring.test.js
           tests/unit/eng-modelImmunityHints.test.js
           tests/unit/eng-routeGuardMemory.test.js
+          tests/unit/settings-nested-merge.test.js
+          tests/unit/settings-map-write-contract.test.js
+          tests/unit/settings-route-write-e2e.test.js
           tests/translator/golden-url-header.test.js
           tests/unit/handler-acl-enforcement.test.js
         env:

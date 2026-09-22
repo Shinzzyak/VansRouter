@@ -57,6 +57,49 @@ const DEFAULT_SETTINGS = {
   bypassMode: "off",
 };
 
+// Only `capacityAdapter` is merged on write. The other two maps are REPLACED
+// wholesale on purpose — see the contract note below.
+const MERGED_SETTINGS_MAPS = ["capacityAdapter"];
+
+/**
+ * Merge one nested settings map (`capacityAdapter`) two levels deep.
+ *
+ * Why this exists: updateSettings() writes `{ ...current, ...updates }` — a
+ * TOP-LEVEL spread. Without this, any PATCH carrying `capacityAdapter` replaces
+ * the entire map, dropping sub-keys the caller never mentioned (compact,
+ * thinking, execution). mergeWithDefaults() then refills the dropped sub-keys
+ * from DEFAULT_SETTINGS, which holds only {vision, pdf, audioInput, videoInput},
+ * so an enabled role adapter silently switches back off. A partial patch must
+ * stay partial.
+ *
+ * Why NOT providerStrategies / comboStrategies: the dashboard reads the whole
+ * map, edits it locally, and PATCHes the whole map back. "Switch this
+ * provider/combo back to the default" is expressed by OMITTING its key. Merging
+ * those maps makes absence a no-op, so the entry can never be deleted and the
+ * override is stuck on with no way to clear it from the UI.
+ * tests/unit/settings-map-write-contract.test.js locks both directions.
+ *
+ * Depth is deliberately two levels — no generic deep-merge: nothing in the
+ * settings shape nests deeper, and a recursive merge is a prototype-pollution
+ * footgun with no caller that needs it.
+ */
+export function mergeNestedSettingsMap(current, incoming) {
+  const out = {};
+  for (const [k, v] of Object.entries(current || {})) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    out[k] = v;
+  }
+  for (const [k, v] of Object.entries(incoming || {})) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    const prev = out[k];
+    const bothPlainObjects =
+      prev && typeof prev === "object" && !Array.isArray(prev) &&
+      v && typeof v === "object" && !Array.isArray(v);
+    out[k] = bothPlainObjects ? { ...prev, ...v } : v;
+  }
+  return out;
+}
+
 async function readRaw() {
   const db = await getAdapter();
   const row = db.get(`SELECT data FROM settings WHERE id = 1`);
@@ -147,6 +190,15 @@ export async function updateSettings(updates) {
     const row = db.get(`SELECT data FROM settings WHERE id = 1`);
     const current = row ? parseJson(row.data, {}) : {};
     next = { ...current, ...updates };
+    // A partial patch must stay partial: merge the nested maps two levels deep
+    // so a PATCH carrying only `vision` cannot drop `compact`. Only the maps in
+    // MERGED_SETTINGS_MAPS qualify — see mergeNestedSettingsMap for why
+    // providerStrategies/comboStrategies must NOT be merged.
+    for (const key of MERGED_SETTINGS_MAPS) {
+      if (updates && Object.prototype.hasOwnProperty.call(updates, key)) {
+        next[key] = mergeNestedSettingsMap(current[key], updates[key]);
+      }
+    }
     revision = bumpSettingsRevision(db);
     db.run(
       `INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`,

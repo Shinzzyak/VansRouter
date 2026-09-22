@@ -61,11 +61,19 @@ jobs:
       # days. They are pure (no engine bundle needed) and cheap, so they run on
       # every pull request. Add a suite here only once it passes without the
       # engine bundle.
-      - name: Regression guards (golden URL/headers, handler ACL)
+      #
+      # The settings write-path trio joins them for the same reason: pure (temp
+      # DATA_DIR + real SQLite, no engine bundle), and it locks the write
+      # contract for the nested settings maps. A regression there is invisible —
+      # it silently eats adapter pools instead of erroring.
+      - name: Regression guards (golden URL/headers, handler ACL, settings write path)
         run: >-
           pnpm test
           tests/translator/golden-url-header.test.js
           tests/unit/handler-acl-enforcement.test.js
+          tests/unit/settings-nested-merge.test.js
+          tests/unit/settings-map-write-contract.test.js
+          tests/unit/settings-route-write-e2e.test.js
 
       - name: Build application
         run: node scripts/build.js
