@@ -55,4 +55,29 @@ describe("getCapabilitiesForModel", () => {
     expect(getCapabilitiesForModel("kiro", "gpt-5.6-luna-agentic")).toMatchObject(kiroGpt56Expected);
     expect(getCapabilitiesForModel("kiro", "gpt-5.6-sol-thinking-agentic")).toMatchObject(kiroGpt56Expected);
   });
+
+  // Guard: no PATTERN covers the muse-spark family, so its capabilities live
+  // only in MODEL_CAPABILITIES. A merge that drops those exact entries silently
+  // degrades the model to the safe floor (reasoning:false → applyThinking strips
+  // the client's effort; 200k/64k instead of 1M/128k) with no error anywhere.
+  // Regression: upstream merge 51ce9a86 dropped four entries that way.
+  it("keeps the muse-spark family off the safe floor", () => {
+    const museExpected = {
+      reasoning: true,
+      thinkingFormat: "openai",
+      contextWindow: 1048576,
+      maxOutput: 131072,
+    };
+    const models = [
+      "muse-spark-1.2-contributor",
+      "muse-spark-1.3-contributor",
+      "muse-spark-1.2-contributor-free",
+      "muse-spark-1.3-contributor-free",
+    ];
+    for (const model of models) {
+      for (const provider of ["opencode-go", "opencode", null]) {
+        expect(getCapabilitiesForModel(provider, model)).toMatchObject(museExpected);
+      }
+    }
+  });
 });
