@@ -264,8 +264,16 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       // level the request was actually tried at is recorded; a stream that
       // escalated during its head gate did its learning in the escalation
       // branch, not here.
+      //
+      // GATED ON sawToolCalls (2026-09-22). A tool-call turn produces no visible
+      // text BY DESIGN, and classifyStreamContent correctly calls that "empty".
+      // Feeding that verdict to the ledger recorded a LOSS for a level that had
+      // not failed. Measured: 398 of 399 empty rows were tool_calls, and SENYAP
+      // was 2492 of 2686 ledger writes — 93% of the signal was this false loss,
+      // which is the exact signal firstLevel() reads back. A tool-call turn has
+      // no verdict to teach: it is neither a win nor a loss.
       const kelas = outcomeClassFromIntegrity(integrity.status);
-      if (kelas) {
+      if (kelas && !(kelas === "SENYAP" && (sawToolCalls || finishReason === "tool_calls"))) {
         recordOutcome(model, firstLevel(model), kelas);
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | recorded ${kelas} at ${firstLevel(model)}`);
       }

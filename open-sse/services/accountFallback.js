@@ -159,6 +159,51 @@ const AUTOCLAW_BALANCE_EXHAUSTED_PATTERNS = [
 ];
 
 /**
+ * Patterns that mean "this account cannot serve ANY request until someone pays".
+ *
+ * Distinct from the autoclaw patterns above in one way that matters: this is not
+ * provider-specific. A prepaid relay answers the same way whatever its brand, and
+ * the wording is the gateway's, not ours — measured 2026-09-22 on the nfh relay
+ * (api.inferhub.dev):
+ *   {"error":{"message":"balance too low for this request — deposit USDC to continue",
+ *             "type":"insufficient_balance"}}
+ * That relay was the FIRST candidate of the smart-fallback combo, so every
+ * request paid ~7.8s of latency to learn the deposit was empty, 142 times in one
+ * window = 64.9 minutes of pure waste, with 72 of those attempts immediately
+ * followed by a success on another provider.
+ *
+ * Why the existing rules never caught it: 402 has a status rule that grants a
+ * 2-MINUTE cooldown, which is right for a rate/quota blip and wrong for an empty
+ * wallet. A 2-minute lock on a permanent condition means the account is selected
+ * again on the very next request.
+ */
+const PERMANENT_BALANCE_PATTERNS = [
+  /insufficient.{0,10}balance/i,
+  /balance.{0,20}(too low|exhausted|depleted|empty)/i,
+  /(deposit|recharge|top ?up).{0,40}(to continue|required|first)/i,
+  /credit.{0,20}(exhausted|depleted)/i,
+  /积分不足/i,
+];
+
+/**
+ * Detect whether an error means the account's balance is exhausted — a condition
+ * that persists until a human recharges it.
+ *
+ * Provider-agnostic on purpose. Used to deactivate the connection instead of
+ * giving it a short cooldown it will simply outlive.
+ *
+ * @param {string|object} errorText
+ * @returns {boolean}
+ */
+export function isPermanentBalanceExhausted(errorText) {
+  if (!errorText) return false;
+  const text = typeof errorText === "string"
+    ? errorText
+    : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();
+  return PERMANENT_BALANCE_PATTERNS.some(p => p.test(text));
+}
+
+/**
  * Detect whether error indicates autoclaw balance exhaustion.
  * @param {string} provider
  * @param {string|object} errorText

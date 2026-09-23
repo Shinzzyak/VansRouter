@@ -72,7 +72,15 @@ jobs:
       # source is MODEL_CAPABILITIES (a merge once dropped four of them);
       # capabilities-refine-exact.test.js pins the catalog install and the
       # refine() step on exact entries.
-      - name: Regression guards (golden URL/headers, handler ACL, settings write path, capabilities)
+      #
+      # Two more join them, both pure and both for a silent class:
+      # capabilities-alias-map.test.js recomputes the alias→id table from the
+      # registry, because a wrong key changes a model's context window with no
+      # error; balance-exhausted-verdict.test.js pins that the prepaid-relay
+      # verdict fires on an empty wallet and NOT on the nine error classes that
+      # must keep their own handling — a false positive deactivates a healthy
+      # account until a human notices.
+      - name: Regression guards (golden URL/headers, handler ACL, settings write path, capabilities, balance verdict)
         run: >-
           pnpm test
           tests/translator/golden-url-header.test.js
@@ -82,6 +90,8 @@ jobs:
           tests/unit/settings-route-write-e2e.test.js
           tests/unit/capabilities.test.js
           tests/unit/capabilities-refine-exact.test.js
+          tests/unit/capabilities-alias-map.test.js
+          tests/unit/balance-exhausted-verdict.test.js
 
       - name: Build application
         run: node scripts/build.js

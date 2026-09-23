@@ -17,6 +17,19 @@ export async function register() {
     const { installCatalogSource } = await import("open-sse/providers/catalogOverride.js");
     installCatalogSource();
 
+    // Engine state: restore what the last process measured, then arm the
+    // debounced writer + shutdown flush. Must run BEFORE the first request so
+    // firstLevel()/isDeadRoute() see the persisted ledger instead of an empty
+    // one. Fail-open: without the engine bundle both calls are no-ops.
+    const { hydrate, installFlushHooks } = await import("open-sse/rtk/engineState.js");
+    try {
+      const restored = hydrate();
+      installFlushHooks();
+      console.log(`[engine-state] ${restored ? "restored" : "no previous state"} | writer armed`);
+    } catch (e) {
+      console.warn("[engine-state] init failed (fail-open):", e?.message || e);
+    }
+
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync");
     startModelCatalogSync();
   }

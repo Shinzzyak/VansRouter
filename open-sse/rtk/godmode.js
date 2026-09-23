@@ -16,3 +16,4 @@ export const GODMODE_ON_PROMPT_EXPORT = __E.GODMODE_ON_PROMPT_EXPORT ?? "";
 export const PERSONA_LOCK_PROMPT = __E.PERSONA_LOCK_PROMPT ?? "";
 export const injectGodmode = __E.injectGodmode ?? (() => {});
 export const injectPersonaLock = __E.injectPersonaLock ?? (() => {});
+export const normalizeGodmodeLevel = __E.normalizeGodmodeLevel ?? (() => null);

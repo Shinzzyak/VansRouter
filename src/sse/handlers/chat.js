@@ -18,6 +18,7 @@ import {
   buildKimchiQuotaExhaustedUpdate,
   isAutoclawInsufficientBalance,
   buildAutoclawBalanceExhaustedUpdate,
+  isPermanentBalanceExhausted,
   detectDailyQuotaExhaustion,
   buildDailyQuotaLockUpdate,
   isProviderInCooldown,
@@ -721,6 +722,20 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         log.warn("AUTH", `Autoclaw balance exhausted: deactivated ${credentials.connectionName || credentials.connectionId} (recharge needed)`);
       } catch (e) {
         log.error("AUTH", `Failed to deactivate autoclaw account on balance exhausted: ${e.message}`);
+      }
+      // Fall through to fallback behavior — the next account or provider will be tried.
+    } else if (isPermanentBalanceExhausted(errorText)) {
+      // Balance exhausted on a PREPAID relay — any brand, not just autoclaw.
+      // A 402 otherwise gets a 2-minute cooldown and is re-selected on the very
+      // next request; an empty wallet does not refill in 2 minutes. Measured
+      // 2026-09-22: 142 attempts against one such relay, 64.9 minutes of latency
+      // spent learning the deposit was empty, 72 of them immediately followed by
+      // a success elsewhere. Deactivate instead of cooldown.
+      try {
+        await updateProviderConnection(credentials.connectionId, buildAutoclawBalanceExhaustedUpdate());
+        log.warn("AUTH", `Balance exhausted: deactivated ${credentials.connectionName || credentials.connectionId} (recharge needed, no auto-reset)`);
+      } catch (e) {
+        log.error("AUTH", `Failed to deactivate account on balance exhausted: ${e.message}`);
       }
       // Fall through to fallback behavior — the next account or provider will be tried.
     }

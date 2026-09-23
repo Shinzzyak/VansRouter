@@ -153,7 +153,31 @@ const CODEX_GPT_56_DEFAULT_CAPS = { vision: true, reasoning: true, search: true,
 
 /**
  * Provider-specific capability overrides. Keyed by provider alias/id.
+ *
+ * ALIAS RESOLUTION. Callers disagree about which spelling they pass: /api/models
+ * and combo.js pass the ALIAS (`kr`, `cx`, `cbai`), /v1/models passes the ID
+ * (`kiro`, `codex`, `codebuddy-intl`). This table is keyed by ID, so without a
+ * translation step the same model resolved to two different windows depending on
+ * the surface.
+ *
+ * This map is deliberately SMALL and local: only the aliases that point at a key
+ * below matter, and importing the provider registry here would drag 161 registry
+ * files into the CLIENT bundle (src/shared/hooks/useModelCaps.js imports this
+ * module). `tests/unit/capabilities-alias-map.test.js` asserts this table equals
+ * the registry's own alias→id pairs for those keys, so drift fails the build
+ * instead of silently changing a window.
  */
+export const PROVIDER_ALIAS_TO_ID = Object.freeze({
+  cbcn: "codebuddy-cn",
+  cbai: "codebuddy-intl",
+  cx: "codex",
+  kimi: "kimi", // id, listed for symmetry with the registry's `kimi-coding`/`kmc`
+  "kimi-coding": "kimi",
+  kmc: "kimi",
+  kr: "kiro",
+  atr: "atria",
+});
+
 export const PROVIDER_CAPABILITIES = {
   // Kimchi provider — exactly the 4 models advertised by the Kimchi CLI.
   // Kimi entries copied from the official Kimchi CLI catalog
@@ -523,8 +547,19 @@ export function getCapabilitiesForModel(provider, model) {
   // 1. Provider-specific override. Deliberately NOT refined: these entries are
   // per-provider truths (kiro's 272k, codex's own ceiling) that the catalog must
   // not overwrite.
+  //
+  // The alias is resolved FIRST because callers disagree about which spelling
+  // they pass: /api/models and combo.js pass the ALIAS (`kr`, `cx`, `cbai`),
+  // /v1/models passes the provider ID (`kiro`, `codex`, `codebuddy-intl`). This
+  // table is keyed by ID only, so before the resolution step the same model
+  // resolved to two different windows depending on the surface — measured
+  // 2026-09-22: 49 rows of /api/models disagreed with /v1/models for the same
+  // id, and combo.js (the path that actually DECIDES capacity/compaction) read
+  // 1500000 for providers whose real ceiling is 272000. That was a pre-existing
+  // class bug, not an effect of any single model entry.
   if (provider) {
-    const providerCaps = PROVIDER_CAPABILITIES[provider];
+    const id = PROVIDER_ALIAS_TO_ID[provider] || provider;
+    const providerCaps = PROVIDER_CAPABILITIES[id];
     if (providerCaps?.[model]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[model] };
     if (providerCaps?.[baseModel]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[baseModel] };
   }

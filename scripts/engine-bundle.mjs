@@ -32,6 +32,10 @@ const OUT = resolve(ROOT, "data/engine/engine.cjs");
 // walker with no product value, and two PUBLIC modules (brandContract,
 // thinkingGate) import it — keeping it public removes a fail-open dependency.
 const ENGINE_MODULES = [
+  // engineState is plumbing (JSON on disk), but it must live inside the bundle:
+  // the four stateful modules import it, and the public repo has to be able to
+  // arm persistence on startup WITHOUT the bundle (via the generated shim).
+  "engineState",
   "godmode",
   "bypassEngine",
   "promptInjectors",
@@ -54,22 +58,50 @@ const ENGINE_MODULES = [
 
 // Copied into the private src dir so the engine's relative imports resolve,
 // but NOT shimmed in the repo.
-const SUPPORT_MODULES = ["contentWalk"];
+//
+// EMPTY, deliberately (2026-09-22). It held `contentWalk` — the same file lives
+// in both repos, and the two copies had DRIFTED: `bodyHasMarkerAtLineStart`
+// existed only in the public copy while the private `compactionReassert.js`
+// imported it. That worked by accident (esbuild resolved the sibling import to
+// the public file), which meant the private copy was dead weight: any edit to it
+// had no effect and produced no warning. The private copy is gone; the public one
+// is the single source, and it is REAL code, not a shim — so it must never be
+// added to ENGINE_MODULES either (writeShims would overwrite it with no-ops and
+// break brandContract/thinkingGate/potatoMechanics, which call it directly).
+//
+// Keep this list empty unless a module genuinely has to exist in both places.
+const SUPPORT_MODULES = [];
 
 // Fallback per export, used when the bundle is absent. Rule: never crash,
 // never change request/response shape, behave as if the feature is off.
 const FALLBACKS = {
+  // engineState is the only module that must exist on BOTH sides of the shim:
+  // the stateful modules import it, and the public router has to be able to arm
+  // persistence + flush on shutdown without the bundle. Every function degrades
+  // to a no-op, so a bundle-less router keeps state in memory exactly as before.
+  engineState: {
+    registerState: "(() => {})",
+    markDirty: "(() => {})",
+    persist: "(() => false)",
+    hydrate: "(() => false)",
+    installFlushHooks: "(() => {})",
+    stateStatus: "(() => ({ file: null, slots: [], enabled: false, dirty: false, debounceMs: 0 }))",
+    stateFilePath: "(() => null)",
+    _resetStatePath: "(() => {})",
+  },
   godmode: {
     PERSONA_LOCK_PROMPT: '""',
     GODMODE_ON_PROMPT_EXPORT: '""',
     GODMODE_ENABLED: "true",
     GODMODE_LEVELS: "Object.freeze([])",
+    normalizeGodmodeLevel: "(() => null)",
     injectPersonaLock: "(() => {})",
     injectGodmode: "(() => {})",
   },
   bypassEngine: {
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
     detectModelFamily: "(() => null)",
+    detectFramingMismatch: "(() => null)",
     detectGeminiGuardrailRefusal: "(() => false)",
     detectRefusal: "(() => false)",
     getFramingStrategy: "(() => null)",
@@ -162,6 +194,7 @@ const FALLBACKS = {
     _resetCadence: "(() => {})",
     classifyCadence: "(() => ({ score: 100, grade: 'ok', issues: [] }))",
     getCadence: "(() => null)",
+    cadenceSnapshot: "(() => [])",
     recordCadence: "(() => {})",
   },
   formatInjectors: {

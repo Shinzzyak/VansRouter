@@ -45,6 +45,10 @@ const mocks = vi.hoisted(() => ({
   isKimchiQuotaExhausted: vi.fn(() => false),
   detectDailyQuotaExhaustion: vi.fn(() => null),
   isAutoclawInsufficientBalance: vi.fn(() => false),
+  // New export consumed by chat.js's 402 branch. `false` reproduces the exact
+  // pre-change behaviour for these tests: the branch is skipped and the account
+  // keeps cycling, which is what the client-abort test asserts.
+  isPermanentBalanceExhausted: vi.fn(() => false),
   getProxyHash: vi.fn(() => "proxy-1"),
   resolveAccountSemaphoreKey: vi.fn(() => null),
   resolveAccountSemaphoreMaxConcurrency: vi.fn(() => null),
@@ -132,6 +136,11 @@ vi.mock("open-sse/services/accountFallback.js", () => ({
   isKimchiQuotaExhausted: mocks.isKimchiQuotaExhausted,
   detectDailyQuotaExhaustion: mocks.detectDailyQuotaExhaustion,
   isAutoclawInsufficientBalance: mocks.isAutoclawInsufficientBalance,
+  // Must mirror every named export chat.js imports from this module: a strict
+  // vi.mock throws "No <name> export is defined" at the first access, which
+  // turns the test into a red that has nothing to do with the behaviour under
+  // test. Added with the prepaid-relay balance verdict (2026-09-23).
+  isPermanentBalanceExhausted: mocks.isPermanentBalanceExhausted,
 }));
 vi.mock("@/lib/network/connectionProxy", () => ({ getProxyHash: mocks.getProxyHash }));
 vi.mock("../../src/lib/network/connectionProxy.js", () => ({ getProxyHash: mocks.getProxyHash }));
