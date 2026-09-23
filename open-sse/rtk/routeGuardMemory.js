@@ -10,7 +10,7 @@ import { loadEngine } from "./engineLoader.js";
 
 const __E = loadEngine("routeGuardMemory") ?? {};
 
-export const isDeadRoute = __E.isDeadRoute ?? (() => false);
+export const isDeadRoute = __E.isDeadRoute ?? (() => null);
 export const recordRouteOutcome = __E.recordRouteOutcome ?? (() => {});
 export const resetRouteMemory = __E.resetRouteMemory ?? (() => {});
 export const routePrefix = __E.routePrefix ?? (() => '');

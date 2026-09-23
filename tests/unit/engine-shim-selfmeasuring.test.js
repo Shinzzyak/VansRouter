@@ -12,9 +12,20 @@ import { resolve } from 'node:path';
 
 const ROOT = resolve(__dirname, '../..');
 const RTK = resolve(ROOT, 'open-sse/rtk');
-const BUNDLE = resolve(ROOT, 'data/engine/engine.cjs');
 
-const hasBundle = existsSync(BUNDLE);
+// ASK THE LOADER, do not guess from a path (2026-09-23).
+//
+// This was `existsSync(resolve(ROOT, 'data/engine/engine.cjs'))` — the DEV path.
+// The loader resolves `.next/standalone/data/engine/engine.cjs` FIRST (production
+// layout outranks the dev copy on purpose). So on a checkout that has ever been
+// deployed, the standalone copy is present while the dev copy is not: `hasBundle`
+// said false, the loader said true, and the three assertions in the no-bundle
+// branch failed locally while CI stayed green. Reproduced with the CI-built
+// bundle: 3 failed. A gate whose notion of "bundle present" disagrees with the
+// loader is not a gate.
+import { isEngineLoaded } from 'open-sse/rtk/engineLoader.js';
+
+const hasBundle = isEngineLoaded();
 
 function engineModules() {
   const src = readFileSync(resolve(ROOT, 'scripts/engine-bundle.mjs'), 'utf8');

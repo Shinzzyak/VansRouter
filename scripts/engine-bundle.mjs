@@ -240,7 +240,13 @@ const FALLBACKS = {
     routeHint: "(() => null)",
     routeSnapshot: "(() => [])",
     resetRouteMemory: "(() => {})",
-    isDeadRoute: "(() => false)",
+    // `null`, not `false` (2026-09-23). The real module's contract is
+    // "null = no verdict about this route", and callers test the RESULT OBJECT
+    // (`isDeadRoute(m)?.kind`), so a boolean fallback is a different shape from
+    // the thing it stands in for. It also made the no-bundle branch of
+    // tests/unit/engine-shim-selfmeasuring.test.js assert `toBeNull()` against a
+    // `false` — a red that had nothing to do with the shim's actual behaviour.
+    isDeadRoute: "(() => null)",
     routePrefix: "(() => '')",
   },
   modelImmunityHints: {
