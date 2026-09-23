@@ -114,6 +114,7 @@ jobs:
           tests/unit/godmode-levels.test.js
           tests/unit/engine-ledger-signal-quality.test.js
           tests/unit/engine-state-route-imports.test.js
+          tests/unit/engine-loader-transient-absence.test.js
           tests/unit/settings-nested-merge.test.js
           tests/unit/settings-map-write-contract.test.js
           tests/unit/settings-route-write-e2e.test.js

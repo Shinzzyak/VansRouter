@@ -120,12 +120,34 @@ function compileBundle(path) {
 let _bundle;      // undefined = not resolved yet, null = absent
 let _loadedPath = null;
 
+// A HIT is cached for the life of the process; a MISS is re-checked on the next
+// call.
+//
+// WHY (2026-09-23). The verdict used to be cached unconditionally —
+// `if (_bundle !== undefined) return _bundle;` — which is right for a hit and
+// wrong for a miss, because the bundle legitimately disappears for a few seconds
+// during a deploy: the deploy script does `mv standalone standalone_old` and only
+// THEN untars the new build. A process whose first request lands in that window
+// cached "ABSENT" and stayed a plain proxy for its entire life — router up,
+// deploy gate green (it greps a fresh probe, not this process), and the product
+// silently not there. Reproduced by hiding the bundle, importing the loader, and
+// restoring it: `isEngineLoaded()` returned false both before AND after the file
+// was back.
+//
+// Re-probing a miss costs nothing that matters: every shim calls loadEngine() at
+// MODULE SCOPE (once per module per bundle copy), not per request, so this is a
+// handful of statSync calls at boot rather than disk I/O on the request path.
+// The `_bundle !== null` guards below keep the two log lines from repeating while
+// the state is unchanged.
 function resolveBundle() {
-  if (_bundle !== undefined) return _bundle;
+  if (_bundle) return _bundle;
   // Escape hatch: force the degraded path. Used by the fail-open test suite and
-  // available as a "safe mode" switch on the VPS.
+  // available as a "safe mode" switch on the VPS. Checked on every probe, so
+  // turning it off later does not require a restart either.
   if (process.env.VR_ENGINE_DISABLE) {
-    console.log("[ENGINE] disabled via VR_ENGINE_DISABLE — degraded to plain proxy mode");
+    if (_bundle !== null) {
+      console.log("[ENGINE] disabled via VR_ENGINE_DISABLE — degraded to plain proxy mode");
+    }
     _bundle = null;
     return _bundle;
   }
@@ -144,9 +166,11 @@ function resolveBundle() {
       console.error(`[ENGINE] failed to load ${p}: ${e.message}`);
     }
   }
-  console.warn(
-    `[ENGINE] ABSENT — degraded to plain proxy mode (searched: ${CANDIDATES.join(", ")})`
-  );
+  if (_bundle !== null) {
+    console.warn(
+      `[ENGINE] ABSENT — degraded to plain proxy mode (searched: ${CANDIDATES.join(", ")})`
+    );
+  }
   _bundle = null;
   return _bundle;
 }
