@@ -20,17 +20,21 @@
 // the request path free of disk I/O).
 import { describe, it, expect, afterEach } from "vitest";
 import { existsSync, renameSync } from "node:fs";
-import { resolve } from "node:path";
-import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
+import { isEngineLoaded, engineBundlePath } from "open-sse/rtk/engineLoader.js";
 
-const ROOT = resolve(__dirname, "../..");
-const BUNDLE = resolve(ROOT, ".next/standalone/data/engine/engine.cjs");
+// USE THE LOADER'S OWN PATH, never a hardcoded one.
+//
+// The first version of this file hardcoded `.next/standalone/data/engine/engine.cjs`
+// because that is what the DEV machine and the deployed VPS resolve. CI is the
+// other layout: the engine gates run BEFORE the bundle is copied into the
+// standalone artifact, so at that moment the bundle is at
+// `<repo>/data/engine/engine.cjs` and the standalone path does not exist yet —
+// rename() threw ENOENT and failed the build. Asking the loader gives the path
+// the runtime actually uses, in every layout. (Same lesson as
+// _engineAvailable.js, one file over: do not infer runtime state from a path.)
+const BUNDLE = engineBundlePath();
 const HIDDEN = `${BUNDLE}.test-hidden`;
 
-// Ask the loader, not the filesystem — the same lesson this file exists to
-// encode. With VR_ENGINE_DISABLE=1 the file is on disk and the loader still
-// reports absent by design, and a filesystem probe would then run assertions
-// against a deliberately disabled loader.
 const hasBundle = isEngineLoaded();
 
 afterEach(() => {
