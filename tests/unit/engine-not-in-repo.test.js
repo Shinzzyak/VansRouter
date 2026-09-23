@@ -34,6 +34,7 @@ const ENGINE_MODULES = [
   "voiceCadence",
   "thinkingGate",
   "instructionReceipts",
+  "refusalAttribution",
 ];
 
 // Distinctive strings that only exist inside the engine payload. Chosen so each

@@ -30,7 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
 import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, FRAMING_LEVELS } from "../rtk/selfMeasuringBypass.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -667,7 +667,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const retryParsed = JSON.parse(retryRaw);
               retryFiltered = isOutputFiltered(retryParsed, true);
             } catch { /* plain text or body consumed */ }
-            if (retryText && !retryFiltered && !detectRefusal(retryText)) {
+            if (retryText && !retryFiltered && !detectOwnRefusal(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
               recordOutcome(model, lvl1, classifyOutcome(retryText, true), `${provider}/${model}`);
               streamController.handleComplete();
@@ -766,7 +766,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       // penolakan, jawaban yang diganti versi jinak, atau badan kosong — ketiganya
       // tampak "sukses" kalau yang diperiksa cuma status.
       const outcome = classifyOutcome(responseText, true);
-      const refusalDetected = detectRefusal(responseText) || outcome === 'NOLAK';
+      // detectOwnRefusal, NOT detectRefusal (2026-09-23). The always-on persona
+      // layer instructs the model to quote a refusal it attributes to an
+      // imaginary assistant and mock it before shipping; a substring test reads
+      // that healthy reply as a refusal and escalates three times on a complete
+      // answer. Attribution keeps the gate on refusals the model PERFORMS.
+      const refusalDetected = detectOwnRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
       recordOutcome(model, firstLevel(model), outcome, `${provider}/${model}`);
       // needsFirstPassEscalation, BUKAN needsAnotherTry (2026-09-23). AMBIGU is
@@ -810,7 +815,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
               recordOutcome(model, lvl2, cls2, `${provider}/${model}`);
-              const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
+              const retryStillRefusal = detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 break;
@@ -878,7 +883,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const retryText = typeof nr?.response === 'string' ? nr.response : '';
               const cls3 = classifyOutcome(retryText, true);
               recordOutcome(model, lvl3, cls3, `${provider}/${model}`);
-              if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText) && !needsAnotherTry(cls3)) {
+              if (retryText && !isOutputFiltered(nr?.response) && !detectOwnRefusal(retryText) && !needsAnotherTry(cls3)) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();
                 return nr;

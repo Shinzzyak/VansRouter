@@ -19,6 +19,7 @@ export const classifyStreamHead = __E.classifyStreamHead ?? (() => null);
 export const detectFramingMismatch = __E.detectFramingMismatch ?? (() => null);
 export const detectGeminiGuardrailRefusal = __E.detectGeminiGuardrailRefusal ?? (() => false);
 export const detectModelFamily = __E.detectModelFamily ?? (() => null);
+export const detectOwnRefusal = __E.detectOwnRefusal ?? ((text) => Boolean(text));
 export const detectRefusal = __E.detectRefusal ?? (() => false);
 export const extractProviderPrefix = __E.extractProviderPrefix ?? ((m) => m);
 export const getEscalationPrompt = __E.getEscalationPrompt ?? (() => null);
@@ -28,4 +29,5 @@ export const isContentSafetyRejected = __E.isContentSafetyRejected ?? (() => fal
 export const isOutputFiltered = __E.isOutputFiltered ?? (() => false);
 export const peekStreamForRefusal = __E.peekStreamForRefusal ?? (async () => null);
 export const reconstructPeekedStream = __E.reconstructPeekedStream ?? (() => null);
+export const refusalAttributionOf = __E.refusalAttributionOf ?? (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }));
 export const stripProviderPrefix = __E.stripProviderPrefix ?? ((m) => m);

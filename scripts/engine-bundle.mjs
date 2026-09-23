@@ -54,6 +54,12 @@ const ENGINE_MODULES = [
   "selfMeasuringBypass",
   "routeGuardMemory",
   "modelImmunityHints",
+  // Refusal attribution (2026-09-23). Lives in the bundle rather than the public
+  // repo because its whole value is the knowledge of WHICH refusals are the
+  // router's own doing: the always-on persona layer instructs the model to quote
+  // a refusal it attributes to an imaginary assistant, mock it, then ship. A
+  // public copy would hand that reasoning to anyone reading the repo.
+  "refusalAttribution",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -104,6 +110,14 @@ const FALLBACKS = {
     detectFramingMismatch: "(() => null)",
     detectGeminiGuardrailRefusal: "(() => false)",
     detectRefusal: "(() => false)",
+    // Fail-CLOSED here, unlike every other fallback: without the bundle there is
+    // no attribution analysis, so "is this refusal the model's own?" must answer
+    // YES. That keeps the pre-existing escalation behaviour exactly as it was
+    // (the degraded path escalates on any refusal text, as before) instead of
+    // silently switching escalations off for a router that lost its engine.
+    detectOwnRefusal: "((text) => Boolean(text))",
+    refusalAttributionOf:
+      "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
     getFramingStrategy: "(() => null)",
     getEscalationPrompt: "(() => null)",
     getEscalationPromptForLevel: "(() => null)",
@@ -265,6 +279,17 @@ const FALLBACKS = {
     suggestedFirstLevel: "(() => null)",
     immunitySnapshot: "(() => [])",
     IMMUNITY_HINTS: "Object.freeze({})",
+  },
+  refusalAttribution: {
+    // Fail-CLOSED, same reasoning as detectOwnRefusal: with no attribution
+    // analysis every refusal-shaped string must keep its pre-existing meaning.
+    ATTRIBUTION: "Object.freeze({ SELF: 'self', QUOTED: 'quoted', ATTRIBUTED: 'attributed', NONE: 'none' })",
+    refusalAttribution:
+      "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
+    isOwnRefusal: "((text) => Boolean(text))",
+    isSelfRefusal: "((text) => Boolean(text))",
+    explainAttribution:
+      "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
   },
 };
 
