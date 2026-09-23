@@ -195,3 +195,46 @@ describe.skipIf(!available)("engine state persistence", () => {
     );
   });
 });
+
+// The failure this file could not see, found on the live deploy 2026-09-23.
+//
+// Next emits this bundle MORE THAN ONCE — the chat path and a route handler each
+// get their own copy — so a module-scoped Map exists per copy. Symptom measured
+// in production: the chat path wrote ledger rows (refusalDrift proved traffic was
+// flowing) while /api/engine/state read a DIFFERENT copy that was always empty,
+// and persist() then wrote zeros over a state file that had been correct.
+//
+// A fresh specifier (`?copy=2`) makes the module loader hand back a second
+// instance, which is the same thing the bundler does. refusalDrift already stored
+// its map on globalThis and passes; the other three did not.
+describe.skipIf(!available)("state is shared across bundle copies", () => {
+  const bust = async (name) => import(`open-sse/rtk/${name}.js?copy=2`);
+
+  it("the framing ledger is one Map, not one per copy", async () => {
+    ledger.resetLedger();
+    const other = await bust("selfMeasuringBypass");
+    ledger.recordOutcome("probe/shared-ledger", "T1", "PATUH");
+    // The SECOND copy must see the write the first one made.
+    expect(other.preferredLevel("probe/shared-ledger")).toBe("T1");
+  });
+
+  it("route memory is one Map, not one per copy", async () => {
+    routes.resetRouteMemory();
+    const other = await bust("routeGuardMemory");
+    for (let i = 0; i < 3; i++) routes.recordRouteOutcome("probe-shared/model", "FILTER_UPSTREAM");
+    expect(other.isDeadRoute("probe-shared/model")?.kind).toBe("filtered");
+  });
+
+  it("cadence history is one Map, not one per copy", async () => {
+    const other = await bust("voiceCadence");
+    const { recordCadence } = await import("open-sse/rtk/voiceCadence.js");
+    recordCadence("probe-shared-cadence", 88);
+    expect(JSON.stringify(other.cadenceSnapshot())).toContain("probe-shared-cadence");
+  });
+
+  it("refusalDrift keeps its cross-copy store (the pattern the others now follow)", async () => {
+    const other = await bust("refusalDrift");
+    drift.recordIntegrity("probe-shared", "model-drift", "refusal_text");
+    expect(Object.keys(other.getAllDrift())).toContain("probe-shared/model-drift");
+  });
+});
