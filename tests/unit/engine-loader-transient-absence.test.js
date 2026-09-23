@@ -92,8 +92,20 @@ describe.skipIf(!hasBundle)("loader cache: hit forever, miss re-checked", () => 
     const first = loader.engineBundlePath();
     // Hide the file: a cached HIT must keep answering from memory and must not
     // re-read the disk. If the hit were re-resolved this would go false.
-    for (const { path, hidden } of LAYOUTS) renameSync(path, hidden);
-    expect(loader.isEngineLoaded(), "hit survives the file disappearing").toBe(true);
-    expect(loader.engineBundlePath()).toBe(first);
+    try {
+      for (const { path, hidden } of LAYOUTS) renameSync(path, hidden);
+      expect(loader.isEngineLoaded(), "hit survives the file disappearing").toBe(true);
+      expect(loader.engineBundlePath()).toBe(first);
+    } finally {
+      // Restore HERE, not only in afterEach. The suite hides the bundle for the
+      // whole worker process; a restore that waits for afterEach leaves the file
+      // hidden while the next file in the same worker is still importing its
+      // shims. Measured 2026-09-23: thinking-gate.test.js read `[ENGINE] ABSENT`
+      // at import and failed 9/16 tests against a correct engine. Restoring in
+      // the same tick as the assertion closes that window.
+      for (const { path, hidden } of LAYOUTS) {
+        if (existsSync(hidden)) renameSync(hidden, path);
+      }
+    }
   }, 15000);
 });
