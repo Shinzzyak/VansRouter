@@ -156,14 +156,13 @@ export function createSSEStream(options = {}) {
       appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
     }
 
-    if (onStreamComplete) {
-      onStreamComplete({
-        content: accumulatedContent,
-        thinking: accumulatedThinking,
-        finishReason: lastFinishReason,
-        sawToolCalls
-      }, finalUsage, ttftAt);
-    }
+    // ONE owner for onStreamComplete: fireStreamComplete(). It used to be called
+    // here as well, with its own separate once-guard, so a normal stream fired it
+    // TWICE — measured on the live router 2026-09-23: one streaming request wrote
+    // 2 rows to usageHistory and moved the framing ledger by 2 instead of 1.
+    // The ledger counter feeds firstLevel(), so the doubling was corrupting the
+    // very measurement the engine makes decisions from.
+    fireStreamComplete(finalUsage);
   };
 
   // Guard so onStreamComplete (which records usage) fires exactly once — whether
@@ -171,11 +170,13 @@ export function createSSEStream(options = {}) {
   // Hermes/OpenAI SDK often close the connection right after the full response
   // arrives, before flush() runs, which previously dropped usage tracking.
   let streamCompleteFired = false;
-  const fireStreamComplete = () => {
+  // `finalUsageOverride` lets finalizeStream() hand over the usage it just
+  // estimated/patched, so the single fire still reports the corrected numbers.
+  const fireStreamComplete = (finalUsageOverride) => {
     if (streamCompleteFired) return;
     streamCompleteFired = true;
     if (onStreamComplete) {
-      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking, finishReason: lastFinishReason, sawToolCalls }, usage, ttftAt);
+      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking, finishReason: lastFinishReason, sawToolCalls }, finalUsageOverride ?? usage, ttftAt);
     }
   };
 

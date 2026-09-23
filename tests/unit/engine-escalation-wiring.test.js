@@ -67,8 +67,34 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
   });
 
   it('badan kosong / substitusi / penolakan sama-sama memicu percobaan berikutnya', () => {
-    const panggil = chatCore.match(/needsAnotherTry\(/g) || [];
+    // Ketiga jalur eskalasi harus punya predikat kegagalan. Jumlahnya tetap 3,
+    // tapi predikatnya DUA macam sejak 2026-09-23:
+    //
+    //   percobaan PERTAMA  -> needsFirstPassEscalation()  (AMBIGU tidak memicu)
+    //   di DALAM loop      -> needsAnotherTry()           (percobaan sebelumnya
+    //                                                      sudah dievaluasi gagal)
+    //
+    // Dihitung bersama karena yang dijaga tes ini adalah "tiap jalur punya
+    // gerbang", bukan nama fungsinya. Bentuk persisnya dijaga tes berikutnya.
+    const panggil = [
+      ...(chatCore.match(/needsAnotherTry\(/g) || []),
+      ...(chatCore.match(/needsFirstPassEscalation\(/g) || []),
+    ];
     expect(panggil.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('percobaan pertama TIDAK dieskalasi hanya karena hasilnya AMBIGU', () => {
+    // Terukur di deploy hidup: 6/6 baris `inspect:` adalah outcome=AMBIGU pada
+    // jawaban sehat (len 399..4310) dan keenamnya membakar 3 percobaan upstream
+    // plus menulis kerugian PALSU ke ledger — yang persis dibaca firstLevel().
+    // AMBIGU berarti "tidak tahu", bukan "gagal".
+    expect(chatCore).toMatch(/needsFirstPassEscalation\(outcome\)/);
+    // Jalur pertama tidak boleh memakai predikat loop: itu yang jadi bug.
+    const inspectIdx = chatCore.indexOf('inspect: outcome=');
+    expect(inspectIdx).toBeGreaterThan(-1);
+    const gate = chatCore.slice(inspectIdx, inspectIdx + 900);
+    expect(gate).toMatch(/needsFirstPassEscalation\(/);
+    expect(gate).not.toMatch(/needsAnotherTry\(outcome\)/);
   });
 });
 

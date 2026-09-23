@@ -31,7 +31,7 @@ import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/termin
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { detectRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
-import { classifyOutcome, needsAnotherTry, nextFraming, recordOutcome, firstLevel, FRAMING_LEVELS } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, FRAMING_LEVELS } from "../rtk/selfMeasuringBypass.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
@@ -669,12 +669,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             } catch { /* plain text or body consumed */ }
             if (retryText && !retryFiltered && !detectRefusal(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
-              recordOutcome(model, lvl1, classifyOutcome(retryText, true));
+              recordOutcome(model, lvl1, classifyOutcome(retryText, true), `${provider}/${model}`);
               streamController.handleComplete();
               return nr;
             }
             const cls1 = classifyOutcome(retryText, true);
-            recordOutcome(model, lvl1, cls1);
+            recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
               lvl1 = nextFraming(cls1, lvl1, FRAMING_LEVELS.filter((l) => !triedL1.includes(l))) || lvl1;
@@ -768,8 +768,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const outcome = classifyOutcome(responseText, true);
       const refusalDetected = detectRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
-      recordOutcome(model, firstLevel(model), outcome);
-      if (refusalDetected || outputFiltered || needsAnotherTry(outcome)) {
+      recordOutcome(model, firstLevel(model), outcome, `${provider}/${model}`);
+      // needsFirstPassEscalation, BUKAN needsAnotherTry (2026-09-23). AMBIGU is
+      // the NORMAL class for ordinary traffic: classifyOutcome only returns PATUH
+      // when it finds the technical deed the request asked for, so a plain
+      // question answered correctly and at length comes back AMBIGU. Escalating
+      // on it burned 3 upstream attempts per successful non-streaming request
+      // (measured: 6/6 `inspect:` lines in the live log were AMBIGU on healthy
+      // answers, all six escalating) and wrote a false loss into the ledger that
+      // firstLevel() then reads back.
+      if (refusalDetected || outputFiltered || needsFirstPassEscalation(outcome)) {
         const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
         const triedL2 = [];
@@ -801,7 +809,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 } catch { /* plain text */ }
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
-              recordOutcome(model, lvl2, cls2);
+              recordOutcome(model, lvl2, cls2, `${provider}/${model}`);
               const retryStillRefusal = detectRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
@@ -869,7 +877,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
               const retryText = typeof nr?.response === 'string' ? nr.response : '';
               const cls3 = classifyOutcome(retryText, true);
-              recordOutcome(model, lvl3, cls3);
+              recordOutcome(model, lvl3, cls3, `${provider}/${model}`);
               if (retryText && !isOutputFiltered(nr?.response) && !detectRefusal(retryText) && !needsAnotherTry(cls3)) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();

@@ -34,10 +34,15 @@ describe("stream answers teach the self-measuring ledger", () => {
     expect(src.slice(gateIdx)).toMatch(/\brecordOutcome\s*\(/);
   });
 
-  it("calls recordOutcome with exactly three arguments, keyed by model", () => {
+  it("calls recordOutcome keyed by model, with the route as the fourth argument", () => {
     // Anchor on the literal call: the second argument contains parentheses, so
     // /recordOutcome\(([^)]*)\)/ would truncate it and report false arity.
-    expect(src).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*kelas\);/);
+    //
+    // FOUR arguments now (2026-09-23). The third book — routeGuardMemory — keys on
+    // the prefix BEFORE the first slash, while the framing ledger keys on the bare
+    // model id, so the same call has to hand each book the key it needs. Measured
+    // before the fix: 5x FILTER_UPSTREAM on a bare id left `learned: []`.
+    expect(src).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*kelas,\s*`\$\{provider\}\/\$\{model\}`\);/);
     expect([...src.matchAll(/recordOutcome\(/g)].length).toBe(1);
     // and it must not be provider-keyed (the bug that filed everything wrong)
     expect(src).not.toMatch(/recordOutcome\(provider,/);
@@ -50,7 +55,7 @@ describe("stream answers teach the self-measuring ledger", () => {
   });
 
   it("the non-streaming branch still records (no regression in the other path)", () => {
-    expect(read(CORE)).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*outcome\)/);
+    expect(read(CORE)).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*outcome,\s*`\$\{provider\}\/\$\{model\}`\)/);
   });
 });
 

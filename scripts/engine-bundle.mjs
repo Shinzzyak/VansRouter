@@ -159,6 +159,9 @@ const FALLBACKS = {
     classifyResponse:
       "(({ parsed } = {}) => ({ status: 'ok', text: typeof parsed === 'string' ? parsed : '', brandOk: null, refusal: false }))",
     repairBrandContract: "((text) => ({ text, repaired: false }))",
+    // Null = "this verdict teaches nothing", which is exactly what the
+    // no-bundle path must do. Not `false`, not a guess.
+    outcomeClassFromIntegrity: "(() => null)",
   },
 
   modelCapabilities: {
@@ -225,6 +228,14 @@ const FALLBACKS = {
   selfMeasuringBypass: {
     classifyOutcome: "(() => 'PATUH')",
     needsAnotherTry: "(() => false)",
+    // Ledger yang tidak ada tidak boleh memaksa eskalasi: tanpa bundle, kelas
+    // hasil tidak bisa dinilai, jadi jawabannya "jangan eskalasi" — persis
+    // perilaku plain-proxy. Peta verdict->kelas hidup di responseIntegrity.
+    needsFirstPassEscalation: "(() => false)",
+    // Tanpa bundle tidak ada bukti apa pun — null, bukan tingkat tebakan. `max`
+    // menerjemahkan null ini jadi T3 di godmode.js, jadi perilaku tanpa bundle
+    // persis seperti sebelum fitur ini ada.
+    evidenceLevel: "(() => null)",
     nextFraming: "(() => null)",
     recordOutcome: "(() => {})",
     preferredLevel: "(() => null)",

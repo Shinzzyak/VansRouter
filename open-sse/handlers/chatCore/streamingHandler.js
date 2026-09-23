@@ -15,6 +15,9 @@ import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
+import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
+// Re-exported so callers (and the ledger tests) keep importing it from here.
+export { outcomeClassFromIntegrity };
 
 /**
  * Map a stream-integrity verdict onto the class vocabulary the self-measuring
@@ -29,14 +32,7 @@ import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasur
  * escalation ladder did not have to fix, and recording a win per request would
  * let volume bury the signal.
  */
-export function outcomeClassFromIntegrity(status) {
-  if (status === INTEGRITY.EMPTY) return "SENYAP";
-  if (status === INTEGRITY.REFUSAL) return "NOLAK";
-  if (status === INTEGRITY.OUTPUT_FILTERED) return "FILTER_UPSTREAM";
-  if (status === INTEGRITY.MISSING_BRAND || status === INTEGRITY.MISSING_SEAL
-      || status === INTEGRITY.MISSING_ENCLOSURE) return "SUBSTITUSI";
-  return null;
-}
+
 
 const STREAM_EARLY_EOF_STATUS = 502;
 
@@ -274,7 +270,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       // no verdict to teach: it is neither a win nor a loss.
       const kelas = outcomeClassFromIntegrity(integrity.status);
       if (kelas && !(kelas === "SENYAP" && (sawToolCalls || finishReason === "tool_calls"))) {
-        recordOutcome(model, firstLevel(model), kelas);
+        recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`);
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | recorded ${kelas} at ${firstLevel(model)}`);
       }
     } catch (e) {

@@ -10,7 +10,7 @@ import { getRoleAdapterModel, stripHistoryForContext } from "./capacityAdapter.j
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
-import { classifyOutcome, needsAnotherTry, recordOutcome } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsAnotherTry, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
 export function stripComboPrefix(modelStr) {
@@ -346,8 +346,24 @@ async function inspectComboContent(result, model) {
   }
   // Instrumentasi, bukan penalti: jalur ini TIDAK menandai model busuk. Menandai
   // model karena satu jawaban kosong/ambigu justru menjatuhkan model yang sehat.
+  //
+  // ARGUMENNYA SALAH sampai 2026-09-23. Signature-nya
+  // `recordOutcome(model, level, kelas)` — yang dikirim adalah
+  // `('combo', <nama model>, out)`, jadi ledger menyimpan SATU baris bernama
+  // `combo` dengan `wins` yang di-key oleh NAMA MODEL dan `level` yang berisi
+  // kelas hasil. Terukur di bundle hidup:
+  //
+  //   recordOutcome("combo", "gcli/grok-4.6", "PATUH")
+  //   -> [{ model: "combo", wins: { "gcli/grok-4.6": 1 }, best: "gcli/grok-4.6" }]
+  //   -> preferredLevel("combo") mengembalikan NAMA MODEL sebagai tingkat
+  //      formulasi, dan firstLevel("combo") ikut mengembalikannya.
+  //
+  // Jadi bukan cuma sampah diagnostik: nilai yang bukan T1/T2/T3 bisa mengalir
+  // ke pemilihan bingkai. Sekarang kuncinya model yang BENAR dan tingkatnya
+  // firstLevel(model) — jawaban jujur untuk "tingkat mana yang dipakai percobaan
+  // pertama", sama seperti yang ditulis jalur streaming. Bukan tebakan T2.
   try {
-    recordOutcome('combo', model, out, 'probe');
+    recordOutcome(model, firstLevel(model), out, model);
   } catch { /* ledger tidak boleh menjatuhkan permintaan */ }
   return { outcome: out, bad: needsAnotherTry(out), text };
 }

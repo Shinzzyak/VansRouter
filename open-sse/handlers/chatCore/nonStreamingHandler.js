@@ -14,6 +14,8 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { classifyResponse, repairBrandContract, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
+import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 import { matchesFormatEnclosure } from "../../rtk/thinkingGate.js";
 
 /**
@@ -398,6 +400,27 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   try {
     const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body });
     recordIntegrity(provider, model, integrity.status);
+
+    // Teach the self-measuring ledger from the NON-STREAMING path too (2026-09-23).
+    //
+    // This used to call recordIntegrity (drift ring) but never recordOutcome
+    // (framing ledger) — so a client that asks for `stream: false` taught the
+    // engine nothing at all, and the ledger's only teacher was the streaming
+    // path. Measured live: 3 non-streaming requests moved the ledger by 0 while
+    // 1 streaming request moved it by 2.
+    //
+    // Same mapping and same gate as the streaming path: OK teaches nothing (or
+    // volume would bury the rare signal), and a tool-call-only turn has no
+    // verdict to give. Reuses the SAME verdict already computed above, so this
+    // costs one Map write — no second classification pass.
+    try {
+      const sawToolCalls = Array.isArray(finalResponse?.choices?.[0]?.message?.tool_calls)
+        && finalResponse.choices[0].message.tool_calls.length > 0;
+      const kelas = outcomeClassFromIntegrity(integrity.status);
+      if (kelas && !(kelas === "SENYAP" && (sawToolCalls || respFinish === "tool_calls"))) {
+        recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`);
+      }
+    } catch (_) { /* ledger tidak boleh menjatuhkan permintaan */ }
 
     // Thinking-gate format-enclosure signal (soft): a thinking model that
     // skipped the enclosure is drifting from the contract. Recorded as a

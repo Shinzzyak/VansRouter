@@ -36,9 +36,20 @@ export const PONYTAIL_LEVELS = [
 // When disabled, normal behavior
 export const GODMODE_ENABLED = true;
 export const GODMODE_OFF = false;
+// The engine accepts THREE level ids (godmode.js normalizeGodmodeLevel) and this
+// list is the only picker the dashboard renders — so a level missing here is a
+// level nobody can select. Measured 2026-09-23: `max` existed in the engine, was
+// covered by tests, and had ZERO callers because the UI offered only two ids.
+// Keep this list and GODMODE_LEVELS in godmode.js in step; the ids are the
+// contract, the labels are cosmetic.
 export const GODMODE_LEVELS = [
-  { id: "lite", label: "Lite", desc: "Basic unrestricted assistant" },
-  { id: "full", label: "Full", desc: "Full security researcher framing" },
+  { id: "lite", label: "Lite", desc: "Uncensoring framing + reply-surface contract" },
+  { id: "full", label: "Full", desc: "Same prompt as Lite — level reserved" },
+  {
+    id: "max",
+    label: "Max",
+    desc: "Adds the strongest framing this model measured (costs tokens)",
+  },
 ];
 
 // Bypass Engine: universal request/response interceptor

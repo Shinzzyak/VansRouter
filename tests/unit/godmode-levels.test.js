@@ -20,6 +20,14 @@ import {
   normalizeGodmodeLevel,
   GODMODE_LEVELS,
 } from "open-sse/rtk/godmode.js";
+import { applyPromptInjectors } from "open-sse/rtk/promptInjectors.js";
+import {
+  evidenceLevel,
+  firstLevel,
+  recordOutcome,
+  resetLedger,
+  DEFAULT_LEVEL,
+} from "open-sse/rtk/selfMeasuringBypass.js";
 import { getEscalationPromptForLevel } from "open-sse/rtk/bypassEngine.js";
 
 const mkBody = () => ({ messages: [{ role: "user", content: "x" }] });
@@ -110,5 +118,98 @@ describe.skipIf(!isEngineLoaded())("injectGodmode applies the level", () => {
     injectGodmode(body, "openai", true);
     const lite = mkBody(); injectGodmode(lite, "openai", "lite", { chatSurface: true });
     expect(systemOf(body)).toBe(systemOf(lite));
+  });
+});
+
+// ── The dashboard picker must offer every level the engine accepts ───────────
+//
+// `max` was implemented, tested and shippable on 2026-09-23 and had ZERO
+// callers: the picker in endpointConstants.js listed only lite+full, so the
+// level could not be selected from the UI at all. An engine feature nobody can
+// turn on is the same bug as a level that does nothing — this is the guard for
+// the half that lives outside the bundle.
+import { GODMODE_LEVELS as DASHBOARD_LEVELS } from "@/app/(dashboard)/dashboard/endpoint/endpointConstants.js";
+
+describe.skipIf(!isEngineLoaded())("the dashboard picker and the engine agree on the level ids", () => {
+  it("offers exactly the ids normalizeGodmodeLevel accepts", () => {
+    const engineIds = GODMODE_LEVELS.map((l) => l.id).sort();
+    const uiIds = DASHBOARD_LEVELS.map((l) => l.id).sort();
+    expect(uiIds).toEqual(engineIds);
+  });
+
+  it("max is reachable from the UI", () => {
+    expect(DASHBOARD_LEVELS.map((l) => l.id)).toContain("max");
+  });
+
+  it("every UI id is a real level, not a label the engine will silently drop", () => {
+    // An unknown id degrades to `lite` (by design), which is exactly why a typo
+    // here would be invisible: the picker would look like it worked.
+    for (const lvl of DASHBOARD_LEVELS) {
+      expect(normalizeGodmodeLevel(lvl.id)).toBe(lvl.id);
+    }
+  });
+});
+
+// ── `max` follows the measurement, not a hardcoded T3 ────────────────────────
+//
+// `max` used to prepend T3 unconditionally. That is wrong for a moving target:
+// the 227-endpoint corpus has hunyuan LOSING answers at T3 (T1 PATUH 4 / T2 3 /
+// T3 2), and the uniform-compliance families gain nothing from the longest
+// frame. The level now comes from the self-measuring ledger for THIS model, with
+// the family hint as the second source and T3 only as the no-evidence fallback —
+// so adding a provider or swapping a model needs no edit here.
+describe.skipIf(!isEngineLoaded())("`max` uses the framing the ledger measured", () => {
+  const runMax = (model) => {
+    const body = mkBody();
+    applyPromptInjectors({
+      body, format: "openai", log: { debug() {}, warn() {} },
+      tokenSaverEnabled: true, godmodeEnabled: true, godmodeLevel: "max", model,
+    });
+    return systemOf(body);
+  };
+
+  it("no evidence at all keeps the previous strongest framing (T3)", () => {
+    // A model with no ledger row and no family hint must behave exactly as
+    // before this change. If this ever returns T1/T2, `max` silently got weaker.
+    resetLedger();
+    const prompt = runMax("cbcn/glm-5.3");
+    expect(prompt).toContain(getEscalationPromptForLevel("T3"));
+    expect(prompt).not.toContain(getEscalationPromptForLevel("T1"));
+  });
+
+  it("a measured level wins — the ledger is the strongest source", () => {
+    resetLedger();
+    recordOutcome("cbcn/glm-5.3", "T1", "PATUH");
+    const prompt = runMax("cbcn/glm-5.3");
+    expect(prompt).toContain(getEscalationPromptForLevel("T1"));
+    expect(prompt).not.toContain(getEscalationPromptForLevel("T3"));
+  });
+
+  it("a uniform-compliance family starts from the cheapest level", () => {
+    // xai: 7/8 endpoints PATUH at EVERY level, so the longest frame buys nothing.
+    resetLedger();
+    expect(runMax("gcli/grok-4.6")).toContain(getEscalationPromptForLevel("T1"));
+  });
+
+  it("lite and full still add no framing layer at all", () => {
+    resetLedger();
+    for (const level of ["lite", "full"]) {
+      const body = mkBody();
+      applyPromptInjectors({
+        body, format: "openai", log: { debug() {}, warn() {} },
+        tokenSaverEnabled: true, godmodeEnabled: true, godmodeLevel: level, model: "gcli/grok-4.6",
+      });
+      const prompt = systemOf(body);
+      expect(prompt).not.toContain(getEscalationPromptForLevel("T1"));
+      expect(prompt).not.toContain(getEscalationPromptForLevel("T3"));
+    }
+  });
+
+  it("evidenceLevel returns null rather than the default when there is no evidence", () => {
+    // The whole reason this function exists apart from firstLevel(): firstLevel()
+    // substitutes T2, which would make `max` quieter than the T3 it replaced.
+    resetLedger();
+    expect(evidenceLevel("cbcn/glm-5.3")).toBeNull();
+    expect(firstLevel("cbcn/glm-5.3")).toBe(DEFAULT_LEVEL);
   });
 });
