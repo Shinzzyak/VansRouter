@@ -61,27 +61,63 @@ const LAYOUTS = [
 
 const hasBundle = isEngineLoaded();
 
-afterEach(() => {
-  // Never leave any copy hidden, whatever a test did.
+/** Hide every layout the loader knows about. */
+function hideAll() {
+  for (const { path, hidden } of LAYOUTS) renameSync(path, hidden);
+}
+
+/**
+ * Put every hidden copy back. Idempotent — safe to call when nothing is hidden.
+ *
+ * This is called from THREE places on purpose: the test's own `finally`, and
+ * `afterEach` as a last-resort backstop. The `finally` is what matters — see the
+ * note on test 2 below.
+ */
+function restoreAll() {
   for (const { path, hidden } of LAYOUTS) {
     if (existsSync(hidden)) renameSync(hidden, path);
   }
+}
+
+afterEach(() => {
+  // Never leave any copy hidden, whatever a test did.
+  restoreAll();
 });
 
 describe.skipIf(!hasBundle)("loader cache: hit forever, miss re-checked", () => {
   it("a transient absence self-heals on the very next call", async () => {
-    for (const { path, hidden } of LAYOUTS) renameSync(path, hidden);
-    // Fresh specifier = fresh module instance, so this test owns its cache state
-    // and cannot be poisoned by the other suites in the same worker.
-    const loader = await import(`open-sse/rtk/engineLoader.js?transient=1`);
-    for (const { path } of LAYOUTS) expect(existsSync(path), `${path} hidden`).toBe(false);
-    expect(loader.isEngineLoaded(), "absent at import time").toBe(false);
+    hideAll();
+    // The window below is the ONE yield in this file: `await import()` resolves
+    // while the bundle is still hidden, so any other file scheduled on a
+    // concurrent worker can import a shim and snapshot `{}`. That is inherent to
+    // what this test proves (a MISS must be re-checked, so the bundle has to be
+    // absent at import time) and cannot be removed here — only guaranteed to end.
+    //
+    // Hence try/finally: if either assertion between hide and restore throws,
+    // `afterEach` alone would leave the bundle hidden for the rest of the
+    // worker's life and break every suite scheduled after it. Restoring in the
+    // same tick as the assertion closes that, and is the same discipline the
+    // next test uses.
+    //
+    // The loader instance is deliberately captured OUTSIDE the try so the
+    // assertion after the restore runs against the SAME instance that cached the
+    // miss. A fresh import would see the file trivially and prove nothing.
+    let loader;
+    try {
+      // Fresh specifier = fresh module instance, so this test owns its cache state
+      // and cannot be poisoned by the other suites in the same worker.
+      loader = await import(`open-sse/rtk/engineLoader.js?transient=1`);
+      for (const { path } of LAYOUTS) expect(existsSync(path), `${path} hidden`).toBe(false);
+      expect(loader.isEngineLoaded(), "absent at import time").toBe(false);
+    } finally {
+      restoreAll();
+    }
 
-    for (const { path, hidden } of LAYOUTS) renameSync(hidden, path);
     for (const { path } of LAYOUTS) expect(existsSync(path), "bundle restored").toBe(true);
 
-    // The whole point: no restart, no timer, no retry window — the next call sees
-    // it. This is the assertion that fails against the old unconditional cache.
+    // The whole point: no restart, no timer, no retry window — the next call on
+    // the SAME instance sees it. This is the assertion that fails against the old
+    // unconditional cache.
     expect(loader.isEngineLoaded(), "self-healed on the next call").toBe(true);
     expect(loader.engineBundlePath()).toBe(BUNDLE);
   }, 15000);
@@ -93,7 +129,7 @@ describe.skipIf(!hasBundle)("loader cache: hit forever, miss re-checked", () => 
     // Hide the file: a cached HIT must keep answering from memory and must not
     // re-read the disk. If the hit were re-resolved this would go false.
     try {
-      for (const { path, hidden } of LAYOUTS) renameSync(path, hidden);
+      hideAll();
       expect(loader.isEngineLoaded(), "hit survives the file disappearing").toBe(true);
       expect(loader.engineBundlePath()).toBe(first);
     } finally {
@@ -103,9 +139,7 @@ describe.skipIf(!hasBundle)("loader cache: hit forever, miss re-checked", () => 
       // shims. Measured 2026-09-23: thinking-gate.test.js read `[ENGINE] ABSENT`
       // at import and failed 9/16 tests against a correct engine. Restoring in
       // the same tick as the assertion closes that window.
-      for (const { path, hidden } of LAYOUTS) {
-        if (existsSync(hidden)) renameSync(hidden, path);
-      }
+      restoreAll();
     }
   }, 15000);
 });

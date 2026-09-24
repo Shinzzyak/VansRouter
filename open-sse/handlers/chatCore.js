@@ -31,7 +31,7 @@ import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/termin
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
-import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, FRAMING_LEVELS } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
@@ -677,7 +677,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
-              lvl1 = nextFraming(cls1, lvl1, FRAMING_LEVELS.filter((l) => !triedL1.includes(l))) || lvl1;
+              lvl1 = nextFraming(cls1, lvl1, triedL1) || lvl1;
             }
           }
         } catch (bypassErr) {
@@ -822,7 +822,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
               if (escAttempt < 2) {
-                lvl2 = nextFraming(cls2, lvl2, FRAMING_LEVELS.filter((l) => !triedL2.includes(l))) || lvl2;
+                lvl2 = nextFraming(cls2, lvl2, triedL2) || lvl2;
               }
             }
           } catch (bypassErr) {
@@ -890,7 +890,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
               if (escAttempt < 2) {
-                lvl3 = nextFraming(cls3, lvl3, FRAMING_LEVELS.filter((l) => !triedL3.includes(l))) || lvl3;
+                lvl3 = nextFraming(cls3, lvl3, triedL3) || lvl3;
               }
             }
           } catch (bypassErr) {

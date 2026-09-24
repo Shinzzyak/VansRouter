@@ -43,6 +43,38 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     expect(panggil.length).toBe(3);
   });
 
+  it('nextFraming menerima DAFTAR tried, bukan komplemennya', () => {
+    // Insiden 2026-09-24. Ketiga jalur mengirim argumen ketiga sebagai
+    // `FRAMING_LEVELS.filter((l) => !triedL.includes(l))` — KOMPLEMEN dari daftar
+    // yang sudah dicoba, padahal nextFraming() mengharapkan daftar itu sendiri.
+    //
+    // nextFraming menghitung:
+    //   left = FRAMING_LEVELS.filter((l) => !tried.includes(l) && l !== current)
+    // Dengan komplemen, setiap elemen gagal salah satu syarat: yang "belum
+    // dicoba" justru SAMA dengan current, dan sisanya sudah ada di `tried`.
+    // `left` selalu kosong -> return null -> `|| lvl` diam-diam mempertahankan
+    // tingkat yang sama. Ketiga percobaan mengirim level identik, dan
+    // appendEscalationToBody menumpuk teks eskalasi level itu 3x.
+    //
+    // Tes lama cuma menghitung `nextFraming(` muncul 3x, jadi bentuk argumennya
+    // tidak pernah diperiksa. Hitungan call-site bukan pemeriksaan.
+    expect(chatCore).not.toMatch(/nextFraming\([^)]*FRAMING_LEVELS\.filter/);
+    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d\)/g) || [];
+    expect(bentuk.length).toBe(3);
+  });
+
+  it('tidak ada level yang terlewat: ketiga jalur menyimpan percobaan sebelum memakainya', () => {
+    // `triedL.push(lvl)` HARUS mendahului nextFraming di dalam loop yang sama,
+    // kalau tidak tingkat yang baru saja dicoba tidak masuk daftar dan bisa
+    // dikirim dua kali.
+    for (const n of ['triedL1', 'triedL2', 'triedL3']) {
+      const push = chatCore.indexOf(`${n}.push(`);
+      const pakai = chatCore.indexOf(`, ${n})`);
+      expect(push, `${n}.push tidak ada`).toBeGreaterThan(-1);
+      expect(pakai, `${n} tidak dipakai sebagai argumen`).toBeGreaterThan(push);
+    }
+  });
+
   it('hasil klasifikasi dicatat ke buku catatan di ketiga jalur', () => {
     const rekam = chatCore.match(/recordOutcome\(/g) || [];
     expect(rekam.length).toBeGreaterThanOrEqual(3);
