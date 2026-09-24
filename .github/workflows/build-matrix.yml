@@ -80,7 +80,7 @@ jobs:
       # verdict fires on an empty wallet and NOT on the nine error classes that
       # must keep their own handling — a false positive deactivates a healthy
       # account until a human notices.
-      - name: Regression guards (golden URL/headers, handler ACL, settings write path, capabilities, balance verdict)
+      - name: Regression guards (golden URL/headers, handler ACL, settings write path, capabilities, balance verdict, escalation ladder)
         run: >-
           pnpm test
           tests/translator/golden-url-header.test.js
@@ -92,6 +92,7 @@ jobs:
           tests/unit/capabilities-refine-exact.test.js
           tests/unit/capabilities-alias-map.test.js
           tests/unit/balance-exhausted-verdict.test.js
+          tests/unit/engine-escalation-wiring.test.js
 
       - name: Build application
         run: node scripts/build.js
