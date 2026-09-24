@@ -2,6 +2,7 @@
 // Sinh snapshot lần đầu (baseline) → sau refactor chạy lại phải khớp y hệt.
 // Mock proxyFetch + uuid-heavy executors KHÔNG cần ở đây vì chỉ gọi buildUrl/buildHeaders (pure).
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
 import { hostname } from "node:os";
 import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { DefaultExecutor } from "../../open-sse/executors/default.js";
@@ -30,6 +31,20 @@ const SPECIALIZED = new Set([
 // them. A NEW host-dependent header surfaces as a matrix failure — add it here, do not drop the OS.
 const HOST_DEPENDENT_HEADERS = new Set(["X-PLATFORM", "X-Msh-Device-Model"]);
 
+// Version-dependent headers carry package.json's version (kimi X-Msh-Version,
+// cline X-CLIENT-VERSION / X-CORE-VERSION / User-Agent). A version bump is not a
+// behaviour change, and this suite locks the SHAPE of buildUrl/buildHeaders —
+// leaving the raw version in means every release fails the deploy gate on a diff
+// that says nothing about the code. Measured: the 0.91.31 → 0.91.33 bump alone
+// turned 2 snapshots red.
+//
+// Rather than listing every header that carries it (and missing the next one),
+// the version STRING is substituted anywhere it appears in a header value, so
+// both bare ("0.91.33") and embedded ("VansRouter/0.91.33") shapes are pinned.
+const PKG_VERSION = JSON.parse(
+  fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+).version;
+
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
@@ -44,6 +59,7 @@ function sanitize(headers) {
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
           .replace(new RegExp(dynamicValues.map(escapeRegExp).join("|"), "g"), "<ENV>")
+          .split(PKG_VERSION).join("<VER>")
       : v;
   }
   return out;
