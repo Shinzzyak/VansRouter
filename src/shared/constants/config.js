@@ -18,6 +18,22 @@ export const UPDATER_CONFIG = {
   npmPackageName: "vansrouter",
   installCmd: "npm i -g vansrouter",
   installCmdLatest: "npm i -g vansrouter@latest --prefer-online",
+  // ── Update channel (2026-09-25) ─────────────────────────────────────────
+  // The npm package named above is NOT this fork's. `vansrouter` on npm is
+  // published by upstream (maintainer `blugaaaaaaaa`, repository
+  // Vanszs/VansRouter), so every comparison against its `latest` tells the user
+  // to run `npm i -g vansrouter@latest` — an install that REPLACES this build
+  // with upstream and drops the capability layer with it.
+  //
+  // Bumping the local version only postpones it: upstream published 0.91.31 and
+  // then 0.91.32 inside one day, and the banner came back both times. The version
+  // number is not the control; the CHANNEL is.
+  //
+  // This build ships as a licence-gated pack, not through npm, so there is no
+  // npm artifact for a user to install and the check can only ever produce a
+  // wrong instruction. Off by default, and `/api/version` honours it — set
+  // `updateChannel: "npm"` only in a build that actually owns that package.
+  updateChannel: "pack",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

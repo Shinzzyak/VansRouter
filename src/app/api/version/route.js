@@ -1,9 +1,22 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
+import { UPDATER_CONFIG } from "@/shared/constants/config";
 
 // Keep aligned with the published package. Do not revert to legacy `9router`: it reports obsolete versions.
 const NPM_PACKAGE_NAME = "vansrouter";
 const VERSION_CACHE_TTL_MS = 300000; // cache npm latest lookup for 5m
+
+// Is the npm check meaningful for THIS build?
+//
+// It is not, for the licence-gated pack: `vansrouter` on npm is upstream's
+// package, so a version comparison can only ever produce an install command that
+// replaces this build with upstream. See UPDATER_CONFIG.updateChannel.
+//
+// The check is skipped rather than the banner being hidden in the UI: the route
+// is what the dashboard and any script reads, and a fork must not advertise a
+// command that overwrites it. `latestVersion` stays null so callers can tell
+// "not checked" from "checked, up to date".
+const UPDATE_CHECK_ENABLED = UPDATER_CONFIG.updateChannel === "npm";
 
 // Survive hot reload; one cache per process
 const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
@@ -54,7 +67,7 @@ async function getLatestVersionCached() {
 }
 
 export async function GET() {
-  const latestVersion = await getLatestVersionCached();
+  const latestVersion = UPDATE_CHECK_ENABLED ? await getLatestVersionCached() : null;
   const currentVersion = pkg.version;
   const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
 
@@ -62,6 +75,7 @@ export async function GET() {
     currentVersion,
     latestVersion,
     hasUpdate,
+    updateChannel: UPDATER_CONFIG.updateChannel,
     buildId: process.env.RELEASE_BUILD_ID || null,
   });
 }

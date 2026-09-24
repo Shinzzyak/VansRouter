@@ -1,5 +1,46 @@
 # Panduan Menjalankan Workspace 9router (Production)
 
+> ## ⛔ STOP — baca ini dulu sebelum menjalankan perintah apa pun di bawah
+>
+> **Perintah di dokumen ini untuk checkout di mesin yang BUKAN router.** Kalau
+> mesin tempat kamu berdiri menjalankan router produksi, langkah 2 (`pnpm run
+> build`) akan **menghapus router yang hidup**.
+>
+> Cek dulu, 3 detik:
+>
+> ```bash
+> pm2 jlist | grep -o '"pm_cwd":"[^"]*"'
+> ```
+>
+> Kalau keluarannya sama dengan direktori repo ini, **BERHENTI.** `next build`
+> membersihkan `.next/` di awal, dan `.next/standalone` ada DI DALAMNYA — direktori
+> itu adalah cwd proses PM2 yang sedang jalan. Build di sini = router mati,
+> sementara `/api/health` tetap balas 200 sepanjang proses (dilayani dari memori),
+> jadi outage-nya kelihatan seperti build yang bersih.
+>
+> **Sudah terjadi dua kali** (2026-09-19 dan 2026-09-24), dua-duanya karena operator
+> mengikuti Quick Start yang tidak tahu dia sedang di mesin mana.
+>
+> **Build dan deploy HANYA lewat GitHub Actions:**
+>
+> ```bash
+> git push origin main
+> gh run watch -R Shinzzyak/VansRouter
+> ```
+>
+> Sudah rusak? **Jangan build ulang.** Ambil artifact CI terakhir:
+>
+> ```bash
+> gh run download <run-id> -R Shinzzyak/VansRouter -n vansrouter-deploy
+> ```
+>
+> Sejak 2026-09-25 `scripts/build.js` MENOLAK jalan kalau checkout ini adalah cwd
+> proses `9router` yang online (`exit 3`) — pagar di kode, bukan cuma imbauan di
+> dokumen. Bypass eksplisit kalau memang mau: `VANSROUTER_ALLOW_LOCAL_BUILD=1`.
+>
+> Perintah di bawah tetap benar untuk mesin lain, dan tetap didokumentasikan di
+> sini karena itu.
+
 File ini berisi panduan benar untuk mem-build dan menjalankan aplikasi Next.js `9router` ini dalam lingkungan production menggunakan PM2.
 
 ## 1. Konfigurasi Environment

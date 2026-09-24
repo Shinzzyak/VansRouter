@@ -122,6 +122,8 @@ jobs:
           tests/unit/handler-acl-enforcement.test.js
           tests/unit/opencode-free-tier-gate.test.js
           tests/unit/forced-sse-upstream-format.test.js
+          tests/unit/engine-escalation-idempotence-and-cjk-refusal.test.js
+          tests/unit/update-channel-guard.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs

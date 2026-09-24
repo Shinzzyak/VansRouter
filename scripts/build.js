@@ -56,6 +56,62 @@ function backupProductionDb() {
     console.warn(`⚠️  DB backup failed (non-fatal): ${e.message}`);
   }
 }
+
+// ── Production-host guard ────────────────────────────────────────────────────
+//
+// WHY THIS EXISTS. `next build` clears `.next/` at the start, and
+// `.next/standalone` lives inside it — that directory is the cwd of the live PM2
+// process. Building on the router host therefore DELETES THE RUNNING ROUTER,
+// while `/api/health` keeps answering 200 the whole time (it is served from
+// memory), so the outage looks like a clean build. It happened twice
+// (2026-09-19 and 2026-09-24), both times because the operator followed a Quick
+// Start that had no idea which machine it was running on.
+//
+// A rule in a document is a suggestion. This is a wall: the build refuses to
+// start, whatever an agent believes it read.
+//
+// Deploy goes through GitHub Actions, which builds the artifact on a runner and
+// ships the tarball here; the VPS only unpacks and restarts. If a local build is
+// genuinely wanted on a host that also runs a router, set
+// VANSROUTER_ALLOW_LOCAL_BUILD=1 — deliberately explicit, never a default.
+function assertNotProductionHost() {
+  if (process.env.VANSROUTER_ALLOW_LOCAL_BUILD === "1") {
+    console.warn("⚠️  VANSROUTER_ALLOW_LOCAL_BUILD=1 — production-host guard bypassed on purpose.");
+    return;
+  }
+  let live = null;
+  try {
+    const out = execFileSync("pm2", ["jlist"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 });
+    const list = JSON.parse(out);
+    live = (Array.isArray(list) ? list : []).find(
+      (p) => p?.pm2_env?.status === "online" && path.resolve(p?.pm2_env?.pm_cwd || "\u0000") === appDir,
+    );
+  } catch {
+    // No pm2, or jlist unreadable: not a managed router host. Carry on — this
+    // guard must never be the reason a normal dev build fails.
+    return;
+  }
+  if (!live) return;
+  console.error("");
+  console.error("REFUSING TO BUILD: this checkout IS the running router.");
+  console.error(`  pm2 process : ${live.name} (online, cwd ${live.pm2_env.pm_cwd})`);
+  console.error(`  building in : ${appDir}`);
+  console.error("");
+  console.error("`next build` wipes .next/, and .next/standalone is that process's cwd.");
+  console.error("Running it here deletes the live router while /api/health still returns 200.");
+  console.error("");
+  console.error("Deploy through CI instead:");
+  console.error("  git push origin main");
+  console.error("  gh run watch -R Shinzzyak/VansRouter");
+  console.error("");
+  console.error("Already broken? Re-extract the last CI artifact — do not rebuild.");
+  console.error("  gh run download <run-id> -R Shinzzyak/VansRouter -n vansrouter-deploy");
+  console.error("");
+  console.error("Override only if you truly mean it: VANSROUTER_ALLOW_LOCAL_BUILD=1");
+  process.exit(3);
+}
+assertNotProductionHost();
+
 backupProductionDb();
 
 // Run focused no-undef lint before building so "X is not defined" runtime
