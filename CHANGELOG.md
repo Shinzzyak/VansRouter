@@ -1,3 +1,24 @@
+# v0.91.31 (2026-09-24)
+
+## Reliability & Compatibility
+
+- **The framing escalation ladder actually rotates levels now.** All three escalation paths in `chatCore.js` called `nextFraming(cls, lvl, FRAMING_LEVELS.filter((l) => !triedL.includes(l)))` — passing the *complement* of the tried list where the helper expects the list itself. `nextFraming` computes `left = FRAMING_LEVELS.filter(l => !tried.includes(l) && l !== current)`, so every candidate failed one of the two conditions, `left` was always empty, it returned `null`, and `|| lvl` silently kept the same level. All three attempts sent `T2` and `appendEscalationToBody` (which appends cumulatively) stacked the `T2` escalation text three times instead of rotating `T2 → T1 → T3`. Fixed by passing `triedL1`/`triedL2`/`triedL3` directly; `FRAMING_LEVELS` is no longer imported by `chatCore.js`. The defect was latent rather than active — the 610 content-safety 403s in the live log all ended in `escalation exhausted` with zero `-> CLASS` lines, so the loop never reached the level-selection point — and fires as soon as a retry returns 2xx with a non-`PATUH` class, which is the case the ladder exists for.
+- **The gate can see it now.** `engine-escalation-wiring.test.js` asserted only that `nextFraming(` appeared three times and that `triedL1/2/3` existed as substrings — it passed against the broken code. It now asserts the argument *shape* (`nextFraming(clsN, lvlN, triedLN)` ×3, and no `FRAMING_LEVELS.filter` inside a `nextFraming` call) and that each `triedLN.push` precedes its use. Verified red on the old code (2 failed | 15 passed) and green on the new (17 passed).
+- **The loader-cache suite's first test no longer leaks a hidden bundle.** The previous same-tick restore landed in the second test only. The first hid every bundle layout, awaited a dynamic import, then restored with no guard — a real suspension point with the bundle still hidden, and `afterEach` was the only backstop if an assertion between the two threw. Both tests now share `hideAll()`/`restoreAll()` and both restore in a `finally`; the captured loader instance is deliberately kept outside the `try` so the post-restore assertion still runs against the instance that cached the miss. Verified it still fails against the pre-fix loader (`6dc57d6f~1`): `self-healed on the next call: expected false to be true`.
+- **Update banner no longer offers an upstream install.** `/api/version` compares the running version against the npm `latest`, which is `0.91.30` published by upstream `Vanszs/VansRouter`. At `0.91.23` the fork's own dashboard displayed "New version available: v0.91.30" together with `npm i -g vansrouter@latest` — an install command that replaces this fork with upstream. `0.91.31` is above upstream's latest and unused on npm.
+
+## Release Infrastructure
+
+- The escalation-ladder suite joined the PR matrix guard list. It was in the deploy gate but not the matrix, so an argument-shape regression would only surface after merge. It is pure — source-text assertions, no engine bundle — which is the stated condition for the matrix list. Verified without `VR_ENGINE_BUNDLE`: 10 files, 312 passed.
+- Version bumped to `0.91.31` in `package.json` and `cli/package.json`; the golden header snapshot was refreshed in the same commit (the app version is embedded in `User-Agent`, `X-CLIENT-VERSION`, `X-CORE-VERSION`, and `X-Msh-Version` for cline and kimi).
+
+## Tests
+
+- Deploy gate, the 33-file list verbatim with the engine bundle present: **584 passed (584)** — three consecutive runs, 0 failures.
+- `engine-escalation-wiring`: **17/17**. `golden-url-header`: **206/206**.
+- Matrix regression-guard list without the bundle: **10 files, 312 passed**.
+- Full local suite: **17 files / 25 tests red — all pre-existing and all outside the deploy gate**, reproduced identically on the unmodified tree before any change was made. They are unrelated to this release (`kiro` direct route, bulk-import registry, ACL provider dict, models-fetcher dict, qoder PAT exchange, and the react-hooks lint regression suite).
+
 # v0.91.23 (2026-09-19)
 
 ## Features
