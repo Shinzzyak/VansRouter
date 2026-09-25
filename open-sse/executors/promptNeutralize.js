@@ -20,17 +20,18 @@
 // WHY NOT IN codebuddy-cn.js ONLY: the next provider will have the same gate, and
 // a copy per executor is exactly how codebuddy-intl ended up without it.
 
-import { isRouterScaffoldingPrompt } from "../rtk/promptGateMemory.js";
-
 /**
  * THIRD-PARTY CLI identities. Public by construction — these strings are the
  * vendored CLIs' own system prompts and already appear in codebuddy-cn.js.
  *
- * The ROUTER'S OWN scaffolding (persona lock, brand contract, potato mechanics,
- * godmode...) is deliberately NOT listed here: that knowledge lives in the private
- * engine and is asked for via isRouterScaffoldingPrompt(). A first cut of this
- * file listed it inline and the public repo's anti-leak gate failed the build —
- * correctly, since those strings are the payload that leaked once already.
+ * The ROUTER'S OWN blocks (persona lock, brand contract, potato mechanics,
+ * godmode...) are deliberately NOT matched, and that is a CORRECTION, not an
+ * omission. A first cut matched them and the result was measured on the live
+ * router: every cbai request went out with the persona lock replaced by the
+ * neutral one-liner, so the client got "Saya CodeBuddy Code" and no brand/seal
+ * at all. The gate does not key on our blocks — a probe with the full persona
+ * lock as the system prompt returned HTTP 200 four times out of four. What the
+ * gate rejects is a THIRD-PARTY CLI identity, which is what this list is.
  *
  * Deliberately narrow: a false positive REPLACES a caller's real system prompt,
  * which is a silent behaviour change. LENGTH IS NOT A SIGNAL — the codebuddy-cn
@@ -67,14 +68,7 @@ function flatten(content) {
 export function isAgentShapedPrompt(text) {
   const t = String(text || "");
   if (!t) return false;
-  if (AGENT_PROMPT_SIGNATURES.some((re) => re.test(t))) return true;
-  // Our own injected blocks: the list is engine-side (private) so the public repo
-  // stays clean of the payload. Fail-open — no engine, no verdict.
-  try {
-    return isRouterScaffoldingPrompt(t) === true;
-  } catch {
-    return false;
-  }
+  return AGENT_PROMPT_SIGNATURES.some((re) => re.test(t));
 }
 
 /**

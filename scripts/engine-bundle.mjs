@@ -305,9 +305,6 @@ const FALLBACKS = {
     recordPromptShapeRejection: "(() => {})",
     isPromptGated: "(() => false)",
     promptGateSnapshot: "(() => [])",
-    // Fail-OPEN: no engine, no verdict about whether a block is ours. Answering
-    // true would neutralise prompts the router has no reason to touch.
-    isRouterScaffoldingPrompt: "(() => false)",
     _resetPromptGate: "(() => {})",
   },
 };
