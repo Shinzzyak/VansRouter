@@ -125,6 +125,7 @@ jobs:
           tests/unit/engine-escalation-idempotence-and-cjk-refusal.test.js
           tests/unit/engine-indonesian-refusal.test.js
           tests/unit/prompt-shape-gate.test.js
+          tests/unit/escalation-level-unwrap.test.js
           tests/unit/update-channel-guard.test.js
           tests/unit/drift-ring-toolcall-gate.test.js
         env:

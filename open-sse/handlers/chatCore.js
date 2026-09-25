@@ -719,7 +719,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
-              lvl1 = nextFraming(cls1, lvl1, triedL1) || lvl1;
+              lvl1 = nextFraming(cls1, lvl1, triedL1)?.level ?? lvl1;
             }
           }
         } catch (bypassErr) {
@@ -865,7 +865,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
               if (escAttempt < 2) {
-                lvl2 = nextFraming(cls2, lvl2, triedL2) || lvl2;
+                lvl2 = nextFraming(cls2, lvl2, triedL2)?.level ?? lvl2;
               }
             }
           } catch (bypassErr) {
@@ -933,7 +933,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
               if (escAttempt < 2) {
-                lvl3 = nextFraming(cls3, lvl3, triedL3) || lvl3;
+                lvl3 = nextFraming(cls3, lvl3, triedL3)?.level ?? lvl3;
               }
             }
           } catch (bypassErr) {
