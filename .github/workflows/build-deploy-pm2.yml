@@ -124,6 +124,7 @@ jobs:
           tests/unit/forced-sse-upstream-format.test.js
           tests/unit/engine-escalation-idempotence-and-cjk-refusal.test.js
           tests/unit/update-channel-guard.test.js
+          tests/unit/drift-ring-toolcall-gate.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs

@@ -237,9 +237,14 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     // classifier below reads it and must keep seeing exactly what it saw before.
     const finishReason = contentObj?.finishReason ?? null;
     const sawToolCalls = contentObj?.sawToolCalls === true;
+    // ONE predicate, three readers (empty_reason, the drift ring, the ledger).
+    // Two independent copies of this expression is exactly how the ring and the
+    // ledger drifted apart on 2026-09-22: the ledger got the gate, the ring did
+    // not, and every tool-call turn was counted as a model-quality failure.
+    const toolCallOnly = sawToolCalls || finishReason === "tool_calls";
     const emptyReason = contentObj?.content
       ? null
-      : (sawToolCalls || finishReason === "tool_calls")
+      : toolCallOnly
         ? "tool_calls"
         : finishReason
           ? `no_text:${finishReason}`
@@ -250,8 +255,31 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     // Reports only; never mutates the bytes already sent to the client.
     try {
       const integrity = classifyStreamContent(safeContent, { requestBody: body });
-      recordIntegrity(provider, model, integrity.status);
-      if (integrity.status !== INTEGRITY.OK) {
+      // ── Tool-call turns are not model-quality failures (2026-09-25) ──────────
+      // The ledger below got this gate on 2026-09-22 and the RING never did, so
+      // the ring has been reporting a false signal on the same traffic.
+      //
+      // A tool-call-only turn produces no visible text BY DESIGN: the model
+      // called a tool, which is a successful agent turn. `classifyStreamContent`
+      // correctly calls the absent text EMPTY. The ledger skips those (see the
+      // sawToolCalls gate below); the ring counted every one of them as a
+      // model-quality failure.
+      //
+      // Measured on the live router: the drift ring printed
+      // `codebuddy-intl/deepseek-v4.1-flash ... empty=90%`, which reads as a
+      // broken model. Request details for that same model: 566 rows with
+      // `empty_reason=tool_calls` and 31 with `None`, against 1,447
+      // content-safety 403s that never reach this code at all (a 4xx returns
+      // before the streaming handler is built). The model was healthy; the ring
+      // was counting tool calls.
+      //
+      // Skipping loses nothing: `empty_reason` is already persisted per request
+      // in `requestDetails.response`, so the distinction stays queryable.
+      const ringStatus = toolCallOnly && integrity.status === INTEGRITY.EMPTY
+        ? INTEGRITY.OK
+        : integrity.status;
+      recordIntegrity(provider, model, ringStatus);
+      if (integrity.status !== INTEGRITY.OK && !toolCallOnly) {
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | ${integrity.status} | chars=${integrity.chars}${integrity.refusal ? " | refusal" : ""}`);
       }
       // Teach the self-measuring ledger from the stream itself. The assembled
@@ -269,7 +297,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       // which is the exact signal firstLevel() reads back. A tool-call turn has
       // no verdict to teach: it is neither a win nor a loss.
       const kelas = outcomeClassFromIntegrity(integrity.status);
-      if (kelas && !(kelas === "SENYAP" && (sawToolCalls || finishReason === "tool_calls"))) {
+      if (kelas && !(kelas === "SENYAP" && toolCallOnly)) {
         recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`);
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | recorded ${kelas} at ${firstLevel(model)}`);
       }

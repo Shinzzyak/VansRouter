@@ -1,3 +1,16 @@
+# v0.91.34 (2026-09-25)
+
+## Reliability & Compatibility
+
+- **The drift ring counted every tool-call turn as a model failure.** `onStreamComplete` classifies the assembled stream text and feeds two consumers: the drift ring (`recordIntegrity`) and the framing ledger (`recordOutcome`). A tool-call-only turn produces no visible text BY DESIGN — the model called a tool, which is a successful agent turn — and `classifyStreamContent` correctly calls that absent text EMPTY. The ledger was gated against it on 2026-09-22; the ring never was. Measured on the live router, the ring printed `codebuddy-intl/deepseek-v4.1-flash n=50 refusal=0% brand=0% empty=90%`, which reads as a broken model. `requestDetails` for that same model: 566 rows `empty_reason=tool_calls`, 31 rows `None`. The model was healthy. Fixed by computing ONE `toolCallOnly` predicate and giving it to all three readers (`empty_reason`, the ring, the ledger) — two independent copies of that expression is precisely how the two consumers drifted apart. The ring still records a genuine empty (a stream that died with no text and no tool call), and a tool-call turn that also produced refusal text or dropped the brand keeps its real verdict; only the absence of text is excused.
+- **A retracted hypothesis, removed rather than left as a no-op.** The first explanation blamed 4xx content-safety rejections for the same ring rows: a 403 body has no `choices[]`, so the assembler yields no content, so the classifier calls it EMPTY. Disproved by reading the control flow — `chatCore.js` returns from the `!providerResponse.ok` branch (lines 626–709) before `buildOnStreamComplete` is ever called (line 841), so the 1,447 content-safety 403s in the log never reach this code at all. The `upstreamStatus` plumbing added for that theory was deleted; a plausible-looking dead parameter is worse than none.
+- **Guards.** `tests/unit/drift-ring-toolcall-gate.test.js` asserts the ring call receives the adjusted status, that exactly ONE `sawToolCalls || finishReason === "tool_calls"` expression exists (so the two consumers cannot drift again), that the downgrade applies only to EMPTY, and that no `upstreamStatus` plumbing survives. Verified red on the pre-fix code (4 failed | 1 passed) and green after (5 passed). Added to the deploy gate, now 36 files.
+
+## Version
+
+- `0.91.33` → `0.91.34`. Above upstream's npm `latest` (`0.91.32`), which the `pack` update channel no longer consults anyway.
+
+*Dirilis 2026-09-25 · Gefreiter*
 # v0.91.33 (2026-09-25)
 
 ## Reliability & Compatibility
