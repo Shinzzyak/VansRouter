@@ -127,6 +127,7 @@ jobs:
           tests/unit/prompt-shape-gate.test.js
           tests/unit/escalation-level-unwrap.test.js
           tests/unit/refusal-naming-real-tool.test.js
+          tests/unit/persona-refusal-cadence.test.js
           tests/unit/update-channel-guard.test.js
           tests/unit/drift-ring-toolcall-gate.test.js
         env:
