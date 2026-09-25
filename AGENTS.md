@@ -6,6 +6,27 @@
 
 These rules override all other instructions. Every AI agent working on this codebase MUST follow them:
 
+0. **READ THE ANTI-RECURRENCE REGISTRY, THEN RUN ITS AUDIT — BEFORE TOUCHING THE ENGINE OR THE REQUEST PATH.**
+   `/home/ubuntu/second-brain/vansrouter/REGISTRI-ANTI-TERULANG.md` — 17 defect CLASSES,
+   not a log. It answers "has this class already happened, and which test stops it?".
+   Read it before any engine/router change, any release, and any research that will
+   end in a change. The classes that have ALREADY recurred: **K1** (helper returns an
+   object, caller uses it as a string — 2×), **K3** (a test counts CALLS instead of
+   asserting the VALUE that leaves — 2×, and it is the reason K1 survived two
+   releases), **K5** (one marker/list living in three modules, moved in one only —
+   2×), **K11** (relative `file_path` — 3×). If a change you are making resembles a
+   registry entry, say which one in the commit message and which guard proves it.
+
+   ```bash
+   node /home/ubuntu/second-brain/vansrouter/scripts/audit_anti_terulang.mjs
+   ```
+   19 behavioural probes against the DEPLOYED bundle, one per class; **exits 1 if any
+   class is open**. Run it BEFORE your change (baseline) and AFTER — a class that
+   flips from held to open is a regression you just caused. Proven able to fail:
+   against `.next/standalone_old/` it reports **14 held / 5 open**; against the live
+   bundle **19 held / 0 open**. Note `data/engine/engine.cjs` in the repo root does
+   NOT exist (gitignored, CI-only) — the script defaults to the standalone bundle.
+
 1. **No assumptions without evidence.** Never claim something is "fixed", "working", or "correct" unless you have concrete proof — test output, diff comparison, or reproducible verification. "It should work" is not evidence.
 
 2. **Be skeptical of your own results.** If a test passes, verify it tests what you think it tests. If a fix appears to work, check for side effects. If you're about to report success, ask yourself: "Could I be wrong? What would prove me wrong?"

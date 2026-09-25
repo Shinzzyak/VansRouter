@@ -21,6 +21,12 @@ Provider-agnostic SSE engine: one OpenAI-style request → any provider (LLM cha
 
 ## Conventions
 
+- **Before changing anything here, read `/home/ubuntu/second-brain/vansrouter/REGISTRI-ANTI-TERULANG.md`, then RUN its audit:**
+  ```bash
+  node /home/ubuntu/second-brain/vansrouter/scripts/audit_anti_terulang.mjs
+  ```
+  19 behavioural probes against the DEPLOYED bundle (`<standalone>/data/engine/engine.cjs`), one per defect class; exits 1 if any class is open. Verified to fail: against `.next/standalone_old/` it reports **14 held / 5 open**. Run it BEFORE your change (baseline) and AFTER — a class that flips open is a regression you just caused. `data/engine/engine.cjs` in the repo root does NOT exist (gitignored, CI-only) — point the script at the standalone bundle or pass a path as argv[2].
+- This directory is where K1 (helper returns an object, caller uses it as a string) and K3 (a test counts calls instead of asserting the value that leaves) both live — they cost two releases. The request path is `handlers/chatCore.js`; a change there needs a guard that asserts the VALUE sent upstream, not the number of call sites.
 - Config-driven, DRY, camelCase. NEVER hardcode values, models, or block/role strings — use `config/` + `schema/` constants.
 - Translator pipeline pivots through OpenAI as the intermediate format. A translator registered on the exact `source:target` pair (e.g. `claude:kiro`) runs as a **direct route**, skipping the lossy double-hop.
 - Translators self-register via `register(from, to, reqFn, resFn)` as an import side-effect — new files MUST be imported in `translator/index.js`.
