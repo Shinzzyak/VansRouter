@@ -86,6 +86,26 @@ jobs:
           done
           echo "✅ open-sse/rtk is shimmed"
 
+      # THE GATE THAT NEVER EXISTED (registry K16). Until 2026-09-26 the private
+      # engine's own test suite was NEVER executed by CI — the workflow copied
+      # `.engine/src/*.js` into the router and then ran the ROUTER's tests, which
+      # only ever assert router-side wiring (K3: they count calls). That is how K1
+      # (`nextFraming()` returning an object used as a string) survived two
+      # releases: nothing ever ran the engine's behaviour suites as a set.
+      #
+      # `run-engine-suite.sh` stages a tree because the engine modules import six
+      # PUBLIC plumbing files that live here, not in the private repo. It exits 1
+      # on any red suite, so this step is the gate.
+      #
+      # PROVEN ABLE TO FAIL: with `REFUSAL_RE` short-circuited to `false` in
+      # selfMeasuringBypass.js the step reports ENGINE SUITE: RED. A gate that
+      # cannot fail is not a gate.
+      - name: Engine's own test suite (private repo, staged)
+        run: |
+          set -e
+          chmod +x .engine/scripts/run-engine-suite.sh
+          .engine/scripts/run-engine-suite.sh "$GITHUB_WORKSPACE"
+
       - name: Engine gates (bundle present)
         run: >-
           pnpm test
