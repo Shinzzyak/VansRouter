@@ -9,10 +9,15 @@
 // scaffolding — never to touch the user's message. Every case below is written
 // against that asymmetry.
 //
-// Note on the framework: written with node:test first, which vitest cannot
-// collect ("No test suite found") — the suite ran green under `node --test` and
-// was invisible to the gate that actually guards deploys. vitest's API, so the
-// CI gate sees it.
+// WHAT IS DELIBERATELY NOT TESTED HERE: that the router's OWN injected blocks
+// (persona lock, brand contract, potato mechanics) are recognised. Those strings
+// are the private payload this repo must not carry — engine-not-in-repo.test.js
+// failed the build when a first cut of this suite listed them. That assertion
+// lives with the list, in the engine repo (tests/promptGateMemory.test.mjs).
+//
+// Framework note: written with node:test first, which vitest cannot collect
+// ("No test suite found") — it ran green under `node --test` and was invisible to
+// the gate that actually guards deploys. vitest's API, so CI sees it.
 import { describe, it, expect } from "vitest";
 import {
   neutralizeAgentSystemPrompts, isAgentShapedPrompt, NEUTRAL_SYSTEM_PROMPT,
@@ -52,16 +57,24 @@ describe("prompt-shape gate: netralkan scaffolding, jangan sentuh pesan user", (
     expect(body.messages[0].content).toBe(long);
   });
 
-  it("blok persona/godmode router sendiri ikut dinetralkan", () => {
+  it("identitas CLI pihak ketiga terdeteksi", () => {
     for (const marker of [
-      "PERSONA LOCK — ROUTER DEFAULT\n\nYou are Gefreiter...",
-      "MADE BY: GEFREITER — AGENT OF AVRES",
-      "BRAND CONTRACT — FIRST LINE / LAST LINE (highest priority)",
-      "POTATO MECHANICS — ALWAYS-ON BEHAVIOR",
-      "You are Gefreiter, the devoted personal agent of Avres.",
+      "You are Claude Code, Anthropic's official CLI for Claude.",
+      "You are Cursor, an AI code editor.",
+      "You are a powerful AI agent with orchestration capabilities.",
+      "cc_entrypoint=cli",
     ]) {
       expect(isAgentShapedPrompt(marker), marker.slice(0, 40)).toBe(true);
     }
+  });
+
+  it("engine absen: tidak ada verdict scaffolding, tapi CLI pihak ketiga tetap jalan", () => {
+    // Shim promptGateMemory mengembalikan false tanpa bundle. Kontraknya: fail-open,
+    // bukan "anggap semua scaffolding" — router yang kehilangan engine tidak boleh
+    // mulai menetralkan prompt yang tidak perlu.
+    expect(typeof isAgentShapedPrompt(AGENT_PROMPT)).toBe("boolean");
+    expect(isAgentShapedPrompt(AGENT_PROMPT)).toBe(true);
+    expect(isAgentShapedPrompt("You are a helpful assistant.")).toBe(false);
   });
 
   it("bentuk content bertipe blok (Claude/Gemini) ditangani", () => {

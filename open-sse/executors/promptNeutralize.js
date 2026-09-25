@@ -20,9 +20,17 @@
 // WHY NOT IN codebuddy-cn.js ONLY: the next provider will have the same gate, and
 // a copy per executor is exactly how codebuddy-intl ended up without it.
 
+import { isRouterScaffoldingPrompt } from "../rtk/promptGateMemory.js";
+
 /**
- * Agent-identity signatures. A system prompt matching any of these is router-side
- * or harness-side scaffolding, not the user's own instruction.
+ * THIRD-PARTY CLI identities. Public by construction — these strings are the
+ * vendored CLIs' own system prompts and already appear in codebuddy-cn.js.
+ *
+ * The ROUTER'S OWN scaffolding (persona lock, brand contract, potato mechanics,
+ * godmode...) is deliberately NOT listed here: that knowledge lives in the private
+ * engine and is asked for via isRouterScaffoldingPrompt(). A first cut of this
+ * file listed it inline and the public repo's anti-leak gate failed the build —
+ * correctly, since those strings are the payload that leaked once already.
  *
  * Deliberately narrow: a false positive REPLACES a caller's real system prompt,
  * which is a silent behaviour change. LENGTH IS NOT A SIGNAL — the codebuddy-cn
@@ -41,17 +49,6 @@ const AGENT_PROMPT_SIGNATURES = [
   /cc_entrypoint\s*=\s*(?:cli|vscode|jetbrains|gui)/i,
   /claude.?code.{0,20}issues/i,
   /give feedback.{0,30}claude.?code/i,
-  // The router's own scaffolding — the blocks the engine injects, and exactly
-  // what a caller-verifying gate reads as "not our CLI".
-  /PERSONA LOCK — ROUTER DEFAULT/,
-  /GEFREITER OPERATIONAL IDENTITY/,
-  /MADE BY: GEFREITER — AGENT OF AVRES/,
-  /BRAND CONTRACT — FIRST LINE \/ LAST LINE/,
-  /POTATO MECHANICS — ALWAYS-ON BEHAVIOR/,
-  /THINKING GATE — SCOPED REASONING/,
-  /PERSONA REASSERT — CONTEXT COMPACTION OVERRIDE/,
-  /You are Gefreiter\b/,
-  /GODMODE/,
 ];
 
 export const NEUTRAL_SYSTEM_PROMPT =
@@ -70,7 +67,14 @@ function flatten(content) {
 export function isAgentShapedPrompt(text) {
   const t = String(text || "");
   if (!t) return false;
-  return AGENT_PROMPT_SIGNATURES.some((re) => re.test(t));
+  if (AGENT_PROMPT_SIGNATURES.some((re) => re.test(t))) return true;
+  // Our own injected blocks: the list is engine-side (private) so the public repo
+  // stays clean of the payload. Fail-open — no engine, no verdict.
+  try {
+    return isRouterScaffoldingPrompt(t) === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
