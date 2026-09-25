@@ -36,7 +36,7 @@ const read = (p) => fs.readFileSync(p, "utf8");
 describe("the stream ledger ignores turns that have no verdict to teach", () => {
   const src = read(HANDLER);
 
-  it("gates the ledger write on sawToolCalls", () => {
+  it("gates the ledger write on the tool-call predicate", () => {
     // Anchor on the write itself, not on the file: the guard has to be in the
     // SAME expression, or a later edit can drop it without this noticing.
     const idx = src.indexOf("recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`)");
@@ -45,8 +45,24 @@ describe("the stream ledger ignores turns that have no verdict to teach", () => 
     const guardStart = src.lastIndexOf("if (kelas", idx);
     expect(guardStart).toBeGreaterThan(-1);
     const guard = src.slice(guardStart, idx);
-    expect(guard).toMatch(/sawToolCalls/);
-    expect(guard).toMatch(/tool_calls/);
+    // The guard reads a NAMED predicate (2026-09-25). It used to inline
+    // `sawToolCalls || finishReason === "tool_calls"`, which is how this gate and
+    // the drift ring's gate drifted apart: the ring had no gate at all, and every
+    // tool-call turn was counted as a model-quality failure there. Resolving the
+    // indirection below keeps the assertion as strong as the inline form was —
+    // dropping the predicate from EITHER place still fails this test.
+    expect(guard).toMatch(/toolCallOnly/);
+    const def = src.match(/const toolCallOnly = ([^;]+);/);
+    expect(def, "toolCallOnly must be defined").not.toBeNull();
+    expect(def[1]).toMatch(/sawToolCalls/);
+    expect(def[1]).toMatch(/tool_calls/);
+  });
+
+  it("defines the tool-call predicate exactly once", () => {
+    // Two copies is the defect this test class exists to prevent: one consumer
+    // gets the gate, the other silently does not.
+    const copies = src.match(/sawToolCalls \|\| finishReason === "tool_calls"/g) || [];
+    expect(copies).toHaveLength(1);
   });
 
   it("sawToolCalls is computed before the gate reads it", () => {
