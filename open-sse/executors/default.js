@@ -9,6 +9,7 @@ import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { getKimchiUserAgent } from "../utils/kimchiUserAgent.js";
+import { dbg } from "../utils/debugLog.js";
 import { isPromptGated } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "./promptNeutralize.js";
 
