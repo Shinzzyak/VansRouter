@@ -31,6 +31,8 @@ import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/termin
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
+import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -629,6 +631,46 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     const failureClass = classifyResponseFailure({ status: statusCode, message, provider, model });
     log?.debug?.("ROUTE", `${provider}/${model} | failure=${failureClass}`);
 
+    // ── Prompt-shape gate (2026-09-25) ───────────────────────────────────────
+    // The upstream rejected the CALLER, not the content: it recognised that this
+    // is not its own CLI and refused the channel. Measured on cbai/deepseek-v4.1-flash:
+    // agent-shaped system prompt -> 400 code 11128, 6/6 rejected; the same prompt
+    // neutralised to one line -> 200 OK, 6/6 accepted; user message identical.
+    //
+    // The expensive part is not the failed request, it is the LOCK: a 400 with no
+    // matching rule falls through to the generic transient cooldown, so every
+    // account on that provider went down for ~30s each time. 47 in one log window.
+    //
+    // Order matters: teach the ledger FIRST (so the NEXT request is clean even if
+    // this retry fails), then neutralise and retry ONCE. Deliberately NOT
+    // escalated — re-framing the user message cannot open a channel gate.
+    if (executor?.execute) {
+      const gate = classifyPromptShapeRejection(statusCode, message);
+      if (gate.rejected) {
+        recordPromptShapeRejection(provider, gate.reason);
+        log?.warn?.("PROMPT-GATE", `${provider}/${model} | prompt-shape rejection (${statusCode}/${gate.reason}), neutralising system prompt`);
+        const { changed } = neutralizeAgentSystemPrompts(translatedBody);
+        if (changed) {
+          try {
+            const gateRetry = await executor.execute({ model, body: translatedBody, stream: upstreamStream, credentials, signal: streamController.signal, log, proxyOptions, accountCount });
+            if (gateRetry?.response?.ok) {
+              log?.info?.("PROMPT-GATE", `${provider}/${model} | neutralised retry accepted`);
+              providerResponse = gateRetry.response;
+              providerUrl = gateRetry.url;
+              providerResponseFormat = gateRetry.responseFormat || targetFormat;
+            } else {
+              log?.warn?.("PROMPT-GATE", `${provider}/${model} | neutralised retry still rejected (${gateRetry?.response?.status})`);
+            }
+          } catch (gateErr) {
+            log?.warn?.("PROMPT-GATE", `${provider}/${model} | neutralised retry threw: ${gateErr.message}`);
+          }
+        } else {
+          log?.warn?.("PROMPT-GATE", `${provider}/${model} | no agent-shaped system prompt to neutralise`);
+        }
+      }
+    }
+
+    if (!providerResponse.ok) {
     // Content-safety rejection (muse-spark family etc.): upstream returned a
     // 4xx invalid_request_error because the TRIGGERED content tripped the
     // safety classifier. This is a request-level refusal, NOT a broken request
@@ -706,6 +748,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
     reqLogger.logError(new Error(message), finalBody || translatedBody);
     return createErrorResult(statusCode, errMsg, resetsAtMs);
+    }
   }
 
   const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary };

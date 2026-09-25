@@ -9,6 +9,8 @@ import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { getKimchiUserAgent } from "../utils/kimchiUserAgent.js";
+import { isPromptGated } from "../rtk/promptGateMemory.js";
+import { neutralizeAgentSystemPrompts } from "./promptNeutralize.js";
 
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
@@ -169,6 +171,19 @@ export class DefaultExecutor extends BaseExecutor {
 
   transformRequest(model, body) {
     const transformed = this.applyJsonSchemaFallback(body);
+
+    // Prompt-shape gate (2026-09-25). Applied ONLY for providers the engine has
+    // SEEN reject this router's prompt shape, or when the registry asks for it.
+    // Never global: neutralising a system prompt a provider accepts is a silent
+    // behaviour change for no benefit.
+    //
+    // Runs BEFORE stripUnsupportedParams so the rest of the pipeline sees the
+    // neutralised text.
+    if (transformed && typeof transformed === "object"
+        && (this.config?.quirks?.neutralizeAgentPrompt || isPromptGated(this.provider))) {
+      const { changed } = neutralizeAgentSystemPrompts(transformed);
+      if (changed) dbg("PROMPT-GATE", `${this.provider} | neutralised ${changed} system prompt(s)`);
+    }
 
     if (transformed && typeof transformed === "object") {
       // quirk: some openai-compatible providers reject Anthropic's client_metadata field

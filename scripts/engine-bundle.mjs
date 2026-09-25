@@ -60,6 +60,11 @@ const ENGINE_MODULES = [
   // a refusal it attributes to an imaginary assistant, mock it, then ship. A
   // public copy would hand that reasoning to anyone reading the repo.
   "refusalAttribution",
+  // Prompt-shape gate memory (2026-09-25). Lives in the bundle for the same
+  // reason as refusalAttribution: its value is the knowledge of WHICH upstreams
+  // reject this router's own prompt shape, and the neutraliser it drives is the
+  // one thing a caller-verifying gate must not be able to read in advance.
+  "promptGateMemory",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -290,6 +295,17 @@ const FALLBACKS = {
     isSelfRefusal: "((text) => Boolean(text))",
     explainAttribution:
       "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
+  },
+  promptGateMemory: {
+    // Fail-OPEN, unlike the refusal fallbacks: with no ledger, "has this provider
+    // gated us before?" must answer NO. Answering yes would neutralise every
+    // system prompt for every provider the moment the bundle goes missing —
+    // silently dropping the persona layer on a router that lost its engine.
+    classifyPromptShapeRejection: "(() => ({ rejected: false, reason: null }))",
+    recordPromptShapeRejection: "(() => {})",
+    isPromptGated: "(() => false)",
+    promptGateSnapshot: "(() => [])",
+    _resetPromptGate: "(() => {})",
   },
 };
 
