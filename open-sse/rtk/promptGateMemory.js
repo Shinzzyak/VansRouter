@@ -13,6 +13,5 @@ const __E = loadEngine("promptGateMemory") ?? {};
 export const _resetPromptGate = __E._resetPromptGate ?? (() => {});
 export const classifyPromptShapeRejection = __E.classifyPromptShapeRejection ?? (() => ({ rejected: false, reason: null }));
 export const isPromptGated = __E.isPromptGated ?? (() => false);
-export const isRouterScaffoldingPrompt = __E.isRouterScaffoldingPrompt ?? (() => false);
 export const promptGateSnapshot = __E.promptGateSnapshot ?? (() => []);
 export const recordPromptShapeRejection = __E.recordPromptShapeRejection ?? (() => {});

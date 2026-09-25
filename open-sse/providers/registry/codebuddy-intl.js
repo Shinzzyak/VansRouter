@@ -24,13 +24,19 @@ export default {
     // Chat gateway is OpenAI-compatible SSE (same /v2/chat/completions path as CN).
     baseUrl: "https://www.codebuddy.ai/v2/chat/completions",
     forceStream: true,
-    // CodeBuddy intl rejects agent-shaped system prompts with HTTP 400 / code
-    // 11128 "Illegal API invocation from an unapproved channel" — measured 6/6
-    // rejected with an agent prompt, 6/6 accepted with the same prompt neutralised
-    // to one line, user message identical. Set here so the FIRST request is clean;
-    // the engine's promptGateMemory covers the NEXT provider that starts doing
-    // this without anyone editing a registry file.
-    quirks: { neutralizeAgentPrompt: true },
+    // NO `quirks.neutralizeAgentPrompt` HERE, and that is a measured decision.
+    //
+    // A first cut set it. The gate does reject an agent-shaped system prompt
+    // (Claude Code style: 400 code 11128, 8/8), but it does NOT reject this
+    // router's persona lock — probe A with the full lock as the only system
+    // message returned HTTP 200 3/3. Setting the quirk therefore neutralised the
+    // persona on EVERY request and the client got "Saya CodeBuddy Code" with no
+    // brand and no seal: 4 arms, all 200, all persona-less. Eager neutralisation
+    // costs more than it buys while the real trigger is unidentified.
+    //
+    // The reactive path covers it instead: chatCore sees a prompt-shape rejection,
+    // records the provider in promptGateMemory, neutralises and retries ONCE.
+    // Bounded cost, and it only fires on a request that was already failing.
     // CodeBuddy intl speaks the same unified OpenAI reasoning_effort shape as CN.
     thinkingFormat: "openai",
     headers: {
