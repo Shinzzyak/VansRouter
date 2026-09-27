@@ -70,6 +70,19 @@ export const DEFAULT_MIN_TOKENS = 32000;
 
 export const TOKEN_SAVER_HEADER = "x-9router-token-saver";
 
+// Carries the stream gate's head verdict (`refusal` | `empty` | `ok`) from
+// chatCore to the combo layer.
+//
+// WHY A HEADER. `combo.js` decides whether to fall through to the next model,
+// and for streaming answers it has no way to read the body: consuming an SSE
+// stream means waiting for it to END (measured 2026-09-27: a body held open for
+// 5 s made the inspection take 5 s), which would turn every streaming combo into
+// a non-streaming one. chatCore's gate ALREADY classified the head before any
+// byte reached the client — until this header existed that verdict was written
+// to a log line and thrown away, so an exhausted escalation shipped a refusal as
+// `success: true` and smart-fallback never tried its next model.
+export const STREAM_VERDICT_HEADER = "x-vansroute-stream-verdict";
+
 // Retry config for 429 responses (legacy - kept for backward compatibility)
 export const RETRY_CONFIG = {
   maxAttempts: 2,

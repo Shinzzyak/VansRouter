@@ -10,6 +10,7 @@ import { loadEngine } from "./engineLoader.js";
 
 const __E = loadEngine("promptGateMemory") ?? {};
 
+export const PROMPT_GATE_MAX_AGE_MS = __E.PROMPT_GATE_MAX_AGE_MS ?? (6 * 60 * 60 * 1000);
 export const _resetPromptGate = __E._resetPromptGate ?? (() => {});
 export const classifyPromptShapeRejection = __E.classifyPromptShapeRejection ?? (() => ({ rejected: false, reason: null }));
 export const isPromptGated = __E.isPromptGated ?? (() => false);

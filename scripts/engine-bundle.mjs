@@ -306,6 +306,11 @@ const FALLBACKS = {
     isPromptGated: "(() => false)",
     promptGateSnapshot: "(() => [])",
     _resetPromptGate: "(() => {})",
+    // The engine's own age cap, declared here so the shim compiles without the
+    // bundle. Without an engine there is no ledger at all (isPromptGated is
+    // false), so the number is inert — but the ROUTER must not have to care
+    // whether the bundle is present when it reads the constant for diagnostics.
+    PROMPT_GATE_MAX_AGE_MS: "(6 * 60 * 60 * 1000)",
   },
 };
 

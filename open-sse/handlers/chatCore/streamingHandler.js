@@ -11,6 +11,7 @@ import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamH
 import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requestDetail.js";
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
+import { STREAM_VERDICT_HEADER } from "../../config/runtimeConfig.js";
 import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
@@ -210,9 +211,17 @@ export async function handleStreamingResponse({
     console.error("[RequestDetail] Failed to save streaming request:", err.message);
   });
 
+  // Carry the stream gate's verdict through to the client-facing Response.
+  // `providerResponse` here is chatCore's reconstructed stream, which wears the
+  // header on the pass-through path; SSE_HEADERS below is built fresh, so the
+  // header would otherwise be dropped at exactly the moment combo needs it (K21).
+  const outHeaders = new Headers(SSE_HEADERS);
+  const verdict = providerResponse.headers?.get(STREAM_VERDICT_HEADER);
+  if (verdict) outHeaders.set(STREAM_VERDICT_HEADER, verdict);
+
   return {
     success: true,
-    response: new Response(transformedBody, { headers: SSE_HEADERS })
+    response: new Response(transformedBody, { headers: outHeaders })
   };
 }
 

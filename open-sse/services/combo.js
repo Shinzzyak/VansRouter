@@ -10,7 +10,8 @@ import { getRoleAdapterModel, stripHistoryForContext } from "./capacityAdapter.j
 import { extractTextContent } from "../translator/formats/gemini.js";
 import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
-import { classifyOutcome, needsAnotherTry, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
 export function stripComboPrefix(modelStr) {
@@ -304,6 +305,37 @@ function combineSignals(...signals) {
 }
 
 /**
+ * Teks jawaban dari badan non-streaming.
+ *
+ * `classifyOutcome` menilai ISI, sedangkan badan non-streaming adalah AMPLOP
+ * JSON. Menilainya mentah-mentah salah di dua arah, dan keduanya terukur:
+ *
+ *   - `{"choices":[{"message":{"content":""}}]}` TIDAK kosong sebagai string,
+ *     jadi jawaban yang sunyi terbaca AMBIGU dan lolos sebagai sukses;
+ *   - penanda di dalam string JSON bisa ter-escape (`I can\'t`), jadi penolakan
+ *     yang jelas pun bisa lewat.
+ *
+ * Karena itu ekstrak dulu. `extractPanelText` sudah ada di berkas ini dan sudah
+ * menangani keempat bentuk ([OI] chat, Claude, Gemini, [OI] Responses) — tidak
+ * perlu parser kedua.
+ */
+function answerTextFromBody(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const t = extractPanelText(parsed);
+      if (t) return t;
+      // Bentuk completion yang SUNYI: kosong itu jawaban, bukan bentuk asing.
+      const envelope = parsed.choices || parsed.candidates || parsed.output || parsed.content;
+      if (envelope) return "";
+    }
+  } catch { /* bukan JSON */ }
+  // Bentuk yang tidak dikenal: pakai badan mentah. Menyerah ke "" akan terbaca
+  // SENYAP dan membuang jawaban sehat yang formatnya cuma belum kita kenal.
+  return raw;
+}
+
+/**
  * Handle combo chat with fallback
  * @param {Object} options
  * @param {Object} options.body - Request body
@@ -325,20 +357,62 @@ function combineSignals(...signals) {
  * bisa dipakai. Status HTTP tidak bisa memberi tahu itu — penolakan, jawaban yang
  * diganti versi jinak, dan badan kosong semuanya datang sebagai 200.
  *
- * Aman untuk streaming: body di-clone, jadi kalau hasilnya ternyata bagus, respons
- * aslinya tetap utuh dikembalikan.
- *
  * @returns {Promise<{outcome:string, bad:boolean, text:string}>}
  */
 async function inspectComboContent(result, model) {
-  if (result?.streaming || !result?.response?.clone) {
+  // DUA BENTUK HASIL, dan sampai 2026-09-27 fungsi ini hanya membaca yang SALAH.
+  //
+  // `handleSingleModelChat` mengembalikan Response TELANJANG
+  // (`withSelectedConnectionHeader(result.response, ...)`), sementara di sini
+  // yang dibaca `result.response.clone`. Untuk jalur chat `result.response`
+  // selalu undefined ⇒ `!result?.response?.clone` selalu true ⇒ fungsi ini
+  // mengembalikan PATUH untuk SETIAP jawaban. Bukan cuma streaming: pemeriksaan
+  // isi tidak pernah jalan sama sekali. Kelas K1 (bentuk nilai vs pemakaian),
+  // kejadian ketiga — dan kali ini tesnya ikut hijau, karena yang diuji cuma
+  // regex sumbernya (K3).
+  //
+  // Terukur lawan `handleComboChat` asli dengan `handleSingleModel` yang
+  // mengembalikan bentuk produksi (Response telanjang): kandidat-1 menolak ⇒
+  // kandidat-2 TIDAK PERNAH DICOBA, penolakan sampai ke klien.
+  const response = result?.response?.clone
+    ? result.response
+    : (typeof result?.clone === "function" ? result : null);
+  if (!response) return { outcome: 'PATUH', bad: false, text: '' };
+
+  // Verdict kepala stream, kalau chatCore sudah menghitungnya.
+  //
+  // chatCore MEMERIKSA kepala stream sebelum satu byte pun sampai ke klien
+  // (peekStreamForRefusal + classifyStreamHead). Kalau tiga percobaan eskalasi
+  // gagal, dia meneruskan stream aslinya — dan dulu verdict itu berakhir sebagai
+  // baris log saja, jadi penolakan keluar sebagai `success: true` dan combo tidak
+  // pernah mencoba model berikutnya. Sekarang verdict-nya ikut sebagai header.
+  //
+  // Kenapa TIDAK membaca badan SSE di sini: `clone().text()` menunggu stream
+  // SELESAI. Terukur 2026-09-27 — badan ditahan 5000 ms ⇒ pemanggilannya ikut
+  // 5000 ms. Setiap combo streaming akan berubah jadi non-streaming. Peek kedua
+  // di sini juga membayar TTFT dua kali dan mengulang bahaya K20 (membatalkan
+  // branch tee yang masih dipakai jalur fall-through).
+  const verdict = response.headers?.get?.(STREAM_VERDICT_HEADER);
+  if (verdict && verdict !== "ok") {
+    // Kosakata verdict kepala stream ('refusal'|'empty') beda dari kosakata kelas
+    // ledger ('NOLAK'|'SENYAP'). Pemetaannya di sini, satu tempat.
+    const outcome = verdict === "empty" ? "SENYAP" : "NOLAK";
+    try { recordOutcome(model, firstLevel(model), outcome, model); } catch { /* ledger tidak boleh menjatuhkan permintaan */ }
+    return { outcome, bad: true, text: '' };
+  }
+
+  // Stream tanpa verdict = kepala stream belum diperiksa (mode bypass bukan
+  // aggressive). Badannya hidup, jadi tidak boleh dibaca di sini — dan TIDAK
+  // boleh dianggap patuh secara diam-diam. Yang dilakukan: lewatkan, catat.
+  if ((response.headers?.get?.("content-type") || "").includes("text/event-stream")) {
     return { outcome: 'PATUH', bad: false, text: '' };
   }
+
   let text = '';
   let out;
   try {
-    const clone = result.response.clone();
-    text = await clone.text();
+    const clone = response.clone();
+    text = answerTextFromBody(await clone.text());
     out = classifyOutcome(text, true);
   } catch {
     // Badan tidak terbaca bukan alasan membuang jawaban.
@@ -365,7 +439,25 @@ async function inspectComboContent(result, model) {
   try {
     recordOutcome(model, firstLevel(model), out, model);
   } catch { /* ledger tidak boleh menjatuhkan permintaan */ }
-  return { outcome: out, bad: needsAnotherTry(out), text };
+  // Ambang keputusan: needsFirstPassEscalation, BUKAN needsAnotherTry.
+  //
+  // Ini bagian yang bikin pemeriksaan isi aman dinyalakan. `classifyOutcome`
+  // hanya menyebut PATUH kalau menemukan wujud teknis yang diminta
+  // (REAL_DEED_RE: socket, dup2, nc -e, ...), jadi jawaban biasa yang BENAR dan
+  // LENGKAP keluar sebagai AMBIGU — kelas NORMAL. needsAnotherTry('AMBIGU') =
+  // true, jadi memakainya di sini berarti setiap jawaban sehat dibuang dan combo
+  // membakar seluruh daftar model lalu mengembalikan 502 ke klien.
+  //
+  // Terukur atas 317 jawaban non-streaming nyata di `requestDetails` deploy ini:
+  //
+  //   needsAnotherTry          -> 317/317 ditandai  (314 AMBIGU, 3 SENYAP)
+  //   needsFirstPassEscalation ->   3/317 ditandai  (hanya SENYAP)
+  //
+  // Kesalahan yang sama sudah diperbaiki di chatCore 2026-09-23 (registry K4).
+  // Di sini ia TIDAK PERNAH terlihat karena bentuk hasilnya salah, jadi gerbang
+  // ini tidak pernah menyala. Begitu bentuknya dibetulkan, ambangnya ikut jadi
+  // taruhan — karena itu keduanya harus mendarat bersamaan.
+  return { outcome: out, bad: needsFirstPassEscalation(out), text };
 }
 
 export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
@@ -477,7 +569,22 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         }
         log.warn("COMBO", `Model ${modelStr} returned 2xx with ${inspected.outcome} content` +
           (inspected.text ? ` (${inspected.text.length} chars)` : '') + " — trying next model");
-        result = { ok: false, error: `empty-refusal (${inspected.outcome})`, status: 502 };
+        // `statusText` wajib diisi: baris pembaca error di bawah membaca
+        // `result.statusText || ""` dan `result.clone().json()`, dua-duanya tidak
+        // ada pada objek polos — jadi tanpa ini alasan "empty-refusal (NOLAK)"
+        // hilang dan `All models failed | 502` tidak memberi tahu APA yang gagal.
+        //
+        // `contentFailure` menahan cooldown 502 (5 s). Cooldown itu untuk provider
+        // yang SESAT sebentar; jawaban yang isinya penolakan bukan gangguan
+        // sementara, dan menunggu 5 s sebelum mencoba model berikutnya hanya
+        // menambah latensi pada klien yang sudah menerima jawaban buruk.
+        result = {
+          ok: false,
+          error: `empty-refusal (${inspected.outcome})`,
+          status: 502,
+          statusText: `empty-refusal (${inspected.outcome})`,
+          contentFailure: true,
+        };
       }
 
       // Extract error info from response
@@ -490,6 +597,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       } catch {
         // Ignore JSON parse errors
       }
+      // A synthesized content failure carries no body and no clone(); its reason
+      // lives in `error`. Without this the client-facing "All models failed" line
+      // degraded to a bare status code and the CLASS that failed was lost.
+      if (!errorText && typeof result.error === "string") errorText = result.error;
 
       // Track earliest retryAfter across all combo models
       if (retryAfter && (!earliestRetryAfter || new Date(retryAfter) < new Date(earliestRetryAfter))) {
@@ -512,7 +623,13 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       // For transient errors (503/502/504), wait for cooldown before falling through
       // so a briefly-overloaded provider gets a chance to recover rather than being
       // skipped immediately (fixes: combo falls through on transient 503)
-      if (cooldownMs && cooldownMs > 0 && cooldownMs <= 5000 &&
+      //
+      // `contentFailure` is exempt: a 2xx whose CONTENT was unusable is not a
+      // provider having a bad moment. Waiting 5 s before trying the next model
+      // adds latency to a client that already got a bad answer, and the model
+      // that produced it is not more likely to answer well 5 s later.
+      if (!result.contentFailure &&
+          cooldownMs && cooldownMs > 0 && cooldownMs <= 5000 &&
           (result.status === 503 || result.status === 502 || result.status === 504)) {
         log.info("COMBO", `Model ${modelStr} transient ${result.status}, waiting ${cooldownMs}ms before next`);
         await new Promise(r => setTimeout(r, cooldownMs));

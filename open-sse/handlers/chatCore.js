@@ -12,7 +12,7 @@ import { resolveSessionId } from "../utils/sessionManager.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
-import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, TOKEN_SAVER_HEADER, STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { getExecutor } from "../executors/index.js";
@@ -950,8 +950,19 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         }
         // All escalations failed — fall through to normal streaming of the
         // reconstructed original stream so the client still gets SOMETHING.
+        //
+        // Tag it (registry K21). The head verdict this gate ALREADY computed used
+        // to die here: the refusal shipped as `success: true` and the combo never
+        // learned the answer was unusable, so smart-fallback never tried its next
+        // model — the one thing it exists to do. combo.js cannot re-derive the
+        // verdict: reading an SSE body means waiting for the stream to END
+        // (measured: a body held open 5 s made the inspection take 5 s), which
+        // would turn every streaming combo into a non-streaming one. So the
+        // verdict travels in a header instead of being recomputed.
         log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation exhausted, passing original stream through`);
-        const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: providerResponse.headers });
+        const passThroughHeaders = new Headers(providerResponse.headers);
+        passThroughHeaders.set(STREAM_VERDICT_HEADER, headVerdict);
+        const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: passThroughHeaders });
         return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
       }
       // Head looks fine — resume piping from the buffered chunk.

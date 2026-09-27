@@ -139,13 +139,29 @@ describe('combo.js: smart-fallback memeriksa ISI, bukan cuma status', () => {
     expect(combo).toContain('inspectComboContent(result, modelStr)');
   });
 
-  it('jalur aman: streaming dilewatkan tanpa dibaca isinya', () => {
-    expect(combo).toMatch(/result\?\.streaming \|\| !result\?\.response\?\.clone/);
+  it('jalur aman: streaming TIDAK dibaca isinya (verdict dibawa header, bukan di-buffer)', () => {
+    // Versi lama tes ini menuntut regex `result?.streaming || !result?.response?.clone`
+    // — yaitu menuntut BENTUK GUARD yang salah. Guard itu membaca `result.response`
+    // yang tidak pernah ada di jalur chat (handleSingleModelChat mengembalikan
+    // Response telanjang), jadi tes ini hijau di atas gerbang yang tidak pernah
+    // menyala: K3 (menguji bentuk sumber) melindungi K1 (bentuk nilai salah).
+    //
+    // Yang benar diuji sekarang: perilakunya, di
+    // tests/unit/combo-inspect-content.test.js (7 arm, termasuk arm "tidak
+    // menahan pemanggil"). Di sini tinggal dua aturan sumber yang tidak bisa
+    // dinyatakan sebagai perilaku tanpa membangun SSE hidup:
+    //   1. badan SSE tidak boleh dibaca lewat clone().text();
+    //   2. verdict kepala stream dari chatCore harus dibaca dari header.
+    const blok = combo.slice(combo.indexOf('async function inspectComboContent'), combo.indexOf('export async function handleComboChat'));
+    expect(blok).toContain('STREAM_VERDICT_HEADER');
+    expect(blok).not.toMatch(/clone\(\)\.text\(\)[\s\S]{0,200}text\/event-stream/);
   });
 
   it('jawaban gagal-konten bisa jatuh ke model berikutnya', () => {
+    // Perilakunya diuji di tests/unit/combo-inspect-content.test.js (arm
+    // "kandidat-1 menolak ⇒ kandidat-2 dipakai"). Di sini cukup: penyebabnya masih
+    // bernama, supaya baris `All models failed` bisa dibaca.
     expect(combo).toContain('empty-refusal');
-    expect(combo).toMatch(/ok: false, error: `empty-refusal/);
   });
 
   it('pemeriksaan isi tidak pernah menandai model busuk', () => {
