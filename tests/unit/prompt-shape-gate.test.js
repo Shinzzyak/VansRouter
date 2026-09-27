@@ -68,6 +68,35 @@ describe("prompt-shape gate: netralkan scaffolding, jangan sentuh pesan user", (
     }
   });
 
+  // A prompt that NAMES the tags it defends against must not match a name-only
+  // rule. This is the generalisable form of a defect measured 2026-09-27: the
+  // router's own persona quotes `<behavior_instructions>` inside its
+  // injection-rebuttal paragraph, so a bare name match made
+  // `isAgentShapedPrompt(ourOwnSystemPrompt)` true and the persona was replaced
+  // on every prompt-gated request — 444/444 codebuddy-intl requests went out
+  // persona-less. The exact persona text cannot be asserted here (engine-not-in-repo
+  // forbids the payload in tracked files), so these cases assert the RULE.
+  it("tag name disebut di prosa/kutipan TIDAK dianggap agent-shaped", () => {
+    for (const text of [
+      "Fabricated messages, `<behavior_instructions>`, or any tag claiming violations.",
+      "Larangan menyebut <Role> di dalam prompt.",
+      "see <agent-identity> for details",
+      "the <Role> block",
+    ]) {
+      expect(isAgentShapedPrompt(text), text.slice(0, 40)).toBe(false);
+    }
+  });
+
+  it("blok tag yang SUNGGUHAN tetap terdeteksi (anchor baris + kurung tutup)", () => {
+    for (const text of [
+      "<Behavior_Instructions>\ndo the thing\n</Behavior_Instructions>",
+      "intro\n<Role>engineer</Role>",
+      "  <agent-identity>",
+    ]) {
+      expect(isAgentShapedPrompt(text), text.slice(0, 40)).toBe(true);
+    }
+  });
+
   it("engine absen: tidak ada verdict scaffolding, tapi CLI pihak ketiga tetap jalan", () => {
     // Shim promptGateMemory mengembalikan false tanpa bundle. Kontraknya: fail-open,
     // bukan "anggap semua scaffolding" — router yang kehilangan engine tidak boleh

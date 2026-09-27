@@ -46,7 +46,14 @@ const AGENT_PROMPT_SIGNATURES = [
   /you are an? (?:ai )?(?:coding |code )?agent\b/i,
   /you are .{0,30}(?:powerful )?ai agent\b/i,
   /(?:orchestration capabilities|OhMyOpenCode)/i,
-  /<agent-identity>|<Behavior_Instructions>|<Role>/i,
+  // Anchored to the start of a line and requiring the closing bracket. A bare
+  // name match is a trap: our own persona's injection-rebuttal paragraph NAMES
+  // the tags it defends against (`<behavior_instructions>`), so a name-only rule
+  // makes `isAgentShapedPrompt(ourOwnSystemPrompt)` true and the persona gets
+  // replaced on every gated request. Measured 2026-09-27: 444/444 codebuddy-intl
+  // requests went out persona-less, replies came back in the backend model's own
+  // alignment (generic-assistant refusals) with no brand and no seal.
+  /(?:^|\n)[ \t]*<(?:agent-identity|Behavior_Instructions|Role)>/i,
   /cc_entrypoint\s*=\s*(?:cli|vscode|jetbrains|gui)/i,
   /claude.?code.{0,20}issues/i,
   /give feedback.{0,30}claude.?code/i,

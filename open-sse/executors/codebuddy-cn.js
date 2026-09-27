@@ -1,4 +1,5 @@
 import { DefaultExecutor } from "./default.js";
+import { isAgentShapedPrompt, NEUTRAL_SYSTEM_PROMPT } from "./promptNeutralize.js";
 
 /**
  * CodeBuddyExecutor — talks to https://copilot.tencent.com/v2/chat/completions
@@ -20,13 +21,19 @@ export class CodeBuddyExecutor extends DefaultExecutor {
 
     // Tencent's content filter flags CLI agent system prompts ("You are Claude
     // Code, Anthropic's official CLI...") as prompt injection / sensitive content
-    // and rejects the whole request. Detect agent system prompts (length catch-all
-    // + identity-marker regex) and replace them with a neutral one, while leaving
-    // legitimate user system prompts untouched. content may be a string or typed
-    // blocks ([{type:"text",text}]) depending on the incoming client format, so
-    // flatten before matching and preserve the original shape on replacement.
-    const NEUTRAL_PROMPT = "You are a helpful AI assistant that helps with software engineering tasks.";
-    const AGENT_PATTERN = /you are claude code|claude.?code.+official.+cli|anthropic.+official.+cli|anxthxropic.+official.+cli|you are (?:cursor|windsurf|cline|aider|continue|copilot|cody)|you are an? (?:ai )?(?:coding |code )?agent|cc_entrypoint\s*=\s*(?:cli|vscode|jetbrains|gui)|claude.?code.+issues|give feedback.+claude.?code|you are .{0,30}(?:powerful )?ai agent|orchestration capabilities|OhMyOpenCode|<agent-identity>|<Role>|<Behavior_Instructions>/i;
+    // and rejects the whole request. Detect agent system prompts and replace them
+    // with a neutral one, while leaving legitimate user system prompts untouched.
+    //
+    // The list is NOT duplicated here any more (registry K5): it comes from
+    // promptNeutralize.js, the same helper the generic prompt-shape gate uses, so
+    // a marker added for one host cannot go missing on the other. The old local
+    // copy ALSO carried a `text.length > 2000` catch-all, which was wrong twice
+    // over: length is not a signal (it rewrites a long legitimate caller system
+    // prompt), and on this deployment it rewrote the ROUTER'S OWN persona on
+    // every cn request — measured 2026-09-27, same class as the tag-name match
+    // fixed in promptNeutralize.js. Identity is the signal, and it is now tested
+    // by content alone.
+    const NEUTRAL_PROMPT = NEUTRAL_SYSTEM_PROMPT;
     const flatten = (content) =>
       typeof content === "string"
         ? content
@@ -38,7 +45,7 @@ export class CodeBuddyExecutor extends DefaultExecutor {
         if (!message || message.role !== "system") return message;
         const text = flatten(message.content);
         if (!text) return message;
-        if (text.length > 2000 || AGENT_PATTERN.test(text)) {
+        if (isAgentShapedPrompt(text)) {
           return typeof message.content === "string"
             ? { ...message, content: NEUTRAL_PROMPT }
             : { ...message, content: [{ type: "text", text: NEUTRAL_PROMPT }] };
