@@ -904,7 +904,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const headVerdict = classifyStreamHead(gate.headText);
       if (headVerdict !== "ok") {
         log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
-        try { gate.replayBody?.cancel?.().catch(() => {}); } catch {}
+        // DO NOT cancel the replay branch here (registry K20). It is the ONLY copy
+        // of the original stream, and the "escalation exhausted, pass the original
+        // through" path below hands exactly this branch to the client. Cancelling a
+        // tee branch propagates to the source and marks the branch unusable, so the
+        // fall-through threw `Response body object should not be disturbed or
+        // locked` (measured 2026-09-27, and 35 times in the error log before that).
+        // The retry is a separate non-streaming execute(); it does not need this
+        // branch, so there is nothing to free up front.
         const triedL3 = [];
         let lvl3 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
