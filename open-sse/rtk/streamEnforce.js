@@ -10,7 +10,8 @@ import { loadEngine } from "./engineLoader.js";
 
 const __E = loadEngine("streamEnforce") ?? {};
 
-export const assembleVisibleText = __E.assembleVisibleText ?? ((t = '') => ({ visible: String(t), structured: false }));
+export const assembleVisibleText = __E.assembleVisibleText ?? ((t = '') => ({ visible: String(t), reasoning: '', structured: false }));
 export const brandStreamEnforceEnabled = __E.brandStreamEnforceEnabled ?? (() => false);
+export const collectReasoningFrames = __E.collectReasoningFrames ?? (() => []);
 export const createBrandEnforceGate = __E.createBrandEnforceGate ?? (() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }));
 export const rebuildStreamWithText = __E.rebuildStreamWithText ?? (() => null);

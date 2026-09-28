@@ -208,7 +208,8 @@ const FALLBACKS = {
   // that swallows a reply — that is the Zero Break Guarantee.
   streamEnforce: {
     brandStreamEnforceEnabled: "(() => false)",
-    assembleVisibleText: "((t = '') => ({ visible: String(t), structured: false }))",
+    assembleVisibleText: "((t = '') => ({ visible: String(t), reasoning: '', structured: false }))",
+    collectReasoningFrames: "(() => [])",
     rebuildStreamWithText: "(() => null)",
     createBrandEnforceGate: "(() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }))",
   },

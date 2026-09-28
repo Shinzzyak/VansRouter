@@ -11,6 +11,7 @@
 import {
   createBrandEnforceGate,
   assembleVisibleText,
+  collectReasoningFrames,
   rebuildStreamWithText,
   brandStreamEnforceEnabled,
 } from "../../open-sse/rtk/streamEnforce.js";
@@ -152,6 +153,41 @@ export default async function run() {
     const chunks = ["bukan sse sama sekali\n", finishChunk, doneChunk];
     const { text } = await throughGate(chunks);
     ok("byte asli tetap keluar", text.includes("bukan sse sama sekali"));
+  }
+
+  // K23 (2026-09-28). Jalur streaming yang MEMICU repair adalah bentuk produksi:
+  // model mengirim penalaran di kanal sendiri, jawabannya sudah patuh, gerbang
+  // memasang brand. Sebelum fix, `assembleVisibleText` MENGGABUNG
+  // reasoning_content ke `visible` dan `rebuildChunk` memaksa semuanya jadi satu
+  // chunk `content` — rencana model terkirim sebagai jawaban, kanal penalaran
+  // hilang. Terukur di glm-5.3: 4/4 request streaming lewat router.
+  console.log("=== 9. K23: penalaran TIDAK boleh menyatu ke content ===");
+  {
+    const PLAN = 'The user just said "Ping". Simple idle line.';
+    const ANSWER = "mph. pong. me here.";
+    const chunks = [
+      chunk("", { reasoning_content: PLAN }),
+      chunk(ANSWER), // belum ada brand -> repair WAJIB jalan
+      finishChunk, doneChunk,
+    ];
+    const { text } = await throughGate(chunks);
+    const { visible, reasoning } = assembleVisibleText(text);
+    ok("penalaran TIDAK masuk content", !visible.includes("The user just said"), `content="${visible.slice(0, 70)}"`);
+    ok("jawaban asli tetap ada", visible.includes(ANSWER));
+    ok("brand dipasang di awal", visible.trimStart().startsWith(BRAND));
+    ok("seal dipasang di akhir", visible.trimEnd().endsWith(SEAL));
+    ok("kanal penalaran dipertahankan", String(reasoning ?? "").includes("The user just said"), `r=${(reasoning ?? "").length}`);
+    ok("brand tidak dobel", visible.split(BRAND).length - 1 === 1);
+  }
+
+  console.log("=== 10. tanpa penalaran -> perilaku lama tidak berubah ===");
+  {
+    const chunks = [chunk("jawaban polos"), finishChunk, doneChunk];
+    const { text } = await throughGate(chunks);
+    const { visible, reasoning } = assembleVisibleText(text);
+    ok("brand dipasang", visible.trimStart().startsWith(BRAND));
+    ok("seal dipasang", visible.trimEnd().endsWith(SEAL));
+    ok("tidak ada kanal penalaran karangan", (reasoning ?? "") === "", `r="${reasoning ?? ""}"`);
   }
 
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
