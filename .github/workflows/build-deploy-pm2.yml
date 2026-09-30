@@ -182,13 +182,26 @@ jobs:
         run: pnpm run build
         env:
           NODE_ENV: production
-          # The runner has ~16 GB (a V8-limit SIGABRT at 6144 with the OS
-          # still alive proves headroom past 6.5 GB RSS). The old ~4 GB default
-          # ceiling died with "Ineffective mark-compacts" (runs 36768804342,
-          # 36773329016); 6144 was still ~100 MB short (36777383962). scripts/
-          # build.js forwards NODE_OPTIONS to the next build child, so this
-          # reaches the process that actually compiles.
-          NODE_OPTIONS: --max-old-space-size=8192
+          # MEASURED, not guessed. The compile needs more than 8 GB: runs
+          # 36780000050 and 36788642280 both died at exactly the 8192 ceiling
+          # with the OS healthy (V8 FATAL, not SIGKILL), and the deploy job's
+          # own commit deployed green at 15:10 with the identical source — a
+          # dispatch of that same commit (36784535798) OOMs now, so the growth
+          # is environmental, not a code regression. Public ubuntu-latest
+          # runners carry 16 GB; 14336 leaves the OS room.
+          NODE_OPTIONS: --max-old-space-size=14336
+
+      - name: Build environment report
+        if: always()
+        run: |
+          echo "=== open-sse/rtk (post-bundle shims) ==="
+          du -sh open-sse/rtk; ls -lS open-sse/rtk/*.js | head -8
+          echo "=== engine source copied into the tree ==="
+          du -sh data/engine .engine 2>/dev/null || true
+          echo "=== node_modules ==="
+          du -sh node_modules
+          echo "=== free ==="
+          free -m
 
       - name: Copy static assets into standalone
         run: |
