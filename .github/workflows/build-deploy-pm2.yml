@@ -43,6 +43,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Parity with the build matrix (build-matrix.yml "Configure pnpm hoisting").
+      # The matrix hoists everything to node_modules/ root (public-hoist-pattern=*
+      # + shamefully-hoist) and compiles green; this job's isolated pnpm layout
+      # resolves literally hundreds of extra copies of the same packages into the
+      # webpack module graph, and the Green deploy at 15:10 is proof layout
+      # matters. Cheap to align, expensive to leave divergent.
+      - name: Configure pnpm hoisting config
+        shell: bash
+        run: |
+          echo "public-hoist-pattern=*" >> .npmrc
+          echo "shamefully-hoist=true" >> .npmrc
+
       - name: Run unit tests (smoke gate — engine absent)
         run: pnpm test tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js
         env:

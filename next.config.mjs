@@ -20,7 +20,20 @@ const nextConfig = {
   },
   outputFileTracingRoot: tracingRoot,
   outputFileTracingExcludes: {
-    "*": ["./gitbook/**/*", "./.git/**/*", "./tests/**/*", "./docs/**/*", "./.fakehome/**/*"]
+    "*": [
+      "./gitbook/**/*",
+      "./.git/**/*",
+      "./tests/**/*",
+      "./docs/**/*",
+      "./.fakehome/**/*",
+      // Hygiene, not a memory fix. `.engine/` is the CI checkout of the private
+      // source repo and data/engine/src/ is its copied source — neither is
+      // imported by app code (engineLoader reads the compiled
+      // data/engine/engine.cjs from disk at runtime). Keeping private source
+      // out of the trace keeps it out of the artifact and off the tracer walk.
+      "./.engine/**/*",
+      "./data/engine/src/**/*",
+    ]
   },
   // Disable Next.js built-in gzip/br compression so SSE chunks are flushed
   // immediately to the client instead of being batched by the compressor.
