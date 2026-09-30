@@ -235,6 +235,11 @@ export async function handleStreamingResponse({
  */
 export function buildOnStreamComplete({ provider, model, connectionId, apiKey, apiKeyInfo, apiKeyName, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  // Recomputed here rather than read from handleStreamingResponse's scope: this
+  // is a separate exported factory, so the const at line 195 is not visible
+  // (caught by CI's no-undef lint, not by vitest — the module never executes that
+  // path under test).
+  const personaExempt = apiKeyInfo?.personaInject === false;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
     const latency = {
