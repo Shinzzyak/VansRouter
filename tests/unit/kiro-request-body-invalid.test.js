@@ -91,10 +91,21 @@ describe("Kiro payload omits the top-level systemPrompt (REQUEST_BODY_INVALID)",
   it("keeps the fields CodeWhisperer does accept", () => {
     const payload = openaiToKiroRequest("claude-sonnet-4.5", openaiBody(), true, CREDENTIALS);
 
-    // agentContinuationId is what lets Kiro reuse an agent session across turns;
-    // dropping it makes every turn look like a fresh conversation and re-bills
-    // the whole history, so guard it here.
-    expect(payload.conversationState.agentContinuationId).toBeTruthy();
+    // agentContinuationId is what lets Kiro reuse an agent session across turns.
+    // It is deliberately absent on a fresh conversation (the API rejects it with
+    // REQUEST_BODY_INVALID) and present as soon as the turn carries history.
+    expect(payload.conversationState.agentContinuationId).toBeUndefined();
+    const followUp = openaiToKiroRequest(
+      "claude-sonnet-4.5",
+      openaiBody({ messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+        { role: "user", content: "again" },
+      ] }),
+      true,
+      CREDENTIALS
+    );
+    expect(followUp.conversationState.agentContinuationId).toBeTruthy();
     expect(payload.conversationState.chatTriggerType).toBe("MANUAL");
     expect(payload.profileArn).toBe(CREDENTIALS.providerSpecificData.profileArn);
   });

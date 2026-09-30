@@ -213,7 +213,11 @@ describe("freebuff executor wire shape", () => {
     const body = { tools: [{ type: "function", function: { name: "read_file" } }] };
     const injected = injectEndTurnTool(body);
     expect(injected.tools.map((tool) => tool.function.name)).toEqual(["read_file", "end_turn"]);
-    expect(injectEndTurnTool(injected)).toBe(injected);
+    // The helper is pure: an already-gated body comes back structurally equal
+    // (a fresh object, same tools array), never double-appended.
+    const twice = injectEndTurnTool(injected);
+    expect(twice).toEqual(injected);
+    expect(twice.tools.filter((t) => t.function.name === "end_turn")).toHaveLength(1);
   });
 
   it("explains the Freebuff tool gate on endpoint lookup errors", async () => {
@@ -258,22 +262,18 @@ describe("freebuff session pre-flight", () => {
     expect(fetchMock.mock.calls.length).toBe(2);
   });
 
-  it("resolveSessionGate auto-switches model_locked to the session model and limited_ip to a limited-tier model", async () => {
-    const { resolveSessionGate, LIMITED_TIER_MODELS } = __test__;
+  it("exposes the session-gate surface the executor needs to fail fast", async () => {
+    // model_locked / limited_ip are NOT reclaimable — the executor cools the
+    // token+model (or the pool) down and throws instead of re-claiming in a loop.
+    expect([...__test__.SESSION_STALE_CODES].sort()).toEqual([409, 410, 428]);
+    expect(__test__.rootAgentIdForModel("z-ai/glm-5.3-flash")).toBe("base3-free-glm-5-3-flash");
+    expect(__test__.rootAgentIdForModel("model/not-registered")).toBe("base2-free");
 
-    // model_locked with a different currentModel → switch to it.
-    expect(
-      resolveSessionGate({ kind: "model_locked", currentModel: "openai/gpt-5.6-luna" }, { model: "deepseek/deepseek-v4-flash", log: null }),
-    ).toEqual({ fallbackModel: "openai/gpt-5.6-luna" });
-
-    // Same-model lock → no fallback (would loop).
-    expect(resolveSessionGate({ kind: "model_locked", currentModel: "deepseek/deepseek-v4-flash" }, { model: "deepseek/deepseek-v4-flash", log: null })).toBeNull();
-
-    // limited_ip on a non-limited model → switch to limited-tier default.
-    expect(resolveSessionGate({ kind: "limited_ip" }, { model: "openai/gpt-5.6-luna", log: null })).toEqual({ fallbackModel: LIMITED_TIER_MODELS[0] });
-
-    // limited-tier model already → no switch.
-    expect(resolveSessionGate({ kind: "limited_ip" }, { model: LIMITED_TIER_MODELS[0], log: null })).toBeNull();
+    const marked = __test__.injectFreebuffMarker(
+      { messages: [{ role: "user", content: "hi" }] },
+      "fp-1",
+    );
+    expect(marked.messages[0].content).toBe(__test__.FREEBUFF_SYSTEM_MARKER);
   });
 
   it("treats status none as no-session-needed (instanceId null)", async () => {

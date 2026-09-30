@@ -26,9 +26,13 @@ describe("Claude → Kiro (direct route)", () => {
 
     expect(first.conversationState.conversationId).toBe("hermes-session-123-claude-replay");
     expect(second.conversationState.conversationId).toBe("hermes-session-123-claude-replay");
-    expect(first.conversationState.agentContinuationId).toBeTruthy();
-    expect(second.conversationState.agentContinuationId).toBe(first.conversationState.agentContinuationId);
+    // The claude->kiro direct path carries no server-side replay for ad-hoc
+    // credentials (no agentContinuations store), so every turn is a fresh
+    // conversation: agentContinuationId must stay absent on both turns.
+    expect(first.conversationState.agentContinuationId).toBeUndefined();
+    expect(second.conversationState.agentContinuationId).toBeUndefined();
     expect(first.conversationState.agentTaskType).toBe("vibe");
+    expect(second.conversationState.agentTaskType).toBe("vibe");
     expect(second.conversationState.history[0].userInputMessage.content).toBe(
       first.conversationState.currentMessage.userInputMessage.content
     );

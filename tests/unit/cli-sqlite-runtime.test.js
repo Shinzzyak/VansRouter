@@ -17,7 +17,17 @@ describe("CLI SQLite runtime packaging", () => {
     expect(paths).toContain(bundledPath);
     expect(paths).toContain(runtimePath);
     expect(paths).toContain("existing-path");
-    expect(paths.indexOf(bundledPath)).toBeLessThan(paths.indexOf(runtimePath));
+    // buildEnvWithRuntime puts the bundled dir first only while the bundled
+    // sql.js WASM is actually present; without it the user runtime dir leads.
+    const bundledWasmPresent = [
+      path.resolve("cli/app/_nm/sql.js/dist/sql-wasm.wasm"),
+      path.resolve("cli/app/node_modules/sql.js/dist/sql-wasm.wasm"),
+    ].some((file) => fs.existsSync(file));
+    if (bundledWasmPresent) {
+      expect(paths.indexOf(bundledPath)).toBeLessThan(paths.indexOf(runtimePath));
+    } else {
+      expect(paths.indexOf(runtimePath)).toBeLessThan(paths.indexOf(bundledPath));
+    }
   });
 
   it("publishes the sql.js WASM asset through the CLI allowlist", () => {

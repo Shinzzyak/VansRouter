@@ -3,7 +3,7 @@ import { BULK_IMPORT_PROVIDERS, isValidBulkImportProvider } from "../../src/lib/
 
 test("all new managers load via registry getManager", async () => {
   const managers = await Promise.all(
-    ["qoder", "codebuddy", "codebuddy-cn", "autoclaw"].map(async (id) => {
+    ["qoder", "codebuddy-intl", "codebuddy-cn", "autoclaw"].map(async (id) => {
       const spec = BULK_IMPORT_PROVIDERS[id];
       const manager = await spec.getManager();
       return { id, manager };

@@ -640,11 +640,14 @@ export default function ProxyPoolsPage() {
     return proxyPools;
   }, [proxyPools, poolTypeFilter]);
 
-  // Pagination: clamp page when filter/pageSize changes
-  useEffect(() => {
+  // Pagination: clamp page when filter/pageSize changes. Render-phase adjust
+  // (ComboFormModal pattern) — an effect here was a cascading sync setState.
+  const [pageKey, setPageKey] = useState([visiblePools.length, pageSize]);
+  if (pageKey[0] !== visiblePools.length || pageKey[1] !== pageSize) {
+    setPageKey([visiblePools.length, pageSize]);
     const maxPage = Math.max(0, Math.ceil(visiblePools.length / pageSize) - 1);
     if (page > maxPage) setPage(maxPage);
-  }, [visiblePools.length, pageSize, page]);
+  }
 
   const pageCount = Math.max(1, Math.ceil(visiblePools.length / pageSize));
   const pagedPools = useMemo(

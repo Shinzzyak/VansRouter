@@ -19,6 +19,11 @@ export default defineConfig({
     silent: false,
     env: {
       API_KEY_SECRET: "test-api-key-secret-for-ci-only",
+      // Hermetic data dir. dataDir.js reads DATA_DIR first; without this every
+      // test that transitively opens the DB lands on /home/ubuntu/VansRouter/data
+      // and mutates the LIVE sqlite (it added a column once — see registry K21).
+      // Tests that need isolation still override process.env.DATA_DIR themselves.
+      DATA_DIR: resolve(__dirname, "../.tmp-test-data"),
     },
   },
   resolve: {

@@ -33,18 +33,25 @@ describe("Qoder PAT exchange", () => {
     expect(first.apiKey).toBeUndefined();
     expect(first.providerSpecificData.userId).toBe("user-test");
     expect(second.accessToken).toBe("jt-test");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/jobToken\/exchange$/);
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ personal_token: "pt-concurrent-test" });
+    // 3 calls: center exchange (rejected by this mock), legacy fallback, userinfo.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const exchangeCall = fetchMock.mock.calls.find(([url]) => /jobToken\/exchange$/.test(url));
+    expect(exchangeCall).toBeTruthy();
+    expect(JSON.parse(exchangeCall[1].body)).toEqual({ personal_token: "pt-concurrent-test" });
   });
 
   it("clears failed exchanges so a later retry can succeed", async () => {
+    // Both the center exchange and its legacy fallback fail -> the whole
+    // exchange rejects and no cache entry may survive.
     fetchMock.mockRejectedValueOnce(new Error("temporary failure"));
-    await expect(resolveQoderCredentials({ apiKey: "pt-retry-test" })).rejects.toThrow("temporary failure");
+    fetchMock.mockRejectedValueOnce(new Error("temporary failure"));
+    await expect(resolveQoderCredentials({ apiKey: "pt-retry-unique" })).rejects.toThrow("temporary failure");
 
+    // A later attempt must go back upstream (cache cleared) and succeed.
+    fetchMock.mockRejectedValueOnce(new Error("center down"));
     fetchMock.mockResolvedValueOnce(jsonResponse({ token: "jt-retry", expires_in: 3600 }));
     fetchMock.mockResolvedValueOnce(jsonResponse({ userId: "user-retry" }));
-    await expect(resolveQoderCredentials({ apiKey: "pt-retry-test" })).resolves.toMatchObject({
+    await expect(resolveQoderCredentials({ apiKey: "pt-retry-unique" })).resolves.toMatchObject({
       accessToken: "jt-retry",
       providerSpecificData: { userId: "user-retry" },
     });

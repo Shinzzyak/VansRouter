@@ -17,18 +17,22 @@ describe("fetchModelsFetcherIds", () => {
 
   it("handles models.dev dict shape for opencode-free fetcher", async () => {
     const pid = "opencode-dict-test";
+    // Body is read with `response.text()` in allowedModels.js (commit db8cdbe5),
+    // so a `.json()`-only mock throws and the fetcher fail-softs to [].
+    const dict = {
+      [pid]: {
+        id: pid,
+        models: {
+          "deepseek-v4-flash-free": { id: "deepseek-v4-flash-free" },
+          "ling-3.0-flash-free": { id: "ling-3.0-flash-free" },
+          "claude-sonnet-4-6": { id: "claude-sonnet-4-6" },
+        },
+      },
+    };
     globalThis.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        [pid]: {
-          id: pid,
-          models: {
-            "deepseek-v4-flash-free": { id: "deepseek-v4-flash-free" },
-            "ling-3.0-flash-free": { id: "ling-3.0-flash-free" },
-            "claude-sonnet-4-6": { id: "claude-sonnet-4-6" },
-          },
-        },
-      }),
+      json: async () => dict,
+      text: async () => JSON.stringify(dict),
     });
 
     const ids = await fetchModelsFetcherIds(pid, {
@@ -44,9 +48,11 @@ describe("fetchModelsFetcherIds", () => {
 
   it("still supports array shapes", async () => {
     const pid = "generic-array-test";
+    const arr = [{ id: "model-a" }, { id: "model-b" }];
     globalThis.fetch.mockResolvedValue({
       ok: true,
-      json: async () => [{ id: "model-a" }, { id: "model-b" }],
+      json: async () => arr,
+      text: async () => JSON.stringify(arr),
     });
 
     const ids = await fetchModelsFetcherIds(pid, {

@@ -71,14 +71,17 @@ describe("fetchModelsFetcherIds dict resolution", () => {
   beforeEach(() => { key = `test-${Math.random()}`; globalThis.fetch = vi.fn(); });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
+  // allowedModels.js reads the body with `response.text()` (commit db8cdbe5) and
+  // parses it itself, so a `.json()`-only mock throws and the fetcher fail-softs
+  // to []. Both readers are provided so these tests keep exercising the DICT
+  // RESOLUTION rules instead of the shape of the mock.
+  const body = (obj) => ({ ok: true, json: async () => obj, text: async () => JSON.stringify(obj) });
+
   it("resolves multi-provider dict by provider id", async () => {
-    globalThis.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        opencode: { models: { "deepseek-v4-flash-free": { id: "deepseek-v4-flash-free" } } },
-        "another-provider": { models: { "not-free": { id: "not-free" } } },
-      }),
-    });
+    globalThis.fetch.mockResolvedValue(body({
+      opencode: { models: { "deepseek-v4-flash-free": { id: "deepseek-v4-flash-free" } } },
+      "another-provider": { models: { "not-free": { id: "not-free" } } },
+    }));
     const ids = await fetchModelsFetcherIds("opencode", {
       id: "opencode",
       alias: "oc",
@@ -89,12 +92,9 @@ describe("fetchModelsFetcherIds dict resolution", () => {
 
   it("resolves dict by alias when provider id absent", async () => {
     const pid = "opencode-alias-test";
-    globalThis.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        oc: { models: { "ling-3.0-flash-free": { id: "ling-3.0-flash-free" } } },
-      }),
-    });
+    globalThis.fetch.mockResolvedValue(body({
+      oc: { models: { "ling-3.0-flash-free": { id: "ling-3.0-flash-free" } } },
+    }));
     const ids = await fetchModelsFetcherIds(pid, {
       id: pid,
       alias: "oc",
@@ -105,12 +105,9 @@ describe("fetchModelsFetcherIds dict resolution", () => {
 
   it("returns empty on missing provider key (no first-value fallback)", async () => {
     const pid = "opencode-missing-key-test";
-    globalThis.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        "other-provider": { models: { "x-free": { id: "x-free" } } },
-      }),
-    });
+    globalThis.fetch.mockResolvedValue(body({
+      "other-provider": { models: { "x-free": { id: "x-free" } } },
+    }));
     const ids = await fetchModelsFetcherIds(pid, {
       id: pid,
       alias: "oc",
@@ -143,7 +140,7 @@ describe("fetchModelsFetcherIds dict resolution", () => {
 
   it("uses bounded timeout for fetches", async () => {
     const pid = "opencode-timeout-test";
-    globalThis.fetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    globalThis.fetch.mockResolvedValue(body({}));
     await fetchModelsFetcherIds(pid, {
       id: pid,
       alias: "oc",

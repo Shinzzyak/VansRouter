@@ -194,11 +194,15 @@ describe("handleChatCore Headroom diagnostics", () => {
       },
     });
 
+    // The persona/system prefix may be prepended ahead of the turn, so assert
+    // on the user turn Headroom replaced rather than on array position.
     expect(executeMock).toHaveBeenCalledWith(expect.objectContaining({
       body: expect.objectContaining({
-        messages: [{ role: "user", content: compressed }],
+        messages: expect.arrayContaining([{ role: "user", content: compressed }]),
       }),
     }));
+    const sent = executeMock.mock.calls[0][0].body.messages;
+    expect(sent.some((m) => m.content === original)).toBe(false);
     expect(JSON.stringify(executeMock.mock.calls[0][0].body)).not.toContain(original);
     expect(log.info).toHaveBeenCalledWith("HEADROOM", expect.stringContaining("reported token delta=90 before=100 after=10"));
     expect(log.info).toHaveBeenCalledWith("HEADROOM", expect.stringContaining("body="));
@@ -290,7 +294,7 @@ describe("handleChatCore Headroom diagnostics", () => {
     expect(pxpipeTransform).not.toHaveBeenCalled();
     expect(executeMock).toHaveBeenCalledWith(expect.objectContaining({
       body: expect.objectContaining({
-        messages: [{ role: "user", content: "Write polished prose." }],
+        messages: expect.arrayContaining([{ role: "user", content: "Write polished prose." }]),
       }),
     }));
   });

@@ -16,7 +16,10 @@ describe("Database location & fallback path rules", () => {
 
   it("dataDir.js defaultDir must resolve to the VansRouter data dir (never ~/.9router)", () => {
     const src = read("src/lib/dataDir.js");
-    expect(src).toContain('"/home/ubuntu/VansRouter/data"');
+    // Prod pins VANSROUTER_DATA_DIR; the fallback is home-relative so CI builds
+    // (read-only /home/ubuntu) can still collect page data.
+    expect(src).toContain("process.env.VANSROUTER_DATA_DIR");
+    expect(src).toContain('path.join(os.homedir(), "VansRouter", "data")');
     expect(src).not.toContain('path.join(os.homedir(), `.${APP_NAME}`)');
     expect(src).toContain("AppData");
   });

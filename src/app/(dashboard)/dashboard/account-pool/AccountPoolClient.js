@@ -166,7 +166,11 @@ export default function AccountPoolPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    // queueMicrotask = pola repo (MitmServerCard) untuk "load on mount":
+    // setLoading(true) di dalam `load` jangan jadi sync setState di effect body.
+    queueMicrotask(() => {
+      load();
+    });
   }, [load]);
 
   const isCompatibleProvider = (id) =>
@@ -190,10 +194,13 @@ export default function AccountPoolPage() {
     );
   }, [connections, search, providerFilter]);
 
-  // Pagination: reset ke 50 saat filter/search berubah
-  useEffect(() => {
+  // Pagination reset: render-phase adjust (same pattern as ComboFormModal) instead
+  // of an effect — the old effect's sync setState caused a cascading render.
+  const [paginationKey, setPaginationKey] = useState([search, providerFilter, connections]);
+  if (paginationKey[0] !== search || paginationKey[1] !== providerFilter || paginationKey[2] !== connections) {
+    setPaginationKey([search, providerFilter, connections]);
     setVisibleCount(50);
-  }, [search, providerFilter, connections]);
+  }
 
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
@@ -205,8 +212,8 @@ export default function AccountPoolPage() {
       .map((c) => c.id);
     if (!ids.length) return;
     let cancelled = false;
-    setBenefitsLoading(true);
     (async () => {
+      setBenefitsLoading(true);
       try {
         const res = await fetch("/api/account-pool/benefits", {
           method: "POST",

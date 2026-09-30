@@ -10,7 +10,14 @@ describe("Antigravity Gemini 3.7 catalog", () => {
       "gemini-3.7-flash-medium",
       "gemini-3.7-flash-low",
     ]));
-    expect(antigravity.models.map(({ id }) => id)).not.toContain("gemini-3.7-flash");
+    // The plain alias stays registered for backward compatibility, but it must
+    // not be what the explicit tiers resolve to — those carry their own
+    // upstreamModelId, so a tier never degrades to the untiered alias.
+    const byId = new Map(antigravity.models.map((m) => [m.id, m]));
+    expect(byId.get("gemini-3.7-flash").upstreamModelId).toBeUndefined();
+    for (const tier of ["high", "medium", "low"]) {
+      expect(byId.get(`gemini-3.7-flash-${tier}`).upstreamModelId).toBe(`gemini-3.7-flash-tiered(${tier})`);
+    }
   });
 
   it("resolves upstream capability contract", () => {

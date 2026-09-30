@@ -61,7 +61,9 @@ function AutomationHistoryPanel() {
   }, []);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, [load]);

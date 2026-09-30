@@ -181,7 +181,10 @@ describe("MiniMax-M3 multi-transport routing", () => {
     );
     expect(executeMock).toHaveBeenCalledTimes(1);
     const requestBody = executeMock.mock.calls[0][0].body;
-    expect(requestBody.messages[0].content).toContainEqual(imageBlock);
+    // The persona/system prefix occupies an earlier slot — the image block has
+    // to survive on the user turn that carried it.
+    const userTurn = requestBody.messages.find((m) => m.role === "user");
+    expect(userTurn.content).toContainEqual(imageBlock);
     expect(requestBody._translatedTo).toBe("openai");
     expect(requestBody).not.toHaveProperty("system");
     expect(executeMock.mock.calls[0][0].credentials.runtimeTransport.format).toBe("openai");

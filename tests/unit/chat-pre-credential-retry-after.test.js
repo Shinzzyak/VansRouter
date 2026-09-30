@@ -97,6 +97,7 @@ vi.mock("open-sse/services/combo.js", () => ({
   detectRequiredCapabilities: vi.fn(() => new Set()),
 }));
 vi.mock("open-sse/services/capacityAdapter.js", () => ({
+  getRoleAdapterModel: vi.fn(() => null),
   augmentModelsWithCapacityAdapter: vi.fn((models) => models),
   withCapacityAdapterStripping: vi.fn((fn) => fn),
   getActiveAdapterStrategy: vi.fn(() => "fallback"),

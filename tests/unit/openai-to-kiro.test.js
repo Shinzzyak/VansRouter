@@ -581,7 +581,10 @@ describe("openaiToKiroRequest", () => {
       );
 
       expect(second.conversationState.conversationId).toBe("hermes-session-openai-replay");
-      expect(second.conversationState.agentContinuationId).toBe(first.conversationState.agentContinuationId);
+      // Turn 1 is a fresh conversation (no agentContinuationId — the API 400s on
+      // it), turn 2 carries the continuation for the session turn 1 opened.
+      expect(first.conversationState.agentContinuationId).toBeUndefined();
+      expect(second.conversationState.agentContinuationId).toBeTruthy();
       expect(second.conversationState.history[0].userInputMessage.content).toBe(
         first.conversationState.currentMessage.userInputMessage.content
       );

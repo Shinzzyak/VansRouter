@@ -15,14 +15,18 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   expect(isValidBulkImportProvider("outlook-signup")).toBe(true);
   expect(isValidBulkImportProvider("chatgpt-signup")).toBe(true);
   expect(Object.keys(BULK_IMPORT_PROVIDERS).sort()).toEqual([
+    "antigravity",
     "autoclaw",
     "autoclaw-signup",
     "baseten-signup",
     "chatgpt-signup",
+    "chatgpt-web",
     "codebuddy-cn",
     "codebuddy-intl",
+    "freebuff",
     "grok-cli",
     "kiro",
+    "llm7-signup",
     "outlook-signup",
     "qoder",
     "qoder-signup",
@@ -30,10 +34,11 @@ test("registry kiro + grok-cli + qoder/codebuddy/autoclaw", () => {
   ]);
 });
 
-test("registry chatgpt-signup passthrough", () => {
+test("registry chatgpt-signup passthrough", async () => {
   const spec = BULK_IMPORT_PROVIDERS["chatgpt-signup"];
   expect(spec.label).toBe("ChatGPT Signup");
-  const args = spec.normalizeStartArgs(
+  // normalizeStartArgs reads settings (yydsApiKey fallback) so it is async.
+  const args = await spec.normalizeStartArgs(
     { registerCount: 2, concurrency: 1, tempMailApi: "https://x/v1", tempMailToken: "tok" },
     { proxyUrl: "http://1.2.3.4:8080" }
   );
@@ -43,10 +48,10 @@ test("registry chatgpt-signup passthrough", () => {
   expect(args.proxyUrl).toBe("http://1.2.3.4:8080");
 });
 
-test("registry outlook-signup has mode passthrough", () => {
+test("registry outlook-signup has mode passthrough", async () => {
   const spec = BULK_IMPORT_PROVIDERS["outlook-signup"];
   expect(spec.label).toBe("Outlook Signup");
-  const args = spec.normalizeStartArgs(
+  const args = await spec.normalizeStartArgs(
     { registerCount: 3, concurrency: 2, outlookMode: "headless" },
     { proxyUrl: "http://1.2.3.4:8080" }
   );

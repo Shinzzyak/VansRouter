@@ -38,7 +38,10 @@ export default function ProxyStatusPanel({ compact = false }) {
   }, []);
 
   useEffect(() => {
-    load();
+    // queueMicrotask = pola repo (MitmServerCard): `load` sets loading synchronously.
+    queueMicrotask(() => {
+      load();
+    });
   }, [load]);
 
   if (loading) {
