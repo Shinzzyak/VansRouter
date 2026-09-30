@@ -133,7 +133,16 @@ function readSystemText(body, format) {
         ? body.system
         : Array.isArray(body.system) ? body.system.map((b) => b.text).join("\n") : "";
     case FORMATS.KIRO:
-      return body.systemPrompt || "";
+      // Kiro payloads never carry a top-level systemPrompt (400
+      // REQUEST_BODY_INVALID upstream) — injected system text lands in the
+      // first history/current user message, which is the delivery channel.
+      {
+        const cs = body.conversationState || {};
+        const firstUser = (Array.isArray(cs.history)
+          ? cs.history.find((i) => i && i.userInputMessage)?.userInputMessage
+          : null) || cs.currentMessage?.userInputMessage;
+        return typeof firstUser?.content === "string" ? firstUser.content : "";
+      }
     case FORMATS.OPENAI_RESPONSES:
       return body.instructions || "";
     case FORMATS.GEMINI:

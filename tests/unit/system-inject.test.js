@@ -261,7 +261,12 @@ describe("system-inject gemini", () => {
 });
 
 describe("system-inject kiro", () => {
-  it("updates systemPrompt and mirrored prefix of first history user preserving tail", () => {
+  // CONTRACT (2026-10-01): Kiro payloads NEVER carry a top-level systemPrompt —
+  // CodeWhisperer 400s (REQUEST_BODY_INVALID) on any payload with that field
+  // (byte-identical proof in kiro-request-body-invalid.test.js). Prompts travel
+  // in the user content only. A legacy `systemPrompt` field arriving from
+  // upstream is deleted and its content folded into the first user turn.
+  it("prepends to first history user and never writes top-level systemPrompt", () => {
     const oldPrompt = "OLD_SYS";
     const timeCtx = "[Context: Current time is 2026-01-01T00:00:00.000Z]";
     const tail = "user tail content";
@@ -275,13 +280,13 @@ describe("system-inject kiro", () => {
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
     const next = `${oldPrompt}${SEP}${P1}`;
-    expect(body.systemPrompt).toBe(next);
+    expect(body).not.toHaveProperty("systemPrompt");
     expect(body.conversationState.history[0].userInputMessage.content).toBe(`${next}${SEP}${timeCtx}${SEP}${tail}`);
     // currentMessage must stay untouched
     expect(body.conversationState.currentMessage.userInputMessage.content).toBe("current " + tail);
   });
 
-  it("when no history user, updates currentMessage instead", () => {
+  it("when no history user, updates currentMessage and drops the smuggled field", () => {
     const oldPrompt = "OLD";
     const body = {
       systemPrompt: oldPrompt,
@@ -291,11 +296,11 @@ describe("system-inject kiro", () => {
       },
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(`${oldPrompt}${SEP}${P1}`);
+    expect(body).not.toHaveProperty("systemPrompt");
     expect(body.conversationState.currentMessage.userInputMessage.content).toBe(`${oldPrompt}${SEP}${P1}${SEP}tail`);
   });
 
-  it("empty old prompt prepends to chosen user content", () => {
+  it("empty old prompt prepends to chosen user content, field stays absent", () => {
     const body = {
       systemPrompt: "",
       conversationState: {
@@ -304,11 +309,11 @@ describe("system-inject kiro", () => {
       },
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(P1);
+    expect(body).not.toHaveProperty("systemPrompt");
     expect(body.conversationState.history[0].userInputMessage.content).toBe(`${P1}${SEP}tail hello`);
   });
 
-  it("if old prompt not mirrored at head, do not alter user content", () => {
+  it("legacy field with no mirrored head is treated as absent and the prompt still lands", () => {
     const body = {
       systemPrompt: "OLD",
       conversationState: {
@@ -317,8 +322,8 @@ describe("system-inject kiro", () => {
       },
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(`OLD${SEP}${P1}`);
-    expect(body.conversationState.history[0].userInputMessage.content).toBe("different head content");
+    expect(body).not.toHaveProperty("systemPrompt");
+    expect(body.conversationState.history[0].userInputMessage.content).toBe(`${P1}${SEP}different head content`);
   });
 
   it("exact retry idempotency for kiro", () => {
@@ -333,11 +338,14 @@ describe("system-inject kiro", () => {
     injectSystemPrompt(body, FORMATS.KIRO, P1);
     const after1 = JSON.parse(JSON.stringify(body));
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(after1.systemPrompt);
+    expect(body).not.toHaveProperty("systemPrompt");
     expect(body.conversationState.history[0].userInputMessage.content).toBe(after1.conversationState.history[0].userInputMessage.content);
-    // different prompt both apply
+    // a different prompt still applies, and never as a top-level field
     injectSystemPrompt(body, FORMATS.KIRO, P2);
-    expect(body.systemPrompt).toBe(`${oldPrompt}${SEP}${P1}${SEP}${P2}`);
+    const content = body.conversationState.history[0].userInputMessage.content;
+    expect(content).toContain(P1);
+    expect(content).toContain(P2);
+    expect(body).not.toHaveProperty("systemPrompt");
   });
 
   it("preserves non-enumerable _kiroUpstreamModel", () => {
@@ -353,6 +361,11 @@ describe("system-inject kiro", () => {
 });
 
 describe("system-inject regression fixes", () => {
+  // Kiro regression contract (2026-10-01): the top-level field is GONE — the
+  // 400 REQUEST_BODY_INVALID it causes is strictly worse than any ordering it
+  // bought. These two tests keep the old failure scenarios (transient write
+  // failure, frozen target) and re-assert them against the new contract:
+  // field absent, every text still delivered, nothing half-applied.
   it("kiro partial mutation converges on retry after transient content write failure", () => {
     const oldPrompt = "OLD";
     let failNextWrite = true;
@@ -370,16 +383,19 @@ describe("system-inject regression fixes", () => {
       },
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    // first pass rolled back atomically — nothing half-applied
-    expect(body.systemPrompt).toBe(oldPrompt);
+    // first pass: the field is stripped (its deletion cannot fail), the content
+    // write threw — nothing half-applied beyond the field removal itself
+    expect(body).not.toHaveProperty("systemPrompt");
     expect(um.content).toBe(`${oldPrompt}${SEP}tail`);
-    // retry converges
+    // retry converges: every text present in the content, field still absent
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(`${oldPrompt}${SEP}${P1}`);
-    expect(um.content).toBe(`${oldPrompt}${SEP}${P1}${SEP}tail`);
+    expect(body).not.toHaveProperty("systemPrompt");
+    expect(um.content).toContain(P1);
+    expect(um.content).toContain(oldPrompt);
+    expect(um.content).toContain("tail");
   });
 
-  it("kiro rolls back systemPrompt when user content write fails (atomicity)", () => {
+  it("kiro frozen user content leaves the field stripped and the content untouched", () => {
     const oldPrompt = "OLD";
     const body = {
       systemPrompt: oldPrompt,
@@ -388,7 +404,8 @@ describe("system-inject regression fixes", () => {
       },
     };
     injectSystemPrompt(body, FORMATS.KIRO, P1);
-    expect(body.systemPrompt).toBe(oldPrompt);
+    expect(body).not.toHaveProperty("systemPrompt");
+    expect(body.conversationState.history[0].userInputMessage.content).toBe(`${oldPrompt}${SEP}tail`);
   });
 
   it("kiro shape gate: stray conversationState without history/currentMessage does not hijack chat body", () => {

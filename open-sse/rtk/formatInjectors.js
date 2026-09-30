@@ -311,14 +311,34 @@ export function injectKiroSystem(body, prompt) {
   // proved it on byte-identical payloads (400 with the field, 200 without).
   // So this injector NEVER writes that field: the prompt travels in the user
   // content only, which applyKiroSessionReplay folds into the session-start
-  // user message. A stray field smuggled in by another layer is deleted, so
-  // the payload serializes clean.
+  // user message. A stray field smuggled in by another layer is deleted, and
+  // its text is used only as an ORDERING SEED so a re-injection still lands in
+  // the same place the previous one did.
+  let legacyPrompt = "";
   try {
+    legacyPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt : "";
     delete body.systemPrompt;
   } catch (_) {}
 
   try {
+    let oldPrompt = legacyPrompt;
     const conversationState = body.conversationState;
+    const historyUser = Array.isArray(conversationState?.history)
+      ? (conversationState.history.find(item => item && item.userInputMessage)?.userInputMessage ?? null)
+      : null;
+    const firstUser = historyUser ?? conversationState?.currentMessage?.userInputMessage ?? null;
+
+    // The legacy field is only a valid seed when the same text is still mirrored
+    // at the head of the user content. If it is not, the field described a
+    // delivery that never happened (or a content rewrite) — treat it as absent
+    // and prepend plainly, or the prompt would be dropped on the floor.
+    if (oldPrompt) {
+      const mirrored = typeof firstUser?.content === "string" && firstUser.content.startsWith(oldPrompt);
+      if (!mirrored) oldPrompt = "";
+    }
+    if (oldPrompt && hasPrompt(oldPrompt, prompt)) return;
+
+    const next = oldPrompt ? `${oldPrompt}${SEP}${prompt}` : prompt;
 
     // Delivery target: first history turn carrying a user message, else the
     // current turn. Both shapes are accepted by CodeWhisperer.
@@ -340,14 +360,16 @@ export function injectKiroSystem(body, prompt) {
     if (!target) return;
 
     const content = typeof target.content === "string" ? target.content : "";
-
-    // Idempotent: this injector always prepends, so an already-present prompt
-    // sits at the head. startsWith covers multi-paragraph prompts, which the
-    // SEP-splitting hasPrompt() cannot see.
-    if (content.startsWith(prompt) || hasPrompt(content, prompt)) return;
-
-    try {
-      target.content = content ? `${prompt}${SEP}${content}` : prompt;
-    } catch (_) {}
+    // Unconditional order: the legacy field's text keeps its head position,
+    // the new prompt follows it. Every arm below preserves OLD-first ordering.
+    if (oldPrompt === "") {
+      // startsWith covers multi-paragraph prompts, which the SEP-splitting
+      // hasPrompt() cannot see; hasPrompt covers the mid-content case.
+      if (!content.startsWith(prompt) && !content.startsWith(next) && !hasPrompt(content, prompt)) {
+        try { target.content = content ? `${prompt}${SEP}${content}` : prompt; } catch (_) {}
+      }
+    } else if (content.startsWith(oldPrompt) && !content.startsWith(next)) {
+      try { target.content = `${next}${content.slice(oldPrompt.length)}`; } catch (_) {}
+    }
   } catch (_) {}
 }

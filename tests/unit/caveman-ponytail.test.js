@@ -94,12 +94,14 @@ describe("injectCaveman — format dispatch", () => {
     expect(body.request.systemInstruction.parts.map((p) => p.text)).toContain(cavemanFull);
   });
 
-  it("Kiro: injects into top-level systemPrompt", () => {
+  it("Kiro: injects into the user content, never a top-level systemPrompt", () => {
     const body = { systemPrompt: "base", conversationState: { currentMessage: { userInputMessage: { content: "my task" } } } };
     injectCaveman(body, FORMATS.KIRO, "full");
-    expect(body.systemPrompt).toContain("base");
-    expect(body.systemPrompt).toContain(cavemanFull);
-    expect(body.conversationState.currentMessage.userInputMessage.content).toBe("my task");
+    // top-level field is a guaranteed 400 upstream (REQUEST_BODY_INVALID)
+    expect(body).not.toHaveProperty("systemPrompt");
+    const content = body.conversationState.currentMessage.userInputMessage.content;
+    expect(content).toContain(cavemanFull);
+    expect(content).toContain("my task");
   });
 
   it("Cursor/CommandCode: injects via OpenAI-shaped messages[] handler", () => {
@@ -145,12 +147,13 @@ describe("injectSystemPrompt — injection behavior per format", () => {
     expect(cursorBody.messages[0].content).toContain("MARKER");
   });
 
-  it("injects into Kiro top-level systemPrompt", () => {
+  it("injects into Kiro user content, never a top-level systemPrompt", () => {
     const kiroBody = { systemPrompt: "base", conversationState: { currentMessage: { userInputMessage: { content: "task" } } } };
     injectSystemPrompt(kiroBody, FORMATS.KIRO, "MARKER");
-    expect(kiroBody.systemPrompt).toContain("base");
-    expect(kiroBody.systemPrompt).toContain("MARKER");
-    expect(kiroBody.conversationState.currentMessage.userInputMessage.content).toBe("task");
+    // CodeWhisperer 400s (REQUEST_BODY_INVALID) on any payload with the field
+    expect(kiroBody).not.toHaveProperty("systemPrompt");
+    expect(kiroBody.conversationState.currentMessage.userInputMessage.content).toContain("MARKER");
+    expect(kiroBody.conversationState.currentMessage.userInputMessage.content).toContain("task");
   });
 });
 
@@ -168,12 +171,13 @@ describe("injectPonytail — format dispatch", () => {
     expect(body.system).toContain(ponytailFull);
   });
 
-  it("Kiro: injects into top-level systemPrompt", () => {
+  it("Kiro: injects into the user content, never a top-level systemPrompt", () => {
     const body = { systemPrompt: "base", conversationState: { currentMessage: { userInputMessage: { content: "task" } } } };
     injectPonytail(body, FORMATS.KIRO, "ultra");
-    expect(body.systemPrompt).toContain("base");
-    expect(body.systemPrompt).toContain(PONYTAIL_PROMPTS.ultra);
-    expect(body.conversationState.currentMessage.userInputMessage.content).toBe("task");
+    expect(body).not.toHaveProperty("systemPrompt");
+    const content = body.conversationState.currentMessage.userInputMessage.content;
+    expect(content).toContain(PONYTAIL_PROMPTS.ultra);
+    expect(content).toContain("task");
   });
 
   it("Cursor/CommandCode: injects via OpenAI-shaped messages[] handler", () => {
