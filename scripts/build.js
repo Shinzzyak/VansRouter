@@ -144,6 +144,12 @@ const nextBin = require.resolve("next/dist/bin/next");
 
 console.log(`▶ next build --webpack  (HOME=${fakeHome})`);
 // execFileSync throws on a non-zero exit, which propagates build failure correctly.
+// NOTE: the child Node needs the raised heap too — without NODE_OPTIONS it
+// falls back to the default ~4 GB ceiling and dies with "Ineffective
+// mark-compacts" on the CI runner (runs 36768804342, 36773329016).
+if (!env.NODE_OPTIONS || !env.NODE_OPTIONS.includes("max-old-space-size")) {
+  env.NODE_OPTIONS = `${env.NODE_OPTIONS || ""} --max-old-space-size=6144`.trim();
+}
 execFileSync(process.execPath, [nextBin, "build", "--webpack"], {
   stdio: "inherit",
   cwd: appDir,
