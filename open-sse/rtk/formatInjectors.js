@@ -306,30 +306,22 @@ export function injectUserFirst(body, format, prompt) {
 }
 
 export function injectKiroSystem(body, prompt) {
+  // Kiro-safe: CodeWhisperer answers ANY payload carrying a top-level
+  // `systemPrompt` with 400 REQUEST_BODY_INVALID — tests/unit/kiro-request-body-invalid.test.js
+  // proved it on byte-identical payloads (400 with the field, 200 without).
+  // So this injector NEVER writes that field: the prompt travels in the user
+  // content only, which applyKiroSessionReplay folds into the session-start
+  // user message. A stray field smuggled in by another layer is deleted, so
+  // the payload serializes clean.
   try {
-    let oldPrompt = typeof body.systemPrompt === "string" ? body.systemPrompt : "";
+    delete body.systemPrompt;
+  } catch (_) {}
+
+  try {
     const conversationState = body.conversationState;
-    let firstUser = conversationState && Array.isArray(conversationState.history)
-      ? (conversationState.history.find(item => item && item.userInputMessage)?.userInputMessage ?? null)
-      : null;
-    if (!firstUser && conversationState?.currentMessage?.userInputMessage) {
-      firstUser = conversationState.currentMessage.userInputMessage;
-    }
 
-    if (
-      firstUser &&
-      typeof firstUser.content === "string" &&
-      oldPrompt &&
-      !hasPrompt(oldPrompt, prompt)
-    ) {
-      const content = firstUser.content;
-      if (content === oldPrompt || (content.startsWith(oldPrompt) && !content.startsWith(`${oldPrompt}${SEP}`))) {
-        oldPrompt = "";
-      }
-    }
-    if (oldPrompt && hasPrompt(oldPrompt, prompt)) return;
-
-    const next = oldPrompt ? `${oldPrompt}${SEP}${prompt}` : prompt;
+    // Delivery target: first history turn carrying a user message, else the
+    // current turn. Both shapes are accepted by CodeWhisperer.
     let target = null;
     try {
       const history = Array.isArray(conversationState?.history) ? conversationState.history : null;
@@ -345,37 +337,17 @@ export function injectKiroSystem(body, prompt) {
         target = conversationState.currentMessage.userInputMessage;
       }
     } catch (_) {}
+    if (!target) return;
 
-    let systemPromptWritten = false;
+    const content = typeof target.content === "string" ? target.content : "";
+
+    // Idempotent: this injector always prepends, so an already-present prompt
+    // sits at the head. startsWith covers multi-paragraph prompts, which the
+    // SEP-splitting hasPrompt() cannot see.
+    if (content.startsWith(prompt) || hasPrompt(content, prompt)) return;
+
     try {
-      body.systemPrompt = next;
-      systemPromptWritten = true;
+      target.content = content ? `${prompt}${SEP}${content}` : prompt;
     } catch (_) {}
-
-    try {
-      if (target) {
-        const content = typeof target.content === "string" ? target.content : "";
-        if (oldPrompt === "") {
-          if (!content.startsWith(prompt) && !content.startsWith(next)) {
-            try { target.content = content ? `${next}${SEP}${content}` : next; } catch (_) {}
-          }
-        } else if (content.startsWith(oldPrompt) && !content.startsWith(next)) {
-          try { target.content = `${next}${content.slice(oldPrompt.length)}`; } catch (_) {}
-        }
-      }
-    } catch (_) {}
-
-    if (systemPromptWritten && target) {
-      let converged = false;
-      try {
-        const content = target.content;
-        converged = typeof content !== "string"
-          || content.startsWith(next)
-          || !content.startsWith(oldPrompt);
-      } catch (_) {}
-      if (!converged) {
-        try { body.systemPrompt = oldPrompt; } catch (_) {}
-      }
-    }
   } catch (_) {}
 }

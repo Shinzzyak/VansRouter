@@ -243,6 +243,14 @@ export class KiroExecutor extends BaseExecutor {
   }
 
   transformRequest(model, body, stream, credentials) {
+    // Last line of defence: a top-level systemPrompt on a Kiro payload is a
+    // guaranteed 400 REQUEST_BODY_INVALID (byte-identical 400 vs 200 proof in
+    // tests/unit/kiro-request-body-invalid.test.js). The translator never
+    // emits it, injectKiroSystem never writes it — this strips it anyway so
+    // no merge can ever smuggle it past both gates.
+    if (body && typeof body === "object") {
+      try { delete body.systemPrompt; } catch (_) {}
+    }
     return body;
   }
 

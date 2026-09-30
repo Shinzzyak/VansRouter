@@ -38,13 +38,30 @@ export function wantsJsonOutput(body) {
   }
 }
 
+/** True when the body carries a Kiro-format conversation (translated or native). */
+function isKiroConversation(body) {
+  try {
+    const cs = body?.conversationState;
+    if (!cs || typeof cs !== "object") return false;
+    return !!(cs.currentMessage?.userInputMessage)
+      || (Array.isArray(cs.history) && cs.history.some((item) => item && (item.userInputMessage || item.assistantResponseMessage)));
+  } catch {
+    return false;
+  }
+}
+
 /** True when the body has a system-injectable conversation container. */
 function hasContainer(body) {
   return !!(body && typeof body === "object" && (
     Array.isArray(body.messages) ||
     Array.isArray(body.input) ||
     typeof body.instructions === "string" ||
-    typeof body.systemPrompt === "string"
+    typeof body.systemPrompt === "string" ||
+    // Kiro dialect: the conversation lives under conversationState. Without
+    // this arm every contract block silently skips Kiro bodies (measured
+    // 2026-10-01 — persona tidak keluar walau toggle max) and injectSystemPrompt
+    // would no-op through its own isKiroBody dispatch.
+    isKiroConversation(body)
   ));
 }
 
