@@ -170,12 +170,13 @@ jobs:
         run: pnpm run build
         env:
           NODE_ENV: production
-          # The runner has ~7 GB. `next build --webpack` on this tree peaked past
-          # the default old-space ceiling and died with "Ineffective
-          # mark-compacts near heap limit" on run 36768804342 — a build-config
-          # failure, not a code failure (the same commit's test matrix was green).
-          # Raise the ceiling; the runner has the headroom.
-          NODE_OPTIONS: --max-old-space-size=6144
+          # The runner has ~16 GB (a V8-limit SIGABRT at 6144 with the OS
+          # still alive proves headroom past 6.5 GB RSS). The old ~4 GB default
+          # ceiling died with "Ineffective mark-compacts" (runs 36768804342,
+          # 36773329016); 6144 was still ~100 MB short (36777383962). scripts/
+          # build.js forwards NODE_OPTIONS to the next build child, so this
+          # reaches the process that actually compiles.
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Copy static assets into standalone
         run: |
