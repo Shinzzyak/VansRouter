@@ -15,6 +15,7 @@ export const appendEscalationToBody = __E.appendEscalationToBody ?? ((body) => b
 export const applyBypass = __E.applyBypass ?? ((body) => body);
 export const buildBypassLog = __E.buildBypassLog ?? (() => "");
 export const buildEmptyResponseEscalation = __E.buildEmptyResponseEscalation ?? (() => null);
+export const carriesToolCalls = __E.carriesToolCalls ?? (() => false);
 export const classifyStreamHead = __E.classifyStreamHead ?? (() => null);
 export const detectFramingMismatch = __E.detectFramingMismatch ?? (() => null);
 export const detectGeminiGuardrailRefusal = __E.detectGeminiGuardrailRefusal ?? (() => false);

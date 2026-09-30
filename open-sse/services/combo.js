@@ -11,6 +11,7 @@ import { extractTextContent } from "../translator/formats/gemini.js";
 import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+import { carriesToolCalls } from "../rtk/bypassEngine.js";
 import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
@@ -412,7 +413,16 @@ async function inspectComboContent(result, model) {
   let out;
   try {
     const clone = response.clone();
-    text = answerTextFromBody(await clone.text());
+    const raw = await clone.text();
+    text = answerTextFromBody(raw);
+    // K25 (2026-09-30): a 2xx whose body carries a tool call is a DELIVERED
+    // turn, not silence. `answerTextFromBody` reads only visible text, so a
+    // tool-call-only completion came back "" and classified SENYAP — combo then
+    // threw the model out and burned the whole candidate list (measured:
+    // `kln/glm-5.3-flash` -> `empty-refusal (SENYAP)` -> HTTP 502). Only the
+    // would-be-SENYAP case is overridden: if there IS visible text, the
+    // classifier keeps its say, refusal included.
+    if (!text && carriesToolCalls(raw)) return { outcome: 'PATUH', bad: false, text };
     out = classifyOutcome(text, true);
   } catch {
     // Badan tidak terbaca bukan alasan membuang jawaban.

@@ -137,6 +137,10 @@ const FALLBACKS = {
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     reconstructPeekedStream: "(() => null)",
+    // K25 (2026-09-30): fail-open, like isOutputFiltered beside it. Without the
+    // bundle a stream reads as "no tool call seen", which lands exactly where
+    // the pre-bundle router landed: emptiness decided on visible text alone.
+    carriesToolCalls: "(() => false)",
   },
   promptInjectors: {
     applyPromptInjectors:

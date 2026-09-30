@@ -30,7 +30,7 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
-import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected } from "../rtk/bypassEngine.js";
+import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
@@ -726,6 +726,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               streamController.handleComplete();
               return nr;
             }
+            // K25 sibling (2026-09-30): `retryFiltered` only reflects the
+            // output-filter signature; a body that carries a TOOL CALL is a
+            // delivered turn with empty content by design. Without this the
+            // content-safety escalation also threw away a valid agent turn.
+            if (retryText && !detectOwnRefusal(retryText) && carriesToolCalls(retryText)) {
+              log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} delivered a tool call`);
+              recordOutcome(model, lvl1, 'PATUH', `${provider}/${model}`);
+              streamController.handleComplete();
+              return nr;
+            }
             const cls1 = classifyOutcome(retryText, true);
             recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
@@ -869,7 +879,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
               recordOutcome(model, lvl2, cls2, `${provider}/${model}`);
-              const retryStillRefusal = detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2);
+              // K25 sibling (2026-09-30): a tool-call turn has no visible text, so
+              // `classifyOutcome` reads it as AMBIGU and `needsAnotherTry` keeps the
+              // ladder burning attempts on a turn that already succeeded.
+              const retryDelivered = retryText && carriesToolCalls(retryText);
+              const retryStillRefusal = !retryDelivered && (detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2));
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 break;
@@ -941,10 +955,23 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
             if (retryResult?.response?.ok) {
               const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retryResult.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
-              const retryText = typeof nr?.response === 'string' ? nr.response : '';
-              const cls3 = classifyOutcome(retryText, true);
+              // K25 sibling (2026-09-30): this read `typeof nr?.response === 'string'`,
+              // but handleNonStreamingResponse returns a `Response` — so retryText was
+              // ALWAYS '' and the escalation could never report success. Every streaming
+              // refusal paid all three retries (26–51 s each, measured) and then fell
+              // through to the original stream. Read the body the way the other two
+              // escalation paths do: clone the Response.
+              let retryRaw = '';
+              try {
+                const retryCloned = nr?.response?.clone?.();
+                retryRaw = retryCloned ? await retryCloned.text() : '';
+              } catch { /* body already consumed */ }
+              const cls3 = classifyOutcome(retryRaw, true);
               recordOutcome(model, lvl3, cls3, `${provider}/${model}`);
-              if (retryText && !isOutputFiltered(nr?.response) && !detectOwnRefusal(retryText) && !needsAnotherTry(cls3)) {
+              // A tool call counts as delivered (K25): content is empty on purpose.
+              const retryDelivered = Boolean(retryRaw)
+                && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsAnotherTry(cls3)));
+              if (retryDelivered) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();
                 return nr;
