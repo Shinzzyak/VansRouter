@@ -95,4 +95,20 @@ describe("persona opt-out: kolom DB dan jalur update", () => {
     const src = read("src/app/api/keys/[id]/route.js");
     expect(src).toMatch(/"personaInject" in body/);
   });
+
+  it("key BARU default-nya persona MENYALA (hanya false eksplisit yang mematikan)", () => {
+    // Amunisi kontrak "key baru di masa depan inject persona lagi" (Avres,
+    // 2026-09-30). Kalau ekspresi ini berubah jadi `!!limits.personaInject`,
+    // semua key baru lahir tanpa identitas pemilik dan tidak ada uji lain yang
+    // gagal — rowToKey tetap fail-SAFE untuk baris lama.
+    const src = read("src/lib/db/repos/apiKeysRepo.js");
+    expect(src).toMatch(
+      /personaInject: limits\.personaInject === false \? false : true/
+    );
+    // Sisi DB juga default 1: kolom tanpa DEFAULT membaca NULL untuk key lama,
+    // dan `NULL === false` = false = persona nyala; DEFAULT 1 membuat semantik
+    // itu terlihat di skema, bukan cuma di ekspresi JS.
+    const schema = read("src/lib/db/schema.js");
+    expect(schema).toMatch(/personaInject: "INTEGER DEFAULT 1"/);
+  });
 });
