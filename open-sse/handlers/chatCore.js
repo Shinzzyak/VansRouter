@@ -137,6 +137,13 @@ export function stripContinuityFields(body) {
 
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
+  // Persona-exempt key (per-key opt-out, e.g. DeutschUp's product key): the
+  // request-side registry already skips the identity stack; the 3 refusal
+  // retries below append ESCALATION text as USER turns, and T3's second half
+  // is a persona re-injection — same leak, different channel. identityFree
+  // keeps every anti-refusal frame minus that one block (see
+  // getEscalationPromptForLevel; T1/T2 are identity-free and unchanged).
+  const personaExempt = apiKeyInfo?.personaInject === false;
   const requestStartTime = Date.now();
 
   // Check for bypass patterns (warmup, skip, cc naming)
@@ -367,6 +374,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     bypassMode,
     provider,
     model,
+    // Per-key policy (persona-exempt product keys). Resolved upstream in
+    // chat.js even when requireApiKey is off, so a key that only OPTS OUT of
+    // persona still gets read — otherwise the flag is unreachable in local mode.
+    apiKeyInfo,
   });
 
   if (TOOL_PROTOCOL_PROMPT_PROVIDERS.has(provider)) {
@@ -687,7 +698,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       let lvl1 = firstLevel(model);
       for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
         triedL1.push(lvl1);
-        const esc = getEscalationPromptForLevel(lvl1);
+        const esc = getEscalationPromptForLevel(lvl1, { identityFree: personaExempt });
         const appended = appendEscalationToBody(translatedBody, esc);
         if (!appended) {
           log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
@@ -832,7 +843,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         let lvl2 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
           triedL2.push(lvl2);
-          const esc = getEscalationPromptForLevel(lvl2);
+          const esc = getEscalationPromptForLevel(lvl2, { identityFree: personaExempt });
           // Append to the LAST user message in whatever shape the translated body is
           // (OpenAI messages[], Gemini/Antigravity contents[], Responses input[]).
           const appended = appendEscalationToBody(translatedBody, esc);
@@ -916,7 +927,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         let lvl3 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
           triedL3.push(lvl3);
-          const esc = getEscalationPromptForLevel(lvl3);
+          const esc = getEscalationPromptForLevel(lvl3, { identityFree: personaExempt });
           const m = [...(translatedBody.messages || [])];
           for (let i = m.length - 1; i >= 0; i--) {
             if (m[i]?.role === 'user' && typeof m[i]?.content === 'string') {

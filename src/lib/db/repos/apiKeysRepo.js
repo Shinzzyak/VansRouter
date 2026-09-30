@@ -42,6 +42,10 @@ function rowToKey(row) {
     tokens5h: parseLimitInt(row.tokens5h),
     tokensWeekly: parseLimitInt(row.tokensWeekly),
     tokensMonthly: parseLimitInt(row.tokensMonthly),
+    // Persona opt-out (2026-09-30). Fail-SAFE toward today's behaviour: only an
+    // explicit 0/false exempts a key, so a row read before the column exists
+    // (or any unexpected value) still gets the full identity stack.
+    personaInject: !(row.personaInject === 0 || row.personaInject === false),
   };
 }
 
@@ -83,18 +87,20 @@ export async function createApiKey(name, machineId, limits = {}) {
     tokens5h: parseLimitInt(limits.tokens5h),
     tokensWeekly: parseLimitInt(limits.tokensWeekly),
     tokensMonthly: parseLimitInt(limits.tokensMonthly),
+    personaInject: limits.personaInject === false ? false : true,
   };
   db.run(
     `INSERT INTO apiKeys(
       id, key, name, machineId, isActive, createdAt,
       allowedProviders, allowedCombos, allowedKinds,
-      expiresAt, maxTokens, maxTokensDaily, rpm, rph, rpd, tokens5h, tokensWeekly, tokensMonthly
-    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      expiresAt, maxTokens, maxTokensDaily, rpm, rph, rpd, tokens5h, tokensWeekly, tokensMonthly, personaInject
+    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt,
       null, null, null,
       apiKey.expiresAt, apiKey.maxTokens, apiKey.maxTokensDaily, apiKey.rpm, apiKey.rph, apiKey.rpd,
       apiKey.tokens5h, apiKey.tokensWeekly, apiKey.tokensMonthly,
+      apiKey.personaInject ? 1 : 0,
     ]
   );
   return apiKey;
@@ -123,12 +129,14 @@ export async function updateApiKey(id, data) {
     if ("tokens5h" in data) merged.tokens5h = parseLimitInt(data.tokens5h);
     if ("tokensWeekly" in data) merged.tokensWeekly = parseLimitInt(data.tokensWeekly);
     if ("tokensMonthly" in data) merged.tokensMonthly = parseLimitInt(data.tokensMonthly);
+    // Explicit false/0 opts the key out; anything else keeps today's behaviour.
+    if ("personaInject" in data) merged.personaInject = !(data.personaInject === false || data.personaInject === 0);
 
     db.run(
       `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?,
         allowedProviders = ?, allowedCombos = ?, allowedKinds = ?,
         expiresAt = ?, maxTokens = ?, maxTokensDaily = ?, rpm = ?, rph = ?, rpd = ?,
-        tokens5h = ?, tokensWeekly = ?, tokensMonthly = ?
+        tokens5h = ?, tokensWeekly = ?, tokensMonthly = ?, personaInject = ?
       WHERE id = ?`,
       [
         merged.key,
@@ -147,6 +155,7 @@ export async function updateApiKey(id, data) {
         merged.tokens5h,
         merged.tokensWeekly,
         merged.tokensMonthly,
+        merged.personaInject ? 1 : 0,
         id,
       ]
     );

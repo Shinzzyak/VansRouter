@@ -108,6 +108,12 @@ export const TABLES = {
       tokens5h: "INTEGER",
       tokensWeekly: "INTEGER",
       tokensMonthly: "INTEGER",
+      // Per-key persona opt-out (2026-09-30). 1 (default) = the full identity
+      // stack ships on this key's traffic; 0 = clean pipe (no persona/godmode/
+      // bypass/brand/compaction/potato on request side, no brand repair on the
+      // reply side). Additive column: migrate.js syncSchemaFromTables() adds it
+      // on boot with the default, so every existing key keeps today's behavior.
+      personaInject: "INTEGER DEFAULT 1",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },

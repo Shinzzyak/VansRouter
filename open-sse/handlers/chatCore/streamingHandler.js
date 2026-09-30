@@ -188,7 +188,12 @@ export async function handleStreamingResponse({
   // Brand/seal enforcement (opt-in, buffering). Only the chat surface gets it:
   // a JSON-output request would be corrupted by a brand line, and a caller that
   // asked for structured data is not a human reading a reply.
-  const brandGate = brandStreamEnforceEnabled() && !wantsJsonOutput(body)
+  // Persona-exempt keys (product traffic, e.g. DeutschUp) are never chat
+  // surface for THIS contract either: repairing the owner's brand line into a
+  // buyer's customer-facing stream is the exact leak the per-key flag exists
+  // to stop (2026-09-30, BRAND_STREAM_ENFORCE=1 is live so this gate is real).
+  const personaExempt = apiKeyInfo?.personaInject === false;
+  const brandGate = brandStreamEnforceEnabled() && !wantsJsonOutput(body) && !personaExempt
     ? createBrandEnforceGate({
         enabled: true,
         model,
@@ -263,7 +268,10 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     // AFTER the stream completes. Zero hot-path cost — runs once per stream.
     // Reports only; never mutates the bytes already sent to the client.
     try {
-      const integrity = classifyStreamContent(safeContent, { requestBody: body });
+      // Persona-exempt keys never carry the brand contract, so checking for it
+      // would file SUBSTITUSI into the ledger for a defect that is by design —
+      // one loss per buyer reply, poisoning firstLevel() for the shared model.
+      const integrity = classifyStreamContent(safeContent, { requestBody: body, enforceBrand: !personaExempt });
       // ── Tool-call turns are not model-quality failures (2026-09-25) ──────────
       // The ledger below got this gate on 2026-09-22 and the RING never did, so
       // the ring has been reporting a false signal on the same traffic.

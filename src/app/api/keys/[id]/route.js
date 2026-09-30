@@ -52,6 +52,9 @@ export async function PUT(request, { params }) {
     if ("tokens5h" in limits) updateData.tokens5h = limits.tokens5h;
     if ("tokensWeekly" in limits) updateData.tokensWeekly = limits.tokensWeekly;
     if ("tokensMonthly" in limits) updateData.tokensMonthly = limits.tokensMonthly;
+    // Per-key persona opt-out (2026-09-30): false/0 = clean pipe for this key
+    // (no owner identity on request side, no brand repair on reply side).
+    if ("personaInject" in body) updateData.personaInject = body.personaInject;
 
     const updated = await updateApiKey(id, updateData);
     return NextResponse.json({ key: { ...updated, usage: getApiKeyUsageSnapshot(updated) } });

@@ -135,6 +135,14 @@ export async function handleChat(request, clientRawRequest = null) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
+  } else if (!trustedInternal && apiKey) {
+    // Local mode (requireApiKey=false), key supplied: resolve it for POLICY
+    // only — the per-key persona opt-out, the usage limits, and the ACLs the
+    // comment below has always promised ("applies even when requireApiKey is
+    // false but a key was supplied" was dead while apiKeyInfo stayed null).
+    // Auth policy is unchanged: an unresolvable key stays non-fatal here, the
+    // request proceeds exactly as before with apiKeyInfo=null.
+    apiKeyInfo = await isValidApiKey(apiKey);
   }
 
   if (!modelStr) {

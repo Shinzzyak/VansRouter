@@ -397,8 +397,12 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   // Drift tracking: classify the assembled non-stream output and record the
   // per-model integrity verdict. Fail-open, runs once per request.
   let repairedByRouter = false;
+  // Persona-exempt keys (product traffic) carry no brand contract by design:
+  // classifying for it would file MISSING_BRAND and then REPAIR the owner's
+  // brand line INTO the buyer's reply — the leak the flag exists to stop.
+  const personaExempt = apiKeyInfo?.personaInject === false;
   try {
-    const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body });
+    const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body, enforceBrand: !personaExempt });
     recordIntegrity(provider, model, integrity.status);
 
     // Teach the self-measuring ledger from the NON-STREAMING path too (2026-09-23).
@@ -438,7 +442,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     // router-side prompt massaging — that opt-out means the reply is consumed by a
     // validator (JSON schema, agent harness) which fails on a contract-compliant
     // answer, so appending the brand line would corrupt it rather than fix it.
-    const chatSurface = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
+    const chatSurface = !personaExempt && clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
     if (chatSurface && !integrity.refusal && [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) {
       const { text: repairedText, repaired } = repairBrandContract(respContent, false);
       if (repaired && repairedText) {

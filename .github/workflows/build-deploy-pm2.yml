@@ -140,6 +140,7 @@ jobs:
           tests/unit/settings-route-write-e2e.test.js
           tests/translator/golden-url-header.test.js
           tests/unit/handler-acl-enforcement.test.js
+          tests/unit/persona-key-optout.test.js
           tests/unit/opencode-free-tier-gate.test.js
           tests/unit/forced-sse-upstream-format.test.js
           tests/unit/engine-escalation-idempotence-and-cjk-refusal.test.js

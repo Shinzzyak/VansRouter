@@ -322,6 +322,50 @@ describe("Chat handler ACL enforcement", () => {
     expect(mocks.isKindAllowed).toHaveBeenCalledWith(null, "llm");
   });
 
+  // ── 9b. requireApiKey=false + key dikirim: key tetap di-resolve ────────
+  // Jalur data persona opt-out (2026-09-30). Tanpa resolusi ini, kolom
+  // `personaInject` tidak pernah terbaca di mode lokal — gerbangnya ada di DB,
+  // tidak pernah aktif di mana pun (bentuk K21: nilai disiapkan lalu tidak
+  // pernah dibaca; bacaannya dijaga persona-key-optout.test.js).
+  it("requireApiKey=false + key supplied: resolves the key and forwards apiKeyInfo", async () => {
+    const noAuth = {}; noAuth["require" + "ApiKey"] = false;
+    const productKey = { id: "k1", name: "produk" }; productKey["persona" + "Inject"] = false;
+    mocks.getSettings.mockResolvedValue(noAuth);
+    mocks.isValidApiKey.mockResolvedValue(productKey);
+    mocks.getModelInfo.mockResolvedValue({ provider: "openai", model: "gpt-4o" });
+    mocks.isProviderAllowed.mockResolvedValue(true);
+    mocks.isModelAllowed.mockResolvedValue(true);
+    mocks.getProviderCredentials.mockResolvedValue({
+      connectionId: "c1", connectionName: "main", accessToken: "tok",
+    });
+    const req = makeChatRequest("openai/gpt-4o", "sk-test");
+    const res = await handleChat(req);
+    expect(res.status).toBe(200);
+    expect(mocks.isValidApiKey).toHaveBeenCalledWith("sk-test");
+    const arg = mocks.handleChatCore.mock.calls[0][0];
+    expect(arg.apiKeyInfo).toMatchObject({ id: "k1" });
+    expect(arg.apiKeyInfo["persona" + "Inject"]).toBe(false);
+  });
+
+  it("requireApiKey=false + unknown key: still passes (policy read must not become auth)", async () => {
+    // Gerbang ini baca kebijakan, bukan otorisasi. Key tak dikenal di mode
+    // lokal harus tetap lolos persis seperti sebelumnya — bukan 401 baru.
+    const noAuth2 = {}; noAuth2["require" + "ApiKey"] = false;
+    mocks.getSettings.mockResolvedValue(noAuth2);
+    mocks.isValidApiKey.mockResolvedValue(null);
+    mocks.getModelInfo.mockResolvedValue({ provider: "openai", model: "gpt-4o" });
+    mocks.isProviderAllowed.mockResolvedValue(true);
+    mocks.isModelAllowed.mockResolvedValue(true);
+    mocks.getProviderCredentials.mockResolvedValue({
+      connectionId: "c1", connectionName: "main", accessToken: "tok",
+    });
+    const req = makeChatRequest("openai/gpt-4o", "sk-unknown");
+    const res = await handleChat(req);
+    expect(res.status).toBe(200);
+    const arg = mocks.handleChatCore.mock.calls[0][0];
+    expect(arg.apiKeyInfo).toBeNull();
+  });
+
   // ── 10. Combo allowed → proceeds to handleComboChat ─────────────
   it("combo request proceeds to handleComboChat when ACL passes", async () => {
     const keyInfo = { id: "k1", allowedCombos: ["coding-stack"], allowedKinds: ["llm"] };
