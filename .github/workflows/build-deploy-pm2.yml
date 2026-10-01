@@ -35,10 +35,16 @@ jobs:
         with:
           version: 11
 
+      # NO `cache: pnpm` here, deliberately. That cache stores the whole
+      # node_modules layout, and the restore happens BEFORE the hoisting config
+      # below — so pnpm install reuses an isolated (non-hoisted) tree and the
+      # .npmrc write never takes effect. The matrix job has no cache and hoists
+      # from scratch, which is why the same commit compiles there in 93s and
+      # OOMs here. Paying ~40s of install to get the same module graph is the
+      # whole fix (runs 36788642280 / 36790005688 / 36791094583).
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       # Parity with the build matrix (build-matrix.yml "Configure pnpm hoisting").
       # MUST run BEFORE pnpm install — .npmrc is read at install time, so placing
