@@ -31,20 +31,25 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
+      # PINNED, not floating. `version: 11` resolved to 11.28.2 on the last
+      # green deploy (run 36734697223, 15:10) and to 11.28.3 afterwards; the
+      # 11.28.3 patch changed the linker layout enough that webpack's module
+      # graph no longer fits. Proof it is the toolchain and not the source:
+      # run 36784535798 re-dispatched the *green commit* 5dbac5dc and OOM'd.
       - uses: pnpm/action-setup@v4
         with:
-          version: 11
+          version: 11.28.2
 
       # NO `cache: pnpm` here, deliberately. That cache stores the whole
       # node_modules layout, and the restore happens BEFORE the hoisting config
       # below — so pnpm install reuses an isolated (non-hoisted) tree and the
-      # .npmrc write never takes effect. The matrix job has no cache and hoists
-      # from scratch, which is why the same commit compiles there in 93s and
-      # OOMs here. Paying ~40s of install to get the same module graph is the
-      # whole fix (runs 36788642280 / 36790005688 / 36791094583).
+      # .npmrc write never takes effect.
+      # Node pinned for the same reason as pnpm: green ran v22.23.2, the red
+      # runs ran v22.23.3. Pinning both removes the only variables that moved
+      # between the green deploy and the first OOM.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
 
       # Parity with the build matrix (build-matrix.yml "Configure pnpm hoisting").
       # MUST run BEFORE pnpm install — .npmrc is read at install time, so placing
@@ -188,14 +193,14 @@ jobs:
         run: pnpm run build
         env:
           NODE_ENV: production
-          # MEASURED, not guessed. The compile needs more than 8 GB: runs
-          # 36780000050 and 36788642280 both died at exactly the 8192 ceiling
-          # with the OS healthy (V8 FATAL, not SIGKILL), and the deploy job's
-          # own commit deployed green at 15:10 with the identical source — a
-          # dispatch of that same commit (36784535798) OOMs now, so the growth
-          # is environmental, not a code regression. Public ubuntu-latest
-          # runners carry 16 GB; 14336 leaves the OS room.
-          NODE_OPTIONS: --max-old-space-size=14336
+          # NO heap override here — deliberately. Raising it to 14336 made
+          # things worse, not better: V8 then ballooned until the *host* killed
+          # the VM (run 36803985966: "The runner has received a shutdown
+          # signal" after 9m37s, no V8 FATAL at all). The green deploy at 15:10
+          # compiled in 2.0min on the DEFAULT heap. scripts/build.js already
+          # sets a 6144 fallback for the child process; that is the ceiling we
+          # want. A bigger ceiling does not fix a module graph that exploded —
+          # pinning pnpm/node above does.
 
       - name: Build environment report
         if: always()
