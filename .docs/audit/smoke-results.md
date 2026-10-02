@@ -1,7 +1,7 @@
 # Live Smoke Results — Kimi Harness Maximization
 
 Endpoint: `http://localhost:20127`  
-API key: `sk-3f68432058f6317c-f5afxg-81892e14`  
+API key: `sk-<redacted-stale-key>`  
 Date: 2026-06-26
 
 ## Summary

@@ -106,7 +106,7 @@ Added early return when `body?.thinking?.type === "disabled"` — skips placehol
 ### 2B. OpenCode Config (`~/.config/opencode/opencode.json`)
 
 - `9router.api`: `https://api.bevansatria.my.id/v1` → `http://localhost:20127/v1`
-- `9router.key`: `sk-3f68432058f6317c-f5afxg-81892e14` (field `key`, not `options.apiKey` — plugin reads `key` in config hook)
+- `9router.key`: `sk-<redacted-stale-key>` (field `key`, not `options.apiKey` — plugin reads `key` in config hook)
 - `9router.models`: Added `reasoning: false` for kimi-k2.6, kimi-k2.7, minimax-m3
 - Agent overrides: explore/title/summary/compaction → `9router/ki/minimax-m3`, general → `9router/ki/kimi-k2.6`
 - Removed broken `ki` provider (redundant with 9router plugin discovery)
