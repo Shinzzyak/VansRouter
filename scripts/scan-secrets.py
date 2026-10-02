@@ -251,13 +251,22 @@ def walk(target: Path, findings: list[Finding]) -> tuple[int, int]:
 # supposed to catch, in both a plain file and inside a ZIP, and asserts the
 # scanner reports them — plus a clean file and a placeholder it must NOT report.
 PLANTED = [
-    "sk-proj-AbCdEf0123456789AbCdEf0123456789",
+    # Every fixture is assembled at runtime from fragments, deliberately. If the
+    # literal appeared in this file, the scanner's own source would trip its own
+    # rules on `--tracked` (it did, in the first CI run) and the only way out
+    # would be an allowlist entry for the scanner — a gate that excuses itself.
+    # Fragments are individually too short to match any rule.
+    "sk-proj-" + "AbCdEf0123456789AbCdEf0123456789",
     "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8",
-    # AKIA + exactly 16 uppercase alnum. The AWS doc example
-    # `AKIAIOSFODNN7EXAMPLE` is 21 chars and does NOT match the real 20-char
-    # shape — a fixture built from it would prove nothing about the rule.
+    # AKIA + exactly 16 uppercase alnum. The AWS documentation example ID is 21
+    # characters, one too long for the real 20-character shape, so a fixture
+    # copied from the docs would prove nothing about this rule — truncate it.
+    # The comment above deliberately does NOT spell the ID out: writing
+    # "AKIA" followed by 16 characters here would make the scanner flag its own
+    # source, and the only way out would be a self-allowlist — a gate that
+    # excuses itself is not a gate.
     "AKIA" + "IOSFODNN7EXAMPLE"[:16],
-    "-----BEGIN RSA PRIVATE KEY-----",
+    "-----BEGIN RSA " + "PRIVATE KEY-----",
 ]
 CLEAN = "const greeting = 'hello';\n// no credentials here\n"
 PLACEHOLDER_LINE = "API Key: sk-9router-xxxxxxxxxxxx\n"
