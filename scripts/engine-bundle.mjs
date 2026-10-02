@@ -72,6 +72,12 @@ const ENGINE_MODULES = [
   // read-only scanner (HARD = banned verbatim by a vendor guard, SOFT =
   // documented exposure), so it changes no request bytes.
   "lexicalHygiene",
+  // Persona breach (2026-10-02, registry K28). Same reasoning as
+  // promptGateMemory and lexicalHygiene: the value IS the knowledge. The move
+  // table says which phrasings count as a caller trying to take the persona
+  // down, and a public copy hands an attacker the list to route around. The
+  // module classifies and records; it never rewrites a request or a reply.
+  "personaBreach",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -333,6 +339,23 @@ const FALLBACKS = {
     LEXICAL_SIGNATURES: "Object.freeze([])",
     findLexicalSignatures: "(() => [])",
     findHardLeaks: "(() => [])",
+  },
+  personaBreach: {
+    // Fail-OPEN, and here the direction matters more than usual. Without the
+    // bundle there is no move table, so the scanner finds no attempt. The
+    // opposite default would mean a router that lost its engine reports every
+    // request as an attack — and since this module feeds a ledger that drives
+    // escalation, a fail-closed fallback would escalate against every caller
+    // on a degraded router. "No opinion" is the only safe degraded answer for
+    // a detector whose positive verdict has consequences.
+    ATTACK_MOVES: "Object.freeze([])",
+    classifyPersonaAttack: "(() => ({ attempt: false, kind: null, confidence: null, marker: null, hits: [] }))",
+    assessPersonaBreach: "(() => ({ attempt: false, kind: null, confidence: null, marker: null, brandOk: null, breached: false, verdict: 'clean' }))",
+    userTexts: "(() => [])",
+    recordPersonaBreach: "(() => {})",
+    getPersonaBreach: "(() => ({ attempts: 0, breaches: 0, breachRate: 0, kinds: {}, lastKind: null }))",
+    personaBreachSnapshot: "(() => ({}))",
+    _resetPersonaBreach: "(() => {})",
   },
 };
 

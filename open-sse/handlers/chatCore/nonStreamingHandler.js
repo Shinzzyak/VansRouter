@@ -14,6 +14,7 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { classifyResponse, repairBrandContract, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 import { matchesFormatEnclosure } from "../../rtk/thinkingGate.js";
@@ -404,6 +405,19 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   try {
     const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body, enforceBrand: !personaExempt });
     recordIntegrity(provider, model, integrity.status);
+
+    // Persona breach (K28) — same two-signal rule as the streaming path, and
+    // the same reason it lives here: `integrity.brandOk` is already computed,
+    // so the only extra work is one pass over the user turns. Telemetry only.
+    if (!personaExempt) {
+      try {
+        const breach = assessPersonaBreach({ body, responseText: respContent, brandOk: integrity.brandOk });
+        recordPersonaBreach(provider, model, breach);
+        if (breach.breached) {
+          console.warn(`[PERSONA-BREACH] ${provider}/${model} | ${breach.kind} | confidence=${breach.confidence} | marker=${JSON.stringify(breach.marker)}`);
+        }
+      } catch (_) { /* fail-open: telemetry must never break a reply */ }
+    }
 
     // Teach the self-measuring ledger from the NON-STREAMING path too (2026-09-23).
     //

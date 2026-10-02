@@ -15,6 +15,7 @@ import { STREAM_VERDICT_HEADER } from "../../config/runtimeConfig.js";
 import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 // Re-exported so callers (and the ledger tests) keep importing it from here.
@@ -301,6 +302,28 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
         ? INTEGRITY.OK
         : integrity.status;
       recordIntegrity(provider, model, ringStatus);
+
+      // ── Persona breach (K28) ────────────────────────────────────────────
+      // The other guards watch the model. This one asks whether the CALLER got
+      // through: an attempt is a persona-override move in the user's own turn,
+      // and a breach needs that attempt AND a reply that came back without the
+      // persona. Both halves are already computed here — the user text is in
+      // `body`, and `integrity.brandOk` is the brand verdict — so this is one
+      // extra classification pass over the user turns, not a second body read.
+      //
+      // Telemetry only: it never blocks, rewrites, or escalates. A detector
+      // whose false positive stops traffic is how a guard becomes an outage
+      // (registry K21). `personaExempt` is skipped for the same reason the
+      // brand check is: a clean-pipe key has no persona to breach.
+      if (!personaExempt) {
+        try {
+          const breach = assessPersonaBreach({ body, responseText: safeContent, brandOk: integrity.brandOk });
+          recordPersonaBreach(provider, model, breach);
+          if (breach.breached) {
+            console.warn(`[PERSONA-BREACH] ${provider}/${model} | ${breach.kind} | confidence=${breach.confidence} | marker=${JSON.stringify(breach.marker)}`);
+          }
+        } catch (_) { /* fail-open: telemetry must never break a reply */ }
+      }
       if (integrity.status !== INTEGRITY.OK && !toolCallOnly) {
         console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | ${integrity.status} | chars=${integrity.chars}${integrity.refusal ? " | refusal" : ""}`);
       }
