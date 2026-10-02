@@ -200,6 +200,7 @@ jobs:
           tests/unit/stream-verdict-passthrough.test.js
           tests/unit/kiro-injection-container.test.js
           tests/unit/kiro-persona-no-topprompt.test.js
+          tests/unit/persona-breach-wiring.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
