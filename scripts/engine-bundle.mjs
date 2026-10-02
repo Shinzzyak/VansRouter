@@ -65,6 +65,13 @@ const ENGINE_MODULES = [
   // reject this router's own prompt shape, and the neutraliser it drives is the
   // one thing a caller-verifying gate must not be able to read in advance.
   "promptGateMemory",
+  // Lexical hygiene (2026-10-02, registry K27). Lives in the bundle because the
+  // signature table IS the product surface: it names which phrasings the frontier
+  // vendors call out verbatim as attack signatures, and a public copy would hand
+  // an upstream operator the exact list this router avoids. The module is a
+  // read-only scanner (HARD = banned verbatim by a vendor guard, SOFT =
+  // documented exposure), so it changes no request bytes.
+  "lexicalHygiene",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -316,6 +323,16 @@ const FALLBACKS = {
     // false), so the number is inert — but the ROUTER must not have to care
     // whether the bundle is present when it reads the constant for diagnostics.
     PROMPT_GATE_MAX_AGE_MS: "(6 * 60 * 60 * 1000)",
+  },
+  lexicalHygiene: {
+    // Fail-OPEN, deliberately: with no bundle there is no signature table, so the
+    // scanner reports "nothing found". It is a READ-ONLY diagnostic that never
+    // rewrites a request, so the degraded answer is "no opinion", not "block
+    // everything". A fallback that reported leaks would fire on a router that
+    // merely lost its engine.
+    LEXICAL_SIGNATURES: "Object.freeze([])",
+    findLexicalSignatures: "(() => [])",
+    findHardLeaks: "(() => [])",
   },
 };
 
