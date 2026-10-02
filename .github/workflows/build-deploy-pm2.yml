@@ -31,6 +31,27 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
+      # Cheapest gate first, and it needs nothing installed — stdlib python3
+      # only. Runs before `pnpm install` so a leaked credential fails the build
+      # in seconds instead of after a two-minute install.
+      #
+      # Why this gate exists: two router API keys were committed to this PUBLIC
+      # repo in June 2026 (audit docs + a test-script fallback) and sat in `main`
+      # for three months. Tests were green the whole time; nothing ever looked at
+      # the strings inside the docs. This scans the git index — what actually
+      # gets published — not the working tree, so gitignored scratch dumps do not
+      # bury the real finding.
+      #
+      # PROVEN ABLE TO FAIL: `--self-test` plants credential shapes in a file and
+      # inside a ZIP and asserts they are caught, that a clean file is not
+      # flagged, and that a documented placeholder is suppressed. A gate that
+      # cannot fail is not a gate.
+      - name: Credential leak gate (git index)
+        run: |
+          set -e
+          python3 scripts/scan-secrets.py --self-test
+          python3 scripts/scan-secrets.py --tracked
+
       # PINNED, not floating. `version: 11` resolved to 11.28.2 on the last
       # green deploy (run 36734697223, 15:10) and to 11.28.3 afterwards; the
       # 11.28.3 patch changed the linker layout enough that webpack's module
