@@ -188,9 +188,25 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }
   }
 
+  // Check client Accept header preference. Evaluated BEFORE the stream default
+  // below so an absent body.stream can be resolved from the header.
+  // This fixes AI SDK compatibility where clients send Accept: application/json
+  const acceptHeader = clientRawRequest?.headers?.accept || "";
+  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
+
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+  // OpenAI spec: `stream` defaults to false. An ABSENT key must not become SSE —
+  // it used to (`undefined !== false` === true), which broke every SDK client that
+  // omits the field. SSE survives only when the client actually asks for it:
+  // explicit stream:true, a native streaming format (Antigravity/Gemini are URL-
+  // driven), or Accept: text/event-stream. Force-stream providers still stream
+  // upstream and get converted back to JSON by handleForcedSSEToJson.
+  let stream = providerRequiresStreaming
+    ? true
+    : body.stream === false
+      ? false
+      : (clientRequestedStreaming || clientPrefersSSE);
 
   // NVIDIA NIM-hosted Kimi-k2.6/k2.7 degrade/empty-response when upstream is asked
   // for streaming. Force upstream stream:false while remembering the client wanted SSE.
@@ -212,15 +228,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Only force non-streaming when client didn't explicitly request it.
   const detectedTool = detectClientTool(clientRawRequest?.headers || {}, body);
   if (detectedTool === "deepseek-tui" && body.stream !== true) stream = false;
-
-  // Check client Accept header preference for non-streaming requests
-  // This fixes AI SDK compatibility where clients send Accept: application/json
-  const acceptHeader = clientRawRequest?.headers?.accept || "";
-  const clientPrefersJson = acceptHeader.includes("application/json");
-  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
-  if (clientPrefersJson && !clientPrefersSSE && body.stream !== true && !providerRequiresStreaming) {
-    stream = false;
-  }
 
   const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model);
   if (clientRawRequest) reqLogger.logClientRawRequest(clientRawRequest.endpoint, clientRawRequest.body, clientRawRequest.headers);
