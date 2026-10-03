@@ -190,6 +190,51 @@ export default async function run() {
     ok("tidak ada kanal penalaran karangan", (reasoning ?? "") === "", `r="${reasoning ?? ""}"`);
   }
 
+  console.log("=== 11. framing SSE hasil rebuild: WAJIB baris kosong (K29) ===");
+  {
+    // Batas chunk ditentukan TCP/pipe, bukan protokol. Versi lama menyimpulkan
+    // terminator frame dari byte terakhir chunk pertama yang ditahan, jadi batas
+    // yang jatuh setelah "\n" tunggal membuat setiap frame keluar tanpa baris
+    // kosong — klien SSE spec-compliant membaca NOL event dan kompresi Hermes
+    // batal dengan "returned empty content", padahal router melihat 200 bersih.
+    // Assertion-nya karena itu pada FRAMING, bukan pada kehadiran teks: teksnya
+    // memang ada di byte, dan itu sebabnya build rusak lolos tes yang lama.
+    const cut = chunk("jawaban telanjang").slice(0, -1); // berakhir "\n" tunggal
+    const noTerm = chunk("jawaban telanjang").replace(/\n\n$/, ""); // tanpa terminator
+    for (const [label, first] of [
+      ["chunk utuh (baris kosong)", chunk("jawaban telanjang")],
+      ["chunk terpotong (\\n tunggal)", cut],
+      ["chunk tanpa terminator", noTerm],
+    ]) {
+      const text = rebuildStreamWithText(
+        [first, finishChunk, doneChunk],
+        "jawaban telanjang"
+      );
+      // Pisahkan frame seperti klien: frame berakhir di baris kosong.
+      const frames = text.split(/\r\n\r\n|\n\n|\r\r/).filter((f) => f.trim() !== "");
+      const dataFrames = frames.filter((f) => f.trim().startsWith("data:"));
+      const seps = (text.match(/\r\n\r\n|\n\n|\r\r/g) || []).length;
+      ok(
+        `${label}: satu baris kosong per frame`,
+        seps === frames.length && dataFrames.length > 0,
+        `seps=${seps} frames=${frames.length}`
+      );
+      // Klien harus benar-benar melihat event — inilah yang nol di build rusak.
+      const events = frames
+        .map((f) => f.trim())
+        .filter((f) => f.startsWith("data:"))
+        .map((f) => f.slice(5).trim())
+        .filter((p) => p && p !== "[DONE]").length;
+      ok(`${label}: klien membaca >0 event`, events > 0, `events=${events}`);
+    }
+    // Posisi batas chunk tidak boleh mengubah hasil.
+    const counts = [chunk("jawaban telanjang"), cut, noTerm].map((first) => {
+      const text = rebuildStreamWithText([first, finishChunk, doneChunk], "jawaban telanjang");
+      return text.split(/\r\n\r\n|\n\n|\r\r/).filter((f) => f.trim().startsWith("data:")).length;
+    });
+    ok("posisi batas chunk tidak mengubah jumlah frame", new Set(counts).size === 1, `counts=${counts}`);
+  }
+
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
   if (fail > 0) process.exitCode = 1;
 }
