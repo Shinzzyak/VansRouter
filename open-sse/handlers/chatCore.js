@@ -696,11 +696,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // re-frame the prompt and retry non-streaming, exactly like the empty-
     // content escalation path further down. Verified with kenari.id (nar) on
     // muse-spark: SQLi-mechanics query → [400] "provider rejected this request".
-    // CodeBuddy channel gates (11128 / 11140) are ENTITLEMENT rejections, not content
-    // judgements — measured 2026-10-03: a neutral "hi" returns 403 11140 on an
-    // unentitled account and 200 on an entitled one, same body, same model. The
-    // engine's isContentSafetyRejected() still maps 11140 to "content", so the
-    // escalation ladder fires on a gate re-framing cannot open: 24 attempts logged,
+    // CodeBuddy channel gates (11128 / 11140) are per-ACCOUNT gates, not content
+    // judgements. The upstream body SAYS otherwise — it carries displayMsg
+    // "The content did not pass the safety review" — but the measurement contradicts
+    // it: the identical neutral payload ("hi") returns 403 11140 on the two oauth
+    // connections and 200 on the two apikey connections of the SAME provider, same
+    // model, same headers. Content cannot explain a per-credential split, so the
+    // ladder (which only re-frames the prompt) can never open it: 24 attempts logged,
     // 0 successes, all codebuddy-intl. Skip the ladder and let the error surface so
     // the outer account loop can rotate.
     // ponytail: matches the code anywhere in the message; a requestId containing the

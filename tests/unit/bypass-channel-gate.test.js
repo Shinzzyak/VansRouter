@@ -1,10 +1,12 @@
-// D4 — the escalation ladder must not run on channel/entitlement gates.
+// D4 — the escalation ladder must not run on channel/account gates.
 //
 // Background (measured 2026-10-03 on codebuddy-intl):
-//   - A neutral "hi" returns 403 {"code":11140,"msg":"request illegal"} on an
-//     unentitled account and 200 on an entitled one — same body, same model.
-//     11140 is therefore an ACCOUNT gate, not a content judgement, even though
-//     the engine's isContentSafetyRejected() claims otherwise.
+//   - A neutral "hi" returns 403 {"code":11140,"msg":"request illegal"} on the two
+//     oauth connections and 200 on the two apikey connections — same provider, same
+//     model, same headers. The upstream body's displayMsg claims "The content did not
+//     pass the safety review", but content cannot explain a per-credential split.
+//     11140 is therefore an ACCOUNT gate, not a content judgement, even though the
+//     engine's isContentSafetyRejected() maps it to "content".
 //   - Live log: 24 "retrying with escalation", 0 "escalation successful", every
 //     single one codebuddy-intl.
 //   - Each ladder attempt also passed stream:false into a forceStream provider,
