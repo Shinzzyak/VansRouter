@@ -313,6 +313,16 @@ export const PROVIDER_CAPABILITIES = {
     "gpt-5.5":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
     "gpt-5.4":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
     "gpt-5.3-codex":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
+    // 2026-10-05 sweep: ids confirmed live (200 twice) on the intl gateway with
+    // the real request shape. Windows mirror the family they belong to; the
+    // capability test requires an entry per registry id, so add both together.
+    "gpt-6-luna":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
+    "gpt-6-sol":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
+    "gpt-5.6-sol":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
+    "gpt-5.6-terra":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 400000, maxOutput: 128000 },
+    "gemini-3.5-flash":   { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
+    "gemini-3.8-flash":   { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
+    "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 48000 },
   },
   // ClinePass proxies through Vercel's OpenAI Chat Completions API, which only
   // accepts reasoning.effort in {none,minimal,low,medium,high,xhigh}. Force

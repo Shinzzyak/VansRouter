@@ -43,6 +43,14 @@ export default {
     { id: "kwaipilot/kat-coder-pro", name: "KAT Coder Pro" },
     { id: "qwen/qwen3.8-flash", name: "Qwen 3.8 Flash" },
     { id: "deeptank/deepseek-v4-pro-0813", name: "DeepSeek V4 Pro 0813" },
+    // 2026-10-05 sweep: the two free-tier ids that answered 200 twice on the
+    // live account. Every other :free id in the public catalog either 500s
+    // ("empty response content" / "failed to invoke model") or 401s on a stale
+    // connection. Paid ids are all 402 insufficient_credits on this account —
+    // 402 means "model exists, balance is gone" (a bogus id returns 404
+    // "model not found"), so the paid list stays as-is until credits return.
+    { id: "nvidia/nemotron-3.5-lightning:free", name: "Nemotron 3.5 Lightning (Free)" },
+    { id: "poolside/laguna-s-2.1:free", name: "Laguna S 2.1 (Free)" },
   ],
   oauth: {
     appBaseUrl: "https://app.cline.bot",

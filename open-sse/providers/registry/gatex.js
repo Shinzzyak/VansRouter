@@ -16,29 +16,35 @@ export default {
   category: "api",
   authType: "apikey",
   transport: {
-    baseUrl: "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/chat/completions",
-    validateUrl: "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/models",
+    // The old base was a cloudflared *quick tunnel*
+    // (recipe-including-scheme-barcelona.trycloudflare.com). Quick tunnels are
+    // ephemeral: the hostname died with the process and every model returned
+    // 502 ENOTFOUND. Point straight at the upstream domain instead — it is the
+    // same origin the gtx key is issued for and it answers /v1/models.
+    baseUrl: "https://api.sekaigateway.xyz/v1/chat/completions",
+    validateUrl: "https://api.sekaigateway.xyz/v1/models",
   },
+  // Catalog refreshed 2026-10-05 from a live GET /v1/models (14 ids) plus the
+  // one free-tier id that answered 200 twice (`bansos/glm-5.3-flash`). Every
+  // other id from the previous list returned 404 model_not_found; the ones in
+  // the live list that are not free answer 402 premium_required until a token
+  // package is bought. Keep this list in sync with /v1/models, not with the
+  // gate-x CLI README.
   models: [
-    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
-    { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
-    { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5" },
-    { id: "b/deepseek-v4-flash", name: "B.AI DeepSeek V4 Flash" },
-    { id: "b/deepseek-v4-flash-vision-exp", name: "B.AI DeepSeek V4 Flash Vision" },
-    { id: "b/hy3", name: "B.AI HY3" },
-    { id: "b/qwen3.8-flash", name: "B.AI Qwen3.8 Flash" },
-    { id: "unli/gpt-5.6", name: "DuckAI GPT-5.6" },
-    { id: "unli/gpt-5.6-sol", name: "DuckAI GPT-5.6 Sol" },
-    { id: "unli/gpt-5.6-luna", name: "DuckAI GPT-5.6 Luna" },
-    { id: "unli/gpt-5.1", name: "DuckAI GPT-5.1" },
-    { id: "unli/claude-haiku", name: "DuckAI Claude Haiku" },
-    { id: "unli/qwen3.8-flash", name: "DuckAI Qwen3.8 Flash" },
-    { id: "unli/deepseek-v4-flash-vision-exp", name: "DuckAI DeepSeek V4 Flash Vision" },
-    { id: "unli/gemini-2.5-flash", name: "DuckAI Gemini 2.5 Flash" },
-    { id: "unli/gemini-3-pro-preview", name: "DuckAI Gemini 3 Pro Preview" },
-    { id: "kr/deepseek/deepseek-v4-flash", name: "Kiro DeepSeek V4 Flash" },
-    { id: "kr/deepseek/deepseek-v4-pro", name: "Kiro DeepSeek V4 Pro" },
-    { id: "kr/minimax/minimax-m2.7", name: "Kiro MiniMax M2.7" },
-    { id: "kr/mistralai/codestral-2508", name: "Kiro Codestral 2508" },
+    { id: "bansos/glm-5.3-flash", name: "GLM-5.3-Flash (Free tier)" },
+    { id: "z-ai/glm-5.3", name: "GLM-5.3" },
+    { id: "z-ai/glm-5.3-flash", name: "GLM-5.3-Flash" },
+    { id: "cc/claude-opus-5", name: "Claude Opus 5" },
+    { id: "cx/gpt-5.6-sol", name: "GPT-5.6 Sol" },
+    { id: "cx/gpt-5.6-terra", name: "GPT-5.6 Terra" },
+    { id: "cx/gpt-6-astra", name: "GPT-6 Astra" },
+    { id: "speedrun/gpt-6-sol", name: "GPT-6 Sol (Speedrun)" },
+    { id: "ds/deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+    { id: "ds/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+    { id: "ds/deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash" },
+    { id: "gemini/gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" },
+    { id: "xiaomi/mimo-v2.6-flash", name: "MiMo v2.6 Flash" },
+    { id: "xiaomi/mimo-v2.6-pro", name: "MiMo v2.6 Pro" },
+    { id: "minimax/minimax-m3", name: "MiniMax M3" },
   ],
 };

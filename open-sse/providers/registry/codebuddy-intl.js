@@ -82,6 +82,18 @@ export default {
     { id: "gpt-5.5", name: "GPT-5.5" },
     { id: "gpt-5.4", name: "GPT-5.4" },
     { id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
+    // 2026-10-05 sweep: shaped-probe (leading system msg + typed text blocks +
+    // stream) returned 200 twice for each of these, and they were absent from
+    // both this list and the CN list. Note the request shape matters — a
+    // non-stream probe reports 11101, a bare user-first probe reports 11128,
+    // and both look like "model missing" if you trust the first error.
+    { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" },
+    { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
+    { id: "gpt-6-luna", name: "GPT-6 Luna" },
+    { id: "gpt-6-sol", name: "GPT-6 Sol" },
+    { id: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
+    { id: "gpt-5.6-terra", name: "GPT-5.6 Terra" },
   ],
   oauth: {
     baseUrl: "https://www.codebuddy.ai",

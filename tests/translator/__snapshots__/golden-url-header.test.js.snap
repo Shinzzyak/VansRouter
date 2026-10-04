@@ -2500,8 +2500,8 @@ exports[`GOLDEN buildUrl (default executor providers) > galadriel → url (strea
 
 exports[`GOLDEN buildUrl (default executor providers) > gatex → url (stream + non-stream) 1`] = `
 {
-  "nonStream": "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/chat/completions",
-  "stream": "https://recipe-including-scheme-barcelona.trycloudflare.com/v1/chat/completions",
+  "nonStream": "https://api.sekaigateway.xyz/v1/chat/completions",
+  "stream": "https://api.sekaigateway.xyz/v1/chat/completions",
 }
 `;
 
