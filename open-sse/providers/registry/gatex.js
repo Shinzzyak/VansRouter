@@ -1,9 +1,9 @@
 export default {
   id: "gatex",
-  // Pinned to the top of the API Key Providers grid (page.js sorts by
-  // `priority ?? 999`). Registry priority is UI ordering only — connection
-  // priority in `providerConnections.priority` is what routes requests, and
-  // this value never reaches it.
+  // Pinned to the top of the connected API Key Providers group: page.js sorts
+  // connected-first, then by `priority ?? 999`, then alphabetically. Registry
+  // priority is UI ordering only — the priority that routes requests lives on
+  // `providerConnections.priority` and this value never reaches it.
   priority: 1,
   alias: "gx",
   uiAlias: "gx",

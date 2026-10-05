@@ -323,18 +323,25 @@ export default function ProvidersPage() {
       });
   }, [matchSearch, getProviderStats]);
 
-  // API Key: registry priority first (so a pinned provider can sit on top),
-  // then connected, then alphabetical by name.
+  // API Key: connected providers first, then registry priority (so a pinned
+  // provider can sit on top of the connected group), then alphabetical by name.
   const apikeyEntries = useMemo(() => {
-    return sortByPriority(
-      Object.entries(APIKEY_PROVIDERS).filter(
+    return Object.entries(APIKEY_PROVIDERS)
+      .filter(
         ([, info]) =>
           !info.hidden &&
           (info.serviceKinds ?? ["llm"]).includes("llm") &&
           matchSearch(info.name),
-      ),
-      "apikey",
-    );
+      )
+      .sort(([ka, a], [kb, b]) => {
+        const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1;
+        const cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
+        if (ca !== cb) return ca - cb;
+        const pa = a.priority ?? 999;
+        const pb = b.priority ?? 999;
+        if (pa !== pb) return pa - pb;
+        return (a.name || "").localeCompare(b.name || "");
+      });
   }, [matchSearch, getProviderStats]);
 
   const webCookieEntries = useMemo(() => {
