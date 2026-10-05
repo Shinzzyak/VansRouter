@@ -1,5 +1,12 @@
 export default {
   id: "gatex",
+  // Retired as a dashboard card on 2026-10-05: Gatex now runs as a custom
+  // `openai-compatible` node (prefix `skg`) so the API key is editable from the
+  // [OI] Compatible section. `hidden: true` drops this entry from
+  // APIKEY_PROVIDERS (page.js filters `!info.hidden`) and from
+  // getAclProviderList(), while `AI_PROVIDERS` keeps the id so any stored
+  // `gatex/*` reference still resolves. Revert = delete this one line.
+  hidden: true,
   // Pinned to the top of the connected API Key Providers group: page.js sorts
   // connected-first, then by `priority ?? 999`, then alphabetically, and
   // `APIKEY_INITIAL_VISIBLE = 20` hides the rest behind "Show all". Registry
