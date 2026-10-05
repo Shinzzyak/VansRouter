@@ -1,7 +1,8 @@
 export default {
   id: "gatex",
   // Pinned to the top of the connected API Key Providers group: page.js sorts
-  // connected-first, then by `priority ?? 999`, then alphabetically. Registry
+  // connected-first, then by `priority ?? 999`, then alphabetically, and
+  // `APIKEY_INITIAL_VISIBLE = 20` hides the rest behind "Show all". Registry
   // priority is UI ordering only — the priority that routes requests lives on
   // `providerConnections.priority` and this value never reaches it.
   priority: 1,
@@ -17,7 +18,11 @@ export default {
       signupUrl: "https://t.me/sekai_gatex_bot",
     },
   },
-  category: "api",
+  // Must stay "apikey": `byCategory()` in src/shared/constants/providers.js only
+  // builds sections for free/freeTier/oauth/apikey/webCookie, so category "api"
+  // left this provider in NO dashboard section at all. "apikey" + priority 1
+  // puts the card at the top of the connected API Key Providers group.
+  category: "apikey",
   authType: "apikey",
   transport: {
     // The old base was a cloudflared *quick tunnel*
