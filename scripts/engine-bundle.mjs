@@ -178,7 +178,7 @@ const FALLBACKS = {
   instructionPlan: {
     PLAN_VERSION: '"0.0"',
     BLOCK_IDS:
-      "Object.freeze({ OWNER_IDENTITY: 'owner_identity', TASK_EXECUTION: 'task_execution', GODMODE_BEHAVIOR: 'godmode_behavior', OUTPUT_CONTRACT: 'output_contract', COMPACTION_REASSERT: 'compaction_reassert', THINKING_GATE: 'thinking_gate', POTATO: 'potato' })",
+      "Object.freeze({ OWNER_IDENTITY: 'owner_identity', TASK_EXECUTION: 'task_execution', GODMODE_BEHAVIOR: 'godmode_behavior', OUTPUT_CONTRACT: 'output_contract', COMPACTION_REASSERT: 'compaction_reassert', THINKING_GATE: 'thinking_gate', POTATO: 'potato', CONTRACT_TAIL: 'contract_tail' })",
     OWNER_IDENTITY_TEXT: '""',
     TASK_EXECUTION_TEXT: '""',
     OUTPUT_CONTRACT_TEXT: '""',
