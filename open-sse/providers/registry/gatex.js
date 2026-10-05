@@ -6,8 +6,15 @@ export default {
   // priority is UI ordering only — the priority that routes requests lives on
   // `providerConnections.priority` and this value never reaches it.
   priority: 1,
-  alias: "gx",
-  uiAlias: "gx",
+  // `alias`/`uiAlias` MUST stay "gatex", not "gx": buildProviderEntry() in
+  // src/shared/constants/providers.js sets `alias = r.uiAlias || r.alias`, and
+  // getProviderAlias() feeds outputAlias in buildConnectedProviderIds(). With
+  // category "api" gatex was absent from AI_PROVIDERS, so the lookup fell back
+  // to the provider id and the catalog prefix was `gatex/`. Moving it into
+  // "apikey" made the lookup succeed and silently renamed every catalog id to
+  // `gx/...`, orphaning combos that reference `gatex/*`.
+  alias: "gatex",
+  uiAlias: "gatex",
   display: {
     name: "Gatex",
     icon: "vpn_key",
