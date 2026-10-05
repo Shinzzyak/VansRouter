@@ -1,10 +1,14 @@
 export default {
   id: "gatex",
-  priority: 30,
+  // Pinned to the top of the API Key Providers grid (page.js sorts by
+  // `priority ?? 999`). Registry priority is UI ordering only — connection
+  // priority in `providerConnections.priority` is what routes requests, and
+  // this value never reaches it.
+  priority: 1,
   alias: "gx",
   uiAlias: "gx",
   display: {
-    name: "Gate-X (Kiro Farm Pool)",
+    name: "Gatex",
     icon: "vpn_key",
     color: "#7C3AED",
     textIcon: "GX",
