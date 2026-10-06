@@ -190,7 +190,7 @@ const FALLBACKS = {
   },
   responseIntegrity: {
     INTEGRITY:
-      "Object.freeze({ OK: 'ok', REFUSAL: 'refusal_text', OUTPUT_FILTERED: 'output_filtered', EMPTY: 'empty', MISSING_BRAND: 'missing_brand', MISSING_SEAL: 'missing_seal', MISSING_ENCLOSURE: 'missing_enclosure' })",
+      "Object.freeze({ OK: 'ok', REFUSAL: 'refusal_text', OUTPUT_FILTERED: 'output_filtered', EMPTY: 'empty', MISSING_BRAND: 'missing_brand', MISSING_SEAL: 'missing_seal', MISSING_ENCLOSURE: 'missing_enclosure', INSTRUCTION_LEAK: 'instruction_leak' })",
     extractVisibleText: "((parsed) => (typeof parsed === 'string' ? parsed : ''))",
     classifyResponse:
       "(({ parsed } = {}) => ({ status: 'ok', text: typeof parsed === 'string' ? parsed : '', brandOk: null, refusal: false }))",
@@ -339,6 +339,12 @@ const FALLBACKS = {
     LEXICAL_SIGNATURES: "Object.freeze([])",
     findLexicalSignatures: "(() => [])",
     findHardLeaks: "(() => [])",
+    // K57. Same fail-open direction, and the shape must match the real one or
+    // callers that read `.ratio` / `.hits` crash on a degraded router.
+    INSTRUCTION_LEAK_RATIO: "0.5",
+    instructionLeakBlocks: "(() => [])",
+    findInstructionLeak:
+      "(() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '' }))",
   },
   personaBreach: {
     // Fail-OPEN, and here the direction matters more than usual. Without the
