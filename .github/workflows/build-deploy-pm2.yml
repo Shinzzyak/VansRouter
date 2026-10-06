@@ -1,5 +1,13 @@
 name: Build + Deploy to VPS (PM2)
 
+# Serialize deploys: two runs at the same time untar over each other on the VPS
+# (observed 2026-10-06: a push run and a dispatched run at one SHA -> gzip
+# "unexpected end of file", truncated extraction). Queue instead of racing.
+# ponytail: one global group, per-branch groups if parallel envs ever exist.
+concurrency:
+  group: build-deploy-pm2-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   push:
     branches: [main]
