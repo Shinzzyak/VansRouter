@@ -235,6 +235,76 @@ export default async function run() {
     ok("posisi batas chunk tidak mengubah jumlah frame", new Set(counts).size === 1, `counts=${counts}`);
   }
 
+  // K44 (2026-10-06). Jalur anthropic-native (`/v1/messages`, stream:true) bocor
+  // brand-tanpa-seal, dan HANYA di kasus yang butuh repair: cap kecil memotong
+  // jawaban setelah baris brand, jadi seal tidak pernah keluar. Terukur di kabel
+  // 3/3 (visible=35 char = baris brand saja), sementara cap besar LULUS karena
+  // model mengirim sealnya sendiri dan repair tidak perlu jalan.
+  //
+  // Sebabnya bukan gerbangnya mati: log produksi mencatat
+  //   [STREAM-INTEGRITY] ... | missing_seal | chars=35
+  //   [BRAND-ENFORCE] could not rebuild stream framing — released 20 held chunk(s) unchanged
+  // `rebuildStreamWithText` mengambil skeleton dari frame data PERTAMA. Di
+  // permukaan anthropic frame pertama itu `message_start` — tidak bisa dibentuk
+  // jadi frame teks oleh `rebuildChunk`, jadi fungsi mengembalikan null dan
+  // gerbang melepas byte aslinya. Repair gagal tepat saat repair dibutuhkan.
+  console.log("=== 12. K44: permukaan anthropic (message_start ... message_stop) ===");
+  {
+    const A = (event, obj) => `event: ${event}\ndata: ${JSON.stringify(obj)}\n\n`;
+    const anthropicStream = (text) => [
+      A("message_start", {
+        type: "message_start",
+        message: { id: "msg_1", type: "message", role: "assistant", model: "m",
+                   content: [], stop_reason: null, usage: { input_tokens: 9, output_tokens: 0 } },
+      }),
+      A("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } }),
+      // delta dipecah kecil-kecil, persis seperti upstream mengirimnya
+      ...Array.from(text.match(/.{1,7}/gs) || [], (t) =>
+        A("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: t } })),
+      A("content_block_stop", { type: "content_block_stop", index: 0 }),
+      A("message_delta", { type: "message_delta", delta: { stop_reason: "max_tokens" }, usage: { output_tokens: 16 } }),
+      A("message_stop", { type: "message_stop" }),
+    ];
+    const parse = (text) =>
+      text.split(/\n\n/).filter((f) => f.trim() !== "").map((f) => {
+        const lines = f.split("\n");
+        const ev = (lines.find((l) => l.startsWith("event:")) || "").slice(6).trim();
+        const dl = lines.find((l) => l.startsWith("data:"));
+        let obj = null;
+        try { obj = JSON.parse(dl.slice(5).trim()); } catch { /* frame tanpa data */ }
+        return { ev, obj };
+      });
+
+    // Kasus produksi: cap memotong setelah baris brand, seal belum keluar.
+    {
+      const chunks = anthropicStream(BRAND);
+      const { text } = await throughGate(chunks);
+      const frames = parse(text);
+      const events = frames.map((f) => f.ev);
+      const { visible } = assembleVisibleText(text);
+      ok("seal DIPASANG di permukaan anthropic", visible.trimEnd().endsWith(SEAL), `visible="${visible.slice(-40)}"`);
+      ok("brand tidak dobel", visible.split(BRAND).length - 1 === 1);
+      ok("jawaban asli utuh", visible.includes(BRAND));
+      ok("message_start tetap frame pertama", events[0] === "message_start", `events=${events.join(",")}`);
+      ok("content_block_start ada sebelum delta teks", events.indexOf("content_block_start") < events.lastIndexOf("content_block_delta"),
+        `events=${events.join(",")}`);
+      ok("content_block_stop diteruskan", events.includes("content_block_stop"), `events=${events.join(",")}`);
+      ok("message_delta (usage upstream) diteruskan", frames.some((f) => f.obj?.type === "message_delta"),
+        `events=${events.join(",")}`);
+      ok("message_stop tetap frame terakhir", events[events.length - 1] === "message_stop", `events=${events.join(",")}`);
+      ok("stop_reason upstream tidak dikarang", frames.some((f) => f.obj?.delta?.stop_reason === "max_tokens"));
+    }
+    // Sudah patuh -> byte asli, tidak ada frame tambahan.
+    {
+      const good = `${BRAND}\njawaban sudah patuh\n\n${SEAL}`;
+      const chunks = anthropicStream(good);
+      const { text } = await throughGate(chunks);
+      const { visible } = assembleVisibleText(text);
+      ok("patuh: tidak ada dobel seal", visible.split(SEAL).length - 1 === 1, `n=${visible.split(SEAL).length - 1}`);
+      ok("patuh: byte tidak diubah", text === chunks.join(""));
+    }
+  }
+
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
   if (fail > 0) process.exitCode = 1;
 }
