@@ -8,6 +8,7 @@ import { extractToolNames, fuzzyMatchToolName } from "../../translator/concerns/
 import { openaiToClaudeNonStreaming } from "./nonStreamingHandler.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { enforceChatBrand, visibleTextOf } from "./brandRepair.js";
+import { emptyReasonHeadersFor } from "./emptyReason.js";
 
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
@@ -215,7 +216,15 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
 
       // Client is Responses API → return as-is
       if (sourceFormat === FORMATS.OPENAI_RESPONSES) {
-        return { success: true, response: new Response(JSON.stringify(jsonResponse), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
+        return { success: true, response: new Response(JSON.stringify(jsonResponse), { headers: {
+          "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
+          // K42: say WHY on the wire when there is no visible text — the client cannot read the ledger.
+          ...emptyReasonHeadersFor({
+            content: textContent,
+            toolCalls: (jsonResponse.output || []).filter(i => i.type === "function_call").length,
+            finishReason: jsonResponse.status || null,
+          }),
+        } }) };
       }
 
       // Build client-format response. Fold cache counters into the prompt
@@ -290,7 +299,18 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
       });
 
-      return { success: true, response: new Response(JSON.stringify(finalResp), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
+      return { success: true, response: new Response(JSON.stringify(finalResp), { headers: {
+        "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
+        // K42: same reason the ledger records, on the wire. Read AFTER enforceChatBrand —
+        // the repair can add text, and this must describe what the client receives.
+        ...emptyReasonHeadersFor({
+          content: visibleTextOf(finalResp),
+          toolCalls: toolCalls.length,
+          // Read the reason off the body being returned, not off a branch-local
+          // variable: `finishReason` only exists inside the Chat branch above.
+          finishReason: finalResp?.choices?.[0]?.finish_reason ?? jsonResponse.status ?? null,
+        }),
+      } }) };
     } catch (err) {
       console.error("[ChatCore] Responses API SSE→JSON failed:", err);
       return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");
@@ -356,7 +376,16 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
     });
 
-    return { success: true, response: new Response(JSON.stringify(finalResp), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
+    return { success: true, response: new Response(JSON.stringify(finalResp), { headers: {
+      "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
+      // K42: the forceStream providers all exit here, so this is the surface where an
+      // empty 200 would otherwise arrive with no explanation at all.
+      ...emptyReasonHeadersFor({
+        content: visibleTextOf(finalResp),
+        toolCalls: parsed.choices?.[0]?.message?.tool_calls?.length || 0,
+        finishReason: parsed.choices?.[0]?.finish_reason || null,
+      }),
+    } }) };
   } catch (err) {
     console.error("[ChatCore] Chat Completions SSE→JSON failed:", err);
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");

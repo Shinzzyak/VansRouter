@@ -14,7 +14,7 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { enforceChatBrand } from "./brandRepair.js";
-import { emptyReasonFor } from "./emptyReason.js";
+import { emptyReasonFor, emptyReasonHeaders } from "./emptyReason.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
@@ -463,6 +463,17 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     console.warn("[INTEGRITY] non-stream classify error (fail-open):", e?.message || e);
   }
 
+  // K42: a 200 with no visible text must say WHY — to the ledger AND to the client.
+  // Computed ONCE here and read twice below; a second call is how the ring and the
+  // ledger drifted apart on 2026-09-22. Post-repair `respContent` on purpose: it is
+  // the text the client actually receives.
+  const emptyReason = emptyReasonFor({
+    content: respContent,
+    sawToolCalls: Array.isArray(finalResponse?.choices?.[0]?.message?.tool_calls)
+      && finalResponse.choices[0].message.tool_calls.length > 0,
+    finishReason: respFinish,
+  });
+
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId, apiKey, apiKeyName,
     latency: { ttft: totalLatency, total: totalLatency },
@@ -476,13 +487,9 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       finish_reason: respFinish,
       // K42: a 200 with no visible text must say WHY. A tool-call turn and a
       // reasoning budget that ate the cap look identical in `content`; the ledger
-      // needs the difference. Same helper as the streaming path (emptyReason.js).
-      empty_reason: emptyReasonFor({
-        content: respContent,
-        sawToolCalls: Array.isArray(finalResponse?.choices?.[0]?.message?.tool_calls)
-          && finalResponse.choices[0].message.tool_calls.length > 0,
-        finishReason: respFinish,
-      })
+      // needs the difference. Same value the client gets in the response header —
+      // one predicate, computed once (emptyReason.js).
+      empty_reason: emptyReason
     },
     pxpipe,
     status: "success"
@@ -500,7 +507,14 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   return {
     success: true,
     response: new Response(JSON.stringify(finalResponse), {
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        // K42: the buyer's client cannot read the ledger. When the reply carries no
+        // visible text, say why on the wire — `tool_calls` (a normal agent turn) and
+        // `no_text:length` (the cap was eaten by reasoning) are different problems.
+        ...emptyReasonHeaders(emptyReason),
+      }
     })
   };
 }
