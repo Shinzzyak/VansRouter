@@ -12,6 +12,7 @@ const __E = loadEngine("refusalAttribution") ?? {};
 
 export const ATTRIBUTION = __E.ATTRIBUTION ?? Object.freeze({ SELF: 'self', QUOTED: 'quoted', ATTRIBUTED: 'attributed', NONE: 'none' });
 export const explainAttribution = __E.explainAttribution ?? (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }));
+export const firstArtifactIndex = __E.firstArtifactIndex ?? (() => -1);
 export const isOwnRefusal = __E.isOwnRefusal ?? ((text) => Boolean(text));
 export const isSelfRefusal = __E.isSelfRefusal ?? ((text) => Boolean(text));
 export const refusalAttribution = __E.refusalAttribution ?? (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }));

@@ -311,6 +311,13 @@ const FALLBACKS = {
       "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
     isOwnRefusal: "((text) => Boolean(text))",
     isSelfRefusal: "((text) => Boolean(text))",
+    // K58. Fail-CLOSED like the rest of this module: -1 means "no artifact seen",
+    // and isOwnRefusal reads `ai < 0` as "a self-refusal with nothing after it",
+    // i.e. the refusal keeps the meaning it had before the order gate existed.
+    // A 0 here would read as "an artifact sits at the top" and downgrade every
+    // wire refusal on a router that lost its bundle — the exact failure the
+    // order gate was built to fix, only silent.
+    firstArtifactIndex: "(() => -1)",
     explainAttribution:
       "(() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }))",
   },
