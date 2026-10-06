@@ -31,7 +31,10 @@ describe("the drift ring does not count tool-call turns as model failures", () =
   const src = read("open-sse/handlers/chatCore/streamingHandler.js");
 
   it("computes one toolCallOnly verdict and uses it for the ring", () => {
-    expect(src).toMatch(/const toolCallOnly = sawToolCalls \|\| finishReason === "tool_calls"/);
+    // K42 moved the predicate into emptyReason.js so the non-streaming path can
+    // read it too. The handler now derives its verdict from that one helper.
+    expect(src).toMatch(/const emptyReason = emptyReasonFor\(\{/);
+    expect(src).toMatch(/const toolCallOnly = emptyReason === "tool_calls"/);
     // The ring call must receive the adjusted status, not the raw verdict.
     expect(src).toMatch(/recordIntegrity\(provider, model, ringStatus\)/);
     expect(src).toMatch(
@@ -40,11 +43,13 @@ describe("the drift ring does not count tool-call turns as model failures", () =
   });
 
   it("the ledger gate and the ring gate read the SAME variable", () => {
-    // Two independent `sawToolCalls || finishReason === "tool_calls"` expressions
-    // is how the two consumers drifted apart in the first place. One variable,
-    // two readers.
+    // Two independent predicate expressions is how the two consumers drifted
+    // apart in the first place. K42 went one step further: the expression itself
+    // now lives in exactly ONE module (emptyReason.js), so both the ring and the
+    // ledger AND the non-streaming path read the same definition.
     const occurrences = src.match(/sawToolCalls \|\| finishReason === "tool_calls"/g) || [];
-    expect(occurrences).toHaveLength(1);
+    expect(occurrences).toHaveLength(0);
+    expect(src).toMatch(/const toolCallOnly = emptyReason === "tool_calls"/);
     expect(src).toMatch(/kelas === "SENYAP" && toolCallOnly/);
   });
 

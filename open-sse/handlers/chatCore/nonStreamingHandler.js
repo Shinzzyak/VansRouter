@@ -14,6 +14,7 @@ import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { enforceChatBrand } from "./brandRepair.js";
+import { emptyReasonFor } from "./emptyReason.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
@@ -472,7 +473,16 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     response: {
       content: respContent,
       thinking: respThinking,
-      finish_reason: respFinish
+      finish_reason: respFinish,
+      // K42: a 200 with no visible text must say WHY. A tool-call turn and a
+      // reasoning budget that ate the cap look identical in `content`; the ledger
+      // needs the difference. Same helper as the streaming path (emptyReason.js).
+      empty_reason: emptyReasonFor({
+        content: respContent,
+        sawToolCalls: Array.isArray(finalResponse?.choices?.[0]?.message?.tool_calls)
+          && finalResponse.choices[0].message.tool_calls.length > 0,
+        finishReason: respFinish,
+      })
     },
     pxpipe,
     status: "success"

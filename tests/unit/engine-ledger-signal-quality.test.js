@@ -52,17 +52,24 @@ describe("the stream ledger ignores turns that have no verdict to teach", () => 
     // indirection below keeps the assertion as strong as the inline form was —
     // dropping the predicate from EITHER place still fails this test.
     expect(guard).toMatch(/toolCallOnly/);
+    // K42: the named predicate now derives from the shared helper, so the same
+    // definition serves the ring, the ledger, and the non-streaming path.
     const def = src.match(/const toolCallOnly = ([^;]+);/);
     expect(def, "toolCallOnly must be defined").not.toBeNull();
-    expect(def[1]).toMatch(/sawToolCalls/);
+    expect(def[1]).toMatch(/emptyReason/);
     expect(def[1]).toMatch(/tool_calls/);
   });
 
-  it("defines the tool-call predicate exactly once", () => {
+  it("defines the tool-call predicate exactly once — in the shared helper", () => {
     // Two copies is the defect this test class exists to prevent: one consumer
-    // gets the gate, the other silently does not.
+    // gets the gate, the other silently does not. K42 moved the single copy out
+    // of the handler and into emptyReason.js, which both handlers import.
     const copies = src.match(/sawToolCalls \|\| finishReason === "tool_calls"/g) || [];
-    expect(copies).toHaveLength(1);
+    expect(copies).toHaveLength(0);
+    const helper = fs.readFileSync(
+      path.join(ROOT, "open-sse/handlers/chatCore/emptyReason.js"), "utf8");
+    const helperCopies = helper.match(/sawToolCalls === true \|\| finishReason === "tool_calls"/g) || [];
+    expect(helperCopies).toHaveLength(1);
   });
 
   it("sawToolCalls is computed before the gate reads it", () => {

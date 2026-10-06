@@ -1,4 +1,5 @@
 import { FORMATS } from "../../translator/formats.js";
+import { emptyReasonFor } from "./emptyReason.js";
 import { needsTranslation } from "../../translator/index.js";
 import { createSSETransformStreamWithLogger, createPassthroughStreamWithLogger } from "../../utils/stream.js";
 import { normalizeKimiToolCalls } from "../../utils/kimiToolParser.js";
@@ -258,17 +259,12 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
     const finishReason = contentObj?.finishReason ?? null;
     const sawToolCalls = contentObj?.sawToolCalls === true;
     // ONE predicate, three readers (empty_reason, the drift ring, the ledger).
-    // Two independent copies of this expression is exactly how the ring and the
-    // ledger drifted apart on 2026-09-22: the ledger got the gate, the ring did
-    // not, and every tool-call turn was counted as a model-quality failure.
-    const toolCallOnly = sawToolCalls || finishReason === "tool_calls";
-    const emptyReason = contentObj?.content
-      ? null
-      : toolCallOnly
-        ? "tool_calls"
-        : finishReason
-          ? `no_text:${finishReason}`
-          : "no_text";
+    // It lives in emptyReason.js — two independent copies of this expression is
+    // exactly how the ring and the ledger drifted apart on 2026-09-22: the ledger
+    // got the gate, the ring did not, and every tool-call turn was counted as a
+    // model-quality failure. The non-streaming path reads the same helper (K42).
+    const emptyReason = emptyReasonFor({ content: contentObj?.content, sawToolCalls, finishReason });
+    const toolCallOnly = emptyReason === "tool_calls";
 
     // Stream integrity gate (shadow mode): classify the assembled visible text
     // AFTER the stream completes. Zero hot-path cost — runs once per stream.
