@@ -7,6 +7,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requ
 import { extractToolNames, fuzzyMatchToolName } from "../../translator/concerns/toolCall.js";
 import { openaiToClaudeNonStreaming } from "./nonStreamingHandler.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
+import { enforceChatBrand, visibleTextOf } from "./brandRepair.js";
 
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
@@ -282,6 +283,13 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         };
       }
 
+      // K43: the forced-SSE→JSON exit is a chat surface too. Without this the
+      // reply leaves with whatever contract lines the model happened to emit —
+      // a cap-truncated body keeps the brand line and never gets the seal.
+      enforceChatBrand(finalResp, visibleTextOf(finalResp), {
+        requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
+      });
+
       return { success: true, response: new Response(JSON.stringify(finalResp), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
     } catch (err) {
       console.error("[ChatCore] Responses API SSE→JSON failed:", err);
@@ -340,6 +348,13 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       const reversed = openaiToClaudeNonStreaming(parsed, model);
       finalResp = decloakToolNames(reversed, toolNameMap);
     }
+
+    // K43: same contract enforcement as the true non-streaming exit — this path
+    // is the only exit for providers flagged forceStream, so it cannot be the
+    // one place that skips the repair.
+    enforceChatBrand(finalResp, visibleTextOf(finalResp), {
+      requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
+    });
 
     return { success: true, response: new Response(JSON.stringify(finalResp), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
   } catch (err) {

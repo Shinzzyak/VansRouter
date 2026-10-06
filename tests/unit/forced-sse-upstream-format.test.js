@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { handleForcedSSEToJson } from "../../open-sse/handlers/chatCore/sseToJsonHandler.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
+import { BRAND_LINE, SEAL_LINE } from "../../open-sse/rtk/brandContract.js";
 
 // A provider can declare format:"openai" and still serve SOME models from a
 // Responses endpoint. opencode is exactly that case: muse-spark-* goes to
@@ -53,8 +54,13 @@ async function run(sse, providerResponseFormat) {
 }
 
 describe("handleForcedSSEToJson — upstream format routing", () => {
+  // K43: this exit now applies the brand/seal contract on a chat surface, so the
+  // visible body arrives wrapped. Strip the contract and these assertions keep
+  // measuring ROUTING (which branch parsed the envelope), which is their job.
+  const routed = (s) => String(s ?? "").replace(BRAND_LINE, "").replace(SEAL_LINE, "").trim();
+
   it("parses a Responses SSE envelope when providerResponseFormat says so", async () => {
-    expect(await run(RESPONSES_SSE, FORMATS.OPENAI_RESPONSES)).toBe("HELLO-RESPONSES");
+    expect(routed(await run(RESPONSES_SSE, FORMATS.OPENAI_RESPONSES))).toBe("HELLO-RESPONSES");
   });
 
   it("returns empty content when the Responses envelope is parsed as Chat (the bug)", async () => {
@@ -64,7 +70,7 @@ describe("handleForcedSSEToJson — upstream format routing", () => {
   });
 
   it("still parses a Chat Completions SSE stream", async () => {
-    expect(await run(CHAT_SSE, FORMATS.OPENAI)).toBe("WORLD");
+    expect(routed(await run(CHAT_SSE, FORMATS.OPENAI))).toBe("WORLD");
   });
 
   it("does not mis-route a Chat stream that claims to be Responses", async () => {

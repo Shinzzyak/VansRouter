@@ -12,7 +12,8 @@ import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, sav
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
-import { classifyResponse, repairBrandContract, INTEGRITY } from "../../rtk/responseIntegrity.js";
+import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
+import { enforceChatBrand } from "./brandRepair.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
@@ -451,25 +452,12 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       }
     } catch (_) { /* fail-open */ }
 
-    // Enforce repair-in-place for chat surface when brand/seal is missing or duplicated.
-    // Skip if response is structured, contains a refusal, or the caller opted out of
-    // router-side prompt massaging — that opt-out means the reply is consumed by a
-    // validator (JSON schema, agent harness) which fails on a contract-compliant
-    // answer, so appending the brand line would corrupt it rather than fix it.
-    const chatSurface = !personaExempt && clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
-    if (chatSurface && !integrity.refusal && [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) {
-      const { text: repairedText, repaired } = repairBrandContract(respContent, false);
-      if (repaired && repairedText) {
-        repairedByRouter = true;
-        respContent = repairedText;
-        if (finalResponse?.choices?.[0]?.message) {
-          finalResponse.choices[0].message.content = repairedText;
-        } else if (Array.isArray(finalResponse?.content)) {
-          const textBlock = finalResponse.content.find((b) => b.type === "text");
-          if (textBlock) textBlock.text = repairedText;
-        }
-      }
-    }
+    // Enforce repair-in-place for the chat surface. Shared with the forced-SSE→JSON
+    // exit so the two non-streaming paths cannot drift apart (brandRepair.js).
+    const repairedText = enforceChatBrand(finalResponse, respContent, {
+      requestBody: body, personaExempt, clientRawRequest,
+    });
+    if (repairedText) { repairedByRouter = true; respContent = repairedText; }
   } catch (e) {
     console.warn("[INTEGRITY] non-stream classify error (fail-open):", e?.message || e);
   }

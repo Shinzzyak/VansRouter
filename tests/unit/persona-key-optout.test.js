@@ -31,7 +31,15 @@ describe("persona opt-out: jalur balasan (gate brand)", () => {
     // classify + chatSurface dua-duanya harus di-gate; satu saja bocor =
     // brand line pemilik ditempel ke balasan produk.
     expect(src).toMatch(/enforceBrand: !personaExempt/);
-    expect(src).toMatch(/const chatSurface = !personaExempt/);
+    // Predikat chatSurface pindah ke helper bersama (dipakai juga oleh exit
+    // forced-SSE→JSON, K43); handler wajib memanggilnya dengan personaExempt.
+    expect(src).toMatch(/enforceChatBrand\(finalResponse, respContent, \{[\s\S]{0,160}?personaExempt/);
+  });
+
+  it("helper brand bersama meng-gate chatSurface dengan flag yang sama", () => {
+    const src = read("open-sse/handlers/chatCore/brandRepair.js");
+    expect(src).toMatch(/if \(personaExempt\) return null/);
+    expect(src).toMatch(/TOKEN_SAVER_HEADER\]\?\.toLowerCase\(\) === "off"\) return null/);
   });
 
   it("streamingHandler tidak memasang brand gate untuk key exempt", () => {
