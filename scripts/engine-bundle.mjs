@@ -363,7 +363,7 @@ const FALLBACKS = {
     // fail-open direction: with no bundle there is nothing measured, so report
     // zeros rather than pretend a body was scored. Shape must match the real
     // return object or a probe reading `.run` / `.markers` crashes.
-    instructionLeakAxes: "(() => ({ run: 0, markers: 0 }))",
+    instructionLeakAxes: "(() => ({ run: 0, markers: 0, owner: null }))",
   },
   personaBreach: {
     // Fail-OPEN, and here the direction matters more than usual. Without the
