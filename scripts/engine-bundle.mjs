@@ -351,7 +351,14 @@ const FALLBACKS = {
     INSTRUCTION_LEAK_RATIO: "0.5",
     instructionLeakBlocks: "(() => [])",
     findInstructionLeak:
-      "(() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '' }))",
+      "(() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: null }))",
+    // K57b. Same fail-open direction: without the block table there is nothing to
+    // compare against, so the honest degraded answer is "cannot tell", not "leak".
+    // A fail-closed default here would mark every reply on a downgraded router.
+    INSTRUCTION_LEAK_RUN_MIN: "60",
+    INSTRUCTION_LEAK_INTERNAL_MIN: "3",
+    findParaphraseLeak:
+      "(() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' }))",
   },
   personaBreach: {
     // Fail-OPEN, and here the direction matters more than usual. Without the
