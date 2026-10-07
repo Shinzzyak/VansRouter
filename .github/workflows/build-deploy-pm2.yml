@@ -158,6 +158,28 @@ jobs:
           chmod +x .engine/scripts/run-engine-suite.sh
           .engine/scripts/run-engine-suite.sh "$GITHUB_WORKSPACE"
 
+      # THE AUDIT, AS A GATE (registry K63, 2026-10-07).
+      #
+      # Until now the anti-recurrence audit only ever ran by hand, so a class it
+      # already priced could reopen without failing a build. That is exactly how
+      # K63 shipped: the audit had rows for it, the rows were OPEN, and the build
+      # went green anyway. An OPEN row is a defect class the bundle still has —
+      # it has to stop the build, not wait to be read.
+      #
+      # The tool lives in the private engine repo, so the checkout above is what
+      # CI runs. `--engine` is passed explicitly because the K17 guard reads the
+      # runner out of the engine checkout, and the bundle is the one just built
+      # at data/engine/engine.cjs — the same path the loader reads in production.
+      #
+      # Exit codes: 0 = every probed class closed, 1 = at least one OPEN (fails
+      # this step), 2 = the audit could not run at all (also fails — never a pass).
+      - name: Anti-recurrence audit (every probed class must be closed)
+        run: |
+          set -e
+          node .engine/scripts/audit_anti_terulang.mjs --engine "$GITHUB_WORKSPACE/.engine"
+        env:
+          VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
+
       - name: Engine gates (bundle present)
         run: >-
           pnpm test
