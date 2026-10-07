@@ -359,6 +359,11 @@ const FALLBACKS = {
     INSTRUCTION_LEAK_INTERNAL_MIN: "3",
     findParaphraseLeak:
       "(() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' }))",
+    // Diagnostic axes behind findParaphraseLeak (run length + marker count). Same
+    // fail-open direction: with no bundle there is nothing measured, so report
+    // zeros rather than pretend a body was scored. Shape must match the real
+    // return object or a probe reading `.run` / `.markers` crashes.
+    instructionLeakAxes: "(() => ({ run: 0, markers: 0 }))",
   },
   personaBreach: {
     // Fail-OPEN, and here the direction matters more than usual. Without the

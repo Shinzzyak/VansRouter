@@ -18,4 +18,5 @@ export const findHardLeaks = __E.findHardLeaks ?? (() => []);
 export const findInstructionLeak = __E.findInstructionLeak ?? (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: null }));
 export const findLexicalSignatures = __E.findLexicalSignatures ?? (() => []);
 export const findParaphraseLeak = __E.findParaphraseLeak ?? (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' }));
+export const instructionLeakAxes = __E.instructionLeakAxes ?? (() => ({ run: 0, markers: 0 }));
 export const instructionLeakBlocks = __E.instructionLeakBlocks ?? (() => []);
