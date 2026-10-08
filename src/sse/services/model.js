@@ -10,10 +10,39 @@ const LOCAL_PROVIDER_ALIASES = {
 };
 
 const RESERVED_PROVIDER_PREFIXES = new Set(Object.keys(LOCAL_PROVIDER_ALIASES));
+// prefix -> owning built-in provider id, so a colliding node prefix can be
+// reported by name instead of failing silently at request time.
+// Last write wins, mirroring open-sse's ALIAS_TO_PROVIDER_ID: when two registry
+// entries claim the same prefix, routing resolves to the later entry, so the
+// reported owner must be the same one requests actually reach.
+const RESERVED_PREFIX_OWNER = new Map(
+  Object.keys(LOCAL_PROVIDER_ALIASES).map((k) => [k, LOCAL_PROVIDER_ALIASES[k]])
+);
 for (const entry of REGISTRY) {
   RESERVED_PROVIDER_PREFIXES.add(entry.id);
-  if (entry.alias) RESERVED_PROVIDER_PREFIXES.add(entry.alias);
-  for (const alias of entry.aliases || []) RESERVED_PROVIDER_PREFIXES.add(alias);
+  RESERVED_PREFIX_OWNER.set(entry.id, entry.id);
+  if (entry.alias) {
+    RESERVED_PROVIDER_PREFIXES.add(entry.alias);
+    RESERVED_PREFIX_OWNER.set(entry.alias, entry.id);
+  }
+  for (const alias of entry.aliases || []) {
+    RESERVED_PROVIDER_PREFIXES.add(alias);
+    RESERVED_PREFIX_OWNER.set(alias, entry.id);
+  }
+}
+
+/**
+ * Detect a provider-node prefix that is shadowed by a built-in provider alias.
+ *
+ * A custom node whose prefix collides with a reserved prefix is unreachable via
+ * "<prefix>/<model>": getModelInfo() skips the node lookup for reserved prefixes,
+ * so the built-in provider wins and the node silently never receives traffic.
+ * Returns the owning built-in provider id, or null when the prefix is free.
+ */
+export function findReservedPrefixCollision(prefix) {
+  const trimmed = String(prefix ?? "").trim();
+  if (!trimmed) return null;
+  return RESERVED_PREFIX_OWNER.get(trimmed) || RESERVED_PREFIX_OWNER.get(trimmed.toLowerCase()) || null;
 }
 
 export function parseModel(modelStr) {

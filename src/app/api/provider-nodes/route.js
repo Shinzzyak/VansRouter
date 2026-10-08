@@ -4,6 +4,7 @@ import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING
 import { randomUUID } from "node:crypto";
 import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
 import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
+import { findReservedPrefixCollision } from "@/sse/services/model.js";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,16 @@ export async function POST(request) {
 
     if (!prefix?.trim()) {
       return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    }
+
+    // A prefix that a built-in provider already owns makes the node unreachable:
+    // "<prefix>/<model>" resolves to the built-in provider, so the node never
+    // receives traffic. Refuse instead of creating a silently dead node.
+    const collision = findReservedPrefixCollision(prefix);
+    if (collision) {
+      return NextResponse.json({
+        error: `Prefix "${prefix.trim()}" is already used by the built-in provider "${collision}". Requests like "${prefix.trim()}/<model>" would go to "${collision}", not to this node. Choose a different prefix.`,
+      }, { status: 409 });
     }
 
     // Determine type

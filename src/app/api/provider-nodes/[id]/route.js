@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
 import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
 import { clearCachedProviderModels } from "@/lib/db/repos/cachedModelsRepo.js";
+import { findReservedPrefixCollision } from "@/sse/services/model.js";
 
 // PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
@@ -21,6 +22,15 @@ export async function PUT(request, { params }) {
 
     if (!prefix?.trim()) {
       return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    }
+
+    // Refuse a prefix owned by a built-in provider: the node would never receive
+    // traffic, because "<prefix>/<model>" resolves to the built-in provider.
+    const collision = findReservedPrefixCollision(prefix);
+    if (collision) {
+      return NextResponse.json({
+        error: `Prefix "${prefix.trim()}" is already used by the built-in provider "${collision}". Requests like "${prefix.trim()}/<model>" would go to "${collision}", not to this node. Choose a different prefix.`,
+      }, { status: 409 });
     }
 
     // Only validate apiType for OpenAI Compatible nodes
