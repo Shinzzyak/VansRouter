@@ -31,6 +31,22 @@ export default defineConfig({
     alias: [
       { find: /^open-sse\//, replacement: resolve(__dirname, "../open-sse") + "/" },
       { find: "open-sse", replacement: resolve(__dirname, "../open-sse") },
+      // data/engine/src is a build-time copy of the private engine repo, and the
+      // engine sources import six PUBLIC plumbing modules by relative path —
+      // files that only exist in open-sse/rtk. CI copies the private sources into
+      // data/engine/src but never the plumbing, so any gate whose import closure
+      // enters that zone dies on ERR_MODULE_NOT_FOUND at COLLECT time (CI run
+      // 37707979051: refusalAttribution.js gained `import { SEAL_LINE } from
+      // "./brandContract.js"` in e72e081, which turned a leaf into a consumer).
+      // Aliasing is the same move run-engine-suite.sh makes with its sed rewrite:
+      // one source of truth, no duplicated public code, no drift.
+      ...[
+        "brandContract", "caveman", "contentWalk",
+        "formatInjectors", "ponytail", "systemInject",
+      ].map((m) => ({
+        find: new RegExp(`^\\./${m}\\.js$`),
+        replacement: resolve(__dirname, `../open-sse/rtk/${m}.js`),
+      })),
       { find: /^@\//, replacement: resolve(__dirname, "../src") + "/" },
     ],
   },
