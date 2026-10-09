@@ -381,7 +381,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes });
           },
           log,
           comboName: modelStr,
@@ -396,7 +396,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }),
+          (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes }),
           adapterModels
         ),
         log,
