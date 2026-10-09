@@ -4,6 +4,7 @@ import REGISTRY from "../providers/registry/index.js";
 import { PROVIDER_MODELS } from "../providers/index.js";
 import { modelQuotaFamily, modelStrip, modelTargetFormat, modelSupportedFormats, normalizeModelId } from "../providers/models/schema.js";
 import { CODEX_REVIEW_SUFFIX } from "../providers/models/helpers.js";
+import { stripThinkingSuffix } from "../translator/concerns/thinkingUnified.js";
 
 export { PROVIDER_MODELS };
 
@@ -23,15 +24,25 @@ export function getDefaultModel(aliasOrId) {
 // digit-hyphen-digit to digit-dot-digit before lookup. Other providers are left untouched.
 const DOT_VERSION_PROVIDERS = new Set(["kr", "kiro"]);
 
-// Find a registry entry by id. For Kiro models, tolerates dash/dot version separators
-// ("claude-sonnet-4-5" ~= "claude-sonnet-4.5"). Other providers use exact match only.
+// Find a registry entry by id. Thinking variants ("model(level)") resolve to their
+// base id so responses-only models keep their routing. For Kiro models, tolerates
+// dash/dot version separators.
+// A few registries store ids that already carry the org prefix
+// ("nvidia/nemotron-..."), so a bare lookup misses and the bare id reaches upstream
+// as a 404. Retry as "<alias>/<id>"; no registry carries a bare id that collides
+// with another entry's prefixed tail, so the retry is unambiguous. (upstream PR #145 / issue #146)
 function findModel(models, modelId, aliasOrId) {
   if (!models) return undefined;
-  const found = models.find(m => m.id === modelId);
+  const baseModelId = stripThinkingSuffix(modelId);
+  const found = models.find(m => m.id === modelId || m.id === baseModelId);
   if (found) return found;
+  if (aliasOrId) {
+    const prefixed = models.find(m => m.id === `${aliasOrId}/${baseModelId}`);
+    if (prefixed) return prefixed;
+  }
   if (!DOT_VERSION_PROVIDERS.has(aliasOrId)) return undefined;
-  const normalized = normalizeModelId(modelId);
-  if (normalized === modelId) return undefined;
+  const normalized = normalizeModelId(baseModelId);
+  if (normalized === baseModelId) return undefined;
   return models.find(m => m.id === normalized);
 }
 

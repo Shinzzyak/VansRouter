@@ -43,6 +43,52 @@ export function stripComboPrefix(modelStr) {
   return modelStr.startsWith("combo/") ? modelStr.slice(6) : modelStr;
 }
 
+// Aggregate the capabilities of a combo's targets. Features a request may need
+// are unioned (any target can serve them), `tools` is intersected (every target
+// in the chain must accept them), reasoning fields follow the primary target,
+// and the limits are the safe extremes: smallest window, largest output.
+// Members that name another combo resolve through comboLookup (name -> models).
+// Seats are written with UI aliases (e.g. `ocg/...`); resolveCaps maps those to
+// the real provider id so per-provider capability overrides still apply.
+// (upstream)
+export function aggregateComboCapabilities(comboModels, comboLookup = null, resolveCaps = null, _depth = 0) {
+  const members = Array.isArray(comboModels) ? comboModels.filter((id) => typeof id === "string") : [];
+  if (members.length === 0 || _depth > 6) return null;
+
+  const allCaps = members.map((fullId) => {
+    const name = stripComboPrefix(fullId);
+    if (comboLookup?.[name]) {
+      return aggregateComboCapabilities(comboLookup[name], comboLookup, resolveCaps, _depth + 1)
+        ?? resolveCaps?.(name)
+        ?? getCapabilitiesForModel(null, name);
+    }
+    const slash = fullId.indexOf("/");
+    const local = getCapabilitiesForModel(slash > 0 ? fullId.slice(0, slash) : null, fullId.slice(slash + 1));
+    const override = resolveCaps?.(fullId);
+    return override ? { ...local, ...override } : local;
+  });
+
+  const primary = allCaps[0];
+  const any = (key) => allCaps.some((c) => c[key] === true);
+  return {
+    vision: any("vision"),
+    pdf: any("pdf"),
+    audioInput: any("audioInput"),
+    videoInput: any("videoInput"),
+    imageOutput: any("imageOutput"),
+    audioOutput: any("audioOutput"),
+    search: any("search"),
+    tools: allCaps.every((c) => c.tools === true),
+    reasoning: primary.reasoning,
+    thinkingFormat: primary.thinkingFormat,
+    thinkingCanDisable: primary.thinkingCanDisable,
+    thinkingRange: primary.thinkingRange,
+    contextWindow: Math.min(...allCaps.map((c) => c.contextWindow)),
+    maxOutput: Math.max(...allCaps.map((c) => c.maxOutput)),
+  };
+}
+
+
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
 const HARD_CAPS = new Set(["vision", "pdf", "audioInput", "videoInput"]);

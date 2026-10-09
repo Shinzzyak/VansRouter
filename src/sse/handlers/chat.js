@@ -37,6 +37,7 @@ import { getProxyHash, resolveConnectionProxyConfig } from "@/lib/network/connec
 import { updateProviderConnection, getProviderConnections } from "@/lib/localDb";
 import { isModelAllowed } from "../services/allowedModels.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
+import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -102,7 +103,13 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Log request endpoint and model
   const url = new URL(request.url);
-  let modelStr = body.model;
+  // [CC] appends `[1m]` when the 1M-context beta is on. The marker is a client
+  // annotation, not part of any model id -- it matches no combo/alias/pair and
+  // would kill model resolution with "Invalid model format". The 1M capability
+  // itself rides the anthropic-beta header, which we forward untouched.
+  const { model: bodyModel, contextMarker } = stripModelContextMarker(body.model);
+  let modelStr = bodyModel;
+  if (contextMarker) body.model = bodyModel;
 
   // Accept an explicit "combo/" prefix (e.g. combo/smart-fallback, as exposed by
   // /v1/models) and strip it so combo resolution works. The bare combo name is
@@ -420,13 +427,28 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     return errorResponse(HTTP_STATUS.FORBIDDEN, `Provider "${provider}" is not allowed for this API key`);
   }
 
-  // ACL: check if model is in available models list
+  // ACL: check if model is in available models list.
+  // A registry id can already carry its org prefix (nvidia/nvidia/nemotron-...),
+  // while the allowlist built by buildConnectedProviderIds strips one prefix
+  // (nvidia/nemotron-...). Probe both forms, like embeddings.js does.
+  // (upstream PR #145 / issue #146)
   const resolvedModelStr = `${provider}/${model}`;
-  const isAllowed = (modelStr === resolvedModelStr)
-    ? await isModelAllowed(resolvedModelStr, apiKeyInfo)
-    : (await isModelAllowed(modelStr, apiKeyInfo) || await isModelAllowed(resolvedModelStr, apiKeyInfo));
-  if (!isAllowed) {
-    log.warn("CHAT", `Model not in available models list`, { model: resolvedModelStr });
+  const candidates = [resolvedModelStr];
+  if (model.startsWith(`${provider}/`)) {
+    candidates.push(`${provider}/${model.slice(provider.length + 1)}`);
+  }
+  if (modelStr !== resolvedModelStr && !candidates.includes(modelStr)) {
+    candidates.push(modelStr);
+  }
+  let allowedModelStr = null;
+  for (const c of candidates) {
+    if (await isModelAllowed(c, apiKeyInfo)) {
+      allowedModelStr = c;
+      break;
+    }
+  }
+  if (!allowedModelStr) {
+    log.warn("CHAT", `Model not in available models list`, { model: resolvedModelStr, candidates });
     return errorResponse(HTTP_STATUS.NOT_FOUND, `Model "${resolvedModelStr}" is not available. Only models listed in /v1/models can be used.`);
   }
 
