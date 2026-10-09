@@ -125,6 +125,13 @@ export const FREEBUFF_CONFIG = { ...PROVIDER_OAUTH["freebuff"] };
 // OAuth timeout (5 minutes)
 export const QWEN_CONFIG = { ...PROVIDER_OAUTH["qwen"] };
 
+// GLM Coding (Z.ai) OAuth — ZCode CLI polling flow (NOT PKCE): init mints a
+// one-off poll token, the browser opens the server-generated authorize_url,
+// poll/ready returns the tokens. The Z.AI OAuth token is then exchanged for a
+// platform business JWT and finally a long-lived coding-plan API key (no
+// refresh grant).
+export const GLM_OAUTH_CONFIG = { ...PROVIDER_OAUTH["glm"] };
+
 export const OAUTH_TIMEOUT = 300000;
 
 // Provider list

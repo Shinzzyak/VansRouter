@@ -7,6 +7,7 @@
 import "open-sse/index.js";
 import crypto from "crypto";
 import os from "os";
+import glmOAuth from "./providers/glm.js";
 
 // ponytail: ZCode source headers — generated once per process; not per-request, since the
 // X-ZCode-Agent / X-Platform etc. are static identity of this client. x-request-id is
@@ -1594,6 +1595,7 @@ const PROVIDERS = {
 
   kimchi,
   freebuff,
+  glm: glmOAuth,
   trae,
   windsurf,
   zed,
