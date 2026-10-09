@@ -142,7 +142,7 @@ jobs:
         run: node cli/scripts/smoke-package.cjs "$TARBALL" "$RELEASE_VERSION"
 
       - name: Upload validated CLI tarball
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: npm-package-${{ needs.check-branch.outputs.version }}
           path: ${{ steps.pack.outputs.tarball }}
@@ -170,7 +170,7 @@ jobs:
         run: npm install --global npm@11.5.1
 
       - name: Download validated CLI tarball
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: npm-package-${{ needs.check-branch.outputs.version }}
           path: ${{ runner.temp }}/npm-package

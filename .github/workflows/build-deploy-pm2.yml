@@ -349,7 +349,7 @@ jobs:
           ls -lh vansrouter-deploy.tar.gz
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: vansrouter-deploy
           path: vansrouter-deploy.tar.gz
@@ -361,7 +361,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: vansrouter-deploy
           path: .
