@@ -224,6 +224,23 @@ describe("observ/metrics — exposition", () => {
     expect(text).not.toContain("router_rate_limit_rejects_total");
   });
 
+  it("publishes the guardrail family the moment a policy decides something", () => {
+    // The batch-1 rule was "no writer, no family". Guardrails are the writer that
+    // turns the family on, so the header appearing without a series would be the
+    // same lie in the other direction.
+    expect(m.render()).not.toContain("router_guardrail_decisions_total");
+
+    m.incGuardrailDecision("block", "apikey", "inbound");
+
+    const parsed = parseExposition(m.render());
+    const s = parsed["router_guardrail_decisions_total"];
+    expect(s).toHaveLength(1);
+    expect(s[0].value).toBe(1);
+    expect(s[0].labels.action).toBe("block");
+    expect(s[0].labels.scope).toBe("apikey");
+    expect(s[0].labels.direction).toBe("inbound");
+  });
+
   it("scales a millisecond latency to seconds", () => {
     m.recordDuration("p", "m", 2500);
     const parsed = parseExposition(m.render());

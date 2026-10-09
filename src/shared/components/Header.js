@@ -119,6 +119,13 @@ const getPageInfo = (pathname) => {
       icon: "savings",
       breadcrumbs: [],
     };
+  if (pathname.includes("/guardrails"))
+    return {
+      title: "Guardrails",
+      description: "Inspect requests and replies against per-scope policies, with an audit trail",
+      icon: "security",
+      breadcrumbs: [],
+    };
   if (pathname.includes("/cli-tools"))
     return {
       title: "CLI Tools",

@@ -146,6 +146,11 @@ class Counter {
   }
 
   render(out) {
+    // A collector with no series is not published at all — not even its
+    // HELP/TYPE header. A header with no series behind it tells a scraper the
+    // metric exists and is zero, which is indistinguishable from a real zero;
+    // the whole family only appears once something actually wrote to it.
+    if (this.series.size === 0) return;
     out.push(`# HELP ${this.name} ${this.help}`);
     out.push(`# TYPE ${this.name} counter`);
     for (const s of this.series.values()) {
@@ -181,6 +186,8 @@ class Histogram {
   }
 
   render(out) {
+    // Same rule as Counter: nothing published until something is observed.
+    if (this.series.size === 0) return;
     out.push(`# HELP ${this.name} ${this.help}`);
     out.push(`# TYPE ${this.name} histogram`);
     for (const s of this.series.values()) {
@@ -230,6 +237,11 @@ export class Metrics {
       "Upstream responses the gateway treated as errors.",
       ["provider", "model", "status"]
     );
+    this.guardrailDecisions = new Counter(
+      "router_guardrail_decisions_total",
+      "Guardrail policy decisions by action, resolving scope and traffic direction.",
+      ["action", "scope", "direction"]
+    );
   }
 
   /** Counts one completed request. status is the HTTP status the client saw. */
@@ -275,6 +287,18 @@ export class Metrics {
   }
 
   /**
+   * Counts one guardrail decision. `scope` is the scope that resolved the policy
+   * ("apikey", "model", "provider", "global") or "config_error" when the policy
+   * read itself failed — that last one is the signal that the gateway is running
+   * without the guardrail it was configured for. `direction` is "inbound" for a
+   * request tap and "outbound" for a reply tap, so a rule that only ever fires on
+   * one side of the wire is visible as such.
+   */
+  incGuardrailDecision(action, scope, direction = "inbound") {
+    this.guardrailDecisions.inc([label(action), label(scope), label(direction)]);
+  }
+
+  /**
    * The single call the request-completion path makes: one request, its latency,
    * its tokens and — for a streaming turn — its time to first token.
    *
@@ -296,7 +320,7 @@ export class Metrics {
     const out = [];
     for (const collector of [
       this.requestsTotal, this.requestDuration, this.timeToFirstToken,
-      this.tokensTotal, this.fallbacks, this.upstreamErrors,
+      this.tokensTotal, this.fallbacks, this.upstreamErrors, this.guardrailDecisions,
     ]) {
       collector.render(out);
     }
@@ -315,3 +339,4 @@ export const recordTTFT = (...args) => defaultMetrics.recordTTFT(...args);
 export const addTokens = (...args) => defaultMetrics.addTokens(...args);
 export const incFallback = (...args) => defaultMetrics.incFallback(...args);
 export const incUpstreamError = (...args) => defaultMetrics.incUpstreamError(...args);
+export const incGuardrailDecision = (...args) => defaultMetrics.incGuardrailDecision(...args);

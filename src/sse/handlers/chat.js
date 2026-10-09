@@ -40,6 +40,14 @@ import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
+import {
+  GUARDRAIL_ACTIONS,
+  GUARDRAIL_STREAM_FORMAT,
+  applyOutboundGuard,
+  auditFiring,
+  guardrailsFor,
+  scanInbound,
+} from "@/lib/guardrails/index.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { errorResponse, unavailableResponse, withSelectedConnectionHeader, withRouteTags } from "open-sse/utils/error.js";
 import { handleComboChat, handleFusionChat, handleThinkExecuteChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
@@ -582,6 +590,30 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
     }
 
+    // Guardrail inbound tap. Resolved from the key → model → provider → global
+    // scope chain and applied before the account semaphore is taken, so a request
+    // a policy cuts never holds a concurrency slot. Inert when no policy is
+    // configured: one cached lookup, nothing else.
+    const guardrailTarget = { apiKeyId: apiKeyInfo?.id || "", model: `${provider}/${model}`, provider };
+    const { engine: guardrailEngine, scope: guardrailScope } = await guardrailsFor(guardrailTarget);
+    // The client-facing stream format follows the endpoint, because the
+    // translator converts the reply back to what the client asked for.
+    const guardrailFormat = (() => {
+      const pathname = request?.url ? new URL(request.url).pathname : "";
+      if (pathname.includes("/v1/messages")) return GUARDRAIL_STREAM_FORMAT.claude;
+      if (pathname.includes("/v1/responses")) return GUARDRAIL_STREAM_FORMAT.responses;
+      return GUARDRAIL_STREAM_FORMAT.openai;
+    })();
+    let coreBody = body;
+    if (guardrailEngine.enabled()) {
+      const inbound = scanInbound(guardrailEngine, { ...body, model: `${provider}/${model}` });
+      auditFiring(inbound, guardrailTarget, guardrailScope, "inbound");
+      if (inbound.action === GUARDRAIL_ACTIONS.block) {
+        return errorResponse(HTTP_STATUS.FORBIDDEN, inbound.message);
+      }
+      coreBody = inbound.payload;
+    }
+
     // Acquire account semaphore (concurrency limiter per provider:account:proxy)
     const semaphoreKey = resolveAccountSemaphoreKey({ provider, model, connectionId: credentials.connectionId, credentials: refreshedCredentials, proxyHash });
     const semaphoreMax = resolveAccountSemaphoreMaxConcurrency(refreshedCredentials);
@@ -609,7 +641,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
     try {
       result = await handleChatCore({
-      body: { ...body, model: `${provider}/${model}` },
+      body: coreBody,
       modelInfo: { provider, model, accountCount: providerAccountCount },
       credentials: refreshedCredentials,
       log,
@@ -686,7 +718,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       semaphoreRelease();
     }
 
-    if (result.success) return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
+    if (result.success) {
+      // Outbound tap. Wraps the stream (or rewrites a buffered body) only when a
+      // policy is live, so the default install returns the response untouched.
+      const guarded = guardrailEngine.enabled()
+        ? await applyOutboundGuard(guardrailEngine, result.response, guardrailFormat, (firing) =>
+            auditFiring(firing, guardrailTarget, guardrailScope, "outbound"))
+        : result.response;
+      return withSelectedConnectionHeader(guarded, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
+    }
 
     // Client disconnected mid-flight: exit WITHOUT locking/marking the account —
     // the upstream failure may simply be our own abort rippling through.

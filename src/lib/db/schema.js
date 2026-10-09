@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -213,6 +213,53 @@ export const TABLES = {
     indexes: [
       "CREATE INDEX IF NOT EXISTS idx_cpm_kind ON cachedProviderModels(kind)",
       "CREATE INDEX IF NOT EXISTS idx_cpm_provider ON cachedProviderModels(providerId)",
+    ],
+  },
+  guardrailPolicies: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      // "apikey" | "model" | "provider" | "global" — the resolution order lives in
+      // src/lib/guardrails/policies.js, this table only stores the rows.
+      scope: "TEXT NOT NULL",
+      // The id the scope points at; empty string for the global scope. An empty
+      // id on any other scope is inert, never a wildcard.
+      scopeId: "TEXT NOT NULL",
+      enabled: "INTEGER DEFAULT 1",
+      // JSON array of detector names; empty disables the policy.
+      detectors: "TEXT NOT NULL",
+      // "allow" | "log_only" | "warn" | "mask" | "block"
+      action: "TEXT NOT NULL",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_gp_scope ON guardrailPolicies(scope, scopeId)",
+    ],
+  },
+  guardrailLogs: {
+    // One row per firing, not per request: a request that trips two detectors
+    // writes one row naming both. Read by /api/guardrails/logs.
+    columns: {
+      id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+      ts: "TEXT NOT NULL",
+      apiKeyId: "TEXT",
+      model: "TEXT",
+      // Comma-joined detector names, "unknown" when the decision carried none.
+      detector: "TEXT NOT NULL",
+      // "inbound" | "outbound"
+      direction: "TEXT NOT NULL",
+      action: "TEXT NOT NULL",
+      scope: "TEXT",
+      reason: "TEXT",
+      // JSON array of findings; the span text itself is never stored, only the
+      // detector name, span offsets and severity, so the audit trail cannot
+      // become a second copy of the traffic it was meant to catch.
+      findings: "TEXT",
+      severity: "TEXT",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_gl_ts ON guardrailLogs(ts DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_gl_action ON guardrailLogs(action)",
     ],
   },
 };

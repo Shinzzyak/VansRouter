@@ -55,6 +55,10 @@ const DEFAULT_SETTINGS = {
   godmodeEnabled: false,
   godmodeLevel: "lite",
   bypassMode: "off",
+  // Global kill-switch for the guardrail taps. Default true: a policy row is an
+  // explicit operator decision, so it must not be silently ignored because this
+  // setting was never written. Both taps read it per request.
+  guardrailsEnabled: true,
 };
 
 // Only `capacityAdapter` is merged on write. The other two maps are REPLACED

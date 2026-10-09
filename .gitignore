@@ -58,6 +58,10 @@ test-*.mjs
 solve-captcha.mjs
 .playwright-mcp/
 tests/__baseline__/current.json
+# Test-run sandbox DB (DATA_DIR in tests/vitest.config.js). Holds the same
+# jwt-secret/cli-secret rows as a real install, so a bare `git add -A` would
+# commit live credentials.
+/.tmp-test-data/
 
 # =============================================================================
 # Temp notes & scratch docs
