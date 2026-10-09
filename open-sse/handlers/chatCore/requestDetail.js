@@ -1,5 +1,6 @@
 import { saveRequestUsage, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
+import { recordUsage } from "@/lib/observ/metrics.js";
 import { COLORS } from "../../utils/stream.js";
 import { canonicalizeUsage } from "../../utils/usageTracking.js";
 
@@ -98,7 +99,7 @@ export function buildRequestDetail(base, overrides = {}) {
   };
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, apiKeyInfo, endpoint, label = "USAGE" }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, apiKeyInfo, endpoint, latency, status = 200, label = "USAGE" }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
@@ -126,6 +127,22 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     apiKey: apiKey || undefined,
     endpoint: endpoint || null
   }).catch(() => {});
+
+  // Prometheus mirror of the same completion. Fail-open by design: an
+  // instrumentation bug must never take down the request path, so any throw
+  // here is swallowed and the DB write above stands on its own.
+  try {
+    recordUsage(
+      provider || "unknown",
+      model || "unknown",
+      endpoint || "unknown",
+      status,
+      latency?.total || 0,
+      normalized.prompt_tokens || 0,
+      normalized.completion_tokens || 0,
+      latency?.ttft || 0
+    );
+  } catch { /* metrics are never load-bearing */ }
 
   // Record per-key usage limits against the API key info (if provided).
   if (apiKeyInfo) {

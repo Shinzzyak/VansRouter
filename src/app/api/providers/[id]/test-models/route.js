@@ -5,6 +5,7 @@ import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/sha
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { pingModelByKind } from "@/app/api/models/test/ping";
 import { getProviderNodes } from "@/lib/db/repos/nodesRepo.js";
+import { defaultGate } from "@/lib/fetchgate/gate.js";
 
 /**
  * POST /api/providers/[id]/test-models
@@ -66,6 +67,9 @@ export async function POST(request, { params }) {
     if (rest.length > 0) {
       const restResults = await Promise.all(
         rest.map(async (model) => {
+          // Pace the burst: every model of the provider was being pinged in the
+          // same millisecond, which the upstream sees as a stampede.
+          await defaultGate.acquire();
           const result = await pingModelByKind(`${alias}/${model.id}`, model.kind || model.type || "llm", baseUrl);
           return { modelId: model.id, name: model.name || model.id, ...result };
         })

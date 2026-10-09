@@ -20,6 +20,7 @@ import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreac
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 import { matchesFormatEnclosure } from "../../rtk/thinkingGate.js";
+import { storeCachedResponse } from "@/lib/semanticcache/chatHook.js";
 
 /**
  * Convert OpenAI chat.completion response to Claude message format.
@@ -293,7 +294,8 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   const usage = extractUsageFromResponse(responseBody);
   appendLog({ tokens: usage, status: "200 OK" });
-  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, comboName });
+  const usageLatency = Date.now() - requestStartTime;
+  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
 
   const translatedResponse = needsTranslation(targetFormat, sourceFormat)
     ? translateNonStreamingResponse(responseBody, targetFormat, sourceFormat)
@@ -503,6 +505,16 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   if (clientModelId && finalResponse && typeof finalResponse === "object" && !Array.isArray(finalResponse)) {
     finalResponse.model = clientModelId;
   }
+
+  // Prompt cache write. Deliberately the LAST thing before the reply leaves, so
+  // the stored bytes are the post-repair text this caller received — replaying a
+  // pre-repair body would serve a reply the brand contract had already rejected.
+  // Inert unless SEMANTIC_CACHE=1.
+  storeCachedResponse({
+    requestBody: body,
+    finalResponse,
+    sessionId: apiKeyInfo?.id ?? apiKey ?? "",
+  });
 
   return {
     success: true,

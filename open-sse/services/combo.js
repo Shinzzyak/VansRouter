@@ -13,6 +13,29 @@ import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { carriesToolCalls } from "../rtk/bypassEngine.js";
 import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
+import { incFallback, FALLBACK_UPSTREAM_ERROR } from "@/lib/observ/metrics.js";
+
+/**
+ * Labels for one fallback move, derived from a combo candidate string
+ * ("provider/model" or a bare alias). Kept here rather than at the call sites so
+ * both fallback paths tag the series identically.
+ */
+function fallbackLabel(modelStr) {
+  const parsed = parseModel(modelStr);
+  return [parsed?.provider || "unknown", parsed?.model || modelStr || "unknown"];
+}
+
+/**
+ * Maps the status a candidate returned onto the closed fallback-reason
+ * vocabulary. Anything unrecognised is an upstream error rather than a new
+ * reason string, which keeps the series count bounded.
+ */
+function fallbackReasonFor(status) {
+  if (status === 429) return "rate_limit";
+  if (status === 408 || status === 504) return "timeout";
+  if (status === 404) return "model_unavailable";
+  return FALLBACK_UPSTREAM_ERROR;
+}
 
 // Strip "combo/" prefix from model string (e.g. "combo/coding-stack" → "coding-stack")
 export function stripComboPrefix(modelStr) {
@@ -648,6 +671,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       // Fallback to next model
       lastError = errorText || String(result.status);
       if (!lastStatus) lastStatus = result.status;
+      incFallback(...fallbackLabel(modelStr), fallbackReasonFor(result.status));
       log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
       // Record this candidate so the next iteration's reasoning-state gate can
       // decide whether to strip its provider-native state before fallback.
@@ -663,6 +687,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         if (!lastStatus || lastStatus === 500) lastStatus = 503;
       }
       log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });
+      incFallback(...fallbackLabel(modelStr), FALLBACK_UPSTREAM_ERROR);
       prevCandidate = nextCandidate;
     }
   }

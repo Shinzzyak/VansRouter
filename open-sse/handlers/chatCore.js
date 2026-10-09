@@ -27,6 +27,8 @@ import { dedupeTools } from "../utils/toolDeduper.js";
 import { detectLoop } from "../utils/loopGuard.js";
 import { applyPromptInjectors } from "../rtk/promptInjectors.js";
 import { markPoolUnfit } from "../services/proxyPoolFitness.js";
+import { incFallback, incUpstreamError, FALLBACK_UNHEALTHY } from "@/lib/observ/metrics.js";
+import { cacheHitResponse } from "@/lib/semanticcache/chatHook.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
@@ -537,6 +539,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       reason: poolScoped?.reason || "pool-scoped",
     };
     markPoolUnfit(failed.poolId, failed.scope, undefined, failed.reason);
+    incFallback(provider, model, FALLBACK_UNHEALTHY);
     log?.warn?.("PROXY", `${provider.toUpperCase()} | pool ${failed.poolId || "?"} unfit for ${failed.scope} (${failed.reason}) — retry with another pool. ${reasonMsg || ""}`);
     try {
       const resolved = await resolveProxyConfig(credentials, [failed.poolId]);
@@ -574,6 +577,29 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Most executors return their registry format. Cursor AgentService is an
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
+
+  // Prompt cache. A non-streaming request whose exact inputs were already
+  // answered is served from the store and the upstream call is skipped — that
+  // skip is the entire point, so the lookup has to sit before the executor, not
+  // after it. Inert unless SEMANTIC_CACHE=1 (see semanticcache/chatHook.js).
+  //
+  // The hit still writes a request-log line: a reply that leaves no trace in the
+  // log is indistinguishable from a request that never arrived, which is the
+  // failure mode this whole path exists to avoid.
+  //
+  // Tenant scope is the calling key, so two buyers sending the same prompt never
+  // share a body. ponytail: no session dimension; add one when a single key needs
+  // its own sessions isolated from each other.
+  if (!upstreamStream) {
+    const cached = cacheHitResponse({ requestBody: body, sessionId: apiKeyInfo?.id ?? apiKey ?? "" });
+    if (cached) {
+      trackPendingRequest(model, provider, connectionId, false);
+      appendRequestLog({ model, provider, connectionId, status: "200 OK (cache)" }).catch(() => { });
+      log?.info?.("CACHE", `${provider}/${model} | served from prompt cache`);
+      return { success: true, response: cached.response };
+    }
+  }
+
   try {
     const result = await executeWithPoolFallback();
     providerResponse = result.response;
@@ -584,6 +610,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);
+    incUpstreamError(provider, model, error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,
@@ -646,6 +673,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
     const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+    incUpstreamError(provider, model, statusCode);
     const failureClass = classifyResponseFailure({ status: statusCode, message, provider, model });
     log?.debug?.("ROUTE", `${provider}/${model} | failure=${failureClass}`);
 

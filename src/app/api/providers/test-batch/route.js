@@ -8,6 +8,7 @@ import {
   ANTHROPIC_COMPATIBLE_PREFIX,
 } from "@/shared/constants/providers";
 import { testSingleConnection } from "../[id]/test/testUtils.js";
+import { defaultGate } from "@/lib/fetchgate/gate.js";
 
 function getAuthGroup(providerId, connection = null) {
   // Prioritize authType from connection if available
@@ -83,6 +84,9 @@ export async function POST(request) {
 
     const results = await Promise.all(connectionsToTest.map(async (conn) => {
       try {
+        // Pace the burst: without this every connection is tested in the same
+        // millisecond, which reads as a stampede to the upstream provider.
+        await defaultGate.acquire();
         const data = await testSingleConnection(conn.id);
         return {
           provider: conn.provider,
