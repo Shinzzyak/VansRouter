@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 const ACTION_LABELS = {
   allow: "Allow (off)",
   log_only: "Log only",
-  warn: "Warn",
   mask: "Mask",
   block: "Block",
 };

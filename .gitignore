@@ -161,3 +161,9 @@ docs/PROVIDER_FARMING_GSUITE.md
 docs/PROVIDER_GSUITE_ANALYSIS.md
 docs/opencode-bypass-handover.md
 **/ag_tokens.tsv
+
+# Buyer packages. The .gitignore above exists because pack sources already had to
+# be purged from this repo's history once; a built pack zip is the same leak with
+# the work already done. They are built into public/ so the delivery bot can serve
+# them, which puts them one `git add -A` away from being published.
+/public/*.zip

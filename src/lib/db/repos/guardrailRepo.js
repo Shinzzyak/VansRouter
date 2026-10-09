@@ -2,6 +2,14 @@
 // enabled row walking apikey → model → provider → global.
 import { getAdapter } from "../driver.js";
 
+// A global policy has no id: resolveEngine looks it up as ("global", ""), so a row
+// stored with any other id would be invisible to the resolver while still
+// appearing in the dashboard. Normalise here, at the single write funnel, rather
+// than trusting every caller to send the id it means.
+function normalizeScope(scope, scopeId) {
+  return { scope, scopeId: scope === "global" ? "" : String(scopeId || "").trim() };
+}
+
 function rowToPolicy(row) {
   if (!row) return null;
   let detectors = [];
@@ -46,6 +54,7 @@ export async function getGuardrailPolicyById(id) {
 
 export async function upsertGuardrailPolicy({ scope, scopeId = "", enabled = 1, detectors = [], action = "log_only" }) {
   if (!scope) return null;
+  ({ scope, scopeId } = normalizeScope(scope, scopeId));
   const db = await getAdapter();
   const now = new Date().toISOString();
   const existing = await getGuardrailPolicy(scope, scopeId);
@@ -67,7 +76,7 @@ export async function updateGuardrailPolicyById(id, { scope, scopeId, enabled, d
   const existing = await getGuardrailPolicyById(id);
   if (!existing) return null;
   const nextScope = scope || existing.scope;
-  const nextScopeId = scopeId === undefined ? existing.scopeId : scopeId;
+  const nextScopeId = normalizeScope(nextScope, scopeId === undefined ? existing.scopeId : scopeId).scopeId;
   // Moving a row onto an occupied (scope, scopeId) would violate the unique
   // index; the caller gets a null rather than a raw SQLite error.
   const occupant = await getGuardrailPolicy(nextScope, nextScopeId);
