@@ -1,5 +1,13 @@
 name: Cross-platform build matrix
 
+# Linux-only on purpose. This workflow used to fan out to ubuntu + windows +
+# macos, and macOS bills at 10x minutes while Windows bills at 2x. The product
+# is a Node app deployed to one Linux VPS over PM2 — the Windows and macOS legs
+# verified a build that is never shipped, and they were the single largest
+# consumer of this fork's Actions minutes. GitHub disabled Actions on this fork
+# on 2026-10-09 with "because of its GitHub Actions usage"; the matrix was the
+# main driver. Re-adding an OS here costs 2x (Windows) or 10x (macOS) per job
+# and can re-trigger the same gate.
 on:
   push:
     branches: [main, master, dev]
@@ -21,8 +29,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
-          - macos-latest
         node:
           - 22
           - 24
