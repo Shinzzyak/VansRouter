@@ -159,6 +159,16 @@ import p157 from "./zcode.js";
 import p158 from "./zed.js";
 import p159 from "./zenmux.js";
 import p160 from "./alysis.js";
+import p162 from "./agnes.js";
+import p163 from "./bai.js";
+import p164 from "./dahl.js";
+import p165 from "./hive.js";
+import p166 from "./meta.js";
+import p167 from "./muse.js";
+import p168 from "./opencode-zen.js";
+import p169 from "./qoder-cn.js";
+import p170 from "./tinyfish.js";
+import p171 from "./v1m.js";
 
 const PROVIDER_REGISTRY = [
   p0,
@@ -322,6 +332,16 @@ const PROVIDER_REGISTRY = [
   p159,
   p160,
   p161,
+  p162,
+  p163,
+  p164,
+  p165,
+  p166,
+  p167,
+  p168,
+  p169,
+  p170,
+  p171,
 ];
 
 export default PROVIDER_REGISTRY;
