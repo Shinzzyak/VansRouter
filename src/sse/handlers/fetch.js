@@ -9,6 +9,7 @@ import {
   isKindAllowed,
 } from "../services/auth.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
+import { readBoundedJson } from "../utils/boundedBody.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
@@ -26,12 +27,10 @@ import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
  * @param {Request} request
  */
 export async function handleFetch(request) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const { body, error } = await readBoundedJson(request);
+  if (error) {
     log.warn("FETCH", "Invalid JSON body");
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+    return error;
   }
 
   const reqUrl = new URL(request.url);

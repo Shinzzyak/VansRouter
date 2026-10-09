@@ -55,6 +55,7 @@ import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActi
 import { detectCompactRequest, buildCompactBody } from "open-sse/services/compactEngine.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { readBoundedJson } from "../utils/boundedBody.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
@@ -72,12 +73,10 @@ function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
  * Format detection and translation handled by translator
  */
 export async function handleChat(request, clientRawRequest = null) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    log.warn("CHAT", "Invalid JSON body");
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  const { body, bytes: requestBytes, error } = await readBoundedJson(request);
+  if (error) {
+    log.warn("CHAT", error.status === HTTP_STATUS.PAYLOAD_TOO_LARGE ? "Body too large" : "Invalid JSON body");
+    return error;
   }
 
   // Accept header negotiation: curl/httpx send Accept: text/event-stream to
@@ -210,7 +209,7 @@ export async function handleChat(request, clientRawRequest = null) {
       );
       // Tag the response so the client can prove the auto-detected route fired
       // instead of silently continuing with the original body.
-      const compactResponse = await handleSingleModelChat(compactBody, compactModel, clientRawRequest, request, apiKey, apiKeyInfo);
+      const compactResponse = await handleSingleModelChat(compactBody, compactModel, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
       return withRouteTags(compactResponse, {
         "X-VansRoute-Task": "compact",
         "X-VansRoute-Compact-Via": compactDetection.via,
@@ -251,7 +250,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
         },
         log,
         comboName: modelStr,
@@ -283,7 +282,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
         },
         log,
         comboName: modelStr,
@@ -303,7 +302,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
+        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }),
         adapterModels
       ),
       log,
@@ -331,7 +330,7 @@ export async function handleChat(request, clientRawRequest = null) {
           const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
           cleanRawReq = { ...clientRawRequest, body: cleanBody };
         }
-        return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+        return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
       },
       log,
       comboName: modelStr,
@@ -343,13 +342,14 @@ export async function handleChat(request, clientRawRequest = null) {
       },
     });
   }
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo);
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
 }
 
 /**
  * Handle single model chat request
  */
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, options = null) {
+  const clientBodyBytes = options?.clientBodyBytes;
   const externalSignal = options?.signal ?? null;
   const clientSignal = request?.signal && externalSignal
     ? AbortSignal.any([request.signal, externalSignal])
@@ -381,7 +381,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
           },
           log,
           comboName: modelStr,
@@ -396,7 +396,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
+          (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }),
           adapterModels
         ),
         log,
@@ -653,6 +653,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: injRtk,
+      clientBodyBytes,
       headroomEnabled: injHeadroom,
       headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
       headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
