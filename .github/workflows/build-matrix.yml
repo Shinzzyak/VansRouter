@@ -28,7 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          # Pinned, not ubuntu-latest: the label migrates to Ubuntu 26 on
+          # 2026-10-19. A silent image swap is a build failure with no cause.
+          - ubuntu-24.04
         node:
           - 22
           - 24
