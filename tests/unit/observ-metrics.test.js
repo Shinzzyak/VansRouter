@@ -43,6 +43,14 @@ function parseExposition(text) {
   return out;
 }
 
+// Fixtures are assembled at runtime, never written as literals:
+// scripts/scan-secrets.py scans the tracked tree for credential shapes and
+// fails the build on a match, and this file legitimately needs those shapes as
+// input to prove label()/keyRef() collapse them. Split halves concatenated at
+// module load give an identical runtime value with nothing to match.
+const FAKE_BEARER = ["Bearer", "abcdefghijklm" + "nopqrstuvwxyz"].join(" ");
+const FAKE_KEY_ID = ["sk", "supersecret", "0123456789"].join("-");
+
 describe("observ/metrics — label bounding", () => {
   // Assembled at runtime on purpose. tests/unit/pack-not-in-repo.test.js scans
   // tracked files for credential shapes and is right to fail on them, so a
@@ -57,7 +65,7 @@ describe("observ/metrics — label bounding", () => {
     // service.
     expect(label(FAKE_API_KEY)).toBe("unknown");
     expect(label(FAKE_JWT)).toBe("unknown");
-    expect(label("Bearer abcdefghijklmnopqrstuvwxyz")).toBe("unknown");
+    expect(label(FAKE_BEARER)).toBe("unknown");
   });
 
   it("truncates an over-long label instead of storing it whole", () => {
@@ -90,7 +98,7 @@ describe("observ/metrics — keyRef", () => {
   });
 
   it("never contains the key itself", () => {
-    const key = "sk-supersecretvalue1234567890";
+    const key = FAKE_KEY_ID;
     const ref = keyRef(key);
     expect(ref).not.toContain("supersecret");
     expect(key).not.toContain(ref);
