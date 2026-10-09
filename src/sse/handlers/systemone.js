@@ -75,6 +75,16 @@ export async function handleSystemone(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
 
+  // Boundary validation before any credential work: a malformed decision
+  // request must be rejected with the field that is wrong, not with whatever
+  // the credential loop happens to hit first. handleSystemoneCore re-checks.
+  if (parsed.state === undefined || parsed.state === null) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: state");
+  }
+  if (!parsed.questions || typeof parsed.questions !== "object" || Array.isArray(parsed.questions)) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: questions");
+  }
+
   const resolved = await resolveSystemoneProvider(parsed);
   if (resolved.error) return resolved.error;
   const { provider, model } = resolved;
