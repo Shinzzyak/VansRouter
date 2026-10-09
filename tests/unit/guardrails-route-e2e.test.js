@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { withSelectedConnectionHeader } from "open-sse/utils/error.js";
 
 const originalDataDir = process.env.DATA_DIR;
 let tempDir;
@@ -336,5 +337,35 @@ describe("E2E: guardrails over the real routes", () => {
 
     const response = new Response("alice@acme.io", { headers: { "content-type": "application/json" } });
     expect(await guardrails.applyOutboundGuard(engine, response)).toBe(response);
+  });
+
+  // The tap's no-op exit is the one path the other cases cannot reach: an ENABLED
+  // engine that changes nothing. mask (mutated) rebuilds the Response, the
+  // disabled engine never reads it — only log_only walks into `body === text`.
+  //
+  // That exit used to hand back the response it had just called .text() on. The
+  // chat handler tags every reply with withSelectedConnectionHeader, which wraps
+  // `response.body` in a new Response — and a read body throws "Response body
+  // object should not be disturbed or locked". Every candidate in the combo loop
+  // threw, so a configured log_only policy answered 500 to every non-streaming
+  // request while the streaming path stayed green.
+  it("a log_only policy leaves a buffered reply readable through the connection-header wrapper", async () => {
+    await policiesPost({ scope: "global", detectors: ["pii"], action: "log_only" });
+
+    const { engine } = await guardrails.guardrailsFor({});
+    const upstream = JSON.stringify({ choices: [{ message: { content: "no personal data here" } }] });
+    const response = new Response(upstream, { status: 200, headers: { "content-type": "application/json" } });
+
+    const guarded = await guardrails.applyOutboundGuard(
+      engine,
+      response,
+      Object.values(guardrails.STREAM_FORMAT)[0]
+    );
+
+    // The composition the chat handler actually performs, in order.
+    const tagged = withSelectedConnectionHeader(guarded, "conn-1");
+    expect(await tagged.text()).toBe(upstream);
+    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-1");
+    expect(tagged.status).toBe(200);
   });
 });

@@ -117,8 +117,13 @@ export async function applyOutboundGuard(engine, response, format, onFiring = nu
       headers: { "content-type": "application/json" },
     });
   }
-  if (body === text) return response;
-  return new Response(body, {
+  // A match that rewrote nothing still cannot return the original response: its
+  // body has been consumed above, and the caller wraps it (withSelectedConnectionHeader
+  // passes `response.body` to a new Response) — a read body throws "Response body
+  // object should not be disturbed or locked", turning a configured log_only
+  // policy into a 500 on every buffered reply. Hand back a fresh Response built
+  // from the same bytes instead; only a fully inert engine returns `response`.
+  return new Response(text === body ? text : body, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
