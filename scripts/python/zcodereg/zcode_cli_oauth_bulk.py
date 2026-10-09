@@ -9,6 +9,17 @@ DB = "/home/ubuntu/VansRouter/data/db/data.sqlite"
 WARP_PROXY = "socks5://127.0.0.1:40000"
 LOCK_PATH = "/tmp/zcode-oauth-refresh.lock"
 BACKUP_DIR = "/tmp/zcode-refresh-backups"
+PARKED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "parked-accounts.txt")
+
+
+def load_parked():
+    """Email yang diparkir: pagar pihak lain (mis. challenge perangkat Google), bukan bug kita.
+    Retry berulang cuma bakar waktu. Lihat komentar di parked-accounts.txt."""
+    try:
+        with open(PARKED_PATH) as f:
+            return {l.split("#")[0].strip().lower() for l in f if l.split("#")[0].strip()}
+    except FileNotFoundError:
+        return set()
 
 import socks
 from urllib.parse import urlparse
@@ -16,14 +27,18 @@ from urllib.parse import urlparse
 warp_url = urlparse(WARP_PROXY)
 
 
-def get_accounts(limit=None, include_stale_jwt=True):
+def get_accounts(limit=None, include_stale_jwt=True, include_parked=False):
     """include_stale_jwt=True: proses juga akun yang sudah bawa zcodeJwtToken (yang lama expired).
-    Use include_stale_jwt=False utk perilaku lama (skip yang ber-JWT)."""
+    Use include_stale_jwt=False utk perilaku lama (skip yang ber-JWT).
+    include_parked=False: lewati akun di parked-accounts.txt (pagar pihak lain, bukan bug kita)."""
+    parked = set() if include_parked else load_parked()
     conn = sqlite3.connect(DB)
     rows = conn.execute("SELECT email, data FROM providerConnections WHERE provider='zcode' AND isActive=1").fetchall()
     conn.close()
     out = []
     for email, data in rows:
+        if email and email.lower() in parked:
+            continue
         try:
             d = json.loads(data)
         except Exception:
@@ -183,6 +198,7 @@ def main():
     ap.add_argument("--email", action="append", default=[], help="proses email tertentu (bisa berulang)")
     ap.add_argument("--lock", action="store_true", help="cegah dua bulk refresh berjalan bersamaan")
     ap.add_argument("--no-backup", action="store_true", help="lewati backup SQLite (manual/testing saja)")
+    ap.add_argument("--include-parked", action="store_true", help="ikutkan akun yang diparkir (parked-accounts.txt)")
     args = ap.parse_args()
     lock_fd = None
     backup_path = None
@@ -205,9 +221,10 @@ def main():
             src.close()
             print(f"sqlite backup: {backup_path}")
         if args.email:
-            accounts = [a for a in get_accounts() if a["email"] in args.email]
+            # email disebut eksplisit = niat operator, parkir tidak berlaku
+            accounts = [a for a in get_accounts(include_parked=True) if a["email"] in args.email]
         else:
-            accounts = get_accounts(limit=args.limit)
+            accounts = get_accounts(limit=args.limit, include_parked=args.include_parked)
         print(f"accounts to process: {len(accounts)}")
         results = {"ok": [], "fail": []}
         for i, acc in enumerate(accounts):
