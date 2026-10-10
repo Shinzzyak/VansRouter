@@ -54,6 +54,7 @@ export default function CacheSection() {
   }, [loadStats, loadEntries]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch with an initial loading flag; setLoading(true) is intentional at the start of the request.
     refresh();
   }, [refresh]);
 
