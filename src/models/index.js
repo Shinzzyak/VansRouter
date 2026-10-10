@@ -22,6 +22,8 @@ export {
   clearProxyPoolFitness,
   deleteProxyPoolFitnessByPool,
   deleteProviderConnectionsByProvider,
+  reorderProviderConnections,
+  cleanupProviderConnections,
   getCombos,
   getComboById,
   getComboByName,
