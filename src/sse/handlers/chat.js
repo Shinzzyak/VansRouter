@@ -34,7 +34,7 @@ import {
   isSemaphoreCapacityError,
 } from "open-sse/services/accountSemaphore.js";
 import { getProxyHash, resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
-import { updateProviderConnection, getProviderConnections } from "@/lib/localDb";
+import { updateProviderConnection, getProviderConnections, getModelAliases } from "@/lib/localDb";
 import { isModelAllowed } from "../services/allowedModels.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
@@ -472,6 +472,21 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
   if (modelStr !== resolvedModelStr && !candidates.includes(modelStr)) {
     candidates.push(modelStr);
+  }
+  // A client that called an ALIAS never sent the target id, and the catalog is
+  // keyed by the target ("za/glm-5.3-flash") while the resolved provider id is
+  // the long form ("zai"). Probe the alias target too, otherwise a valid alias
+  // is refused as "not available" even though the model it names is listed.
+  let aliasTarget = null;
+  try {
+    aliasTarget = (await getModelAliases())?.[modelStr] || null;
+  } catch {
+    // Degrade, never reject: a missing or broken alias store must not turn a
+    // valid model into a 404. Fall through with the resolved-id candidates.
+    aliasTarget = null;
+  }
+  if (aliasTarget && !candidates.includes(aliasTarget)) {
+    candidates.push(aliasTarget);
   }
   let allowedModelStr = null;
   for (const c of candidates) {
