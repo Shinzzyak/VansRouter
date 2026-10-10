@@ -22,14 +22,17 @@ export const AUTO_FAMILY_COMBO_KIND = "auto-family";
 export const MIN_FAMILY_MEMBERS = 2;
 
 /**
- * The free-tier naming convention: ":free" / "/free" / "-free" also lands on
- * embedding, image, tts and stt models, so the kind gate matters — a combo that
- * cannot serve a chat turn must never enter a fallback chain.
+ * The free-tier naming convention: ":free" / "/free" / "-free" at the end of
+ * the id (9router-go IsFreeTierModel, same three suffixes). Tested against the
+ * whole id, so `kilo-auto/free` counts too. The kind gate lives in
+ * usableLlmModelIds: the marker also lands on embedding, image, tts and stt
+ * models, and a combo that cannot serve a chat turn must never enter a
+ * fallback chain.
  */
 export function isFreeTierModelId(modelId) {
   if (typeof modelId !== "string" || !modelId) return false;
-  const tail = modelId.slice(modelId.lastIndexOf("/") + 1).toLowerCase();
-  return tail.endsWith(":free") || tail.endsWith("-free") || tail.endsWith("/free");
+  const id = modelId.toLowerCase();
+  return id.endsWith(":free") || id.endsWith("/free") || id.endsWith("-free");
 }
 
 /**

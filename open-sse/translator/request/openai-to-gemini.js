@@ -58,13 +58,22 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
     result.generationConfig.maxOutputTokens = body.max_tokens;
   }
 
-  // Build tool_call_id -> name map
+  // Build tool_call_id -> function names, queued per id, plus a flat map used
+  // only as a fallback. A tool_call_id is unique only within its own assistant
+  // turn, so a long agent session can replay one id for two different tools; a
+  // plain id->name map keeps the LAST name and an earlier turn's result would be
+  // renamed to the later tool. Each tool result consumes the oldest unconsumed
+  // name for its id, so a functionResponse always answers the functionCall it
+  // belongs to (parity with 9router-go gemini.go, upstream #229).
+  const tcID2Names = {};
   const tcID2Name = {};
+  const tcNameCursor = {};
   if (body.messages && Array.isArray(body.messages)) {
     for (const msg of body.messages) {
       if (msg.role === ROLE.ASSISTANT && msg.tool_calls) {
         for (const tc of msg.tool_calls) {
           if (tc.type === OPENAI_BLOCK.FUNCTION && tc.id && tc.function?.name) {
+            (tcID2Names[tc.id] ||= []).push(tc.function.name);
             tcID2Name[tc.id] = tc.function.name;
           }
         }
@@ -72,15 +81,27 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
     }
   }
 
-  // Build tool responses cache
-  const toolResponses = {};
-  if (body.messages && Array.isArray(body.messages)) {
-    for (const msg of body.messages) {
-      if (msg.role === ROLE.TOOL && msg.tool_call_id) {
-        toolResponses[msg.tool_call_id] = msg.content;
-      }
+  // Oldest unconsumed name for this id, else the flat fallback. Empty string
+  // means the id never appeared in an assistant turn, so the caller derives one.
+  const nextToolName = (id) => {
+    const queue = tcID2Names[id];
+    const cursor = tcNameCursor[id] || 0;
+    if (queue && cursor < queue.length) {
+      tcNameCursor[id] = cursor + 1;
+      return queue[cursor];
     }
-  }
+    return tcID2Name[id] || "";
+  };
+
+  // Last resort when an id was never seen on a call: `call_<name>_<sig>` is the
+  // convention every producer here writes (toolCall.js, sseToJsonHandler.js), so
+  // the name is the head of the id. Parity with 9router-go gemini.go — #229.
+  const nameFromToolCallID = (id) => {
+    if (!id.startsWith("call_")) return id;
+    const rest = id.slice("call_".length);
+    const lastUnderscore = rest.lastIndexOf("_");
+    return lastUnderscore > 0 ? rest.slice(0, lastUnderscore) : rest;
+  };
 
   // Convert messages
   if (body.messages && Array.isArray(body.messages)) {
@@ -122,7 +143,6 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
         }
 
         if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-          const toolCallIds = [];
           for (const tc of msg.tool_calls) {
             if (tc.type !== OPENAI_BLOCK.FUNCTION) continue;
 
@@ -135,55 +155,40 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
                 args: args
               }
             });
-            toolCallIds.push(tc.id);
           }
+        }
 
-          if (parts.length > 0) {
-            result.contents.push({ role: GEMINI_ROLE.MODEL, parts });
-          }
-
-          // Check if there are actual tool responses in the next messages
-          const isIntermediate = i < body.messages.length - 1;
-          const hasActualResponses = toolCallIds.some(fid => toolResponses[fid] !== undefined);
-
-          if (hasActualResponses || isIntermediate) {
-            const toolParts = [];
-            for (const fid of toolCallIds) {
-              let resp = toolResponses[fid];
-              if (resp === undefined) resp = "";
-
-              let name = tcID2Name[fid];
-              if (!name) {
-                const idParts = fid.split("-");
-                if (idParts.length > 2) {
-                  name = idParts.slice(0, -2).join("-");
-                } else {
-                  name = fid;
-                }
-              }
-
-              let parsedResp = tryParseJSON(resp);
-              if (parsedResp === null) {
-                parsedResp = { result: resp };
-              } else if (typeof parsedResp !== "object") {
-                parsedResp = { result: parsedResp };
-              }
-
-              toolParts.push({
-                functionResponse: {
-                  id: fid,
-                  name: sanitizeGeminiFunctionName(name),
-                  response: { result: parsedResp }
-                }
-              });
-            }
-            if (toolParts.length > 0) {
-              result.contents.push({ role: GEMINI_ROLE.USER, parts: toolParts });
-            }
-          }
-        } else if (parts.length > 0) {
+        if (parts.length > 0) {
           result.contents.push({ role: GEMINI_ROLE.MODEL, parts });
         }
+      } else if (role === ROLE.TOOL && msg.tool_call_id) {
+        // A tool result answers its call where the result sits in the body, not
+        // back at the assistant turn that asked for it. That keeps a replayed
+        // tool_call_id from renaming an earlier turn's result, and delivers a
+        // result whose call was trimmed out of the history instead of dropping
+        // it. Parity with 9router-go gemini.go — upstream #229.
+        const name = nextToolName(msg.tool_call_id) || nameFromToolCallID(msg.tool_call_id);
+
+        // Tool result content may be plain text or JSON; Gemini requires JSON.
+        let parsedResp = tryParseJSON(msg.content);
+        if (parsedResp === null) {
+          parsedResp = { result: msg.content };
+        } else if (typeof parsedResp !== "object") {
+          parsedResp = { result: parsedResp };
+        }
+
+        result.contents.push({
+          role: GEMINI_ROLE.USER,
+          parts: [
+            {
+              functionResponse: {
+                id: msg.tool_call_id,
+                name: sanitizeGeminiFunctionName(name),
+                response: { result: parsedResp }
+              }
+            }
+          ]
+        });
       }
     }
   }

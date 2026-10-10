@@ -30,6 +30,17 @@ function getStatusVariant(status) {
   return "default";
 }
 
+// Latency badge thresholds, mirrored from 9router-go (proxypools/helpers.ts
+// getLatencyBadge): fast / tolerable / slow. A failed probe stores 0 and an
+// untested pool has none, so both stay unbadged — "0ms" would read as instant.
+function getLatencyBadge(pool) {
+  if (pool.testStatus !== "active" || !pool.latency || pool.latency <= 0) return null;
+  const ms = Math.round(pool.latency);
+  if (ms < 300) return { variant: "success", text: `${ms}ms` };
+  if (ms <= 800) return { variant: "warning", text: `${ms}ms` };
+  return { variant: "error", text: `${ms}ms` };
+}
+
 function formatDateTime(value) {
   if (!value) return "Never";
   const date = new Date(value);
@@ -108,6 +119,7 @@ function PoolRow({ pool, selected, testing, onSelect, onToggle, onTest, onEdit, 
           <div className="flex items-center gap-2 flex-wrap">
             <p className="min-w-0 max-w-full truncate text-sm font-medium sm:max-w-[18rem]">{pool.name}</p>
             <Badge variant={getStatusVariant(pool.testStatus)} size="sm" dot>{pool.testStatus || "unknown"}</Badge>
+            {(() => { const lb = getLatencyBadge(pool); return lb ? <Badge variant={lb.variant} size="sm">{lb.text}</Badge> : null; })()}
             <Badge variant={pool.isActive ? "success" : "default"} size="sm">{pool.isActive ? "active" : "inactive"}</Badge>
             {pool.type === "vercel" && <Badge variant="default" size="sm">vercel relay</Badge>}
             {pool.type === "cloudflare" && <Badge variant="default" size="sm">cloudflare relay</Badge>}
@@ -149,6 +161,7 @@ export default function ProxyPoolsPage() {
   const [importing, setImporting] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [testingId, setTestingId] = useState(null);
+  const [testingAll, setTestingAll] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
@@ -291,6 +304,30 @@ export default function ProxyPoolsPage() {
       notify.error("Failed to test proxy");
     } finally {
       setTestingId(null);
+    }
+  };
+
+  // Sequential on purpose: the probes go out through the same gateway, and a
+  // parallel burst makes every pool look slow. One at a time keeps the stored
+  // latency comparable (9router-go tests a pool per request the same way).
+  const handleTestAll = async () => {
+    setTestingAll(true);
+    try {
+      for (const pool of proxyPools) {
+        const res = await fetch(`/api/proxy-pools/${pool.id}/test`, { method: "POST" });
+        if (!res.ok) continue;
+        const data = await res.json();
+        setProxyPools((prev) => prev.map((p) => (p.id === pool.id
+          ? { ...p, testStatus: data.ok ? "active" : "error", lastTestedAt: data.testedAt, latency: data.ok ? data.elapsedMs : 0 }
+          : p)));
+      }
+      await fetchProxyPools();
+      notify.success("Tested all proxy pools");
+    } catch (error) {
+      console.log("Error testing all proxy pools:", error);
+      notify.error("Failed to test all proxies");
+    } finally {
+      setTestingAll(false);
     }
   };
 
@@ -721,6 +758,9 @@ export default function ProxyPoolsPage() {
             )}
           </div>
 
+          <Button size="sm" variant="secondary" icon="science" onClick={handleTestAll} disabled={testingAll || !proxyPools.length}>
+            {testingAll ? "Testing…" : "Test All"}
+          </Button>
           <Button size="sm" variant="secondary" icon="upload" onClick={openBatchImportModal}>
             Batch Import
           </Button>

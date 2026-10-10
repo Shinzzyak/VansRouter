@@ -22,6 +22,18 @@ describe("free-tier detection", () => {
     expect(isFreeTierModelId("tia/glm-5.3-flash:free")).toBe(true);
   });
 
+  // The six cases of the Go oracle, providers.IsFreeTierModel
+  // (internal/handlers/dashboard/combos_test.go). Kept identical so the two
+  // implementations cannot drift on the `kilo-auto/free` shape.
+  it("mirrors the Go oracle's suffix table", () => {
+    expect(isFreeTierModelId("deepseek-v4.1-flash:free")).toBe(true);
+    expect(isFreeTierModelId("kilo-auto/free")).toBe(true);
+    expect(isFreeTierModelId("mimo-v2.5-free")).toBe(true);
+    expect(isFreeTierModelId("free-tier-proxy")).toBe(false);
+    expect(isFreeTierModelId("free")).toBe(false);
+    expect(isFreeTierModelId("")).toBe(false);
+  });
+
   it("does not match a paid model, and never throws on junk", () => {
     expect(isFreeTierModelId("za/glm-5.3-flash")).toBe(false);
     expect(isFreeTierModelId("")).toBe(false);
@@ -102,16 +114,59 @@ describe("parity routes are wired to real state, not stubs", () => {
     expect(src).toMatch(/buildModelsList/);
   });
 
+  it("caps expose the free flag from the shared free-tier rule", () => {
+    const src = readFileSync(resolve(root, "src/app/api/models/caps/route.js"), "utf8");
+    expect(src).toMatch(/isFreeTierModelId/);
+    expect(src).toMatch(/free: isFreeTierModelId\(id\)/);
+  });
+
   it("auto combos build from the published catalog", () => {
     const src = readFileSync(resolve(root, "src/lib/autoCombos.js"), "utf8");
     expect(src).toMatch(/buildModelsList\(\[LLM_KIND\]/);
     expect(src).toMatch(/invalidateAllowedModelsCache\(\)/);
   });
 
-  it("version aliases re-export instead of duplicating logic", () => {
+  it("version aliases re-export the handler and nothing else", () => {
     for (const p of ["status", "check"]) {
       const src = readFileSync(resolve(root, `src/app/api/version/${p}/route.js`), "utf8");
-      expect(src).toMatch(/export \{ GET, dynamic \} from "\.\.\/route\.js"/);
+      expect(src).toMatch(/export \{ GET \} from "\.\.\/route\.js"/);
     }
+  });
+
+  it("a proxy-pool probe stores its latency, so the list can rank by speed", () => {
+    const src = readFileSync(resolve(root, "src/app/api/proxy-pools/[id]/test/route.js"), "utf8");
+    expect(src).toMatch(/latency/);
+    // 0 on failure: "no measurement", not "instant".
+    expect(src).toMatch(/result\.ok \? \(result\.elapsedMs \|\| 0\) : 0/);
+  });
+
+  it("the proxy-pools page can test every pool and show the latency badge", () => {
+    const src = readFileSync(resolve(root, "src/app/(dashboard)/dashboard/proxy-pools/page.js"), "utf8");
+    expect(src).toMatch(/handleTestAll/);
+    expect(src).toMatch(/getLatencyBadge/);
+    // Go thresholds: <300 fast, <=800 tolerable, above slow.
+    expect(src).toMatch(/ms < 300/);
+    expect(src).toMatch(/ms <= 800/);
+  });
+
+  it("cache admin can drop one entry by signature, not only a whole model", () => {
+    const src = readFileSync(resolve(root, "src/app/api/cache/route.js"), "utf8");
+    expect(src).toMatch(/searchParams\.get\("signature"\)/);
+    expect(src).toMatch(/defaultCache\.deleteEntry\(signature\)/);
+  });
+
+  it("console logs expose the level the line was emitted at", () => {
+    const src = readFileSync(resolve(root, "src/app/api/translator/console-logs/route.js"), "utf8");
+    expect(src).toMatch(/getConsoleLogEntries\(\)/);
+    // The bare-string list stays: the deployed console page reads it.
+    expect(src).toMatch(/^\s+logs,$/m);
+  });
+
+  it("the usage page carries the cache and compression sections", () => {
+    const src = readFileSync(resolve(root, "src/app/(dashboard)/dashboard/usage/page.js"), "utf8");
+    expect(src).toMatch(/CacheSection/);
+    expect(src).toMatch(/CompressionSection/);
+    // The logs tab predates them and must survive the edit.
+    expect(src).toMatch(/"overview", "logs", "details", "cache", "compression"/);
   });
 });

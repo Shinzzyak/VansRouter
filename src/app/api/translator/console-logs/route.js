@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clearConsoleLogs, getConsoleLogs, initConsoleLogCapture } from "@/lib/consoleLogBuffer";
+import { clearConsoleLogs, getConsoleLogs, getConsoleLogEntries, initConsoleLogCapture } from "@/lib/consoleLogBuffer";
 import { getPm2Logs, getDockerLogs } from "@/lib/systemLogFetcher";
 
 initConsoleLogCapture();
@@ -13,6 +13,10 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       logs,
+      // Structured view — [{time, level, line}] — so a consumer gets the level
+      // the line was emitted at instead of re-parsing rendered text
+      // (9router-go parity: HandleConsoleLogsGet returns log.ConsoleEntries()).
+      entries: getConsoleLogEntries(),
       pm2Logs: pm2Data.combined || [],
       pm2Info: {
         available: pm2Data.available,

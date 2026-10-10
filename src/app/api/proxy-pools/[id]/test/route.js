@@ -50,11 +50,17 @@ export async function POST(request, { params }) {
       : await testProxyUrl({ proxyUrl: proxyPool.proxyUrl });
     const now = new Date().toISOString();
 
+    const latency = result.ok ? (result.elapsedMs || 0) : 0;
+
     await updateProxyPool(id, {
       testStatus: result.ok ? "active" : "error",
       lastTestedAt: now,
       lastError: result.ok ? null : (result.error || `Proxy test failed with status ${result.status}`),
       isActive: result.ok,
+      // Stored so the list can rank pools by speed without re-probing them
+      // (9router-go parity: ProxyPool.latency, written by writeProbeResult).
+      // A failed probe stores 0, which reads as "no measurement".
+      latency,
     });
 
     return NextResponse.json({

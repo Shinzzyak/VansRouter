@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildModelsList } from "@/sse/services/allowedModels.js";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { isFreeTierModelId } from "@/lib/autoCombos.js";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,9 @@ export async function GET(request) {
         id,
         owned_by: m.owned_by || provider,
         kind: m.kind || "llm",
+        // The same free-tier convention the auto-free combo uses (":free" /
+        // "-free" / "/free" on the tail of the id) — one rule, one place.
+        free: isFreeTierModelId(id),
         capabilities: getCapabilitiesForModel(provider, model),
       };
     });
