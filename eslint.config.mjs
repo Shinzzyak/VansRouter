@@ -73,6 +73,9 @@ const eslintConfig = defineConfig([
     // Agent worktrees are independent copies, not project source.
     ".kilo/**",
     ".kilocode/**",
+    // Python farm venvs ship vendored JS (patchright/playwright trace viewers,
+    // several MB each) — not project source, and crawling them OOMs eslint.
+    "scripts/python/*venv*/**",
   ]),
 ]);
 

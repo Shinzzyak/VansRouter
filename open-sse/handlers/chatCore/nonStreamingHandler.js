@@ -12,6 +12,7 @@ import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, sav
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
+import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { enforceChatBrand } from "./brandRepair.js";
 import { emptyReasonFor, emptyReasonHeaders } from "./emptyReason.js";
@@ -518,7 +519,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   return {
     success: true,
-    response: new Response(JSON.stringify(finalResponse), {
+    response: new Response(JSON.stringify(restoreToolNames(finalResponse, toolNameMap)), {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",

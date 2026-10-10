@@ -31,22 +31,27 @@ describe("OpenCodeExecutor — free-tier gate", () => {
     expect(out.stream).toBe(true);
   });
 
-  it("injects the two gate tools when the client sends none", () => {
+  it("injects the fingerprint quartet when the client sends none", () => {
     const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [] });
-    expect(names(out.tools)).toContain("bash");
-    expect(names(out.tools)).toContain("read");
+    expect(names(out.tools)).toEqual(["bash", "glob", "grep", "read"]);
+    // No caller tools: the decoys must not be selectable.
+    expect(out.tool_choice).toBe("none");
   });
 
   it("keeps the caller's own tools and appends the stubs, preserving indexes", () => {
     const own = [{ type: "function", function: { name: "str_replace_editor" } }];
     const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [], tools: own });
     expect(out.tools[0]).toBe(own[0]);
-    expect(names(out.tools)).toEqual(["str_replace_editor", "bash", "read"]);
+    expect(names(out.tools)).toEqual(["str_replace_editor", "bash", "glob", "grep", "read"]);
+    // Caller brought tools, so tool_choice is left to the client.
+    expect(out.tool_choice).toBeUndefined();
   });
 
   it("does not duplicate tools the caller already provides", () => {
     const own = [
       { type: "function", function: { name: "bash", description: "real bash" } },
+      { type: "function", function: { name: "glob", description: "real glob" } },
+      { type: "function", function: { name: "grep", description: "real grep" } },
       { type: "function", function: { name: "read", description: "real read" } },
     ];
     const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [], tools: own });
@@ -60,7 +65,8 @@ describe("OpenCodeExecutor — free-tier gate", () => {
       expect(typeof t.name).toBe("string");
       expect(t.function).toBeUndefined();
     }
-    expect(out.tools.map((t) => t.name)).toEqual(["bash", "read"]);
+    expect(out.tools.map((t) => t.name)).toEqual(["bash", "glob", "grep", "read"]);
+    expect(out.tool_choice).toBe("auto");
   });
 
   it("sends a User-Agent the free tier accepts (opencode >= 1.18.0)", () => {

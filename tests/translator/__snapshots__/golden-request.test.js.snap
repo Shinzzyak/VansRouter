@@ -122,6 +122,7 @@ exports[`GOLDEN request: OpenAI → Claude > reasoning_effort → adaptive outpu
     },
   ],
   "thinking": {
+    "display": "summarized",
     "type": "adaptive",
   },
 }

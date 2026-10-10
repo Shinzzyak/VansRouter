@@ -24,6 +24,7 @@ import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/strea
 import { buildCoercedSSEResponse } from "./chatCore/coercedSseHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
+import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { detectLoop } from "../utils/loopGuard.js";
 import { applyPromptInjectors } from "../rtk/promptInjectors.js";
 import { markPoolUnfit } from "../services/proxyPoolFitness.js";
@@ -615,6 +616,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     providerHeaders = result.headers;
     finalBody = result.transformedBody;
     providerResponseFormat = result.responseFormat || targetFormat;
+    // An executor may have renamed tools for the wire (OpenCode's free-tier
+    // fingerprint); fold those renames into the map the response side uses.
+    const renamedToolNames = takeRenamedToolNames(translatedBody);
+    if (renamedToolNames?.size) {
+      toolNameMap = new Map([...(toolNameMap || []), ...renamedToolNames]);
+    }
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);

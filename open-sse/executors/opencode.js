@@ -4,6 +4,7 @@ import { getThinkingLevels } from "../providers/thinkingLevels.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { createHash } from "crypto";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { applyFingerprintToolNames } from "../utils/opencodeFingerprint.js";
 
 // OpenCode free tier is limited per egress IP — a 429/403 with a limit-ish
 // body means the POOL's IP is exhausted, not the account. Declare it
@@ -25,9 +26,9 @@ const IP_LIMIT_BODY = /limit|rate|quota|exhausted|capacity|too many|retry/i;
 // tool_choice are all irrelevant. A UA below 1.18.0 returns 426
 // "OpenCode 1.18.0 or newer is required to use the free tier".
 const OPENCODE_MIN_FREE_VERSION = "1.18.0";
-// Names the gate looks for. The definitions are deliberately minimal — only the
-// names are checked, so the model sees two tool stubs it has no schema for.
-const OPENCODE_GATE_TOOL_NAMES = ["bash", "read"];
+// Decoy definition used for the injected fingerprint stubs; only the names are
+// checked by the gate, so the model sees tools it has no schema for.
+const DECOY_DESCRIPTION = "This tool is currently unavailable and must not be used.";
 // The upstream model serves the free tier only when the request is streaming.
 // chatCore turns the SSE back into JSON for non-streaming clients.
 const OPENCODE_GATE_UA = `opencode/${OPENCODE_MIN_FREE_VERSION}`;
@@ -81,35 +82,34 @@ function normalizeGateSession(candidate) {
   return typeof candidate === "string" && GATE_SESSION_RE.test(candidate) ? candidate : null;
 }
 
-// True when the body already satisfies the gate's tool-name requirement, so a
-// caller that brings its own tools is left alone.
-function hasGateTools(body) {
-  const tools = Array.isArray(body?.tools) ? body.tools : [];
-  if (tools.length === 0) return false;
-  const names = new Set(
-    tools
-      .map((t) => t?.function?.name ?? t?.name)
-      .filter((n) => typeof n === "string")
-  );
-  return OPENCODE_GATE_TOOL_NAMES.every((n) => names.has(n));
+// Decoy shape follows the lane: Responses takes flat entries, Chat Completions
+// nests them under `function`, the Messages API uses Anthropic's input_schema form.
+function decoyTool(name, shape) {
+  if (shape === "claude") {
+    return { name, description: DECOY_DESCRIPTION, input_schema: { type: "object", properties: {} } };
+  }
+  if (shape === "chat") {
+    return {
+      type: "function",
+      function: { name, description: DECOY_DESCRIPTION, parameters: { type: "object", properties: {} } },
+    };
+  }
+  return { type: "function", name, description: DECOY_DESCRIPTION, parameters: { type: "object", properties: {} } };
 }
 
-// Add the two stubs the gate requires. Appended, so the caller's own tools keep
+// Add the stubs the gate requires. Appended, so the caller's own tools keep
 // their indexes — a client streaming tool_calls still sees the ids it sent.
-// `responsesFormat` picks the flat Responses-API shape, which is the only one
-// /zen/v1/responses accepts (the nested Chat shape returns 400 on tools[0]).
-function withGateTools(body, responsesFormat = false) {
-  if (hasGateTools(body)) return body;
-  const stub = responsesFormat
-    ? (name) => ({ type: "function", name, parameters: { type: "object", properties: {} } })
-    : (name) => ({ type: "function", function: { name } });
-  return {
-    ...body,
-    tools: [
-      ...(Array.isArray(body?.tools) ? body.tools : []),
-      ...OPENCODE_GATE_TOOL_NAMES.map(stub),
-    ],
-  };
+// The rename map is recorded on the body so the response side can hand the
+// client its own spellings back (see utils/opencodeFingerprint.js).
+function cloakFingerprintTools(body, shape) {
+  if (!body || typeof body !== "object") return;
+  const hadTools = Array.isArray(body.tools) && body.tools.length > 0;
+  applyFingerprintToolNames(body, (name) => decoyTool(name, shape));
+  // Responses uses auto once the quartet is supplied; chat requests with no
+  // caller tools use none so the injected decoys cannot be selected. Anthropic
+  // tool_choice shapes are left to the client.
+  if (shape === "responses" && !body.tool_choice) body.tool_choice = "auto";
+  else if (shape === "chat" && !hadTools && !body.tool_choice) body.tool_choice = "none";
 }
 
 // Strip the thinking suffix "model(level)" so registry lookups hit the base id.
@@ -119,6 +119,11 @@ function baseModelId(model) {
 
 function isResponsesModel(model) {
   return RESPONSES_MODELS.has(baseModelId(model));
+}
+
+// Anthropic Messages lane (/zen/v1/messages) — decoys use the input_schema shape.
+function isMessagesModel(model) {
+  return MESSAGES_MODELS.has(baseModelId(model));
 }
 
 function resolveOpencodeSession(body, credentials) {
@@ -203,12 +208,16 @@ export class OpenCodeExecutor extends BaseExecutor {
       normalizeOpencodeReasoning(model, body);
     }
     // Free-tier gate: the upstream only serves a request that is streaming and
-    // that carries tools named `bash` + `read`. Both are body-level, so they
+    // that carries the fingerprint tool names. Both are body-level, so they
     // belong here rather than in buildHeaders. Clients that bring their own
-    // tools keep them — the stubs are appended. injectReasoningContent returns a
-    // new body, so the gate fields are applied on the object it receives.
-    const gated = withGateTools({ ...body, stream: true }, isResponsesModel(model));
-    return injectReasoningContent({ provider: this.provider, model, body: gated });
+    // tools keep them — the decoys are appended and the rename map is recorded
+    // on the SAME object chatCore holds, so the response side restores the
+    // caller's spellings.
+    // injectReasoningContent returns a new body, so the gate fields are applied
+    // on the object it receives.
+    body.stream = true;
+    cloakFingerprintTools(body, isResponsesModel(model) ? "responses" : isMessagesModel(model) ? "claude" : "chat");
+    return injectReasoningContent({ provider: this.provider, model, body });
   }
 
   buildUrl(model) {

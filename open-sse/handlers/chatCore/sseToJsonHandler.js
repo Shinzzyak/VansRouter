@@ -7,6 +7,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requ
 import { extractToolNames, fuzzyMatchToolName } from "../../translator/concerns/toolCall.js";
 import { openaiToClaudeNonStreaming } from "./nonStreamingHandler.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
+import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { enforceChatBrand, visibleTextOf } from "./brandRepair.js";
 import { emptyReasonHeadersFor } from "./emptyReason.js";
 
@@ -217,7 +218,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
 
       // Client is Responses API → return as-is
       if (sourceFormat === FORMATS.OPENAI_RESPONSES) {
-        return { success: true, response: new Response(JSON.stringify(jsonResponse), { headers: {
+        return { success: true, response: new Response(JSON.stringify(restoreToolNames(jsonResponse, toolNameMap)), { headers: {
           "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
           // K42: say WHY on the wire when there is no visible text — the client cannot read the ledger.
           ...emptyReasonHeadersFor({
@@ -300,7 +301,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
       });
 
-      return { success: true, response: new Response(JSON.stringify(finalResp), { headers: {
+      return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: {
         "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
         // K42: same reason the ledger records, on the wire. Read AFTER enforceChatBrand —
         // the repair can add text, and this must describe what the client receives.
@@ -378,7 +379,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
     });
 
-    return { success: true, response: new Response(JSON.stringify(finalResp), { headers: {
+    return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: {
       "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
       // K42: the forceStream providers all exit here, so this is the surface where an
       // empty 200 would otherwise arrive with no explanation at all.

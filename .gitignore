@@ -167,3 +167,7 @@ docs/opencode-bypass-handover.md
 # the work already done. They are built into public/ so the delivery bot can serve
 # them, which puts them one `git add -A` away from being published.
 /public/*.zip
+
+# Farm account lists stay local: this repo is public and the file holds live
+# signup emails for the zcode/GSuite pool.
+**/parked-accounts.txt

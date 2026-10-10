@@ -17,7 +17,6 @@
 // the stream-integrity classifier sees — those are asserted below as invariants.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSSEStream } from "../../open-sse/utils/stream.js";
-import { buildOnStreamComplete } from "../../open-sse/handlers/chatCore/streamingHandler.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 
 const saved = [];
