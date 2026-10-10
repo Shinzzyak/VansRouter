@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 // Drains the in-process token-saver events into the kv aggregates first, so the
 // response always reflects everything the proxy has seen since the last read.
 export async function GET(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     await recordCompressionEvents(drainCompressionEvents());

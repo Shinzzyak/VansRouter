@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 // without it every cooldown and unavailable flag for the provider is cleared,
 // which is what an operator reaches for after fixing an upstream outage.
 export async function POST(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     const { searchParams } = new URL(request.url);

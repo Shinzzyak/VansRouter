@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 // Keyed by "<provider>/<model>" — the same wire shape as a combo entry — so the
 // dashboard can badge a whole model list in one pass.
 export async function GET(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     const { searchParams } = new URL(request.url);

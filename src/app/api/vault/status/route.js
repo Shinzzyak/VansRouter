@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 // written before the vault was switched on — they stay readable, and the next
 // write through the repo seals them.
 export async function GET(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     return NextResponse.json(await vaultCounts());

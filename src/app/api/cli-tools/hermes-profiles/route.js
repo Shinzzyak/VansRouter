@@ -13,8 +13,9 @@ export const dynamic = "force-dynamic";
 // at ~/.hermes/config.yaml; every other profile is a directory under
 // ~/.hermes/profiles.
 export async function GET(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     const hermesHome = process.env.HERMES_HOME || path.join(homedir(), ".hermes");

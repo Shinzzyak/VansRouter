@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 // the NEW key; the running process holds the old one. Rows that cannot be
 // unwrapped are reported in `skipped` and left untouched.
 export async function POST(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!vaultEnabled()) {
     return NextResponse.json(

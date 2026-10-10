@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
 // Body fields override what is already stored, so the profile page can test an
 // edit that has not been persisted yet.
 export async function POST(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     const body = await request.json().catch(() => ({}));

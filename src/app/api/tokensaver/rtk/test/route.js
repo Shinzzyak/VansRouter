@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveFilter } from "open-sse/rtk/registry.js";
 import { safeApply } from "open-sse/rtk/applyFilter.js";
-import { autodetectFilter } from "open-sse/rtk/autodetect.js";
+import { autoDetectFilter } from "open-sse/rtk/autodetect.js";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ export async function POST(request) {
       fn = resolveFilter(chosen);
       if (!fn) return NextResponse.json({ error: `unknown filter: ${chosen}` }, { status: 400 });
     } else {
-      fn = autodetectFilter(text);
+      fn = autoDetectFilter(text);
       if (!fn) return NextResponse.json({ error: "no filter matched this input" }, { status: 409 });
       chosen = fn.filterName || fn.name;
     }

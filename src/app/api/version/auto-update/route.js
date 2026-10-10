@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
 // simply has nothing to act on. Reporting the effective channel keeps that
 // honest instead of implying an update will happen.
 export async function POST(request) {
-  const auth = await requireDashboardAuth(request);
-  if (auth) return auth;
+  if (!(await requireDashboardAuth(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let body = {};
   try {

@@ -91,7 +91,12 @@ async function proxy(request, { params }) {
 
     return new NextResponse(response.body, { status: response.status, headers });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // A proxy that cannot reach its upstream is a gateway problem, not a bug in
+    // this handler: 502 says "the target is down", 500 would say "we broke".
+    return NextResponse.json(
+      { error: "Headroom upstream unreachable", detail: error.message },
+      { status: 502 }
+    );
   }
 }
 
