@@ -59,6 +59,23 @@ describe("/api/headroom/proxy", () => {
     await expect(res.json()).resolves.toEqual({ total_saved: 42 });
   });
 
+  it("proxies the target root when the bare route passes no params", async () => {
+    // The bare /api/headroom/proxy re-exports this handler but has no dynamic
+    // segment, so Next calls it with params undefined. That used to throw and
+    // surface as "Headroom upstream unreachable", which blamed the upstream for
+    // a missing path param.
+    let seen = null;
+    vi.stubGlobal("fetch", vi.fn(async (url) => {
+      seen = String(url);
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }));
+
+    const res = await GET(new Request("http://x/api/headroom/proxy"), { params: undefined });
+
+    expect(res.status).toBe(200);
+    expect(seen).toBe("http://127.0.0.1:8788/");
+  });
+
   it("forwards an upstream error status instead of masking it as 502", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 503 })));
 

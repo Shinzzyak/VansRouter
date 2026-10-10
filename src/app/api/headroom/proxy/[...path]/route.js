@@ -60,7 +60,12 @@ async function proxy(request, { params }) {
   try {
     const base = await getTargetBase();
     const { search } = new URL(request.url);
-    const path = (await params).path || [];
+    // The bare /api/headroom/proxy re-exports these handlers but has no dynamic
+    // segment, so Next passes `params` as undefined. Reaching into it threw
+    // "Cannot read properties of undefined (reading 'path')" and the catch
+    // reported it as an unreachable upstream. An absent path means the target
+    // root.
+    const path = (await params)?.path || [];
     const target = buildTargetUrl(base, path, search);
     const method = request.method;
     const hasBody = !["GET", "HEAD"].includes(method);
