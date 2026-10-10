@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { sealConnectionData, unsealConnectionData } from "@/lib/vault/index.js";
 
 const OPTIONAL_FIELDS = [
   "displayName", "email", "globalPriority", "defaultModel",
@@ -10,9 +11,12 @@ const OPTIONAL_FIELDS = [
   "consecutiveUseCount", "idToken", "lastRefreshAt",
 ];
 
-function rowToConn(row) {
+export function rowToConn(row) {
   if (!row) return null;
-  const extra = parseJson(row.data, {});
+  // Sealed fields come back plaintext for every caller; a field this process
+  // cannot unwrap is dropped (and named in `unreadable`) so it can never be
+  // forwarded upstream as if it were a real credential.
+  const { data: extra } = unsealConnectionData(parseJson(row.data, {}));
   return {
     ...extra,
     id: row.id,
@@ -37,7 +41,7 @@ function connToRow(c) {
     email: email ?? null,
     priority: priority ?? null,
     isActive: isActive === false ? 0 : 1,
-    data: stringifyJson(rest),
+    data: stringifyJson(sealConnectionData(rest)),
     createdAt,
     updatedAt,
   };

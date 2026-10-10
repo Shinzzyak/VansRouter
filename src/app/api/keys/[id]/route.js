@@ -52,6 +52,17 @@ export async function PUT(request, { params }) {
     if ("tokens5h" in limits) updateData.tokens5h = limits.tokens5h;
     if ("tokensWeekly" in limits) updateData.tokensWeekly = limits.tokensWeekly;
     if ("tokensMonthly" in limits) updateData.tokensMonthly = limits.tokensMonthly;
+    // Resale governance (9router-go parity). Accepted either nested in `limits`
+    // or top-level, matching how expiresAt is already handled.
+    if ("rateLimitTpm" in limits || "rateLimitTpm" in body) {
+      updateData.rateLimitTpm = limits.rateLimitTpm ?? body.rateLimitTpm ?? null;
+    }
+    if ("rateLimitConcurrency" in limits || "rateLimitConcurrency" in body) {
+      updateData.rateLimitConcurrency = limits.rateLimitConcurrency ?? body.rateLimitConcurrency ?? null;
+    }
+    if ("metadata" in limits || "metadata" in body) {
+      updateData.metadata = limits.metadata ?? body.metadata ?? null;
+    }
     // Per-key persona opt-out (2026-09-30): false/0 = clean pipe for this key
     // (no owner identity on request side, no brand repair on reply side).
     if ("personaInject" in body) updateData.personaInject = body.personaInject;

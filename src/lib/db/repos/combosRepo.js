@@ -37,7 +37,7 @@ export async function createCombo(data) {
   const db = await getAdapter();
   const now = new Date().toISOString();
   const combo = {
-    id: randomUUID(),
+    id: data.id || randomUUID(),
     name: data.name,
     kind: data.kind || null,
     models: data.models || [],

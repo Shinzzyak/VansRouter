@@ -10,6 +10,8 @@ export async function GET() {
     const keys = await getApiKeys();
     const keysWithUsage = keys.map((k) => ({
       ...k,
+      // Masked identifier so a UI can render a row without the secret in hand.
+      keyDisplay: k.keyDisplay,
       usage: getApiKeyUsageSnapshot(k),
     }));
     return NextResponse.json({ keys: keysWithUsage });
@@ -38,6 +40,7 @@ export async function POST(request) {
       name: apiKey.name,
       id: apiKey.id,
       machineId: apiKey.machineId,
+      keyDisplay: apiKey.keyDisplay,
       limits: {
         expiresAt: apiKey.expiresAt,
         maxTokens: apiKey.maxTokens,
@@ -48,7 +51,10 @@ export async function POST(request) {
         tokens5h: apiKey.tokens5h,
         tokensWeekly: apiKey.tokensWeekly,
         tokensMonthly: apiKey.tokensMonthly,
+        rateLimitTpm: apiKey.rateLimitTpm,
+        rateLimitConcurrency: apiKey.rateLimitConcurrency,
       },
+      metadata: apiKey.metadata,
     }, { status: 201 });
   } catch (error) {
     console.log("Error creating key:", error);

@@ -285,6 +285,41 @@ export async function POST(request, { params }) {
       });
     }
 
+    // POST /api/oauth/[provider]/import — paste-in credentials (access token
+    // or API key) for a provider whose CLI login cannot be driven from the
+    // dashboard. Saved as an `apikey` connection, the same shape the CLI
+    // installers write, so every downstream reader works unchanged.
+    if (action === "import") {
+      const credential = String(body.accessToken || body.apiKey || "").trim();
+      if (!credential) {
+        return NextResponse.json({ error: "missing accessToken or apiKey" }, { status: 400 });
+      }
+
+      const providerSpecificData = {};
+      if (body.machineId) providerSpecificData.machineId = String(body.machineId);
+      if (body.email) providerSpecificData.importEmail = String(body.email);
+
+      const connection = await createProviderConnection({
+        provider,
+        authType: "apikey",
+        name: String(body.name || "").trim() || `${provider} import`,
+        apiKey: credential,
+        ...(body.refreshToken ? { refreshToken: String(body.refreshToken) } : {}),
+        ...(Object.keys(providerSpecificData).length ? { providerSpecificData } : {}),
+        testStatus: "active",
+      });
+
+      return NextResponse.json({
+        success: true,
+        connection: {
+          id: connection.id,
+          provider: connection.provider,
+          name: connection.name,
+          email: connection.email,
+        },
+      });
+    }
+
     if (action === "poll") {
       const { deviceCode, codeVerifier, extraData, proxyPoolId } = body;
 

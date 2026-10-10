@@ -3,6 +3,18 @@ import { CONSOLE_LOG_CONFIG } from "@/shared/constants/config.js";
 
 const consoleLevels = ["log", "info", "warn", "error", "debug"];
 
+// Severity order for the runtime capture threshold (mirrors the server log
+// levels: debug < info < warn < error). "log" is treated as info — console.log
+// is how this codebase reports ordinary progress.
+export const LOG_LEVELS = ["debug", "info", "warn", "error"];
+const LEVEL_RANK = { debug: 0, info: 1, log: 1, warn: 2, error: 3 };
+const DEFAULT_LOG_LEVEL = "info";
+
+function normalizeLevel(level) {
+  const lower = String(level || "").toLowerCase();
+  return LOG_LEVELS.includes(lower) ? lower : null;
+}
+
 if (!global._consoleLogBufferState) {
   global._consoleLogBufferState = {
     logs: [],
@@ -22,6 +34,8 @@ if (!state.emitter) {
 }
 
 if (!state.pendingLines) state.pendingLines = [];
+if (!state.level) state.level = DEFAULT_LOG_LEVEL;
+if (!state.entries) state.entries = [];
 if (!state.flushTimer) state.flushTimer = null;
 
 const FLUSH_INTERVAL_MS = 100;
@@ -62,11 +76,20 @@ function formatArg(arg) {
   }
 }
 
-function appendLine(line) {
+function appendLine(line, level = "log") {
+  // Runtime capture threshold: everything below the configured level is
+  // dropped at the source, so a debug storm cannot evict the buffer that the
+  // dashboard is about to read.
+  const rank = LEVEL_RANK[level] ?? LEVEL_RANK.log;
+  if (rank < (LEVEL_RANK[state.level] ?? LEVEL_RANK.info)) return;
+
+  const entry = { time: new Date().toISOString(), level: level === "log" ? "info" : level, line };
+  state.entries.push(entry);
   state.logs.push(line);
   const maxLines = CONSOLE_LOG_CONFIG.maxLines;
   if (state.logs.length > maxLines) {
     state.logs = state.logs.slice(-maxLines);
+    state.entries = state.entries.slice(-maxLines);
   }
   state.pendingLines.push(line);
   if (state.pendingLines.length >= MAX_BATCH_LINES) {
@@ -86,7 +109,7 @@ export function initConsoleLogCapture() {
   for (const level of consoleLevels) {
     state.originals[level] = console[level];
     console[level] = (...args) => {
-      appendLine(toLogLine(level, args));
+      appendLine(toLogLine(level, args), level);
       state.originals[level](...args);
     };
   }
@@ -98,8 +121,26 @@ export function getConsoleLogs() {
   return state.logs;
 }
 
+// Structured view: [{time, level, line}], the same shape 9router-go streams.
+export function getConsoleLogEntries() {
+  return state.entries;
+}
+
+export function getConsoleLogLevel() {
+  return state.level;
+}
+
+// Returns the applied level, or null when the caller sent an unknown one.
+export function setConsoleLogLevel(level) {
+  const next = normalizeLevel(level);
+  if (!next) return null;
+  state.level = next;
+  return next;
+}
+
 export function clearConsoleLogs() {
   state.logs = [];
+  state.entries = [];
   state.emitter.emit("clear");
 }
 

@@ -1,6 +1,10 @@
 // Public API barrel — all DB functions
 import { getAdapter } from "./driver.js";
 import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
+// Local binding (not just a re-export): exportDb() reads rows through the same
+// decrypting row mapper the repos use, so a sealed credential never leaves the
+// DB as ciphertext in an export.
+import { rowToConn } from "./repos/connectionsRepo.js";
 
 // Settings
 export {
@@ -16,6 +20,7 @@ export {
   deleteProviderConnection, deleteProviderConnectionsByProvider,
   reorderProviderConnections, cleanupProviderConnections,
 } from "./repos/connectionsRepo.js";
+export { rowToConn };
 
 // Provider nodes
 export {
@@ -39,7 +44,12 @@ export {
 // API keys
 export {
   getApiKeys, getApiKeyById, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  rotateApiKey, toggleApiKey,
 } from "./repos/apiKeysRepo.js";
+export {
+  getAllowedModels, getAllowedModelsForKeys, setAllowedModels,
+  parseModelAllowlistBody, hasAllowedModelsTable,
+} from "./repos/apiKeyModelAccessRepo.js";
 
 // Combos
 export {
@@ -88,7 +98,7 @@ export async function exportDb() {
 
   const out = {
     settings: await exportSettings(),
-    providerConnections: db.all(`SELECT * FROM providerConnections`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, provider: r.provider, authType: r.authType, name: r.name, email: r.email, priority: r.priority, isActive: r.isActive === 1, createdAt: r.createdAt, updatedAt: r.updatedAt })),
+    providerConnections: db.all(`SELECT * FROM providerConnections`).map(rowToConn),
     providerNodes: db.all(`SELECT * FROM providerNodes`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, type: r.type, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     proxyPools: db.all(`SELECT * FROM proxyPools`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, isActive: r.isActive === 1, testStatus: r.testStatus, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     proxyPoolFitness: db.all(`SELECT * FROM proxyPoolFitness ORDER BY poolId, scope`),

@@ -24,6 +24,7 @@ import { resolveClinepassModels } from "open-sse/services/clinepassModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
+import { matchPattern } from "open-sse/providers/pricing.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { aggregateComboCapabilities } from "open-sse/services/combo.js";
@@ -875,8 +876,51 @@ export function invalidateAllowedModelsCache() {
   _compatibleModelsCache.clear();
 }
 
+/**
+ * Model-id spellings a request can arrive as, so an allowlist written either
+ * way covers the other: `glm-5.3-flash` matches a `za/glm-5.3-flash` call and
+ * `za/*` matches it too. Read-only — never substitutes one id for another.
+ */
+function allowlistCandidates(modelStr) {
+  if (typeof modelStr !== "string" || !modelStr) return [];
+  const out = [];
+  const add = (v) => {
+    if (v && !out.includes(v)) out.push(v);
+  };
+  add(modelStr);
+  const slash = modelStr.indexOf("/");
+  if (slash > 0) add(modelStr.slice(slash + 1));
+  return out;
+}
+
+/**
+ * The single allow/deny decision for the per-key model allowlist (F-7).
+ * An empty pattern set allows everything. Synchronous on purpose: listing and
+ * dispatch must ask the same question through the same function, and listing
+ * filters a built array without awaiting.
+ */
+export function matchesModelAllowlist(modelStr, apiKeyInfo = null) {
+  const patterns = apiKeyInfo?.allowedModels;
+  if (!Array.isArray(patterns) || patterns.length === 0) return true;
+  const candidates = allowlistCandidates(modelStr);
+  return patterns.some((p) => {
+    const pattern = typeof p === "string" ? p.trim() : "";
+    if (!pattern) return false;
+    return candidates.some((c) => matchPattern(pattern, c));
+  });
+}
+
 export async function isModelAllowed(modelStr, apiKeyInfo = null) {
   if (!apiKeyInfo) return true;
+
+  // Per-API-key model allowlist (9router-go F-7). An empty list means "no
+  // allowlist configured" and falls through to the global catalog check, so
+  // keys minted before this feature keep behaving exactly as they did.
+  const patterns = apiKeyInfo.allowedModels;
+  if (Array.isArray(patterns) && patterns.length > 0) {
+    return matchesModelAllowlist(modelStr, apiKeyInfo);
+  }
+
   const allowed = await getAllowedModelIds();
   if (allowed.has(modelStr)) return true;
 

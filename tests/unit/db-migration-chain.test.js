@@ -107,6 +107,7 @@ describe("Schema migrations", () => {
   it("failed migration can retry on the same adapter", async () => {
     const { createSqlJsAdapter } = await import("@/lib/db/adapters/sqljsAdapter.js");
     const { runMigrationOnce } = await import("@/lib/db/migrate.js");
+    const { latestVersion } = await import("@/lib/db/migrations/index.js");
     const adapter = await createSqlJsAdapter(path.join(tempDir, "retry.sqlite"));
     let fail = true;
     const transaction = adapter.transaction;
@@ -120,7 +121,7 @@ describe("Schema migrations", () => {
 
     await expect(runMigrationOnce(adapter)).rejects.toThrow("transient migration failure");
     await expect(runMigrationOnce(adapter)).resolves.toBeUndefined();
-    expect(parseInt(adapter.get(`SELECT value FROM _meta WHERE key='schemaVersion'`).value, 10)).toBe(8);
+    expect(parseInt(adapter.get(`SELECT value FROM _meta WHERE key='schemaVersion'`).value, 10)).toBe(latestVersion());
     expect(adapter.all(`PRAGMA table_info(combos)`).map((c) => c.name)).toContain("context_length");
     adapter.close();
   });

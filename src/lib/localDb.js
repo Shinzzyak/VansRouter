@@ -13,9 +13,15 @@ export {
   listProxyPoolFitness, upsertProxyPoolFitness,
   deleteProxyPoolFitness, clearProxyPoolFitness, deleteProxyPoolFitnessByPool,
   getApiKeys, getApiKeyById, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  rotateApiKey, toggleApiKey,
+} from "@/lib/db/index.js";
+export {
+  getAllowedModels, getAllowedModelsForKeys, setAllowedModels,
+  parseModelAllowlistBody, hasAllowedModelsTable,
 } from "@/lib/db/index.js";
 export {
   checkApiKeyLimits, recordApiKeyUsage, getApiKeyUsageSnapshot,
+  acquireApiKeyLease, releaseApiKeyLease,
 } from "@/lib/db/repos/apiKeyUsageRepo.js";
 export {
   getCombos, getComboById, getComboByName,

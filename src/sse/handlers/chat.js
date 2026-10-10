@@ -11,7 +11,7 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
-import { checkApiKeyLimits, recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
+import { checkApiKeyLimits, recordApiKeyUsage, acquireApiKeyLease, releaseApiKeyLease } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import { handleAntigravityQuotaError } from "../services/antigravityQuota.js";
 import {
   isKimchiQuotaExhausted,
@@ -38,6 +38,8 @@ import { updateProviderConnection, getProviderConnections } from "@/lib/localDb"
 import { isModelAllowed } from "../services/allowedModels.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { isModelDeprecation, parseModelDeprecation, DEPRECATION_GONE } from "@/lib/modelDeprecations.js";
+import { recordModelDeprecation } from "@/lib/db/repos/modelDeprecationsRepo.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -62,6 +64,28 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/cooldownRetry.js";
+
+// One deprecation write per provider/model per minute. A dead model fails the
+// same way on every account, so without this a client retry storm would hammer
+// the kv row with identical upserts.
+const DEPRECATION_WRITE_TTL_MS = 60 * 1000;
+const deprecationWriteCache = new Map();
+
+async function recordDeprecationThrottled(provider, model, body) {
+  const key = `${provider}/${model}`;
+  const last = deprecationWriteCache.get(key);
+  if (last && Date.now() - last < DEPRECATION_WRITE_TTL_MS) return;
+  deprecationWriteCache.set(key, Date.now());
+  const detail = parseModelDeprecation(body);
+  await recordModelDeprecation({
+    provider,
+    model,
+    status: DEPRECATION_GONE,
+    message: detail.message,
+    successor: detail.successor,
+  });
+  log.info("DEPRECATION", `${key} retired upstream${detail.successor ? ` → ${detail.successor}` : ""}`);
+}
 
 function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
   if (!enabled) return false;
@@ -183,18 +207,27 @@ export async function handleChat(request, clientRawRequest = null) {
         },
       });
     }
+    // Past the gate: hold a concurrency slot for the life of this request. It
+    // is handed back by recordApiKeyUsage when the stream reports its tokens,
+    // or explicitly on the early returns below.
+    acquireApiKeyLease(apiKeyInfo);
   }
 
   // ACL: check if LLM kind is allowed for this API key
   if (!isKindAllowed(apiKeyInfo, "llm")) {
     log.warn("AUTH", "LLM kind not allowed for API key");
+    releaseApiKeyLease(apiKeyInfo);
     return errorResponse(HTTP_STATUS.FORBIDDEN, "Chat/LLM requests are not allowed for this API key");
   }
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
   const userAgent = request?.headers?.get("user-agent") || "";
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
-  if (bypassResponse) return bypassResponse.response || bypassResponse;
+  if (bypassResponse) {
+    // Bypass never reaches requestDetail, so its slot would leak.
+    releaseApiKeyLease(apiKeyInfo);
+    return bypassResponse.response || bypassResponse;
+  }
 
   // Compact: auto-detected compaction capability. The slot previously only
   // PICKED a model and forwarded the transcript untouched, so the summarizer
@@ -772,6 +805,16 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Some upstream paths may return an Error instance; JSON.stringify(new Error())
     // yields "{}" and breaks keyword matching in quota detectors.
     const errorText = result.error?.message || result.error;
+
+    // Model retired upstream (410 Gone, or a 404 naming the model): file it so
+    // the dashboard can badge the dead target instead of paying for the same
+    // upstream call on every request. Fail-open — a bookkeeping failure must
+    // never change how this request is handled.
+    if (isModelDeprecation(result.status, result.errorBody || errorText)) {
+      recordDeprecationThrottled(provider, model, result.errorBody || errorText).catch((e) => {
+        log.debug("DEPRECATION", `record failed for ${provider}/${model}: ${e.message}`);
+      });
+    }
 
     // Kimchi quota exhausted: deactivate the account until the 1st of next month.
     if (isKimchiQuotaExhausted(provider, errorText)) {

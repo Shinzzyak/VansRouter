@@ -14,9 +14,47 @@ if (!global._apiKeyCounters) {
     tokensDaily: new Map(),// keyId -> { dateKey, tokens }
     tokensWeekly: new Map(), // keyId -> { weekKey, tokens }
     tokensMonthly: new Map(),// keyId -> { monthKey, tokens }
+    tpm: new Map(),      // keyId -> [{ ts, tokens }] rolling 60s window
+    inflight: new Map(), // keyId -> [{ ts }] live request leases
   };
 }
 const counters = global._apiKeyCounters;
+
+// A lease that is never released means the request died before it could report
+// usage (client abort, process kill). Sweeping them keeps a crashed stream from
+// pinning a resold key's concurrency slot forever.
+const LEASE_TTL_MS = 15 * 60_000;
+
+function liveLeases(keyId) {
+  const leases = counters.inflight.get(keyId) || [];
+  const cutoff = Date.now() - LEASE_TTL_MS;
+  const fresh = leases.filter((l) => l.ts > cutoff);
+  if (fresh.length !== leases.length) counters.inflight.set(keyId, fresh);
+  return fresh;
+}
+
+/**
+ * Take a concurrency slot for a key. Callers that pass the limit gate MUST
+ * release (directly, or indirectly by letting recordApiKeyUsage run).
+ * @returns {{ keyId: string, ts: number } | null} null when no key / no limit
+ */
+export function acquireApiKeyLease(apiKeyInfo) {
+  if (!apiKeyInfo) return null;
+  const lease = { ts: Date.now() };
+  const leases = liveLeases(apiKeyInfo.id);
+  leases.push(lease);
+  counters.inflight.set(apiKeyInfo.id, leases);
+  return { keyId: apiKeyInfo.id, ts: lease.ts };
+}
+
+/** Release the oldest outstanding slot for this key. Safe to call twice. */
+export function releaseApiKeyLease(apiKeyInfo) {
+  if (!apiKeyInfo) return;
+  const leases = liveLeases(apiKeyInfo.id);
+  if (leases.length === 0) return;
+  leases.shift();
+  counters.inflight.set(apiKeyInfo.id, leases);
+}
 
 function getMinuteTs() {
   return Math.floor(Date.now() / 60000);
@@ -151,6 +189,25 @@ export function checkApiKeyLimits(apiKeyInfo, requestedTokens = 0) {
     }
   }
 
+  // Tokens per rolling minute (Go: rateLimitTpm). Distinct from rpm: rpm counts
+  // requests, this counts the tokens those requests are allowed to move.
+  if (apiKeyInfo.rateLimitTpm != null) {
+    const used = getRollingTokenCount(counters.tpm, keyId, 60_000);
+    if (used + tokens > apiKeyInfo.rateLimitTpm) {
+      return { allowed: false, reason: `Token rate limit exceeded: ${apiKeyInfo.rateLimitTpm} tokens per minute`, retryAfterMs: 60_000 };
+    }
+  }
+
+  // Simultaneous in-flight requests (Go: rateLimitConcurrency). The slot is
+  // taken by acquireApiKeyLease at the gate and given back by
+  // recordApiKeyUsage, so a long stream holds its slot for its whole life.
+  if (apiKeyInfo.rateLimitConcurrency != null) {
+    const live = liveLeases(keyId).length;
+    if (live >= apiKeyInfo.rateLimitConcurrency) {
+      return { allowed: false, reason: `Concurrency limit exceeded: ${apiKeyInfo.rateLimitConcurrency} simultaneous requests`, retryAfterMs: 1000 };
+    }
+  }
+
   return { allowed: true };
 }
 
@@ -164,12 +221,17 @@ export function recordApiKeyUsage(apiKeyInfo, tokensUsed = 0) {
   const keyId = apiKeyInfo.id;
   const tokens = Math.max(0, Number(tokensUsed) || 0);
 
+  // The request is done: hand its concurrency slot back before anything else,
+  // so a rejection below can never strand the slot.
+  releaseApiKeyLease(apiKeyInfo);
+
   bumpCounter(counters.rpm, keyId, getMinuteTs(), 1);
   bumpCounter(counters.rph, keyId, getHourTs(), 1);
   bumpCounter(counters.rpd, keyId, getDateKey(), 1);
 
   if (tokens > 0) {
     bumpTokens(counters.tokens5h, keyId, tokens);
+    bumpTokens(counters.tpm, keyId, tokens);
 
     const date = getDateKey();
     const daily = counters.tokensDaily.get(keyId);
@@ -213,5 +275,7 @@ export function getApiKeyUsageSnapshot(apiKeyInfo) {
     maxTokensDaily: { limit: apiKeyInfo.maxTokensDaily, used: (counters.tokensDaily.get(keyId)?.tokens || 0) },
     tokensWeekly: { limit: apiKeyInfo.tokensWeekly, used: (counters.tokensWeekly.get(keyId)?.tokens || 0) },
     tokensMonthly: { limit: apiKeyInfo.tokensMonthly, used: (counters.tokensMonthly.get(keyId)?.tokens || 0) },
+    rateLimitTpm: { limit: apiKeyInfo.rateLimitTpm, used: getRollingTokenCount(counters.tpm, keyId, 60_000) },
+    rateLimitConcurrency: { limit: apiKeyInfo.rateLimitConcurrency, used: liveLeases(keyId).length },
   };
 }

@@ -341,6 +341,133 @@ async function ensureSession(token, model, proxyOptions, force = false) {
   return inflight.get(key);
 }
 
+// --- Dashboard session surface (9router-go parity) -------------------------
+// GET  /api/oauth/freebuff/session        -> readFreebuffSession()
+// POST /api/oauth/freebuff/session/switch -> switchFreebuffModel()
+//
+// These are the only session-endpoint callers outside a chat request. A seat is
+// held per (account, model) for ~1h, so the dashboard has to be able to *see*
+// it and *release* it without waiting for the TTL.
+const SESSION_UA = "codebuff-cli/0.0.138";
+const SESSION_INSTANCE_HEADER = "x-freebuff-instance-id";
+
+function sessionHeaders(token, extra = {}) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "User-Agent": SESSION_UA,
+    Accept: "application/json",
+    ...extra,
+  };
+}
+
+// Status words GET may report. Anything else upstream invents is collapsed to
+// "none" rather than forwarded as a word the dashboard cannot render.
+const SESSION_STATUSES = new Set(["active", "queued", "ended", "unauthorized", "banned", "country_blocked"]);
+
+// Read the caller's current seat. Never throws for "no seat": absent, expired
+// and refused all come back as a status the dashboard can show.
+export async function readFreebuffSession(token, proxyOptions) {
+  const response = await fetchWithNetworkRetry(
+    `${sessionOrigin()}${SESSION_PATH}`,
+    { method: "GET", headers: sessionHeaders(token) },
+    proxyOptions,
+  );
+
+  if (response.status === 401 || response.status === 403) {
+    // A refused credential is not one condition: `banned` comes back as 403
+    // {"status":"banned"} and means add another account, not re-login.
+    let refused = "unauthorized";
+    try {
+      const body = await response.json();
+      const word = String(body?.status || "").toLowerCase().trim();
+      if (word === "banned" || word === "country_blocked") refused = word;
+    } catch {
+      // Non-JSON refusal keeps the generic word.
+    }
+    return { status: refused };
+  }
+  if (response.status === 404) return { status: "none" };
+  if (!response.ok) {
+    const err = new Error(`Freebuff session status failed: ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  const data = await response.json().catch(() => ({}));
+  const currentModel = data?.currentModel || data?.model || "";
+  let status = String(data?.status || "").toLowerCase().trim();
+  if (!status) status = currentModel || data?.instanceId ? "active" : "none";
+  if (!SESSION_STATUSES.has(status)) status = "none";
+
+  const out = { status };
+  // The seat's identity only means something while one is held: an ended
+  // session keeps its last model upstream, and echoing that would name a model
+  // the account is no longer on.
+  if (status === "active" || status === "queued") {
+    if (currentModel) out.currentModel = currentModel;
+    if (data?.instanceId) out.instanceId = data.instanceId;
+    if (data?.expiresAt) out.expiresAt = data.expiresAt;
+    if (data?.accessTier) out.accessTier = data.accessTier;
+    if (data?.countryCode) out.countryCode = data.countryCode;
+    if (data?.countryBlockReason) out.countryBlockReason = data.countryBlockReason;
+    if (data?.freebucks) out.freebucks = data.freebucks;
+    if (data?.rateLimit) out.rateLimit = data.rateLimit;
+  }
+  return out;
+}
+
+// Release a held seat. Returns the freebucks refund (0 when upstream reports
+// none); 404 means the seat already expired, which is not an error.
+export async function releaseFreebuffSession(token, instanceId, proxyOptions) {
+  if (!instanceId) return 0;
+  const response = await fetchWithNetworkRetry(
+    `${sessionOrigin()}${SESSION_PATH}`,
+    { method: "DELETE", headers: sessionHeaders(token, { [SESSION_INSTANCE_HEADER]: instanceId }) },
+    proxyOptions,
+  );
+  if (response.status === 404) return 0;
+  if (!response.ok) {
+    const err = new Error(`Freebuff session release failed: ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+  const data = await response.json().catch(() => ({}));
+  return Number(data?.freebucksRefund) || 0;
+}
+
+// Drop every cached seat row for one token (all models). Called after a release
+// so a stale row cannot be handed back as an active session.
+export function clearFreebuffSessionsForToken(token) {
+  const prefix = `${token}::`;
+  for (const key of sessionCache.keys()) {
+    if (key.startsWith(prefix)) sessionCache.delete(key);
+  }
+}
+
+// Deliberate model switch: end the held seat, then admit a fresh one on `model`.
+// Requests for another model are refused with `model_locked` while a seat is
+// live and seats last an hour even when idle, so releasing is the only way to
+// change models early. Mirrors the CLI's explicit model-pick path — each switch
+// spends a new session from the daily allowance.
+export async function switchFreebuffModel(token, model, { instanceId = "", proxyOptions } = {}) {
+  if (!model) {
+    const err = new Error("freebuff model switch requires a model");
+    err.status = 400;
+    throw err;
+  }
+  const refund = await releaseFreebuffSession(token, instanceId, proxyOptions);
+  clearFreebuffSessionsForToken(token);
+  const admitted = await requestSession(token, model, proxyOptions);
+  const cached = sessionCache.get(sessionCacheKey(token, model));
+  return {
+    model,
+    instanceId: admitted?.instanceId || null,
+    status: admitted?.status || "active",
+    expiresAt: cached?.expiresAt ? new Date(cached.expiresAt).toISOString() : null,
+    freebucksRefund: refund,
+  };
+}
+
 // Register an agent run so the chat backend can resolve the run_id we send.
 async function startRun(token, model, proxyOptions) {
   const response = await fetchWithNetworkRetry(`${sessionOrigin()}${RUN_PATH}`, {

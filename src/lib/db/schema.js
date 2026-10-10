@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -114,8 +114,30 @@ export const TABLES = {
       // reply side). Additive column: migrate.js syncSchemaFromTables() adds it
       // on boot with the default, so every existing key keeps today's behavior.
       personaInject: "INTEGER DEFAULT 1",
+      // Per-key governance for resold keys (9router-go parity). Null = the
+      // historical behaviour (unrestricted / no telemetry), so a DB that
+      // predates these columns keeps working untouched.
+      rateLimitTpm: "INTEGER",         // tokens per rolling minute
+      rateLimitConcurrency: "INTEGER", // simultaneous in-flight requests
+      keyDisplay: "TEXT",              // masked form for list views
+      lastUsedAt: "TEXT",
+      usedCount: "INTEGER",
+      metadata: "TEXT",                // free-form operator note (buyer, price)
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
+  },
+  // Per-API-key model allowlist (9router-go F-7 parity). One row per
+  // (key, model-pattern). Zero rows = no allowlist configured = allow
+  // everything, so every key minted before this table existed keeps behaving
+  // exactly as it did. Policy only: it never influences provider routing.
+  apiKeyModelAccess: {
+    columns: {
+      apiKeyId: "TEXT NOT NULL",
+      model: "TEXT NOT NULL",
+      createdAt: "TEXT NOT NULL",
+    },
+    primaryKey: "PRIMARY KEY (apiKeyId, model)",
+    indexes: ["CREATE INDEX IF NOT EXISTS idx_akma_key ON apiKeyModelAccess(apiKeyId)"],
   },
   combos: {
     columns: {

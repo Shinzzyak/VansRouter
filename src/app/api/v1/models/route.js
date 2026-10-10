@@ -1,7 +1,7 @@
 import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed } from "@/sse/services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { stripComboPrefix } from "open-sse/services/combo.js";
-import { buildModelsList } from "@/sse/services/allowedModels.js";
+import { buildModelsList, matchesModelAllowlist } from "@/sse/services/allowedModels.js";
 import { capabilitiesFromServiceKind } from "open-sse/providers/capabilities.js";
 import { checkApiKeyLimits, recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
 
@@ -84,6 +84,9 @@ export async function GET(request) {
       }
       data = data.filter((model) => {
         if (!isKindAllowed(apiKeyInfo, model.kind || LLM_KIND)) return false;
+        // Same decision function dispatch uses, so a key can never list a model
+        // it cannot call (9router-go F-7 invariant).
+        if (!matchesModelAllowlist(model.id, apiKeyInfo)) return false;
         const isCombo = model.owned_by === "combo";
         const key = isCombo
           ? `combo:${stripComboPrefix(model.id)}`

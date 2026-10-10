@@ -86,7 +86,7 @@ describe("persona opt-out: kolom DB dan jalur update", () => {
     const cols = colList.split(",").map((s) => s.trim()).filter(Boolean).length;
     const placeholders = ins.split("?").length - 1;
     expect(placeholders).toBe(cols);
-    expect(cols).toBe(19);
+    expect(cols).toBe(25);
 
     const updStart = src.indexOf("UPDATE apiKeys SET");
     const upd = src.slice(updStart, src.indexOf("`", updStart));
@@ -96,7 +96,7 @@ describe("persona opt-out: kolom DB dan jalur update", () => {
     // Trailing comma after the last param would count as an empty entry.
     const params = updParams.split(",").map((s) => s.trim()).filter(Boolean).length;
     expect(updPlaceholders).toBe(params);
-    expect(updPlaceholders).toBe(18);
+    expect(updPlaceholders).toBe(22);
   });
 
   it("route PUT /api/keys/[id] menerima personaInject", () => {
