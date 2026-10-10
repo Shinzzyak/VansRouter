@@ -27,9 +27,14 @@ export async function POST(request, { params }) {
     }
 
     if (body?.direction === "up" || body?.direction === "down") {
+      // Swap + 1..N renumber in ONE transaction. A per-row priority PUT cannot
+      // do this safely: the moved row gets the newest updatedAt, so on a tie it
+      // sorts first and a "down" move silently becomes an "up" move.
       const step = body.direction === "up" ? -1 : 1;
-      const next = Math.max(1, (connection.priority || 1) + step);
-      await updateProviderConnection(id, { priority: next });
+      const result = await reorderProviderConnections(connection.provider, id, step);
+      if (result?.error === "not_found") {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
     } else if (Number.isFinite(Number(body?.priority))) {
       await updateProviderConnection(id, { priority: Math.max(1, Number(body.priority)) });
     } else {

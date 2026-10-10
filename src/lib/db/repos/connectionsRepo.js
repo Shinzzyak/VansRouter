@@ -90,17 +90,29 @@ export async function getProviderConnectionById(id) {
   return rowToConn(row);
 }
 
-// Internal sync reorder — must be called INSIDE a transaction
+// Pool ordering contract, shared by every reorder path (9router-go parity):
+// a NULL priority sorts LAST (never first), ties break by updatedAt DESC then
+// id ASC so the order is total and stable across processes.
+function poolOrderInTx(db, providerId) {
+  return db.all(
+    `SELECT id FROM providerConnections WHERE provider = ?
+     ORDER BY CASE WHEN priority IS NULL THEN 999999 ELSE priority END ASC,
+              updatedAt DESC, id ASC`,
+    [providerId],
+  ).map((r) => r.id);
+}
+
+// Renumber a pool to a contiguous 1..N in the given row order. Inside a tx.
+function renumberInTx(db, order) {
+  const now = new Date().toISOString();
+  order.forEach((rowId, i) => {
+    db.run(`UPDATE providerConnections SET priority = ?, updatedAt = ? WHERE id = ?`, [i + 1, now, rowId]);
+  });
+}
+
+// Internal sync renumber — must be called INSIDE a transaction.
 function reorderInTx(db, providerId) {
-  const list = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [providerId]).map(rowToConn);
-  list.sort((a, b) => {
-    const pDiff = (a.priority || 0) - (b.priority || 0);
-    if (pDiff !== 0) return pDiff;
-    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-  });
-  list.forEach((c, i) => {
-    db.run(`UPDATE providerConnections SET priority = ? WHERE id = ?`, [i + 1, c.id]);
-  });
+  renumberInTx(db, poolOrderInTx(db, providerId));
 }
 
 export async function createProviderConnection(data) {
@@ -273,9 +285,35 @@ export async function deleteProviderConnectionsByProvider(providerId) {
   return before?.n || 0;
 }
 
-export async function reorderProviderConnections(providerId) {
+// Reorder a provider's pool. Called INSIDE nothing — opens its own transaction.
+//
+// `id` + `direction` (−1 up / +1 down) moves one row one slot; the swap AND the
+// 1..N renumber happen in the SAME transaction, so a partial failure can never
+// leave two rows sharing a priority (a tie a stable sort then freezes into a
+// permanent no-op — the bug the two-PUT client swap used to cause).
+//
+// `id` alone (or neither) renumbers the pool in place, repairing gaps left by
+// deletes and normalising duplicate priorities from older data.
+//
+// Returns { order } on success, { error: "not_found" } when `id` is not in the
+// pool. Callers map that to 404.
+export async function reorderProviderConnections(providerId, id = null, direction = 0) {
   const db = await getAdapter();
-  db.transaction(() => reorderInTx(db, providerId));
+  let out;
+  db.transaction(() => {
+    const order = poolOrderInTx(db, providerId);
+    if (id) {
+      const idx = order.indexOf(id);
+      if (idx < 0) { out = { error: "not_found" }; return; }
+      const target = idx + direction;
+      if (target >= 0 && target < order.length) {
+        [order[idx], order[target]] = [order[target], order[idx]];
+      }
+    }
+    renumberInTx(db, order);
+    out = { order };
+  });
+  return out;
 }
 
 export async function cleanupProviderConnections() {
