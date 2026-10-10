@@ -34,9 +34,15 @@ def _get_proxies() -> list:
 
 
 def _load_accounts() -> list:
+    """Credential rows for the whole pool.
+
+    Deliberately NOT filtered on isActive: these rows are the credential store
+    (the zc/ provider path is retired, the rows stay). Filtering on isActive
+    silently emptied the quota panel the moment zc/ was switched off.
+    """
     conn = sqlite3.connect(DB)
     rows = conn.execute(
-        "SELECT id, name, data FROM providerConnections WHERE provider='zcode' AND isActive=1"
+        "SELECT id, name, data FROM providerConnections WHERE provider='zcode'"
     ).fetchall()
     conn.close()
     return [(cid, name, json.loads(data) if data else {}) for cid, name, data in rows]

@@ -27,9 +27,11 @@ def load_account(email=None):
             "SELECT email, data FROM providerConnections WHERE provider='zcode' AND email=?",
             (email,)).fetchone()
     else:
+        # Credential store, not a routing list: no isActive filter (the zc/ path
+        # is retired; these rows only exist to hold cookies + tokens by email).
         row = conn.execute(
             "SELECT email, data FROM providerConnections WHERE provider='zcode' "
-            "AND isActive=1 ORDER BY RANDOM() LIMIT 1").fetchone()
+            "AND email IS NOT NULL ORDER BY RANDOM() LIMIT 1").fetchone()
     conn.close()
     if not row:
         return None

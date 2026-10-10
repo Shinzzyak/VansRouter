@@ -30,6 +30,7 @@ from zai_chat_worker import (
     _render_messages,
 )
 from zai_quota_fetcher import get_snapshot as quota_snapshot
+import zai_anti_ban as guard
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 MODELS = [
@@ -45,27 +46,76 @@ MODELS = [
 _rr = 0
 _rr_lock = threading.Lock()
 
+# Pool source of truth. Seeded into kv(scope='settings', key='zaiPoolEmails') by
+# scripts/python/zcodereg/seed_zai_pool.py so the 108 providerConnections rows
+# can be deactivated without starving the sidecar (they remain the credential
+# store, keyed by email, and load_account() looks them up by email only).
+POOL_KV_SCOPE = "settings"
+POOL_KV_KEY = "zaiPoolEmails"
+
+
+def pool_emails():
+    """Ordered pool of account emails: kv list when seeded, else legacy zcode rows."""
+    conn = sqlite3.connect(DB)
+    try:
+        try:
+            row = conn.execute(
+                "SELECT value FROM kv WHERE scope=? AND key=?",
+                (POOL_KV_SCOPE, POOL_KV_KEY),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            row = None
+        if row and row[0]:
+            try:
+                emails = json.loads(row[0])
+            except Exception:
+                emails = None
+            if isinstance(emails, list) and emails:
+                return [e for e in emails if e]
+        rows = conn.execute(
+            "SELECT email FROM providerConnections WHERE provider='zcode' AND isActive=1"
+        ).fetchall()
+        return [r[0] for r in rows if r[0]]
+    finally:
+        conn.close()
+
 
 def next_account():
-    """Round-robin over active zcode accounts."""
+    """Round-robin over the pool."""
     global _rr
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT email FROM providerConnections WHERE provider='zcode' AND isActive=1"
-    ).fetchall()
-    conn.close()
-    if not rows:
+    emails = pool_emails()
+    if not emails:
         return None
     with _rr_lock:
-        email = rows[_rr % len(rows)]["email"]
+        email = emails[_rr % len(emails)]
         _rr += 1
     return email
 
 
-def do_chat(prompt, model=None, tools=None):
+def do_chat(prompt, model=None, tools=None, email=None):
     """One UI-driven chat (delegates to worker.chat_once so tool parsing is shared)."""
-    return chat_once(prompt, model=model, tools=tools)
+    return chat_once(prompt, model=model, tools=tools, email=email)
+
+
+def _pick_slot():
+    """Reserve a browser slot on a pool account. Returns (email, reason_if_none).
+
+    Walks the round-robin until an account passes the pacing guard, so a cooling
+    account is skipped instead of burning a browser launch.
+    """
+    emails = pool_emails()
+    if not emails:
+        return None, "no zcode account"
+    last = "no account passed the guard"
+    for _ in range(len(emails)):
+        cand = next_account()
+        if not cand:
+            break
+        ok, why = guard.allow_request(cand)
+        if ok:
+            return cand, ""
+        last = why
+    return None, f"all accounts throttled ({last})"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -82,10 +132,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            conn = sqlite3.connect(DB)
-            n = conn.execute("SELECT COUNT(*) FROM providerConnections WHERE provider='zcode' AND isActive=1").fetchone()[0]
-            conn.close()
-            return self._json({"ok": True, "accounts": n})
+            return self._json({"ok": True, "accounts": len(pool_emails()), "guard": guard.stats()})
         if self.path == "/v1/models" or self.path == "/models":
             return self._json({"object": "list", "data": MODELS})
         if self.path == "/quota":
@@ -111,7 +158,12 @@ class Handler(BaseHTTPRequestHandler):
             prompt = build_tools_prompt(prompt, tools)
         if not prompt.strip():
             return self._json({"error": "empty prompt"}, 400)
-        out = do_chat(prompt, model, tools)
+        email, why = _pick_slot()
+        if not email:
+            return self._json({"error": why}, 502)
+        with guard.BROWSER_GATE:
+            out = do_chat(prompt, model, tools, email=email)
+        guard.note_result(email, "error" not in out)
         if "error" in out:
             return self._json({"error": out}, 502)
         msg = {"role": "assistant", "content": None}
