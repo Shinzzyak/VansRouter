@@ -40,8 +40,9 @@ export async function GET(request) {
 
     const settings = await getSettings();
     let apiKeyInfo = null;
+    const suppliedKey = extractApiKey(request);
     if (settings.requireApiKey) {
-      const apiKey = extractApiKey(request);
+      const apiKey = suppliedKey;
       if (!apiKey) {
         return Response.json(
           { error: { message: "Missing API key", type: "authentication_error" } },
@@ -64,6 +65,12 @@ export async function GET(request) {
         );
       }
       recordApiKeyUsage(apiKeyInfo, 0);
+    } else if (suppliedKey) {
+      // Local mode (requireApiKey=false) with a key supplied: the key still
+      // selects the policy this listing has to honour — the same resolution
+      // the chat dispatch path does. Auth is unchanged: an unresolvable key
+      // stays non-fatal here and the list falls back to unfiltered.
+      apiKeyInfo = await isValidApiKey(suppliedKey);
     }
 
     let data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
