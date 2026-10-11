@@ -64,23 +64,50 @@ def inject_cookies(ctx, cookies):
     return n
 
 
-def _read_reply(page):
-    """Extract last assistant reply text (chat-assistant node), strip thought."""
-    return page.evaluate("""() => {
-      // prefer leaf <p> content inside chat-assistant (final answer)
-      const leaves = [...document.querySelectorAll('.chat-assistant p, .chat-assistant [class*="prose"] p')]
-        .map(e => (e.innerText || '').trim())
-        .filter(t => t.length > 0 && t !== 'Thinking...' && t !== 'Thought Process' && t !== 'Loading...' && !/^[·•.]+$/.test(t));
-      if (leaves.length) return leaves.join(' ').trim();
-      // fallback: last chat-assistant block text
-      const nodes = [...document.querySelectorAll('.chat-assistant, [class*="message-"]')]
-        .map(e => (e.innerText || '').trim())
-        .filter(t => t.length > 1 && !t.includes('Deep Think'));
-      if (!nodes.length) return '';
-      const last = nodes[nodes.length - 1];
-      const parts = last.split(/\\n+/).filter(s => s.trim() && s.trim() !== 'Thought Process' && s.trim() !== 'Thinking...');
-      return parts.length ? parts[parts.length - 1].trim() : last.trim();
-    }""")
+def _assistant_block_count(page):
+    """Number of assistant turns currently in the DOM.
+
+    Captured BEFORE a send and handed to _read_reply as `after`, so a reply is
+    only ever read from a block that appeared after this send. Without it a
+    reused page returns the PREVIOUS turn's answer (proven: probe_stale_read.py
+    -> same thread, unrelated question, reply = last answer, 2.37s).
+    """
+    try:
+        return int(page.evaluate("() => document.querySelectorAll('.chat-assistant').length") or 0)
+    except Exception:
+        return 0
+
+
+def _read_reply(page, after=0):
+    """Extract the assistant reply from blocks at index >= `after`.
+
+    `after=0` reproduces the original cold-path behaviour (every block in the
+    document); any other value reads only the fresh turn, which is what makes
+    page reuse safe.
+    """
+    return page.evaluate("""(after) => {
+      const clean = (t) => t && t !== 'Thinking...' && t !== 'Thought Process' && t !== 'Loading...' && !/^[·•.]+$/.test(t);
+      const blocks = [...document.querySelectorAll('.chat-assistant')];
+      const fresh = blocks.slice(after);
+      // prefer leaf <p> content inside the fresh assistant blocks (final answer)
+      for (let i = fresh.length - 1; i >= 0; i--) {
+        const leaves = [...fresh[i].querySelectorAll('p, [class*="prose"] p')]
+          .map(e => (e.innerText || '').trim())
+          .filter(t => t.length > 0 && clean(t));
+        if (leaves.length) return leaves.join(' ').trim();
+      }
+      if (after === 0) {
+        // cold path, unchanged: fall back to the last message-ish node
+        const nodes = [...document.querySelectorAll('.chat-assistant, [class*="message-"]')]
+          .map(e => (e.innerText || '').trim())
+          .filter(t => t.length > 1 && !t.includes('Deep Think'));
+        if (!nodes.length) return '';
+        const last = nodes[nodes.length - 1];
+        const parts = last.split(/\\n+/).filter(s => s.trim() && s.trim() !== 'Thought Process' && s.trim() !== 'Thinking...');
+        return parts.length ? parts[parts.length - 1].trim() : last.trim();
+      }
+      return '';
+    }""", after)
 
 
 # ---- Tool-call helpers (text-markup protocol, ref @ai-sdk-tool/parser) ----
@@ -219,6 +246,63 @@ def parse_tool_calls(text):
     return calls
 
 
+def _dismiss_welcome(page, appear_ms=8000):
+    """Close the chat.z.ai welcome overlay so the composer actually arms.
+
+    chat.z.ai renders a welcome modal at z=10000 ("New / GLM-5.3-Flash -- A new
+    native multimodal model...") that swallows the composer: measured, the submit
+    button NEVER arms while it is up ("submit armed at goto+NEVER" over 25s with
+    no interaction). The old path cleared it with a fixed `wait_for_timeout(6000)`
+    plus 3 blind Escape presses -- 9.5s of stall on EVERY request, and Escape is
+    not guaranteed to hit the modal. Clicking the modal's own Close button costs
+    ~2s and is deterministic (probe_modal_v3.py: 21.5s avg vs 26.1s old).
+
+    Escape presses are kept as a fallback for the no-Close-button case.
+    """
+    js = """() => {
+      for (const o of document.querySelectorAll('div.fixed.inset-0')) {
+        if (parseInt(getComputedStyle(o).zIndex || 0) <= 1000) continue;
+        const b = [...o.querySelectorAll('button, [role="button"]')]
+          .find(x => /^(close|got it|dismiss|skip)$/i.test((x.innerText || x.getAttribute('aria-label') || '').trim()));
+        if (b) { b.click(); return 'clicked'; }
+      }
+      return 'none';
+    }"""
+    deadline = time.time() + appear_ms / 1000
+    while time.time() < deadline:
+        try:
+            if page.evaluate(js) == "clicked":
+                page.wait_for_timeout(300)
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(200)
+    for _ in range(3):
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(700)
+        except Exception:
+            pass
+    return False
+
+
+def _wait_submit_armed(page, timeout_ms=8000):
+    """Wait until the send button is enabled -- i.e. the app registered the input.
+
+    Costs ~0.1s once the welcome modal is gone (probe_modal_v3.py), so it can
+    replace the old flat `wait_for_timeout(800)` settle.
+    """
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        try:
+            if page.evaluate("() => { const b = document.querySelector('button[type=\"submit\"]'); return !!b && !b.disabled; }"):
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(150)
+    return False
+
+
 def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
     acc = load_account(email)
     if not acc:
@@ -232,14 +316,7 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
             page.goto("https://chat.z.ai", wait_until="domcontentloaded", timeout=60000)
         except Exception as e:
             return {"error": f"goto: {str(e)[:100]}"}
-        page.wait_for_timeout(6000)
-        # dismiss onboarding modal / clean state
-        for _ in range(3):
-            try:
-                page.keyboard.press("Escape")
-                page.wait_for_timeout(700)
-            except Exception:
-                pass
+        _dismiss_welcome(page)
         # optional: select model (defaults to top model if omitted)
         if model:
             try:
@@ -250,12 +327,13 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
                 pass
         # fill + send
         full_prompt = build_tools_prompt(prompt, tools)
+        after = _assistant_block_count(page)
         box = page.query_selector('#chat-input') or page.query_selector('textarea')
         if not box:
             return {"error": "no #chat-input"}
         box.click()
         box.fill(full_prompt)
-        page.wait_for_timeout(800)
+        _wait_submit_armed(page)
         sent = False
         for sel in ['button[type="submit"]', '[data-testid="send-button"]']:
             try:
@@ -280,7 +358,7 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
                     solve_slider_v2(page, max_attempts=4)
             except Exception:
                 pass
-            txt = _read_reply(page)
+            txt = _read_reply(page, after)
             if txt and len(txt) > 1 and txt.strip() not in ("Thinking...", "Thought Process", "Loading..."):
                 calls = parse_tool_calls(txt) if tools else []
                 return {"content": txt, "model": model or "default",
