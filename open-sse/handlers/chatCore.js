@@ -33,6 +33,7 @@ import { cacheHitResponse } from "@/lib/semanticcache/chatHook.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
+import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
@@ -136,6 +137,45 @@ export function stripContinuityFields(body) {
     }
   }
   return body;
+}
+
+// One compression-analytics event per request.
+//
+// The savers returned stats that were logged and then dropped, so the sink in
+// open-sse/rtk/analytics.js had no producer and /api/analytics/compression read a
+// permanent zero no matter how much traffic the router served. Record exactly one
+// event per request — including the skip, with its reason — so a request count on
+// the dashboard means requests, not saver passes.
+function recordSaverEvent({ tokenSaverEnabled, rtkEnabled, headroomEnabled, rtkStats, headroomStats, headroomDiagnostics, provider, model }) {
+  try {
+    const rtkDelta = rtkStats ? toTokenDelta(rtkStats) : null;
+    const hrDelta = headroomStats ? toTokenDelta(headroomStats) : null;
+    const saved = (rtkDelta?.tokensSaved || 0) + (hrDelta?.tokensSaved || 0);
+
+    const modes = [];
+    if (rtkDelta?.tokensSaved) modes.push("rtk");
+    if (hrDelta?.tokensSaved) modes.push("headroom");
+
+    let skipReason;
+    if (!modes.length) {
+      if (!tokenSaverEnabled) skipReason = "token-saver-off";
+      else if (!rtkEnabled && !headroomEnabled) skipReason = "savers-off";
+      else if (!rtkDelta) skipReason = "no-tool-results";
+      else skipReason = headroomDiagnostics?.reason || "nothing-to-save";
+    }
+
+    recordCompressionEvent({
+      mode: modes.length ? modes.join("+") : "none",
+      provider,
+      model,
+      originalTokens: (rtkDelta?.originalTokens || 0) + (hrDelta?.originalTokens || 0),
+      tokensSaved: saved,
+      skipped: saved === 0,
+      skipReason,
+    });
+  } catch {
+    // Observability must never cost a caller a reply.
+  }
 }
 
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, clientBodyBytes, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
@@ -373,6 +413,19 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log?.warn?.("HEADROOM", `reported token delta, but outbound JSON shrank <5%; provider may bill near-original payload | ${headroomSizeLine}`);
     }
   } else if (tokenSaverEnabled && headroomEnabled) log?.warn?.("HEADROOM", `skipped: ${headroomDiagnostics.reason || "compression unavailable"}${headroomDiagnostics.endpoint ? ` (${headroomDiagnostics.endpoint})` : ""}`);
+
+  // Feed the dashboard's compression analytics. Without this the sink has no
+  // producer and /dashboard/usage?tab=compres reads a permanent zero.
+  recordSaverEvent({
+    tokenSaverEnabled,
+    rtkEnabled,
+    headroomEnabled,
+    rtkStats,
+    headroomStats,
+    headroomDiagnostics,
+    provider,
+    model: upstreamModel,
+  });
 
   // Prompt injectors: default system prompt + token-saver styles (caveman/
   // ponytail) + godmode + bypass — applied through a single registry call so future
