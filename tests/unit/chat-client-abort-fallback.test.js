@@ -327,3 +327,80 @@ describe("handleSingleModelChat client-abort fallback loop", () => {
     expect(mocks.handleChatCore).toHaveBeenCalledTimes(2);
   });
 });
+
+// Auth-failure cap in the same fallback loop (handleSingleModelChat). A pool
+// whose credentials are all rejected (Kiro: every refresh token 403) used to be
+// walked account by account — ~3.5s each, 97 accounts — while the client held an
+// open stream with no content. The cap must end the walk, and must NOT fire for
+// ordinary upstream failures, which legitimately need the next account.
+describe("handleSingleModelChat consecutive-auth-failure cap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getProviderCredentials.mockReset();
+    mocks.handleChatCore.mockReset();
+    mocks.isValidApiKey.mockReturnValue(true);
+    mocks.isProviderAllowed.mockReturnValue(true);
+    mocks.isModelAllowed.mockReturnValue(true);
+    mocks.isKindAllowed.mockReturnValue(true);
+    mocks.getComboModels.mockResolvedValue(null);
+    mocks.getModelInfo.mockResolvedValue({ provider: "kiro", model: "gpt-5.6-luna" });
+    mocks.isProviderFullyBlocked.mockReturnValue(false);
+    mocks.isProviderInCooldown.mockReturnValue(false);
+    mocks.isKimchiQuotaExhausted.mockReturnValue(false);
+    mocks.detectDailyQuotaExhaustion.mockReturnValue(null);
+    mocks.markAccountUnavailable.mockResolvedValue({ shouldFallback: true });
+    mocks.resolveAccountSemaphoreKey.mockReturnValue(null);
+  });
+
+  it("ends the walk after MAX_CONSECUTIVE_AUTH_FAILURES 403s and returns the real status", async () => {
+    // Pool of 40 accounts, all answering 403 — the cap must stop well short.
+    let issued = 0;
+    mocks.getProviderCredentials.mockImplementation(async () => {
+      issued += 1;
+      return issued <= 40 ? makeAccount(`conn-${issued}`, `acct-${issued}`) : null;
+    });
+    mocks.handleChatCore.mockResolvedValue({
+      success: false,
+      status: 403,
+      error: "The bearer token included in the request is invalid.",
+      errorCode: null,
+    });
+
+    const response = await POST(makeRequest(new AbortController().signal));
+
+    expect(response.status).toBe(403);
+    expect(mocks.handleChatCore).toHaveBeenCalledTimes(3);
+    expect(issued).toBeLessThan(40);
+  });
+
+  it("keeps cycling the pool on non-auth failures (the cap is auth-specific)", async () => {
+    let issued = 0;
+    mocks.getProviderCredentials.mockImplementation(async () => {
+      issued += 1;
+      return issued <= 6 ? makeAccount(`conn-${issued}`, `acct-${issued}`) : null;
+    });
+    mocks.handleChatCore.mockResolvedValue({ success: false, status: 502, error: "upstream boom", errorCode: null });
+
+    await POST(makeRequest(new AbortController().signal));
+
+    // Six distinct accounts were tried — the auth cap did not cut the walk short.
+    expect(mocks.handleChatCore).toHaveBeenCalledTimes(6);
+  });
+
+  it("resets the run when a non-auth failure interrupts it", async () => {
+    let issued = 0;
+    mocks.getProviderCredentials.mockImplementation(async () => {
+      issued += 1;
+      return issued <= 12 ? makeAccount(`conn-${issued}`, `acct-${issued}`) : null;
+    });
+    // 403, 502, 403, 502 ... never three consecutive 403s → no early stop.
+    mocks.handleChatCore.mockImplementation(async () => {
+      const status = mocks.handleChatCore.mock.calls.length % 2 === 1 ? 403 : 502;
+      return { success: false, status, error: "x", errorCode: null };
+    });
+
+    await POST(makeRequest(new AbortController().signal));
+
+    expect(mocks.handleChatCore).toHaveBeenCalledTimes(12);
+  });
+});

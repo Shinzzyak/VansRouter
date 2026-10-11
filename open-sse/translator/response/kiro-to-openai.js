@@ -10,6 +10,7 @@ import { toOpenAIUsage } from "../concerns/usage.js";
 import { fallbackToolCallId } from "../concerns/toolCall.js";
 import { reasoningDelta } from "../concerns/reasoning.js";
 import { toOpenAIFinish } from "../concerns/finishReason.js";
+import { OPENAI_FINISH } from "../schema/finishReasons.js";
 
 // Build chunk meta for current kiro state
 function chunkMeta(state) {
@@ -71,6 +72,23 @@ export function kiroToOpenAIResponse(chunk, state) {
   }
 
   const eventType = data._eventType || data.event || "";
+
+  // KiroExecutor's integrity gate emits a plain error frame when the AWS event
+  // stream dies with no semantic output (e.g. code "kiro_missing_terminal_retry_failed").
+  // It carries no assistantResponseEvent/messageStopEvent, so it used to fall
+  // through to "Unknown event type - skip" below: the client received HTTP 200
+  // with zero deltas and no finish_reason, which reads downstream as an empty
+  // stream. Surface it as a terminal error chunk instead of dropping it.
+  const errPayload = data.error || (data.type === "error" ? data : null);
+  if (errPayload) {
+    const errObj = typeof errPayload === "string" ? { message: errPayload } : errPayload;
+    const message = errObj.message || errObj.type || "kiro upstream error";
+    const code = errObj.code || errObj.type || "kiro_upstream_error";
+    state.finishReason = OPENAI_FINISH.ERROR;
+    const errorChunk = buildChunk(chunkMeta(state), {}, OPENAI_FINISH.ERROR);
+    errorChunk.error = { message, type: "upstream_error", code };
+    return errorChunk;
+  }
 
   // Handle different Kiro event types
   if (eventType === "assistantResponseEvent" || data.assistantResponseEvent) {

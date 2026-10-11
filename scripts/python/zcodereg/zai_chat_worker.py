@@ -303,6 +303,32 @@ def _wait_submit_armed(page, timeout_ms=8000):
     return False
 
 
+_PLACEHOLDERS = ("Thinking...", "Thought Process", "Loading...")
+
+
+def _generation_finished(page):
+    """True once the assistant turn is over -- the Stop button is gone.
+
+    This is the ONLY reliable "the answer is complete" signal. Text length is
+    not: measured with a 250ms poll (probe_partial.py, 2026-10-11) on a prompt
+    asking for 40 lines, the DOM hands out text in chunks --
+
+        17.08s 'Thinking...' (11)   Stop=1
+        18.32s 'one\\ntwo\\n...twelve' (62)   Stop=1
+        18.98s (284)                Stop=1
+        19.45s (360)                Stop=0   <-- turn over, answer complete
+
+    so the old `len(txt) > 1` predicate returned the 62-char mid-stream chunk.
+    Live proof: the sidecar answered a 40-line prompt with 25 lines (185 chars,
+    ends at "twenty") because it shipped the first chunk it saw.
+    """
+    try:
+        return page.evaluate(
+            "() => document.querySelectorAll('[aria-label*=\"Stop\" i]').length === 0")
+    except Exception:
+        return False
+
+
 def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
     acc = load_account(email)
     if not acc:
@@ -331,7 +357,14 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
         box = page.query_selector('#chat-input') or page.query_selector('textarea')
         if not box:
             return {"error": "no #chat-input"}
-        box.click()
+        # ponytail: click is best-effort only. The welcome overlay is
+        # pointer-events-none but its children still swallow clicks, so this
+        # raises a 30s TimeoutError on some boots (seen in the sidecar journal).
+        # fill() focuses the element itself, so a failed click is survivable.
+        try:
+            box.click(timeout=3000)
+        except Exception:
+            pass
         box.fill(full_prompt)
         _wait_submit_armed(page)
         sent = False
@@ -348,6 +381,8 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
             page.keyboard.press("Enter")
         # poll for assistant reply
         start = time.time()
+        prev_txt = None
+        stable = 0
         while time.time() - start < timeout_s:
             # captcha guard: if slider appeared, solve it
             try:
@@ -359,10 +394,22 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
             except Exception:
                 pass
             txt = _read_reply(page, after)
-            if txt and len(txt) > 1 and txt.strip() not in ("Thinking...", "Thought Process", "Loading..."):
-                calls = parse_tool_calls(txt) if tools else []
-                return {"content": txt, "model": model or "default",
-                        "email": acc["email"], "tool_calls": calls}
+            if txt and txt.strip() not in _PLACEHOLDERS:
+                # Accept ONLY once the turn is over. The old `len(txt) > 1`
+                # predicate was wrong in both directions:
+                #   long answer -> shipped the first mid-stream chunk (25 of 40
+                #     lines, live-measured), i.e. TRUNCATED replies
+                #   1-char answer -> 'Z' never passed len>1, so the caller
+                #     polled the whole timeout_s and got {"error": "timeout"}
+                # Fallback: 3 unchanged polls, in case the Stop selector ever
+                # stops matching (UI/locale change) -- never accept a growing
+                # reading, that is the truncation bug again.
+                if _generation_finished(page) or (txt == prev_txt and stable >= 3):
+                    calls = parse_tool_calls(txt) if tools else []
+                    return {"content": txt, "model": model or "default",
+                            "email": acc["email"], "tool_calls": calls}
+                stable = stable + 1 if txt == prev_txt else 0
+                prev_txt = txt
             page.wait_for_timeout(1000)
         return {"error": "timeout waiting for reply", "email": acc["email"]}
 

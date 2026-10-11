@@ -60,7 +60,23 @@ export function kiroToClaudeResponse(chunk, state) {
     }
   }
 
-  if (!data || !data.choices?.[0]) return null;
+  if (!data || !data.choices?.[0]) {
+    // KiroExecutor's integrity gate emits {"error":{...}} when the upstream AWS
+    // event stream died with no semantic output. Without this branch the frame
+    // has no choices[] and was dropped, leaving the client with an empty 200.
+    if (data?.error) {
+      const err = typeof data.error === "string" ? { message: data.error } : data.error;
+      return [{
+        type: "error",
+        error: {
+          type: "upstream_error",
+          message: err.message || err.type || "kiro upstream error",
+          code: err.code || err.type || "kiro_upstream_error",
+        },
+      }];
+    }
+    return null;
+  }
 
   const results = [];
   const choice = data.choices[0];

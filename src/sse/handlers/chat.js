@@ -70,6 +70,11 @@ import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/coold
 // the kv row with identical upserts.
 const DEPRECATION_WRITE_TTL_MS = 60 * 1000;
 const deprecationWriteCache = new Map();
+// Consecutive 401/403 responses from distinct accounts that end the fallback
+// walk. Three is enough to distinguish "this credential is dead" from "this one
+// account hiccuped", and short enough that a dead pool answers in seconds
+// instead of minutes. Applies per request, reset by any non-auth failure.
+const MAX_CONSECUTIVE_AUTH_FAILURES = 3;
 
 async function recordDeprecationThrottled(provider, model, body) {
   const key = `${provider}/${model}`;
@@ -568,6 +573,14 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // re-attempt to exactly one for the whole request. Declared outside the
   // credential retry loop so it can never reset and loop.
   let streamEarlyEofRetries = 0;
+  // Auth-class failures (401/403) mean the credential itself is dead, not that
+  // this one account is busy. Walking the whole pool on those is pure latency:
+  // measured on the Kiro pool (97 accounts, every refresh token rejected) each
+  // account costs a token refresh + a 403, ~3.5s, so the client waited ~340s
+  // with an open stream and no content — the "empty stream" a buyer reports.
+  // Cap the run of consecutive auth failures and surface the error instead.
+  // Reset by any non-auth failure, so a genuinely flaky pool still cycles.
+  let consecutiveAuthFailures = 0;
   // Cooldown-aware retry: when ALL accounts are rate-limited with a near-term
   // retryAfter, wait briefly (<=30s) and retry the whole credential loop once
   // instead of immediately returning 503. Bounded to 1 retry per request.
@@ -921,6 +934,22 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     if (shouldFallback) {
+      // Auth-class failure: the credential is rejected outright, so every other
+      // account from the same pool is likely to answer the same way. Count the
+      // run; stop once it is clear the pool is dead rather than walking 90+
+      // accounts while the client holds an open, empty stream.
+      const authClassFailure = result.status === HTTP_STATUS.UNAUTHORIZED || result.status === HTTP_STATUS.FORBIDDEN;
+      consecutiveAuthFailures = authClassFailure ? consecutiveAuthFailures + 1 : 0;
+      if (consecutiveAuthFailures >= MAX_CONSECUTIVE_AUTH_FAILURES) {
+        log.warn("AUTH", `${provider} | ${consecutiveAuthFailures} consecutive auth failures — stopping fallback loop (last: ${credentials.connectionName}, ${result.status})`);
+        return withSelectedConnectionHeader(
+          errorResponse(
+            result.status,
+            `[${provider}/${model}] ${consecutiveAuthFailures} consecutive credential failures — stopping instead of walking the account pool. Last: ${errorText || "unknown"}`
+          ),
+          credentials.connectionId
+        );
+      }
       log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
       excludeConnectionIds.add(credentials.connectionId);
       lastError = errorText;

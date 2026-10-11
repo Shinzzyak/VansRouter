@@ -41,8 +41,11 @@ function processSSEMessage(msg, state) {
         state.usage.output_tokens_details = usage.output_tokens_details;
       }
     }
-  } else if (eventType === "response.failed") {
-    state.status = "failed";
+  } else if (eventType === "response.failed" || eventType === "error") {
+    // Keep WHY. Dropping the payload here is what made a failed upstream
+    // indistinguishable from a completed-but-empty one downstream.
+    state.status = eventType === "error" ? "error" : "failed";
+    state.error = parsed.response?.error || parsed.error || null;
   }
 }
 
@@ -94,11 +97,21 @@ export async function convertResponsesStreamToJson(stream) {
     output.push(state.items.get(i) || { type: "message", content: [], role: "assistant" });
   }
 
+  // `completed` is only true when the upstream SAID so, or when output actually
+  // arrived. Defaulting a silent, output-less stream to "completed" is the same
+  // silent-success defect as the empty 200: the client cannot tell a dead stream
+  // from a finished one.
+  const TERMINAL_STATUSES = ["completed", "failed", "error", "incomplete", "cancelled"];
+  const status = TERMINAL_STATUSES.includes(state.status)
+    ? state.status
+    : (output.length > 0 ? "completed" : "incomplete");
+
   return {
     id: state.responseId || `resp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     object: "response",
     created_at: state.created,
-    status: state.status || "completed",
+    status,
+    ...(state.error ? { error: state.error } : {}),
     output,
     usage: state.usage
   };

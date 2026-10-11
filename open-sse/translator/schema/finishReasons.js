@@ -6,6 +6,10 @@ export const OPENAI_FINISH = {
   LENGTH: "length",
   TOOL_CALLS: "tool_calls",
   CONTENT_FILTER: "content_filter",
+  // Terminal failure surfaced by an executor that detected a dead upstream
+  // stream (no semantic output). Outside the chat-completions spec, but a
+  // client that receives it knows the turn failed, not that it ended cleanly.
+  ERROR: "error",
 };
 
 // Claude stop_reason values.

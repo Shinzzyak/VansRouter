@@ -162,7 +162,16 @@ class Handler(BaseHTTPRequestHandler):
         if not email:
             return self._json({"error": why}, 502)
         with guard.BROWSER_GATE:
-            out = do_chat(prompt, model, tools, email=email)
+            # ponytail: a worker exception used to escape do_POST entirely --
+            # BaseHTTPRequestHandler then wrote NO response and the client saw
+            # an empty body (journal: "Exception occurred during processing").
+            try:
+                out = do_chat(prompt, model, tools, email=email)
+            except Exception as e:
+                guard.note_result(email, False)
+                return self._json(
+                    {"error": {"error": f"worker: {type(e).__name__}: {str(e)[:180]}",
+                               "email": email}}, 502)
         guard.note_result(email, "error" not in out)
         if "error" in out:
             return self._json({"error": out}, 502)

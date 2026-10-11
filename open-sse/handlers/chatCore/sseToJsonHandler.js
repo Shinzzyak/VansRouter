@@ -191,6 +191,27 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
   if (isCodexResponsesApi) {
     try {
       const jsonResponse = await convertResponsesStreamToJson(providerResponse.body);
+      const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
+
+      // Asymmetry fix. The Chat branch below bails on `parsed.error`; this branch
+      // had no equivalent, so a failed Responses upstream exited as HTTP 200 with
+      // empty content and a `no_text:failed` header nobody reads. Any client that
+      // checks status or body saw a silent success. Verified live 2026-10-11 on
+      // cx/gpt-5.6-terra and codebuddy-intl/gpt-5.3-codex.
+      const upstreamStatus = String(jsonResponse.status || "").toLowerCase();
+      const hasToolCallItem = (jsonResponse.output || []).some(i => i.type === "function_call");
+      const upstreamFailed = upstreamStatus === "failed" || upstreamStatus === "error";
+      // textContent can be null (tool-only turn) — never call .trim() on it directly.
+      const hasVisibleText = typeof textContent === "string" && textContent.trim().length > 0;
+      if (jsonResponse.error || (upstreamFailed && !hasVisibleText && !hasToolCallItem)) {
+        const detail = typeof jsonResponse.error === "string"
+          ? jsonResponse.error
+          : jsonResponse.error?.message
+            || `Upstream Responses API returned status "${jsonResponse.status}" with no output`;
+        console.error(`[ChatCore] Responses upstream failure (${provider}/${model}): ${detail}`);
+        return createErrorResult(HTTP_STATUS.BAD_GATEWAY, detail);
+      }
+
       if (onRequestSuccess) await onRequestSuccess();
 
       const usage = jsonResponse.usage || {};
@@ -199,7 +220,6 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       const usageLatency = Date.now() - requestStartTime;
       saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
 
-      const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
       const totalLatency = Date.now() - requestStartTime;
 
       // Cache-inclusive prompt total for the recorded detail: cache-capable
