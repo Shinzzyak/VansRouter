@@ -28,6 +28,7 @@ Env overrides:
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -41,6 +42,46 @@ _lock = threading.RLock()
 _hourly: dict[str, list[float]] = {}     # account -> recent request timestamps
 _cooldown: dict[str, float] = {}         # account -> unix ts until parked
 _fails: dict[str, int] = {}              # account -> consecutive failures
+
+# The parking lot has to outlive the process. Live 2026-10-11 23:5x: a restart
+# wiped _cooldown, the sidecar's round-robin also resets to index 0 on every
+# start, and emails[0] was a dead account -- so the FIRST request after each
+# restart burned the worker's whole 180s deadline and returned 502 (254s wall,
+# measured). Same seat that burned 209s at 17:54 per the sidecar's own note.
+# Persisting only the cooldown map is enough: _pick_slot() already walks past
+# accounts the guard rejects, so a parked account stays skipped after a restart.
+STATE_PATH = os.environ.get(
+    "ZAI_GUARD_STATE", "/home/ubuntu/VansRouter/data/db/zai_guard.json"
+)
+
+
+def _load() -> None:
+    """Restore the parking lot. A corrupt/absent file must never block startup."""
+    try:
+        with open(STATE_PATH, encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except Exception:
+        return
+    now = time.time()
+    with _lock:
+        _cooldown.update({k: float(v) for k, v in (doc.get("cooldown") or {}).items()
+                          if float(v) > now})
+        _fails.update({k: int(v) for k, v in (doc.get("fails") or {}).items()})
+
+
+def _save() -> None:
+    """Atomic write; the sidecar serialises requests so there is no write storm."""
+    tmp = f"{STATE_PATH}.tmp"
+    try:
+        with _lock:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump({"cooldown": _cooldown, "fails": _fails}, fh)
+        os.replace(tmp, STATE_PATH)
+    except Exception:
+        pass  # a guard that cannot write is still a working guard
+
+
+_load()
 
 # One browser at a time. Serialising is both the RAM fix and the ban fix.
 BROWSER_GATE = threading.Semaphore(MAX_CONCURRENT)
@@ -76,11 +117,13 @@ def note_result(account_label: str, ok: bool) -> None:
         if ok:
             _fails[account_label] = 0
             _cooldown.pop(account_label, None)
+            _save()
             return
         n = _fails.get(account_label, 0) + 1
         _fails[account_label] = n
         backoff = min(ERROR_BACKOFF_BASE_SEC * (2 ** (n - 1)), ERROR_BACKOFF_MAX_SEC)
         _cooldown[account_label] = time.time() + backoff
+    _save()  # the ticket has to survive a restart, or the next boot re-hires the dead account
 
 
 def usage(account_label: str) -> int:
