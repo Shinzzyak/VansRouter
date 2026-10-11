@@ -18,6 +18,12 @@ import sys, os, json, time, sqlite3, uuid, re
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 
+# Bound on the Camoufox launch itself. Without it the launch is unbounded and it is
+# the slowest step on a memory-pressured box (measured 205-209s cold). Playwright's
+# default launch timeout is 30s; 45s gives cold starts room without letting a wedged
+# launch eat the caller's whole patience.
+LAUNCH_TIMEOUT_MS = int(os.environ.get("ZAI_LAUNCH_TIMEOUT_MS", "45000"))
+
 
 def load_account(email=None):
     conn = sqlite3.connect(DB)
@@ -334,7 +340,13 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
     if not acc:
         return {"error": "no zcode account"}
     from camoufox.sync_api import Camoufox
-    with Camoufox(headless=True) as browser:
+    # t0 is taken BEFORE the browser exists, so timeout_s bounds the WHOLE turn
+    # (launch + goto + fill + submit + poll), not just the reply poll. Live
+    # 2026-10-11 20:03: launch+goto+fill ran entirely outside the old deadline and
+    # one request sat 4m44s before the client dropped the socket (BrokenPipeError in
+    # the sidecar journal) while the poll loop still believed it was in budget.
+    t0 = time.time()
+    with Camoufox(headless=True, timeout=LAUNCH_TIMEOUT_MS) as browser:
         ctx = browser.new_context()
         inject_cookies(ctx, acc["cookies"])
         page = ctx.new_page()
@@ -379,11 +391,10 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
                 pass
         if not sent:
             page.keyboard.press("Enter")
-        # poll for assistant reply
-        start = time.time()
+        # poll for assistant reply (bounded by t0, i.e. the whole-turn deadline)
         prev_txt = None
         stable = 0
-        while time.time() - start < timeout_s:
+        while time.time() - t0 < timeout_s:
             # captcha guard: if slider appeared, solve it
             try:
                 has_cap = page.evaluate(

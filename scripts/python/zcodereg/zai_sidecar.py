@@ -46,6 +46,18 @@ MODELS = [
 _rr = 0
 _rr_lock = threading.Lock()
 
+# How many pool accounts one HTTP request may burn before it gives up. A single
+# bad account used to poison the whole request: live (2026-10-11 17:54) REQ1
+# after a sidecar restart polled its full timeout_s on account amy.murphy, spent
+# 209s, and returned 502 -- while the very next request, a different round-robin
+# account, answered in 21s. One retry turns that 502 into an answer.
+ACCOUNT_ATTEMPTS = int(os.environ.get("ZAI_ACCOUNT_ATTEMPTS", "2"))
+
+# A retry is only cheap if the first account failed fast. Past this many seconds a
+# second attempt no longer shortens the client's wait, it doubles it -- so the loop
+# stops instead. Keeps the worst case near a single attempt.
+ATTEMPT_BUDGET_S = float(os.environ.get("ZAI_ATTEMPT_BUDGET_S", "30"))
+
 # Pool source of truth. Seeded into kv(scope='settings', key='zaiPoolEmails') by
 # scripts/python/zcodereg/seed_zai_pool.py so the 108 providerConnections rows
 # can be deactivated without starving the sidecar (they remain the credential
@@ -158,23 +170,42 @@ class Handler(BaseHTTPRequestHandler):
             prompt = build_tools_prompt(prompt, tools)
         if not prompt.strip():
             return self._json({"error": "empty prompt"}, 400)
-        email, why = _pick_slot()
-        if not email:
-            return self._json({"error": why}, 502)
-        with guard.BROWSER_GATE:
-            # ponytail: a worker exception used to escape do_POST entirely --
-            # BaseHTTPRequestHandler then wrote NO response and the client saw
-            # an empty body (journal: "Exception occurred during processing").
-            try:
-                out = do_chat(prompt, model, tools, email=email)
-            except Exception as e:
-                guard.note_result(email, False)
-                return self._json(
-                    {"error": {"error": f"worker: {type(e).__name__}: {str(e)[:180]}",
-                               "email": email}}, 502)
-        guard.note_result(email, "error" not in out)
-        if "error" in out:
-            return self._json({"error": out}, 502)
+        out = None
+        last = None
+        t_attempt = 0.0
+        for attempt in range(ACCOUNT_ATTEMPTS):
+            # Retry ONLY when the previous account failed fast. If it already burned
+            # the client's patience, a second attempt doubles the wait instead of
+            # fixing it (live 2026-10-11 20:03: an unbounded attempt sat 4m44s and the
+            # client dropped the socket before the sidecar could answer).
+            if attempt and (time.monotonic() - t_attempt) > ATTEMPT_BUDGET_S:
+                break
+            t_attempt = time.monotonic()
+            email, why = _pick_slot()
+            if not email:
+                return self._json({"error": last or why}, 502)
+            with guard.BROWSER_GATE:
+                # ponytail: a worker exception used to escape do_POST entirely --
+                # BaseHTTPRequestHandler then wrote NO response and the client saw
+                # an empty body (journal: "Exception occurred during processing").
+                try:
+                    out = do_chat(prompt, model, tools, email=email)
+                except Exception as e:
+                    guard.note_result(email, False)
+                    last = {"error": f"worker: {type(e).__name__}: {str(e)[:180]}",
+                            "email": email}
+                    out = None
+                    continue
+            guard.note_result(email, "error" not in out)
+            if "error" not in out:
+                break
+            last = out
+            out = None
+        if out is None:
+            # Reached when every attempted account was bad, or the first attempt was
+            # too slow to be worth retrying. note_result parks the bad accounts, so the
+            # pool heals and later requests skip them.
+            return self._json({"error": last}, 502)
         msg = {"role": "assistant", "content": None}
         tool_calls = out.get("tool_calls") or []
         if tool_calls:
