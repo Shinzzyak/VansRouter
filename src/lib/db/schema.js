@@ -131,16 +131,16 @@ export const TABLES = {
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
-  // Redeem codes — the top-up instrument for a sold key. A seller mints a
-  // batch, the buyer redeems one against their key, and the key's prepaid token
-  // balance and/or expiry move. Zero rows = the feature is simply unused.
+  // Redeem codes — what a buyer actually buys. A seller mints a batch, the
+  // buyer spends one on the public redeem page, and the code's quota and
+  // validity become a brand-new key. Zero rows = the feature is simply unused.
   redeemCodes: {
     columns: {
       id: "TEXT PRIMARY KEY",
       code: "TEXT UNIQUE NOT NULL",
       batchName: "TEXT",
-      tokenValue: "INTEGER",
-      extendsDays: "INTEGER",
+      tokenValue: "INTEGER", // quota granted to the issued key; NULL = unlimited
+      extendsDays: "INTEGER", // validity of the issued key, in days; NULL = no expiry
       maxUses: "INTEGER DEFAULT 1",
       usedCount: "INTEGER DEFAULT 0",
       isActive: "INTEGER DEFAULT 1",

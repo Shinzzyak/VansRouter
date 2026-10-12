@@ -158,91 +158,110 @@ describe("redeem codes", () => {
     }
   });
 
-  it("credits the balance, extends expiry and burns exactly one use", async () => {
+  it("turns one code into one fresh key carrying the code's quota and validity", async () => {
     const { keys, redeem } = await load();
-    const key = await keys.createApiKey("buyer-redeem", "machine-1", { tokenBalance: 100 });
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 500, extendsDays: 30, maxUses: 1 });
+    const [code] = await redeem.createRedeemCodes({
+      quantity: 1,
+      tokenValue: 5_000_000,
+      extendsDays: 30,
+      maxUses: 1,
+    });
 
-    const result = await redeem.redeemCode(code.code, { id: key.id });
+    const result = await redeem.redeemCode(code.code, { ip: "203.0.113.9" });
     expect(result.ok).toBe(true);
-    expect(result.creditedTokens).toBe(500);
-    expect(result.tokenBalance).toBe(600);
+    expect(result.tokens).toBe(5_000_000);
+    expect(result.days).toBe(30);
     expect(result.usesRemaining).toBe(0);
 
-    const days = (new Date(result.expiresAt).getTime() - Date.now()) / 86400000;
+    // The issued key is a real key: it authenticates, and it carries the quota.
+    expect(result.key.key).toMatch(/^sk-/);
+    expect(await keys.validateApiKey(result.key.key)).not.toBeNull();
+    const stored = await keys.getApiKeyById(result.key.id);
+    expect(stored.tokenBalance).toBe(5_000_000);
+    expect(stored.tokensSpent ?? 0).toBe(0);
+
+    const days = (new Date(result.key.expiresAt).getTime() - Date.now()) / 86400000;
     expect(days).toBeGreaterThan(29.9);
     expect(days).toBeLessThan(30.1);
 
-    const after = await keys.getApiKeyById(key.id);
-    expect(after.tokenBalance).toBe(600);
+    // Redemption always mints, never reuses a key.
+    const [other] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
+    expect((await redeem.redeemCode(other.code)).key.key).not.toBe(result.key.key);
+  });
 
-    // Lower case and stray whitespace still match: codes get pasted by hand.
-    const again = await redeem.redeemCode(`  ${code.code.toLowerCase()} `, { id: key.id });
+  it("accepts a hand-pasted code regardless of case or stray whitespace, and burns it", async () => {
+    const { redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 100, maxUses: 1 });
+
+    const first = await redeem.redeemCode(`  ${code.code.toLowerCase()} `);
+    expect(first.ok).toBe(true);
+
+    const again = await redeem.redeemCode(code.code);
     expect(again.ok).toBe(false);
     expect(again.error).toMatch(/already been used/);
   });
 
   it("honours maxUses and reports the remaining count", async () => {
-    const { keys, redeem } = await load();
-    const key = await keys.createApiKey("buyer-multi", "machine-1", {});
+    const { redeem } = await load();
     const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10, maxUses: 2 });
 
-    expect((await redeem.redeemCode(code.code, { id: key.id })).usesRemaining).toBe(1);
-    expect((await redeem.redeemCode(code.code, { id: key.id })).usesRemaining).toBe(0);
-    const third = await redeem.redeemCode(code.code, { id: key.id });
+    expect((await redeem.redeemCode(code.code)).usesRemaining).toBe(1);
+    expect((await redeem.redeemCode(code.code)).usesRemaining).toBe(0);
+    const third = await redeem.redeemCode(code.code);
     expect(third.ok).toBe(false);
     expect(third.error).toMatch(/already been used/);
   });
 
   it("refuses unknown, revoked and expired codes", async () => {
-    const { keys, redeem } = await load();
-    const key = await keys.createApiKey("buyer-bad", "machine-1", {});
+    const { redeem } = await load();
 
-    expect((await redeem.redeemCode("AAAA-BBBB-CCCC", { id: key.id })).error).toMatch(/Unknown redeem code/);
+    expect((await redeem.redeemCode("AAAA-BBBB-CCCC")).error).toMatch(/Unknown redeem code/);
 
     const [revoked] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
     await redeem.revokeRedeemCode(revoked.id);
-    expect((await redeem.redeemCode(revoked.code, { id: key.id })).error).toMatch(/revoked/);
+    expect((await redeem.redeemCode(revoked.code)).error).toMatch(/revoked/);
 
     const [expired] = await redeem.createRedeemCodes({
       quantity: 1,
       tokenValue: 10,
       expiresAt: new Date(Date.now() - 86400000).toISOString(),
     });
-    expect((await redeem.redeemCode(expired.code, { id: key.id })).error).toMatch(/expired/);
+    expect((await redeem.redeemCode(expired.code)).error).toMatch(/expired/);
   });
 
-  it("extends from now when the key is already expired, so no paid time is lost", async () => {
+  it("treats an omitted quota or validity as unlimited, not as zero", async () => {
     const { keys, redeem } = await load();
-    const key = await keys.createApiKey("buyer-late", "machine-1", {
-      expiresAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-    });
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, extendsDays: 7 });
 
-    const result = await redeem.redeemCode(code.code, { id: key.id });
-    const days = (new Date(result.expiresAt).getTime() - Date.now()) / 86400000;
+    const [quotaOnly] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 1_000_000 });
+    const a = await redeem.redeemCode(quotaOnly.code);
+    expect((await keys.getApiKeyById(a.key.id)).tokenBalance).toBe(1_000_000);
+    expect(a.key.expiresAt).toBeNull();
+
+    const [daysOnly] = await redeem.createRedeemCodes({ quantity: 1, extendsDays: 7 });
+    const b = await redeem.redeemCode(daysOnly.code);
+    expect((await keys.getApiKeyById(b.key.id)).tokenBalance).toBeNull();
+    const days = (new Date(b.key.expiresAt).getTime() - Date.now()) / 86400000;
     expect(days).toBeGreaterThan(6.9);
     expect(days).toBeLessThan(7.1);
-    // The key is alive again: expiry is re-read on every auth.
-    expect(await keys.validateApiKey(key.key)).not.toBeNull();
   });
 
-  it("does not resurrect a key the admin switched off", async () => {
-    const { keys, redeem } = await load();
-    const key = await keys.createApiKey("buyer-off", "machine-1", {});
-    await keys.toggleApiKey(key.id); // admin disables it (leak, chargeback, ...)
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 100, extendsDays: 30 });
+  it("names the issued key from the buyer, the batch, or a plain default", async () => {
+    const { redeem } = await load();
 
-    const result = await redeem.redeemCode(code.code, { id: key.id });
-    expect(result.ok).toBe(true);
-    expect((await keys.getApiKeyById(key.id)).isActive).toBeFalsy();
-    expect(await keys.validateApiKey(key.key)).toBeNull();
+    const [named] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
+    expect((await redeem.redeemCode(named.code, { name: "budi" })).key.name).toBe("budi");
+
+    const [batched] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10, batchName: "batch-z" });
+    expect((await redeem.redeemCode(batched.code)).key.name).toBe("batch-z");
+
+    const [plain] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
+    expect((await redeem.redeemCode(plain.code)).key.name).toBe("buyer");
   });
 
   it("lists and summarises a batch", async () => {
     const { redeem } = await load();
     const batch = await redeem.createRedeemCodes({ quantity: 4, batchName: "batch-b", tokenValue: 50 });
-    await redeem.redeemCode(batch[0].code, { id: (await (await load()).keys.createApiKey("x", "m", {})).id });
+    await redeem.redeemCode(batch[0].code, { ip: "198.51.100.4" });
     await redeem.revokeRedeemCode(batch[1].id);
 
     const listed = await redeem.getRedeemCodes({ batchName: "batch-b" });

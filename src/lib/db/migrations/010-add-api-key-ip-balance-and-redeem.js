@@ -7,7 +7,7 @@
 //   tokenBalance — prepaid lifetime token allowance (the "saldo" a buyer tops
 //                  up). NULL = no balance gate.
 //   tokensSpent  — lifetime tokens debited against that balance.
-// Plus `redeemCodes`: the top-up instrument itself — one row per code, with the
+// Plus `redeemCodes`: one row per code, carrying the quota and validity the
 // value it carries (tokens and/or extra days) and its own usage ceiling.
 export default {
   version: 10,

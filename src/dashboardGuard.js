@@ -269,6 +269,14 @@ export async function proxy(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // The buyer redeem endpoint authenticates the code itself and must stay
+  // reachable without a key: a buyer redeeming is by definition not a key
+  // holder yet. Checked before the LLM-API gate below, which would otherwise
+  // demand a key from the one caller who cannot have one.
+  if (pathname === "/api/v1/redeem" || pathname === "/api/v1/redeem/") {
+    return NextResponse.next();
+  }
+
   if (isPublicLlmApi(pathname)) {
     if (await canAccessPublicLlmApi(request)) return NextResponse.next();
     return NextResponse.json(

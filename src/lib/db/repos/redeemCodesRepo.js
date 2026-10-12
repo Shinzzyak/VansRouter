@@ -1,13 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { getAdapter } from "../driver.js";
+import { buildApiKeyRecord, insertApiKeyRow } from "./apiKeysRepo.js";
 
-// Redeem codes: the top-up instrument for a sold key.
+// Redeem codes: the only way a buyer gets in.
 //
-// A seller mints a batch, hands the codes out (bundled with a key, sold on a
-// marketplace, whatever), and the buyer redeems one against the key they hold —
-// which credits the key's prepaid token balance and/or pushes its expiry out.
-// Everything here is admin-side except `redeemCode`, which is what the buyer's
-// own key is allowed to call.
+// A seller mints a batch, hands the codes out (sold on a marketplace, pasted
+// into a chat, whatever), and the buyer spends one on the public redeem page —
+// which issues a fresh API key carrying the code's quota and validity. The code
+// *is* the credential, so no key is needed to spend one and a code can never be
+// spent onto somebody else's key.
+//
+// Everything here is admin-side except `redeemCode`, which the public redeem
+// endpoint calls.
 
 // No 0/O/1/I: codes get read off a screen, pasted from a marketplace listing,
 // or typed by hand, and those four are where transcription goes wrong.
@@ -142,22 +146,56 @@ export async function deleteRedeemCode(id) {
 }
 
 /**
- * Redeem a code against the key doing the redeeming.
+ * Spend a code and issue the key it buys.
  *
- * The code's value is applied to the key row in the same transaction that burns
- * one of the code's uses, so a code can never be spent without the credit
- * landing (and vice versa). Returns a discriminated result rather than
- * throwing, because every failure here is a normal buyer-side outcome.
+ * The burn and the issue happen inside one transaction, in that order of
+ * checks: every rejection is decided before anything is written, so a failed
+ * redeem leaves the code untouched. Two simultaneous redeems of a single-use
+ * code therefore cannot both win — the transaction is synchronous and
+ * exclusive, so the second one reads usedCount = maxUses and is refused.
+ *
+ * Returns a discriminated result rather than throwing: an unknown, revoked,
+ * expired or already-spent code is a normal buyer-side outcome, not a fault.
+ *
+ * @param {string} code the plaintext code
+ * @param {{ name?: string|null, ip?: string|null }} context optional labelling
  */
-export async function redeemCode(code, apiKeyInfo) {
+export async function redeemCode(code, { name = null, ip = null } = {}) {
   if (!code || typeof code !== "string") return { ok: false, error: "Missing redeem code" };
-  if (!apiKeyInfo?.id) return { ok: false, error: "Missing API key" };
+  const normalized = code.trim().toUpperCase();
 
   const db = await getAdapter();
-  let outcome = null;
+  // Read first so the key record can be built outside the transaction; the row
+  // is re-read inside it, which is what actually decides the outcome. Only
+  // usedCount and isActive can move between the two reads, and both are
+  // re-checked.
+  const preview = rowToCode(db.get(`SELECT * FROM redeemCodes WHERE code = ?`, [normalized]));
+  if (!preview) return { ok: false, error: "Unknown redeem code" };
 
+  const { getConsistentMachineId } = await import("@/shared/utils/machineId");
+  const machineId = await getConsistentMachineId();
+  const base = String(name || preview.batchName || "buyer").trim() || "buyer";
+  // One code = one key, so the bare name is enough; a multi-use code has to
+  // tell its keys apart, and the code suffix plus the use number does it.
+  const label =
+    preview.maxUses > 1 ? `${base}-${normalized.slice(-4)}-${preview.usedCount + 1}` : base;
+  const days = preview.extendsDays;
+  const record = await buildApiKeyRecord(label, machineId, {
+    // null = unlimited tokens / no expiry: a code may carry one, the other, or both.
+    tokenBalance: preview.tokenValue,
+    expiresAt: days === null ? null : new Date(Date.now() + days * 86400000).toISOString(),
+    personaInject: true,
+    metadata: JSON.stringify({
+      redeemCode: normalized,
+      batch: preview.batchName,
+      redeemedFrom: ip || null,
+      redeemedAt: new Date().toISOString(),
+    }),
+  });
+
+  let outcome = null;
   db.transaction(() => {
-    const row = db.get(`SELECT * FROM redeemCodes WHERE code = ?`, [String(code).trim().toUpperCase()]);
+    const row = db.get(`SELECT * FROM redeemCodes WHERE code = ?`, [normalized]);
     if (!row) {
       outcome = { ok: false, error: "Unknown redeem code" };
       return;
@@ -175,50 +213,27 @@ export async function redeemCode(code, apiKeyInfo) {
       outcome = { ok: false, error: "Redeem code has already been used" };
       return;
     }
-    const keyRow = db.get(`SELECT * FROM apiKeys WHERE id = ?`, [apiKeyInfo.id]);
-    if (!keyRow) {
-      outcome = { ok: false, error: "Unknown API key" };
-      return;
-    }
 
-    const balanceBefore = parseIntOrNull(keyRow.tokenBalance);
-    const balanceAfter = entry.tokenValue === null
-      ? balanceBefore
-      : (balanceBefore ?? 0) + entry.tokenValue;
-
-    // Expiry extends from "now" when the key is already dead, so a buyer who
-    // tops up late still gets the full period they paid for.
-    let expiresAt = keyRow.expiresAt || null;
-    if (entry.extendsDays !== null) {
-      const base = expiresAt && new Date(expiresAt).getTime() > Date.now()
-        ? new Date(expiresAt).getTime()
-        : Date.now();
-      expiresAt = new Date(base + entry.extendsDays * 86400000).toISOString();
-    }
-
-    // Note: isActive is deliberately NOT touched. It is the admin's
-    // enable/disable switch (a revoked or chargebacked key); a top-up must not
-    // resurrect a key that was switched off on purpose. Expiry is re-evaluated
-    // from expiresAt on every auth, so pushing expiresAt out is enough to bring
-    // a merely expired key back.
-    db.run(
-      `UPDATE apiKeys SET tokenBalance = ?, expiresAt = ? WHERE id = ?`,
-      [balanceAfter, expiresAt, apiKeyInfo.id]
-    );
-    db.run(
-      `UPDATE redeemCodes SET usedCount = usedCount + 1 WHERE id = ?`,
-      [entry.id]
-    );
+    insertApiKeyRow(db, record);
+    db.run(`UPDATE redeemCodes SET usedCount = usedCount + 1 WHERE id = ?`, [entry.id]);
 
     outcome = {
       ok: true,
       code: entry.code,
-      creditedTokens: entry.tokenValue ?? 0,
-      extendedDays: entry.extendsDays ?? 0,
-      tokenBalance: balanceAfter,
-      tokensSpent: parseIntOrNull(keyRow.tokensSpent) ?? 0,
-      expiresAt,
+      tokens: entry.tokenValue,
+      days: entry.extendsDays,
+      expiresAt: record.expiresAt,
       usesRemaining: Math.max(0, entry.maxUses - (entry.usedCount + 1)),
+      key: {
+        id: record.id,
+        name: record.name,
+        key: record.key,
+        keyDisplay: record.keyDisplay,
+        tokenBalance: record.tokenBalance,
+        expiresAt: record.expiresAt,
+        isActive: true,
+        personaInject: record.personaInject,
+      },
     };
   });
 

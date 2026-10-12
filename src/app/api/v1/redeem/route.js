@@ -1,41 +1,56 @@
-import { extractApiKey, isValidApiKey } from "@/sse/services/auth.js";
 import { redeemCode } from "@/lib/db/repos/redeemCodesRepo.js";
-import { getApiKeyById } from "@/lib/localDb";
+import { getSettings } from "@/lib/localDb";
+import { checkLock, recordFail, recordSuccess, getClientIp } from "@/lib/auth/loginLimiter.js";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/v1/redeem — the buyer side of the resale flow.
+// POST /api/v1/redeem — the buyer's front door.
 //
-// The buyer holds a key and a code; the code is spent against that key, which
-// credits its prepaid token balance and/or pushes its expiry out. The key comes
-// from the usual Authorization header, so a code can never be spent onto
-// somebody else's key by an anonymous caller.
+// A buyer holds a code and nothing else; the code is the credential, so this
+// route takes no API key. It hands back the key it issues, the base URL to use
+// it against, and the quota/validity that came with the code — that is the
+// whole contract, deliberately: a buyer needs an address, a secret and a
+// number, not a tour of the HTTP surface.
 //
-// Public prefix (/api/v1) is deliberate: buyers are outside the dashboard, so
-// this route authenticates the key itself rather than the dashboard session.
-const CORS = { "Access-Control-Allow-Origin": "*" };
+// Public prefix (/api/v1) is deliberate; dashboardGuard carves this exact path
+// out of the remote-key requirement, because a buyer redeeming is by definition
+// not a key holder yet. The code check below plus the lockout is what protects
+// it, and a code is 32^12.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
 
 const json = (body, status = 200) => Response.json(body, { status, headers: CORS });
 
 export async function OPTIONS() {
-  return new Response(null, {
-    headers: {
-      ...CORS,
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "*",
-    },
-  });
+  return new Response(null, { status: 204, headers: CORS });
+}
+
+// The address a buyer should call. A pinned public base URL wins (the dashboard
+// may be reachable on an address the buyer cannot use); otherwise the request's
+// own host is the floor.
+async function resolveBaseUrl(request) {
+  let pinned = "";
+  try {
+    pinned = String((await getSettings())?.publicBaseUrl || "").trim().replace(/\/+$/, "");
+  } catch {}
+  if (pinned) return `${pinned}/v1`;
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("host") || "";
+  return host ? `${proto}://${host}/v1` : "/v1";
 }
 
 export async function POST(request) {
   try {
-    const supplied = extractApiKey(request);
-    if (!supplied) {
-      return json({ error: { message: "Missing API key", type: "authentication_error" } }, 401);
-    }
-    const apiKeyInfo = await isValidApiKey(supplied, request);
-    if (!apiKeyInfo) {
-      return json({ error: { message: "Invalid, expired or disabled API key", type: "authentication_error" } }, 401);
+    const ip = getClientIp(request);
+    const lock = checkLock(ip);
+    if (lock.locked) {
+      return json(
+        { error: { message: `Too many attempts. Try again in ${lock.retryAfter}s`, type: "rate_limit_error" } },
+        429
+      );
     }
 
     let code = null;
@@ -45,36 +60,31 @@ export async function POST(request) {
     } catch {
       return json({ error: { message: "Body must be JSON with a `code` field", type: "invalid_request_error" } }, 400);
     }
-    if (!code) {
+    if (!code || typeof code !== "string") {
       return json({ error: { message: "Missing redeem code", type: "invalid_request_error" } }, 400);
     }
 
-    const result = await redeemCode(String(code), apiKeyInfo);
+    const result = await redeemCode(code, { ip });
     if (!result.ok) {
-      // A spent/unknown/expired code is a normal buyer-side outcome, not a
-      // server fault: 400 with the reason, never a 500.
+      // A spent/unknown/revoked/expired code is a normal buyer-side outcome, not
+      // a server fault: 400 with the reason, never a 500.
+      recordFail(ip);
       return json({ error: { message: result.error, type: "invalid_request_error" } }, 400);
     }
+    recordSuccess(ip);
 
-    // Read the key back so the response carries the row as it now stands, not
-    // just the delta.
-    const refreshed = await getApiKeyById(apiKeyInfo.id);
     return json({
       object: "redeem",
       redeemed: true,
       code: result.code,
-      creditedTokens: result.creditedTokens,
-      extendedDays: result.extendedDays,
-      usesRemaining: result.usesRemaining,
-      key: {
-        id: apiKeyInfo.id,
-        name: apiKeyInfo.name,
-        keyDisplay: apiKeyInfo.keyDisplay,
-        tokenBalance: refreshed?.tokenBalance ?? result.tokenBalance,
-        tokensSpent: refreshed?.tokensSpent ?? result.tokensSpent,
-        expiresAt: refreshed?.expiresAt ?? result.expiresAt,
-        isActive: refreshed?.isActive ?? true,
-      },
+      name: result.key.name,
+      api_key: result.key.key,
+      key_display: result.key.keyDisplay,
+      base_url: await resolveBaseUrl(request),
+      tokens: result.tokens,
+      expires_at: result.expiresAt,
+      days: result.days,
+      uses_remaining: result.usesRemaining,
     });
   } catch (error) {
     console.log("Error redeeming code:", error);

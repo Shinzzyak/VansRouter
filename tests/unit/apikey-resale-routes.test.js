@@ -209,52 +209,57 @@ describe("admin redeem-code endpoints", () => {
   });
 });
 
-describe("POST /api/v1/redeem — the buyer's side", () => {
-  it("refuses without a key and with a dead key", async () => {
-    const noKey = await buyerRedeemRoute.POST(post("http://local/api/v1/redeem", { code: "AAAA-BBBB-CCCC" }));
-    expect(noKey.status).toBe(401);
+describe("POST /api/v1/redeem — the buyer's front door", () => {
+  const issuedKey = {
+    id: "key-1",
+    name: "buyer",
+    key: "sk-aaaa-bbbb-cccc",
+    keyDisplay: "sk-a…cccc",
+    tokenBalance: 5_000_000,
+    expiresAt: "2026-12-01T00:00:00.000Z",
+  };
 
-    const deadKey = await buyerRedeemRoute.POST(
-      post("http://local/api/v1/redeem", { code: "AAAA-BBBB-CCCC" }, { authorization: "Bearer k-dead" })
-    );
-    expect(deadKey.status).toBe(401);
-  });
-
-  it("refuses a body with no code", async () => {
-    const res = await buyerRedeemRoute.POST(post("http://local/api/v1/redeem", {}, { authorization: "Bearer k-live" }));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toMatch(/Missing redeem code/);
-  });
-
-  it("answers 400 (not 500) for an unknown or spent code", async () => {
-    const res = await buyerRedeemRoute.POST(post("http://local/api/v1/redeem", { code: "nope" }, { authorization: "Bearer k-live" }));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toMatch(/Unknown redeem code/);
-  });
-
-  it("credits the key and reports the row as it now stands", async () => {
+  it("needs no API key: the code is the credential, and the response carries the address", async () => {
     h.state.redeemed = {
       ok: true,
       code: "AAAA-BBBB-CCCC",
-      creditedTokens: 500,
-      extendedDays: 30,
-      tokenBalance: 600,
-      tokensSpent: 100,
+      tokens: 5_000_000,
+      days: 30,
       expiresAt: "2026-12-01T00:00:00.000Z",
       usesRemaining: 0,
+      key: issuedKey,
     };
+
+    // No Authorization header at all — a buyer redeeming has no key yet.
     const res = await buyerRedeemRoute.POST(
-      post("http://local/api/v1/redeem", { code: "aaaa-bbbb-cccc" }, { authorization: "Bearer k-live" })
+      post("http://local/api/v1/redeem", { code: "aaaa-bbbb-cccc" }, { host: "router.example.com" })
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
+    expect(body.object).toBe("redeem");
     expect(body.redeemed).toBe(true);
-    expect(body.creditedTokens).toBe(500);
-    expect(body.key.tokenBalance).toBe(600);
-    expect(body.key.tokensSpent).toBe(100);
-    // The buyer never sees the secret, only the masked form.
-    expect(JSON.stringify(body)).not.toContain("vr-live-");
+    expect(body.code).toBe("AAAA-BBBB-CCCC");
+    expect(body.api_key).toBe("sk-aaaa-bbbb-cccc");
+    expect(body.key_display).toBe("sk-a…cccc");
+    // With no pinned domain, the host the buyer reached is what they get back.
+    expect(body.base_url).toBe("https://router.example.com/v1");
+    expect(body.tokens).toBe(5_000_000);
+    expect(body.days).toBe(30);
+    expect(body.expires_at).toBe("2026-12-01T00:00:00.000Z");
+  });
+
+  it("refuses a body with no code", async () => {
+    const res = await buyerRedeemRoute.POST(post("http://local/api/v1/redeem", {}));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/Missing redeem code/);
+  });
+
+  it("answers 400 (not 500) for an unknown, spent, revoked or expired code", async () => {
+    h.state.redeemed = { ok: false, error: "Redeem code has already been used" };
+    const res = await buyerRedeemRoute.POST(post("http://local/api/v1/redeem", { code: "nope" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/already been used/);
   });
 
   it("is a public-prefix route so a remote buyer can reach it", async () => {

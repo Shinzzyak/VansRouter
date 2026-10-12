@@ -83,14 +83,14 @@ export async function getApiKeyById(id) {
   return rowToKey(row);
 }
 
-export async function createApiKey(name, machineId, limits = {}) {
+// The row-building half of a mint, split out so a caller that must create the
+// key inside its own transaction (a redeem code: burn the code and issue the
+// key atomically) can reuse it instead of re-deriving every default.
+export async function buildApiKeyRecord(name, machineId, limits = {}) {
   if (!machineId) throw new Error("machineId is required");
-  const [db, { generateApiKeyWithMachine }] = await Promise.all([
-    getAdapter(),
-    import("@/shared/utils/apiKey"),
-  ]);
+  const { generateApiKeyWithMachine } = await import("@/shared/utils/apiKey");
   const result = generateApiKeyWithMachine(machineId);
-  const apiKey = {
+  return {
     id: randomUUID(),
     name,
     key: result.key,
@@ -120,6 +120,11 @@ export async function createApiKey(name, machineId, limits = {}) {
     tokenBalance: parseLimitInt(limits.tokenBalance),
     tokensSpent: parseLimitInt(limits.tokensSpent) ?? 0,
   };
+}
+
+// The write half, kept separate for the same reason: a transaction that already
+// holds the adapter inserts a record it built a moment earlier.
+export function insertApiKeyRow(db, apiKey) {
   db.run(
     `INSERT INTO apiKeys(
       id, key, name, machineId, isActive, createdAt,
@@ -140,6 +145,14 @@ export async function createApiKey(name, machineId, limits = {}) {
       serializePermList(apiKey.allowedIps), apiKey.tokenBalance, apiKey.tokensSpent,
     ]
   );
+}
+
+export async function createApiKey(name, machineId, limits = {}) {
+  const [db, apiKey] = await Promise.all([
+    getAdapter(),
+    buildApiKeyRecord(name, machineId, limits),
+  ]);
+  insertApiKeyRow(db, apiKey);
   // The per-model allow-list lives in its own table (empty = allow all), so it
   // is written after the row exists. A caller that passes one gets the same
   // policy it would have had to PUT a second time to apply.

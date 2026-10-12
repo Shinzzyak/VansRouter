@@ -3,9 +3,9 @@ import { createRedeemCodes, getRedeemCodes } from "@/lib/db/repos/redeemCodesRep
 
 export const dynamic = "force-dynamic";
 
-// Admin surface for redeem codes — the top-up instrument of the resale flow.
-// A seller mints a batch, hands the codes out, and the buyer spends one against
-// their own key at POST /api/v1/redeem.
+// Admin surface for redeem codes — the product itself.
+// A seller mints a batch, hands the codes out, and the buyer spends one on the
+// public redeem page (POST /api/v1/redeem), which issues the key it buys.
 //
 // Admin-only by placement (dashboardGuard covers /api/*): a buyer can spend a
 // code but can neither list nor mint them.

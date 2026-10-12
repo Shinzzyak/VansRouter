@@ -457,13 +457,16 @@ def main():
                      "G8 /api/v1/models refuses the blocked address"):
             check(name, False, f"create http {st}")
 
-    # ---- H. prepaid balance + redeem code top-up (wave 2) -----------------
+    # ---- H. the buyer path: a code becomes a key (wave 3) -----------------
+    # H1-H4 still watch the prepaid balance gate. From H5 on, the flow is the
+    # buyer's: a code is the product, and spending it mints the key it buys.
     st, txt, _ = admin("/api/keys", "POST", {
         "name": f"zz-resale-bal-{stamp}",
         "limits": {"rpm": 20, "tokenBalance": 30},
         "allowedKinds": ["llm"],
     })
     bal_id, bal_key = None, None
+    code_ids = []
     if st == 201:
         bj = json.loads(txt)
         bal_id, bal_key = bj["id"], bj["key"]
@@ -481,70 +484,81 @@ def main():
         # Admin drops the balance below what was already spent: the gate must shut.
         st_p, _, _ = admin(f"/api/keys/{bal_id}", "PUT", {"limits": {"tokenBalance": 1}})
         st_c2, txt_c2, _ = chat(ctl_model, bal_key)
-        # 402, not 429: waiting never clears a spent balance, and an [OI] client that
-        # backs off on 429 would retry forever against a key that needs a top-up.
+        # 402, not 429: waiting never clears a spent balance, and a client that
+        # backs off on 429 would retry forever against a key only the seller can replace.
         check("H4 balance below spend -> 402 payment required", st_c2 == 402,
               f"put={st_p} http {st_c2} :: {txt_c2[:140]}")
-        check("H4b the 402 names the reason", "insufficient_balance" in txt_c2,
-              f"body={txt_c2[:140]}")
+        check("H4b the 402 names the reason", "insufficient_balance" in txt_c2, f"body={txt_c2[:140]}")
 
-        # Buyer tops up with a redeem code and the gate opens again.
+        # The seller mints a batch; one code = one sale.
         st_m, txt_m, _ = admin("/api/redeem-codes", "POST", {
             "quantity": 2, "batchName": f"zz-batch-{stamp}", "tokenValue": 100000, "extendsDays": 30,
         })
         codes = json.loads(txt_m).get("codes", []) if st_m == 201 else []
+        code_ids = [c["id"] for c in codes]
         check("H5 admin mints a redeem-code batch", st_m == 201 and len(codes) == 2,
               f"http {st_m} count={len(codes)}")
         if codes:
             good = codes[0]["code"]
             check("H6 minted code is well formed", len(good) == 14 and good.count("-") == 2, f"code={good}")
-            row_before, _ = raw_row(bal_id)
-            row_before = row_before or {}
-            st_r, txt_r, _ = req("/api/v1/redeem", "POST", {"code": good},
-                                 {"Authorization": f"Bearer {bal_key}"})
+
+            # H7: the buyer's entire interface — a code, pasted in lower case, no key,
+            # no account, no session.
+            st_r, txt_r, _ = req("/api/v1/redeem", "POST", {"code": good.lower()})
             ok = st_r == 200
-            check("H7 buyer redeems the code -> 200", ok, f"http {st_r} :: {txt_r[:140]}")
+            check("H7 a buyer with no key redeems the code -> 200", ok, f"http {st_r} :: {txt_r[:140]}")
+            issued = json.loads(txt_r) if ok else {}
+            issued_key = issued.get("api_key")
             if ok:
-                rj = json.loads(txt_r)
-                check("H8 credit lands on the key row",
-                      (rj.get("key", {}).get("tokenBalance") or 0) > (row_before.get("tokenBalance") or 0),
-                      f"before={row_before.get('tokenBalance')} after={rj.get('key', {}).get('tokenBalance')}")
-                check("H9 top-up pushes expiry out",
-                      (rj.get("key", {}).get("expiresAt") or "") > (row_before.get("expiresAt") or ""),
-                      f"before={row_before.get('expiresAt')} after={rj.get('key', {}).get('expiresAt')}")
+                check("H8 the answer is key + address + quota, nothing else to read",
+                      bool(issued_key) and str(issued.get("base_url", "")).endswith("/v1")
+                      and issued.get("tokens") == 100000 and issued.get("days") == 30,
+                      f"base={issued.get('base_url')} tokens={issued.get('tokens')} days={issued.get('days')}")
+
+                # The key it hands back is a working key.
+                st_k, txt_k, _ = chat(ctl_model, issued_key)
+                check("H9 the issued key is accepted at /v1", st_k not in (401, 403, 402),
+                      f"http {st_k} :: {txt_k[:120]}")
+
+                # ...and a real row: the code's quota and validity are on it.
+                con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+                con.row_factory = sqlite3.Row
+                found = con.execute("SELECT * FROM apiKeys WHERE metadata LIKE ?", (f"%{good}%",)).fetchone()
+                con.close()
+                krow = dict(found) if found else {}
+                days_out = 0
+                if krow.get("expiresAt"):
+                    days_out = (datetime.datetime.fromisoformat(krow["expiresAt"].replace("Z", "+00:00"))
+                                - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 86400
+                check("H10 the issued key carries the code's quota and validity",
+                      krow.get("tokenBalance") == 100000 and 29.5 < days_out < 30.5,
+                      f"tokenBalance={krow.get('tokenBalance')} days={round(days_out, 2)}")
+
                 rc = raw_code(good)
-                check("H10 the code row records exactly one use",
+                check("H11 the code row records exactly one use",
                       bool(rc) and rc.get("usedCount") == 1, f"usedCount={rc.get('usedCount') if rc else None}")
 
-                st_c3, txt_c3, _ = chat(ctl_model, bal_key)
-                check("H11 gate reopened after top-up", st_c3 not in (402, 429),
-                      f"http {st_c3} :: {txt_c3[:120]}")
+                # A second code mints its own key: redemption never reuses one.
+                st_r2, txt_r2, _ = req("/api/v1/redeem", "POST", {"code": codes[1]["code"]})
+                second = json.loads(txt_r2) if st_r2 == 200 else {}
+                check("H12 the next code mints a different key",
+                      st_r2 == 200 and second.get("api_key") and second.get("api_key") != issued_key,
+                      f"http {st_r2}")
 
-            st_re, txt_re, _ = req("/api/v1/redeem", "POST", {"code": good},
-                                   {"Authorization": f"Bearer {bal_key}"})
-            check("H12 reusing the same code -> 400", st_re == 400, f"http {st_re} :: {txt_re[:140]}")
+            st_re, txt_re, _ = req("/api/v1/redeem", "POST", {"code": good})
+            check("H13 reusing the same code -> 400", st_re == 400, f"http {st_re} :: {txt_re[:140]}")
 
-            st_un, txt_un, _ = req("/api/v1/redeem", "POST", {"code": "ZZZZ-ZZZZ-ZZZZ"},
-                                   {"Authorization": f"Bearer {bal_key}"})
-            check("H13 unknown code -> 400 (not 500)", st_un == 400, f"http {st_un} :: {txt_un[:140]}")
+            st_un, txt_un, _ = req("/api/v1/redeem", "POST", {"code": "ZZZZ-ZZZZ-ZZZZ"})
+            check("H14 unknown code -> 400 (not 500)", st_un == 400, f"http {st_un} :: {txt_un[:140]}")
 
-            st_nok, _, _ = req("/api/v1/redeem", "POST", {"code": good})
-            check("H14 redeem without a key -> 401", st_nok == 401, f"http {st_nok}")
+            st_nc, txt_nc, _ = req("/api/v1/redeem", "POST", {})
+            check("H15 a body with no code -> 400", st_nc == 400, f"http {st_nc} :: {txt_nc[:140]}")
 
-            # Revoked code cannot be spent even though it was never used.
-            if len(codes) > 1:
-                revoked = codes[1]
-                st_rv, _, _ = admin(f"/api/redeem-codes/{revoked['id']}", "DELETE")
-                st_try, txt_try, _ = req("/api/v1/redeem", "POST", {"code": revoked["code"]},
-                                         {"Authorization": f"Bearer {bal_key}"})
-                check("H15 revoked code -> 400", st_rv in (200, 204) and st_try == 400,
-                      f"revoke={st_rv} redeem={st_try} :: {txt_try[:120]}")
-                revoked_ids = [revoked["id"]]
-            else:
-                revoked_ids = []
-            code_ids = [c["id"] for c in codes]
-        else:
-            code_ids, revoked_ids = [], []
+            # A revoked code cannot be spent even though it was never used.
+            st_rv, _, _ = admin(f"/api/redeem-codes/{codes[1]['id']}", "DELETE")
+            st_try, txt_try, _ = req("/api/v1/redeem", "POST", {"code": codes[1]["code"]})
+            check("H16 revoked code -> 400", st_rv in (200, 204) and st_try == 400,
+                  f"revoke={st_rv} redeem={st_try} :: {txt_try[:120]}")
 
         # The observability writer buffers rows and flushes on a timer, so the
         # row for the request above lands a few seconds later: poll, don't race.
@@ -573,7 +587,6 @@ def main():
                      "H5 admin mints a redeem-code batch", "J1 per-key log rollup counts the traffic",
                      "J2 per-key log returns detail rows", "J3 unknown key log -> 404"):
             check(name, False, f"create http {st}")
-        code_ids, revoked_ids = [], []
 
     # ---- I. batch mint ----------------------------------------------------
     st, txt, _ = admin("/api/keys", "POST", {"name": f"zz-resale-batch-{stamp}", "quantity": 3,

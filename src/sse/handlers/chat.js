@@ -219,7 +219,8 @@ export async function handleChat(request, clientRawRequest = null) {
       log.warn("AUTH", `API key limit exceeded: ${limitCheck.reason}`);
       // A spent prepaid balance is not a rate limit: waiting never clears it, and
       // an [OI] client that retries 429 with backoff hammers the router forever
-      // while the buyer sees nothing actionable. 402 + its own code says "top up".
+      // while the buyer sees nothing actionable. 402 + its own code says the
+      // balance is spent, which is a message only the seller can act on.
       const exhausted = limitCheck.code === "insufficient_balance";
       const retryAfter = limitCheck.retryAfterMs ? Math.ceil(limitCheck.retryAfterMs / 1000).toString() : undefined;
       const body = JSON.stringify({
