@@ -52,8 +52,17 @@ function delayedSseResponse(text, delayMs = 80) {
   return new ReadableStream({
     start(controller) {
       setTimeout(() => {
-        controller.enqueue(encoder.encode(text));
-        controller.close();
+        // The reader may have cancelled the stream before this timer fired. Enqueueing
+        // into a closed controller throws from a timer callback, where no test can catch
+        // it, and vitest reports the run as an unhandled error (exit 1 with 4411 tests
+        // passing). desiredSize does NOT detect this: after cancel() it reads 0, not null.
+        // ponytail: swallow it here; the fixture's only job is to deliver one chunk.
+        try {
+          controller.enqueue(encoder.encode(text));
+          controller.close();
+        } catch {
+          /* stream already torn down by the test */
+        }
       }, delayMs);
     },
   });

@@ -48,6 +48,10 @@ export default function CompressionSection() {
       .map(([key, row]) => ({ key, ...row }))
       .sort((a, b) => (b.tokensSaved || 0) - (a.tokensSaved || 0));
 
+  // bySkipReason is a plain {reason: count} map (all-time), unlike the three
+  // breakdown maps above, so it gets its own shape: biggest reason first.
+  const skipReasons = Object.entries(stats?.bySkipReason || {}).sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -82,6 +86,28 @@ export default function CompressionSection() {
           </Card>
         );
       })}
+
+      {/* Why nothing was saved. Without this the tab reads as broken whenever the
+          savers are off: every request lands in `savers-off` and the totals stay 0. */}
+      {skipReasons.length > 0 && (
+        <Card title="Skipped by reason" padding="sm">
+          <div className="flex flex-col gap-1">
+            {skipReasons.map(([reason, count]) => (
+              <div key={reason} className="flex items-center justify-between gap-3 border-b border-border-subtle pb-1 text-xs last:border-0">
+                <span className="min-w-0 truncate text-text-main">{reason}</span>
+                <span className="shrink-0 text-text-muted">
+                  {count}×{stats?.totalSkipped ? ` · ${Math.round((count * 100) / stats.totalSkipped)}% of skipped` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-text-muted">
+            <span className="text-text-main">savers-off</span> = both savers off ·{" "}
+            <span className="text-text-main">disabled</span> = the saver that would run is off ·{" "}
+            <span className="text-text-main">no-tool-results</span> = request carried no tool output.
+          </p>
+        </Card>
+      )}
 
       <p className="text-[11px] text-text-muted">
         {stats?.dimensionScope === "all-time"
