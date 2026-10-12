@@ -129,6 +129,9 @@ export function hasQuota(limits) {
     || limits.personaInject === false;
 }
 
+// "20k TPM" reads faster than "20000 TPM", but rounding is a lie a seller will
+// notice: 2048 tokens is not "2.0k". Only shorten when the shortening is exact,
+// or when the number is big enough that one decimal is a rounding, not a fudge.
 function shortTokens(n) {
   if (n >= 1_000_000) {
     const m = n / 1_000_000;
@@ -136,7 +139,9 @@ function shortTokens(n) {
   }
   if (n >= 1_000) {
     const k = n / 1_000;
-    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+    if (Number.isInteger(k)) return `${k}k`;
+    if (n >= 10_000) return `${k.toFixed(1)}k`;
+    return String(n);
   }
   return String(n);
 }

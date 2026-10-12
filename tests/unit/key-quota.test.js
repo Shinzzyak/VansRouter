@@ -145,7 +145,11 @@ describe("quotaSummary — what the seller reads at a glance", () => {
     expect(quotaSummary({ tokenBalance: 5_000_000, rateLimitTpm: 20_000, rpm: 60 })).toBe(
       "5jt token · 20k TPM · 60/menit"
     );
-    expect(quotaSummary({ rateLimitTpm: 1_500 })).toBe("1.5k TPM");
+    // Shortening is exact or it does not happen: 2048 is not "2.0k".
+    expect(quotaSummary({ rateLimitTpm: 1_500 })).toBe("1500 TPM");
+    expect(quotaSummary({ rateLimitTpm: 20_000 })).toBe("20k TPM");
+    expect(quotaSummary({ rateLimitTpm: 12_500 })).toBe("12.5k TPM");
+    expect(quotaSummary({ maxTokens: 2048 })).toBe("maks 2048/request");
   });
 
   it("reads a zero balance out loud instead of hiding it", () => {
