@@ -204,10 +204,10 @@ export function checkApiKeyLimits(apiKeyInfo, requestedTokens = 0) {
   if (apiKeyInfo.tokenBalance != null) {
     const spent = Number(apiKeyInfo.tokensSpent) || 0;
     if (spent >= apiKeyInfo.tokenBalance) {
-      return { allowed: false, reason: `Prepaid token balance exhausted: ${spent}/${apiKeyInfo.tokenBalance} tokens used` };
+      return { allowed: false, code: "insufficient_balance", reason: `Prepaid token balance exhausted: ${spent}/${apiKeyInfo.tokenBalance} tokens used` };
     }
     if (tokens > 0 && spent + tokens > apiKeyInfo.tokenBalance) {
-      return { allowed: false, reason: `Prepaid token balance too low for this request: ${apiKeyInfo.tokenBalance - spent} of ${apiKeyInfo.tokenBalance} tokens left` };
+      return { allowed: false, code: "insufficient_balance", reason: `Prepaid token balance too low for this request: ${apiKeyInfo.tokenBalance - spent} of ${apiKeyInfo.tokenBalance} tokens left` };
     }
   }
 

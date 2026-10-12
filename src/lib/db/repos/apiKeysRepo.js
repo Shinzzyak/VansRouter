@@ -258,6 +258,16 @@ export async function deleteApiKey(id) {
   return (res?.changes ?? 0) > 0;
 }
 
+// Raw lookup used for DIAGNOSIS only: it returns the row even when the key is
+// disabled or expired, so the caller can say WHY a key was refused instead of
+// the useless "Invalid API key". Never use this for authorization.
+export async function getApiKeyByValueAny(key) {
+  if (!key) return null;
+  const db = await getAdapter();
+  const row = db.get(`SELECT * FROM apiKeys WHERE key = ?`, [key]);
+  return row ? rowToKey(row) : null;
+}
+
 export async function validateApiKey(key) {
   const db = await getAdapter();
   const row = db.get(`SELECT * FROM apiKeys WHERE key = ?`, [key]);

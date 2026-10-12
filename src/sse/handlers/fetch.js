@@ -8,6 +8,7 @@ import {
   isComboAllowed,
   isKindAllowed,
 } from "../services/auth.js";
+import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { readBoundedJson } from "../utils/boundedBody.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -60,8 +61,9 @@ export async function handleFetch(request) {
     }
     apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
-      log.warn("AUTH", "Invalid API key (requireApiKey=true)");
-      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
+      const refusal = await apiKeyRefusal(apiKey, request);
+      log.warn("AUTH", `API key refused (requireApiKey=true): ${refusal.failure.reason}`);
+      return errorResponse(refusal.status, refusal.message);
     }
   }
 

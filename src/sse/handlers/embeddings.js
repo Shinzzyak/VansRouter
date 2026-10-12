@@ -8,6 +8,7 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
+import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import {
   isProviderFullyBlocked,
   getProviderShortestCooldownMs,
@@ -73,8 +74,9 @@ export async function handleEmbeddings(request) {
     }
     apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
-      log.warn("AUTH", "Invalid API key (requireApiKey=true)");
-      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
+      const refusal = await apiKeyRefusal(apiKey, request);
+      log.warn("AUTH", `API key refused (requireApiKey=true): ${refusal.failure.reason}`);
+      return errorResponse(refusal.status, refusal.message);
     }
   }
 

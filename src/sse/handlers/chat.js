@@ -14,6 +14,7 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
+import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import { checkApiKeyLimits, recordApiKeyUsage, acquireApiKeyLease, releaseApiKeyLease } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import { handleAntigravityQuotaError } from "../services/antigravityQuota.js";
 import {
@@ -178,8 +179,11 @@ export async function handleChat(request, clientRawRequest = null) {
     }
     apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
-      log.warn("AUTH", "Invalid API key (requireApiKey=true)");
-      return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
+      // "Invalid API key" for an expired, disabled or wrong-address key sends the
+      // buyer to support with nothing to act on. Name the actual reason.
+      const refusal = await apiKeyRefusal(apiKey, request);
+      log.warn("AUTH", `API key refused (requireApiKey=true): ${refusal.failure.reason}`);
+      return errorResponse(refusal.status, refusal.message);
     }
   } else if (!trustedInternal && apiKey) {
     // Local mode (requireApiKey=false), key supplied: resolve it for POLICY
@@ -213,16 +217,24 @@ export async function handleChat(request, clientRawRequest = null) {
     const limitCheck = checkApiKeyLimits(apiKeyInfo, estimatedTokens);
     if (!limitCheck.allowed) {
       log.warn("AUTH", `API key limit exceeded: ${limitCheck.reason}`);
+      // A spent prepaid balance is not a rate limit: waiting never clears it, and
+      // an [OI] client that retries 429 with backoff hammers the router forever
+      // while the buyer sees nothing actionable. 402 + its own code says "top up".
+      const exhausted = limitCheck.code === "insufficient_balance";
       const retryAfter = limitCheck.retryAfterMs ? Math.ceil(limitCheck.retryAfterMs / 1000).toString() : undefined;
       const body = JSON.stringify({
-        error: { message: limitCheck.reason, type: "rate_limit_error", code: "rate_limit_exceeded" },
+        error: {
+          message: limitCheck.reason,
+          type: exhausted ? "insufficient_quota" : "rate_limit_error",
+          code: exhausted ? "insufficient_balance" : "rate_limit_exceeded",
+        },
       });
       return new Response(body, {
-        status: HTTP_STATUS.RATE_LIMITED,
+        status: exhausted ? HTTP_STATUS.PAYMENT_REQUIRED : HTTP_STATUS.RATE_LIMITED,
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
-          ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+          ...(retryAfter && !exhausted ? { "Retry-After": retryAfter } : {}),
         },
       });
     }

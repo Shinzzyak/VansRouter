@@ -1052,10 +1052,23 @@ export default function APIPageClient() {
 
   // Hydration fix: Only access window on client side
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client-only hydration; this is the canonical useEffect+setState pattern, not a derived value.
-      setBaseUrl(`${window.location.origin}/v1`);
-    }
+    if (typeof window === "undefined") return;
+    // Settings may pin the address buyers should use (a reverse proxy in front
+    // of this router, e.g. https://router.sintec.my.id); the page's own origin
+    // is the floor, because it is the one address that certainly answers.
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((settings) => {
+        const pinned = String(settings?.publicBaseUrl || "").trim().replace(/\/+$/, "");
+        if (!cancelled) setBaseUrl(`${pinned || window.location.origin}/v1`);
+      })
+      .catch(() => {
+        if (!cancelled) setBaseUrl(`${window.location.origin}/v1`);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {

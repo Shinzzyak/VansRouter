@@ -8,6 +8,7 @@ import {
   isKindAllowed,
   isTrustedInternalRequest,
 } from "../services/auth.js";
+import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
@@ -39,7 +40,10 @@ async function requireValidApiKey(request) {
   const apiKey = extractApiKey(request);
   if (!apiKey) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key") };
   const apiKeyInfo = await isValidApiKey(apiKey, request);
-  if (!apiKeyInfo) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key") };
+  if (!apiKeyInfo) {
+    const refusal = await apiKeyRefusal(apiKey, request);
+    return { error: errorResponse(refusal.status, refusal.message) };
+  }
   return { apiKeyInfo };
 }
 

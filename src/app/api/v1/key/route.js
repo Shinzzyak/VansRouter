@@ -1,5 +1,6 @@
 import { getSettings, getApiKeyUsageSnapshot } from "@/lib/localDb";
 import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed, clientIp } from "@/sse/services/auth.js";
+import { apiKeyRefusal } from "@/sse/services/apiKeyRefusal.js";
 import { checkApiKeyLimits } from "@/lib/db/repos/apiKeyUsageRepo.js";
 
 export const dynamic = "force-dynamic";
@@ -46,9 +47,21 @@ export async function GET(request) {
     // would hand policy (limits, expiry) to a caller holding a dead secret.
     const apiKeyInfo = await isValidApiKey(supplied, request);
     if (!apiKeyInfo) {
+      // The self-check exists so a buyer can fix their own problem; "invalid,
+      // expired or disabled" makes them guess which one. Say which one.
+      const refusal = await apiKeyRefusal(supplied, request);
       return json(
-        { error: { message: "Invalid, expired or disabled API key", type: "authentication_error" } },
-        401,
+        {
+          error: {
+            message: refusal.message,
+            type: "authentication_error",
+            code: `api_key_${refusal.failure.reason}`,
+          },
+          ...(refusal.failure.reason === "ip"
+            ? { allowedIps: refusal.failure.allowedIps, sourceIp: clientIp(request) }
+            : {}),
+        },
+        refusal.status,
       );
     }
     void settings;
@@ -88,9 +101,17 @@ export async function GET(request) {
       // buyer can tell "rate limited" apart from "out of quota" without a 429.
       gate: {
         allowed: gate.allowed,
+        // "insufficient_balance" is the one a buyer must act on (top up); every
+        // other code clears with time. Only present while the gate is shut,
+        // so the open shape stays exactly {allowed, reason, retryAfterMs}.
+        ...(gate.allowed ? {} : { code: gate.code ?? null }),
         reason: gate.reason ?? null,
         retryAfterMs: gate.retryAfterMs ?? null,
       },
+      // The number a buyer actually wants: what is left to spend.
+      remainingTokens: apiKeyInfo.tokenBalance == null
+        ? null
+        : Math.max(0, apiKeyInfo.tokenBalance - (apiKeyInfo.tokensSpent ?? 0)),
       access: {
         providers: apiKeyInfo.allowedProviders,
         combos: apiKeyInfo.allowedCombos,

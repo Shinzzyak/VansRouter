@@ -459,7 +459,8 @@ def main():
               bj.get("limits", {}).get("tokenBalance") == 30, f"echo={bj.get('limits', {}).get('tokenBalance')}")
 
         st_c1, txt_c1, _ = chat(ctl_model, bal_key)
-        check("H2 first request against a fresh balance passes", st_c1 != 429, f"http {st_c1} :: {txt_c1[:120]}")
+        check("H2 first request against a fresh balance passes", st_c1 not in (402, 429),
+              f"http {st_c1} :: {txt_c1[:120]}")
         time.sleep(1)
         row, _ = raw_row(bal_id)
         spent = (row or {}).get("tokensSpent") or 0
@@ -468,8 +469,12 @@ def main():
         # Admin drops the balance below what was already spent: the gate must shut.
         st_p, _, _ = admin(f"/api/keys/{bal_id}", "PUT", {"limits": {"tokenBalance": 1}})
         st_c2, txt_c2, _ = chat(ctl_model, bal_key)
-        check("H4 balance below spend -> request refused", st_c2 == 429,
+        # 402, not 429: waiting never clears a spent balance, and an [OI] client that
+        # backs off on 429 would retry forever against a key that needs a top-up.
+        check("H4 balance below spend -> 402 payment required", st_c2 == 402,
               f"put={st_p} http {st_c2} :: {txt_c2[:140]}")
+        check("H4b the 402 names the reason", "insufficient_balance" in txt_c2,
+              f"body={txt_c2[:140]}")
 
         # Buyer tops up with a redeem code and the gate opens again.
         st_m, txt_m, _ = admin("/api/redeem-codes", "POST", {
@@ -500,7 +505,8 @@ def main():
                       bool(rc) and rc.get("usedCount") == 1, f"usedCount={rc.get('usedCount') if rc else None}")
 
                 st_c3, txt_c3, _ = chat(ctl_model, bal_key)
-                check("H11 gate reopened after top-up", st_c3 != 429, f"http {st_c3} :: {txt_c3[:120]}")
+                check("H11 gate reopened after top-up", st_c3 not in (402, 429),
+                      f"http {st_c3} :: {txt_c3[:120]}")
 
             st_re, txt_re, _ = req("/api/v1/redeem", "POST", {"code": good},
                                    {"Authorization": f"Bearer {bal_key}"})
@@ -592,6 +598,48 @@ def main():
     else:
         st_b, _, _ = req("/api/redeem-codes", "GET", None, {"Authorization": f"Bearer {key}"})
         check("K2 buyer key cannot list redeem codes", st_b in (401, 403), f"http {st_b}")
+
+    # ---- N. wave 3: resale dashboard page + buyer diagnosis --------------
+    # The page is server-rendered, so its own copy is in the HTML even though the
+    # data loads client-side. A 200 with the heading proves the route built and
+    # shipped; a 404 here is exactly the "no page anywhere" complaint.
+    st_page, txt_page, _ = req("/dashboard/resale", "GET")
+    check("N1 /dashboard/resale renders (200)", st_page == 200, f"http {st_page}")
+    check("N2 the page carries its own heading", "Resale" in txt_page,
+          f"len={len(txt_page)}")
+    check("N3 the page documents the buyer base URL", "/v1/chat/completions" in txt_page,
+          "missing buyer endpoint copy")
+    check("N4 the sidebar links the page",
+          'href="/dashboard/resale"' in txt_page, "nav entry absent from SSR html")
+
+    # A seller must be able to check a key before shipping it: the two calls a
+    # buyer makes first, read-only, with the reason spelled out.
+    st_me, txt_me, _ = req("/v1/key", "GET", None, {"Authorization": f"Bearer {key}"})
+    ok_me = st_me == 200
+    check("N5 GET /v1/key answers the buyer's own key", ok_me, f"http {st_me} :: {txt_me[:140]}")
+    if ok_me:
+        mj = json.loads(txt_me)
+        check("N6 the self-check exposes the remaining balance", "remainingTokens" in mj,
+              f"keys={sorted(mj.keys())[:12]}")
+        check("N7 the self-check exposes a gate code", "code" in (mj.get("gate") or {}),
+              f"gate={mj.get('gate')}")
+        check("N8 the self-check reports the source address", bool(mj.get("sourceIp")),
+              f"sourceIp={mj.get('sourceIp')}")
+
+    st_bad, txt_bad, _ = req("/v1/key", "GET", None, {"Authorization": "Bearer not-a-real-key"})
+    check("N9 an unknown key is 401 with its own code", st_bad == 401 and "api_key_unknown" in txt_bad,
+          f"http {st_bad} :: {txt_bad[:140]}")
+
+    st_mod, txt_mod, _ = req("/v1/models", "GET", None, {"Authorization": f"Bearer {key}"})
+    ok_mod = st_mod == 200
+    check("N10 GET /v1/models answers a valid buyer key", ok_mod, f"http {st_mod} :: {txt_mod[:140]}")
+    if ok_mod:
+        mj = json.loads(txt_mod)
+        models = mj.get("data") or []
+        check("N11 the model list is non-empty for an unrestricted key", len(models) > 0,
+              f"count={len(models)}")
+        check("N12 every entry carries an id", all(m.get("id") for m in models[:20]),
+              f"sample={[m.get('id') for m in models[:5]]}")
 
     # ---- E. delete --------------------------------------------------------
     st, _, _ = admin(f"/api/keys/{kid}", "DELETE")

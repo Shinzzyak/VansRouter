@@ -1,4 +1,5 @@
 import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed } from "@/sse/services/auth.js";
+import { apiKeyRefusal } from "@/sse/services/apiKeyRefusal.js";
 import { getSettings } from "@/lib/localDb";
 import { stripComboPrefix } from "open-sse/services/combo.js";
 import { buildModelsList, matchesModelAllowlist } from "@/sse/services/allowedModels.js";
@@ -51,17 +52,27 @@ export async function GET(request) {
       }
       apiKeyInfo = await isValidApiKey(apiKey, request);
       if (!apiKeyInfo) {
+        // Same diagnosis the chat path gives, so "why is my model list empty"
+        // has an answer that is not "Invalid API key".
+        const refusal = await apiKeyRefusal(apiKey, request);
         return Response.json(
-          { error: { message: "Invalid API key", type: "authentication_error" } },
-          { status: 401, headers: { "Access-Control-Allow-Origin": "*" } }
+          { error: { message: refusal.message, type: "authentication_error", code: `api_key_${refusal.failure.reason}` } },
+          { status: refusal.status, headers: { "Access-Control-Allow-Origin": "*" } }
         );
       }
       const limitCheck = checkApiKeyLimits(apiKeyInfo, 0);
       if (!limitCheck.allowed) {
+        const exhausted = limitCheck.code === "insufficient_balance";
         const retryAfter = limitCheck.retryAfterMs ? Math.ceil(limitCheck.retryAfterMs / 1000).toString() : undefined;
         return Response.json(
-          { error: { message: limitCheck.reason, type: "rate_limit_error", code: "rate_limit_exceeded" } },
-          { status: 429, headers: { "Access-Control-Allow-Origin": "*", ...(retryAfter ? { "Retry-After": retryAfter } : {}) } }
+          {
+            error: {
+              message: limitCheck.reason,
+              type: exhausted ? "insufficient_quota" : "rate_limit_error",
+              code: exhausted ? "insufficient_balance" : "rate_limit_exceeded",
+            },
+          },
+          { status: exhausted ? 402 : 429, headers: { "Access-Control-Allow-Origin": "*", ...(retryAfter && !exhausted ? { "Retry-After": retryAfter } : {}) } }
         );
       }
       recordApiKeyUsage(apiKeyInfo, 0);

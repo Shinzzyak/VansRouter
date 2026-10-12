@@ -13,6 +13,7 @@ export {
   listProxyPoolFitness, upsertProxyPoolFitness,
   deleteProxyPoolFitness, clearProxyPoolFitness, deleteProxyPoolFitnessByPool,
   getApiKeys, getApiKeyById, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  getApiKeyByValueAny,
   rotateApiKey, toggleApiKey,
 } from "@/lib/db/index.js";
 export {

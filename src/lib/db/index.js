@@ -44,6 +44,7 @@ export {
 // API keys
 export {
   getApiKeys, getApiKeyById, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
+  getApiKeyByValueAny,
   rotateApiKey, toggleApiKey,
 } from "./repos/apiKeysRepo.js";
 export {

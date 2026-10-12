@@ -3,6 +3,7 @@ import {
   getProviderCredentials, markAccountUnavailable,
   isProviderAllowed, isKindAllowed, isTrustedInternalRequest,
 } from "../services/auth.js";
+import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import { isModelAllowed } from "../services/allowedModels.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -37,7 +38,10 @@ export async function handleStt(request) {
     const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     apiKeyInfo = await isValidApiKey(apiKey, request);
-    if (!apiKeyInfo) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
+    if (!apiKeyInfo) {
+      const refusal = await apiKeyRefusal(apiKey, request);
+      return errorResponse(refusal.status, refusal.message);
+    }
   }
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");

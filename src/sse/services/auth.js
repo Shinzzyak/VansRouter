@@ -1,4 +1,4 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProviderNodeById, getProxyPools } from "@/lib/localDb";
+import { getProviderConnections, validateApiKey, getApiKeyByValueAny, updateProviderConnection, getSettings, getProviderNodeById, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { classify429 } from "open-sse/utils/classify429.js";
@@ -558,6 +558,53 @@ export async function resolveApiKeyIgnoringIp(apiKey) {
  * Validate API key and return key info (including allowedProviders)
  * Returns null if invalid, or the key object if valid
  */
+/**
+ * Why was this key refused? Diagnosis for the buyer, never authorization.
+ *
+ * A sold key that lapses, gets disabled, or moves to another address used to
+ * come back as "Invalid API key" for all three, which turns every expiry into a
+ * support ticket ("my key stopped working"). The reasons are distinguishable at
+ * the row level, so say them.
+ */
+export async function explainApiKeyFailure(apiKey, request = null) {
+  if (!apiKey) return { reason: "missing" };
+  let info = null;
+  try {
+    info = await getApiKeyByValueAny(apiKey);
+  } catch {
+    // A diagnosis lookup must never change the auth outcome: if it fails
+    // the caller still gets its 401, just without the precise reason.
+    return { reason: "unknown" };
+  }
+  if (!info) return { reason: "unknown" };
+  if (info.isActive !== 1 && info.isActive !== true) {
+    return { reason: "disabled", name: info.name };
+  }
+  if (info.expiresAt) {
+    const expiry = new Date(info.expiresAt).getTime();
+    if (expiry && expiry <= Date.now()) {
+      return { reason: "expired", name: info.name, expiresAt: info.expiresAt };
+    }
+  }
+  if (!isIpAllowed(info, clientIp(request))) {
+    return { reason: "ip", name: info.name, allowedIps: info.allowedIps };
+  }
+  return { reason: "unknown" };
+}
+
+/** Buyer-facing message for a failure from explainApiKeyFailure. */
+export function apiKeyFailureMessage(failure) {
+  switch (failure?.reason) {
+    case "missing": return "Missing API key";
+    case "disabled": return "API key is disabled";
+    case "expired": return `API key expired on ${failure.expiresAt}`;
+    case "ip": return "API key is not allowed from this IP address";
+    // Cannot tell which of the three it is (key unknown, or the lookup itself
+    // failed) — name all three instead of sending the buyer to support blind.
+    default: return "Invalid, expired or disabled API key";
+  }
+}
+
 export async function isValidApiKey(apiKey, request = null) {
   if (!apiKey) return null;
   const info = await resolveApiKeyIgnoringIp(apiKey);
