@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { maskApiKey } from "../helpers/apiKeyMask.js";
-import { getAllowedModels } from "./apiKeyModelAccessRepo.js";
+import { getAllowedModels, setAllowedModels } from "./apiKeyModelAccessRepo.js";
 
 // Parse a JSON TEXT column with null=all / []=none semantics.
 // DB NULL → null (all allowed). DB "[]" → [] (none). DB "[x]" → [x].
@@ -14,6 +14,13 @@ function parsePermList(raw) {
 function serializePermList(val) {
   if (val === null || val === undefined) return null;
   return JSON.stringify(Array.isArray(val) ? val : []);
+}
+
+// Create-time allow-list input, same acceptance rule as PUT: null/undefined
+// means "all allowed", an array is taken verbatim, anything else is ignored.
+function normalizePerm(val) {
+  if (val === null || val === undefined) return null;
+  return Array.isArray(val) ? val : null;
 }
 
 // Parse optional integer limit: null/undefined stays null, otherwise integer or null on bad input.
@@ -85,9 +92,9 @@ export async function createApiKey(name, machineId, limits = {}) {
     machineId,
     isActive: true,
     createdAt: new Date().toISOString(),
-    allowedProviders: null,
-    allowedCombos: null,
-    allowedKinds: null,
+    allowedProviders: normalizePerm(limits.allowedProviders),
+    allowedCombos: normalizePerm(limits.allowedCombos),
+    allowedKinds: normalizePerm(limits.allowedKinds),
     expiresAt: limits.expiresAt || null,
     maxTokens: parseLimitInt(limits.maxTokens),
     maxTokensDaily: parseLimitInt(limits.maxTokensDaily),
@@ -114,13 +121,21 @@ export async function createApiKey(name, machineId, limits = {}) {
     ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt,
-      null, null, null,
+      serializePermList(apiKey.allowedProviders),
+      serializePermList(apiKey.allowedCombos),
+      serializePermList(apiKey.allowedKinds),
       apiKey.expiresAt, apiKey.maxTokens, apiKey.maxTokensDaily, apiKey.rpm, apiKey.rph, apiKey.rpd,
       apiKey.tokens5h, apiKey.tokensWeekly, apiKey.tokensMonthly,
       apiKey.personaInject ? 1 : 0,
       apiKey.rateLimitTpm, apiKey.rateLimitConcurrency, apiKey.keyDisplay, null, 0, apiKey.metadata,
     ]
   );
+  // The per-model allow-list lives in its own table (empty = allow all), so it
+  // is written after the row exists. A caller that passes one gets the same
+  // policy it would have had to PUT a second time to apply.
+  apiKey.allowedModels = Array.isArray(limits.allowedModels) && limits.allowedModels.length > 0
+    ? await setAllowedModels(apiKey.id, limits.allowedModels)
+    : [];
   return apiKey;
 }
 

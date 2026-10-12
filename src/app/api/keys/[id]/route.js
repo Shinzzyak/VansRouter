@@ -68,6 +68,8 @@ export async function PUT(request, { params }) {
     if ("personaInject" in body) updateData.personaInject = body.personaInject;
 
     const updated = await updateApiKey(id, updateData);
+    // The per-model allowlist has its own route (/api/keys/[id]/models) so this
+    // one stays a single writer for the columns it owns.
     return NextResponse.json({ key: { ...updated, usage: getApiKeyUsageSnapshot(updated) } });
   } catch (error) {
     console.log("Error updating key:", error);
