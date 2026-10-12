@@ -21,11 +21,15 @@ export async function apiKeyRefusal(apiKey, request = null) {
       failure: { reason: "unknown" },
       status: HTTP_STATUS.UNAUTHORIZED,
       message: "Invalid, expired or disabled API key",
+      code: "api_key_unknown",
     };
   }
   return {
     failure,
     status: failure?.reason === "ip" ? HTTP_STATUS.FORBIDDEN : HTTP_STATUS.UNAUTHORIZED,
     message: apiKeyFailureMessage(failure),
+    // The status map turns every 403 into "insufficient_quota", which is the
+    // wrong thing to tell a buyer whose key is merely bound to another address.
+    code: `api_key_${failure?.reason || "unknown"}`,
   };
 }

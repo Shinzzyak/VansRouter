@@ -5,9 +5,12 @@ import { unwrapClinepassEnvelope } from "./clinepassEnvelope.js";
  * Build OpenAI-compatible error response body
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
+ * @param {string} [code] - Override the code from the status map. A 403 is not
+ *   always a quota problem (a key bound to another address is refused with 403
+ *   too), and a client branching on `code` must not be told to top up.
  * @returns {object} Error response object
  */
-export function buildErrorBody(statusCode, message) {
+export function buildErrorBody(statusCode, message, code) {
   const errorInfo = ERROR_TYPES[statusCode] || 
     (statusCode >= 500 
       ? { type: "server_error", code: "internal_server_error" }
@@ -17,7 +20,7 @@ export function buildErrorBody(statusCode, message) {
     error: {
       message: message || DEFAULT_ERROR_MESSAGES[statusCode] || "An error occurred",
       type: errorInfo.type,
-      code: errorInfo.code
+      code: code || errorInfo.code
     }
   };
 }
@@ -26,10 +29,11 @@ export function buildErrorBody(statusCode, message) {
  * Create error Response object (for non-streaming)
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
+ * @param {string} [code] - Optional code override (see buildErrorBody)
  * @returns {Response} HTTP Response object
  */
-export function errorResponse(statusCode, message) {
-  return new Response(JSON.stringify(buildErrorBody(statusCode, message)), {
+export function errorResponse(statusCode, message, code) {
+  return new Response(JSON.stringify(buildErrorBody(statusCode, message, code)), {
     status: statusCode,
     headers: {
       "Content-Type": "application/json",

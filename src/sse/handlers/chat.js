@@ -183,7 +183,7 @@ export async function handleChat(request, clientRawRequest = null) {
       // buyer to support with nothing to act on. Name the actual reason.
       const refusal = await apiKeyRefusal(apiKey, request);
       log.warn("AUTH", `API key refused (requireApiKey=true): ${refusal.failure.reason}`);
-      return errorResponse(refusal.status, refusal.message);
+      return errorResponse(refusal.status, refusal.message, refusal.code);
     }
   } else if (!trustedInternal && apiKey) {
     // Local mode (requireApiKey=false), key supplied: resolve it for POLICY
@@ -201,7 +201,7 @@ export async function handleChat(request, clientRawRequest = null) {
       const bound = await resolveApiKeyIgnoringIp(apiKey);
       if (bound && !isIpAllowed(bound, clientIp(request))) {
         log.warn("AUTH", "API key is not allowed from this source address");
-        return errorResponse(HTTP_STATUS.FORBIDDEN, "API key is not allowed from this IP address");
+        return errorResponse(HTTP_STATUS.FORBIDDEN, "API key is not allowed from this IP address", "api_key_ip");
       }
     }
   }

@@ -63,7 +63,7 @@ export async function handleFetch(request) {
     if (!apiKeyInfo) {
       const refusal = await apiKeyRefusal(apiKey, request);
       log.warn("AUTH", `API key refused (requireApiKey=true): ${refusal.failure.reason}`);
-      return errorResponse(refusal.status, refusal.message);
+      return errorResponse(refusal.status, refusal.message, refusal.code);
     }
   }
 

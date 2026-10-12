@@ -63,7 +63,7 @@ async function requireValidApiKey(request) {
   const apiKeyInfo = await isValidApiKey(apiKey, request);
   if (!apiKeyInfo) {
     const refusal = await apiKeyRefusal(apiKey, request);
-    return { error: errorResponse(refusal.status, refusal.message) };
+    return { error: errorResponse(refusal.status, refusal.message, refusal.code) };
   }
   return { apiKeyInfo };
 }

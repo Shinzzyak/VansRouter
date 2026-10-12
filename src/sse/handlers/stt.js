@@ -40,7 +40,7 @@ export async function handleStt(request) {
     apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
       const refusal = await apiKeyRefusal(apiKey, request);
-      return errorResponse(refusal.status, refusal.message);
+      return errorResponse(refusal.status, refusal.message, refusal.code);
     }
   }
 
