@@ -603,7 +603,8 @@ def main():
         check("E3 expired key cleaned up", st in (200, 204), f"http {st}")
     for extra, label in ((combo_id, "combo key"), (kind_id, "kind key"), (model_key_id, "model key"),
                          (rpm_id, "rpm key"), (tok_id, "maxTokens key"), (ip_id, "IP-bound key"),
-                         (bal_id, "prepaid key"), (open_id, "control key")):
+                         (bal_id, "prepaid key"), (open_id, "control key"),
+                         (ipbad_id, "blocked-address key")):
         if extra:
             st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
             check(f"E4 {label} cleaned up", st in (200, 204), f"http {st}")
