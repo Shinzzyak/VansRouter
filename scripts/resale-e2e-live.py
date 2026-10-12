@@ -601,6 +601,7 @@ def main():
     })
     quota_codes = json.loads(txt).get("codes", []) if st == 201 else []
     quota_key_id = None
+    quota_only_key_id = None
     check("P1 a code carries a full policy, not just a token total",
           st == 201 and len(quota_codes) == 1, f"http {st} :: {txt[:140]}")
     if quota_codes:
@@ -668,6 +669,13 @@ def main():
                   and only.get("tokens") in (None, 0),
                   f"http {st_r2} limits={json.dumps(only.get('limits'))[:120]} tokens={only.get('tokens')}")
             code_ids.append(q2_codes[0]["id"])
+            # The key this code minted is a real key: it has to leave with the
+            # rest, or every run of this harness leaves a live zz-* key behind.
+            if only.get("api_key"):
+                st_self, txt_self, _ = req("/api/v1/key", "GET", None,
+                                           {"Authorization": f"Bearer {only['api_key']}"})
+                if st_self == 200:
+                    quota_only_key_id = json.loads(txt_self).get("id")
 
         # A code that would carry nothing, and a malformed IP list, are refused.
         st_e1, _, _ = admin("/api/redeem-codes", "POST", {"quantity": 1})
@@ -814,7 +822,8 @@ def main():
     for extra, label in ((combo_id, "combo key"), (kind_id, "kind key"), (model_key_id, "model key"),
                          (rpm_id, "rpm key"), (tok_id, "maxTokens key"), (ip_id, "IP-bound key"),
                          (bal_id, "prepaid key"), (open_id, "control key"),
-                         (ipbad_id, "blocked-address key"), (quota_key_id, "code-minted quota key")):
+                         (ipbad_id, "blocked-address key"), (quota_key_id, "code-minted quota key"),
+                         (quota_only_key_id, "limits-only key")):
         if extra:
             st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
             check(f"E4 {label} cleaned up", st in (200, 204), f"http {st}")
@@ -824,6 +833,15 @@ def main():
     for extra in code_ids:
         st, _, _ = admin(f"/api/redeem-codes/{extra}?purge=1", "DELETE")
         check("E6 redeem code purged", st in (200, 204), f"http {st}")
+
+    # Hygiene is a check, not a habit: a key this harness minted and forgot is a
+    # live credential on a live router, and it accumulates silently every run.
+    con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    left_keys = con.execute("SELECT COUNT(*) FROM apiKeys WHERE name LIKE 'zz-%'").fetchone()[0]
+    left_codes = con.execute("SELECT COUNT(*) FROM redeemCodes WHERE batchName LIKE 'zz-%'").fetchone()[0]
+    con.close()
+    check("Z1 the harness leaves no key or code behind", left_keys == 0 and left_codes == 0,
+          f"keys={left_keys} codes={left_codes}")
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n=== {passed}/{len(results)} PASS ===")
