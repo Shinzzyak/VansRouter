@@ -351,7 +351,7 @@ describe("per-key traffic is attributable without storing the key", () => {
     const { driver, details, mask } = await load();
     await driver.getAdapter();
 
-    const raw = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
+    const raw = "fixture-resale-key-0123456789abcdef";
     await push(details, raw, 20);
 
     const db = await driver.getAdapter();
@@ -374,7 +374,7 @@ describe("per-key traffic is attributable without storing the key", () => {
     const { driver, details, mask } = await load();
     await driver.getAdapter();
 
-    const raw = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
+    const raw = "fixture-resale-key-0123456789abcdef";
     const db = await driver.getAdapter();
     db.run(
       `INSERT INTO requestDetails(id, timestamp, provider, model, apiKey, apiKeyName, status, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
