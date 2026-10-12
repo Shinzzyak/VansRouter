@@ -95,7 +95,7 @@ describe("Post-merge: models/route.js ACL filter preserved", () => {
   it("GET handler validates API key before returning models", () => {
     // Must call isValidApiKey inside GET handler, not just import it
     const getHandler = src.slice(src.indexOf("export async function GET(request)"));
-    expect(getHandler).toContain("isValidApiKey(apiKey)");
+    expect(getHandler).toContain("isValidApiKey(apiKey, request)");
   });
 
   it("GET handler filters models by isProviderAllowed and isComboAllowed", () => {

@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   isProviderAllowed: vi.fn(() => true),
   isComboAllowed: vi.fn(() => true),
   isKindAllowed: vi.fn(() => true),
+  resolveApiKeyIgnoringIp: vi.fn(async () => null),
+  isIpAllowed: vi.fn(() => true),
+  clientIp: vi.fn(() => "203.0.113.7"),
   isTrustedInternalRequest: vi.fn(() => false),
   getProviderCredentials: vi.fn(),
   markAccountUnavailable: vi.fn(),
@@ -63,6 +66,9 @@ vi.mock("@/sse/services/auth.js", () => ({
   isProviderAllowed: mocks.isProviderAllowed,
   isComboAllowed: mocks.isComboAllowed,
   isKindAllowed: mocks.isKindAllowed,
+  resolveApiKeyIgnoringIp: mocks.resolveApiKeyIgnoringIp,
+  isIpAllowed: mocks.isIpAllowed,
+  clientIp: mocks.clientIp,
   isTrustedInternalRequest: mocks.isTrustedInternalRequest,
   getProviderCredentials: mocks.getProviderCredentials,
   markAccountUnavailable: mocks.markAccountUnavailable,
@@ -76,6 +82,9 @@ vi.mock("../../src/sse/services/auth.js", () => ({
   isProviderAllowed: mocks.isProviderAllowed,
   isComboAllowed: mocks.isComboAllowed,
   isKindAllowed: mocks.isKindAllowed,
+  resolveApiKeyIgnoringIp: mocks.resolveApiKeyIgnoringIp,
+  isIpAllowed: mocks.isIpAllowed,
+  clientIp: mocks.clientIp,
   isTrustedInternalRequest: mocks.isTrustedInternalRequest,
   getProviderCredentials: mocks.getProviderCredentials,
   markAccountUnavailable: mocks.markAccountUnavailable,
@@ -341,7 +350,7 @@ describe("Chat handler ACL enforcement", () => {
     const req = makeChatRequest("openai/gpt-4o", "sk-test");
     const res = await handleChat(req);
     expect(res.status).toBe(200);
-    expect(mocks.isValidApiKey).toHaveBeenCalledWith("sk-test");
+    expect(mocks.isValidApiKey).toHaveBeenCalledWith("sk-test", expect.anything());
     const arg = mocks.handleChatCore.mock.calls[0][0];
     expect(arg.apiKeyInfo).toMatchObject({ id: "k1" });
     expect(arg.apiKeyInfo["persona" + "Inject"]).toBe(false);
