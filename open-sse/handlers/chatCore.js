@@ -259,6 +259,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     log?.debug?.("STREAMCOERCE", `${provider}/${model} | stream=true → false (upstream)`);
   }
 
+  // What the CLIENT's reply will be, as opposed to what the upstream is asked
+  // for. A force-stream provider is handed `stream: true` internally and the JSON
+  // is reassembled by handleForcedSSEToJson, so gating the prompt cache on the
+  // upstream flag would switch the cache off for exactly the providers that need
+  // it most — most of the pool is forceStream. Mirrors the dispatch below: the
+  // store is consulted only when the client's reply leaves as a JSON body.
+  //
+  // The coerced-SSE case (upstream JSON, client wanted SSE) is excluded on
+  // purpose: the client receives SSE, so a JSON body could not be replayed to it.
+  const clientReplyIsJson = (!clientRequestedStreaming && providerRequiresStreaming)
+    || (!shouldCoerceStream && !stream);
+
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
   const isImageGenModel = modelType === "imageGen" || /image|imagen|image-generation/i.test(model);
@@ -640,11 +652,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
 
-  // Prompt cache. A non-streaming request whose exact inputs were already
-  // answered is served from the store and the upstream call is skipped — that
-  // skip is the entire point, so the lookup has to sit before the executor, not
-  // after it. Inert unless the semanticCacheEnabled setting (or SEMANTIC_CACHE=1)
-  // is on — see semanticcache/chatHook.js.
+  // Prompt cache. A request whose reply will leave as JSON and whose exact inputs
+  // were already answered is served from the store and the upstream call is
+  // skipped — that skip is the entire point, so the lookup has to sit before the
+  // executor, not after it. Inert unless the semanticCacheEnabled setting (or
+  // SEMANTIC_CACHE=1) is on — see semanticcache/chatHook.js.
   //
   // The hit still writes a request-log line: a reply that leaves no trace in the
   // log is indistinguishable from a request that never arrived, which is the
@@ -653,7 +665,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Tenant scope is the calling key, so two buyers sending the same prompt never
   // share a body. ponytail: no session dimension; add one when a single key needs
   // its own sessions isolated from each other.
-  if (!upstreamStream) {
+  if (clientReplyIsJson) {
     const cached = cacheHitResponse({ requestBody: body, sessionId: apiKeyInfo?.id ?? apiKey ?? "" });
     if (cached) {
       trackPendingRequest(model, provider, connectionId, false);

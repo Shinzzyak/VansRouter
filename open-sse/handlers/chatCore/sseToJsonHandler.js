@@ -9,7 +9,8 @@ import { openaiToClaudeNonStreaming } from "./nonStreamingHandler.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { enforceChatBrand, visibleTextOf } from "./brandRepair.js";
-import { emptyReasonHeadersFor } from "./emptyReason.js";
+import { emptyReasonHeadersFor, emptyReasonFor, isReplayableReply } from "./emptyReason.js";
+import { storeCachedResponse } from "@/lib/semanticcache/chatHook.js";
 
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
 const isResponsesProvider = (p) => PROVIDERS[p]?.format === FORMATS.OPENAI_RESPONSES;
@@ -321,6 +322,23 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
       });
 
+      // Same write as the true non-streaming exit. K43's argument applies to the
+      // cache unchanged: providers flagged forceStream leave through here, so
+      // this is the only exit where their replies could ever be stored — without
+      // it the toggle would do nothing for most of the pool. Written after the
+      // brand repair so a replay returns repaired bytes.
+      if (isReplayableReply(emptyReasonFor({
+        content: visibleTextOf(finalResp),
+        sawToolCalls: hasToolCalls,
+        finishReason: finalResp?.choices?.[0]?.finish_reason ?? null,
+      }))) {
+        storeCachedResponse({
+          requestBody: body,
+          finalResponse: finalResp,
+          sessionId: apiKeyInfo?.id ?? apiKey ?? "",
+        });
+      }
+
       return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: {
         "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
         // K42: same reason the ledger records, on the wire. Read AFTER enforceChatBrand —
@@ -398,6 +416,20 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
     enforceChatBrand(finalResp, visibleTextOf(finalResp), {
       requestBody: body, personaExempt: apiKeyInfo?.personaInject === false, clientRawRequest,
     });
+
+    // Cache write, same rule and same placement as the other two non-streaming
+    // exits: last, after the repair, and skipped for a failed generation.
+    if (isReplayableReply(emptyReasonFor({
+      content: visibleTextOf(finalResp),
+      sawToolCalls: (parsed.choices?.[0]?.message?.tool_calls?.length || 0) > 0,
+      finishReason: parsed.choices?.[0]?.finish_reason || null,
+    }))) {
+      storeCachedResponse({
+        requestBody: body,
+        finalResponse: finalResp,
+        sessionId: apiKeyInfo?.id ?? apiKey ?? "",
+      });
+    }
 
     return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: {
       "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
