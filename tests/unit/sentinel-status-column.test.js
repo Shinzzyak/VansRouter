@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { sentinelRows } from "@/lib/sentinel/rows";
+import { sentinelRows, splitOutcome, filterVerdict } from "@/lib/sentinel/rows";
 
 const ROOT = path.resolve(__dirname, "../..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
@@ -128,6 +128,61 @@ describe("sentinelRows", () => {
   });
 });
 
+// The filter axis. The engine's ledger already carries it — `last` is
+// "<tier>/<class>" and the class is whether the request actually got through the
+// model's own filter. The tab showed the raw string and nothing named the axis,
+// so "T2/SENYAP" was readable only to someone who already knew the vocabulary.
+describe("filter axis", () => {
+  it("splits the tier off the outcome class", () => {
+    expect(splitOutcome("T2/PATUH")).toEqual({ tier: "T2", outcome: "PATUH" });
+    expect(splitOutcome("T1/NOLAK")).toEqual({ tier: "T1", outcome: "NOLAK" });
+    // a bare class is still an outcome, and unknown casing normalizes
+    expect(splitOutcome("patuh")).toEqual({ tier: "", outcome: "PATUH" });
+    expect(splitOutcome("")).toEqual({ tier: "", outcome: "" });
+    expect(splitOutcome(undefined)).toEqual({ tier: "", outcome: "" });
+  });
+
+  it("maps each class to open / blocked / warn / unknown", () => {
+    expect(filterVerdict("PATUH").tone).toBe("open");
+    expect(filterVerdict("NOLAK").tone).toBe("blocked");
+    expect(filterVerdict("FILTER_UPSTREAM").tone).toBe("blocked");
+    expect(filterVerdict("SENYAP").tone).toBe("warn");
+    expect(filterVerdict("SUBSTITUSI").tone).toBe("warn");
+    expect(filterVerdict("AMBIGU").tone).toBe("warn");
+    expect(filterVerdict("INFRA").tone).toBe("unknown");
+    // an unseen class is shown verbatim rather than swallowed
+    expect(filterVerdict("SOMETHING_NEW")).toEqual({ filter: "SOMETHING_NEW", tone: "unknown" });
+    expect(filterVerdict("")).toEqual({ filter: "—", tone: "unknown" });
+  });
+
+  it("carries the verdict onto the row from the ledger's last outcome", () => {
+    const rows = sentinelRows({
+      selfMeasuringBypass: {
+        ledger: [
+          { model: "za/glm-5.3-flash", n: 10, wins: {}, best: "T2", last: "T2/PATUH" },
+          { model: "cbai/deepseek-v4.1-flash", n: 9, wins: {}, best: "T2", last: "T2/NOLAK" },
+          { model: "gemini-3.6-flash-high", n: 8, wins: {}, best: "T2", last: "T2/SENYAP" },
+        ],
+      },
+    });
+
+    const byModel = Object.fromEntries(rows.map((r) => [r.model, r]));
+    expect(byModel["za/glm-5.3-flash"].filter).toBe("PATUH");
+    expect(byModel["za/glm-5.3-flash"].filterTone).toBe("open");
+    expect(byModel["za/glm-5.3-flash"].tier).toBe("T2");
+    expect(byModel["cbai/deepseek-v4.1-flash"].filterTone).toBe("blocked");
+    expect(byModel["gemini-3.6-flash-high"].filterTone).toBe("warn");
+  });
+
+  it("leaves a model with no ledger row on the unknown verdict", () => {
+    const rows = sentinelRows({
+      refusalDrift: { drift: { "za/glm-5.3-flash": { total: 5, drifted: false } } },
+    });
+    expect(rows[0].filter).toBe("—");
+    expect(rows[0].filterTone).toBe("unknown");
+  });
+});
+
 describe("sentinel wiring", () => {
   const page = read("src/app/(dashboard)/dashboard/usage/page.js");
   const section = read("src/app/(dashboard)/dashboard/usage/components/SentinelSection.js");
@@ -152,9 +207,12 @@ describe("sentinel wiring", () => {
     // Loading must mean "no snapshot yet", not a second piece of state.
     expect(section).not.toMatch(/useState\(true\)/);
     expect(section).toMatch(/const loaded = state !== null;/);
-    for (const tile of ["Models watched", "Drifted", "Dead routes", "Filtered routes"]) {
+    for (const tile of ["Models watched", "Drifted", "Filter open", "Filter blocked", "Dead routes", "Filtered routes"]) {
       expect(section).toMatch(new RegExp(`label="${tile}" value=\\{loaded \\?`));
     }
+    // the filter chip is rendered per row and coloured from the tone map
+    expect(section).toMatch(/FILTER_TONE_CLASS\[row\.filterTone\]/);
+    expect(section).toMatch(/\{row\.filter\}/);
     // a stalled body read must not leave the tab spinning forever
     expect(section).toMatch(/AbortSignal\.timeout\(/);
   });

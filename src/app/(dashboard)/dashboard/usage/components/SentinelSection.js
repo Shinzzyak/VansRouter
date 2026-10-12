@@ -4,6 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import Card from "@/shared/components/Card";
 import { sentinelRows } from "@/lib/sentinel/rows";
 
+// Tone per filter verdict, so the chip colour comes from one map instead of a
+// chain of ternaries in JSX.
+const FILTER_TONE_CLASS = {
+  open: "text-emerald-500",
+  blocked: "text-red-500",
+  warn: "text-amber-500",
+  unknown: "text-text-muted",
+};
+
 // Sentinel: the read side of the engine's own telemetry.
 //
 // The engine already judges every reply — `classifyResponse` returns ok /
@@ -58,6 +67,8 @@ export default function SentinelSection() {
   const modules = state?.modules || null;
   const rows = sentinelRows(modules);
   const drifted = rows.filter((r) => r.status === "DRIFT");
+  const filterOpen = rows.filter((r) => r.filterTone === "open").length;
+  const filterBlocked = rows.filter((r) => r.filterTone === "blocked").length;
   const learned = modules?.routeGuardMemory?.routes?.learned || [];
   const hints = modules?.modelImmunityHints?.hints || [];
   const engineLoaded = state?.engineLoaded;
@@ -87,9 +98,11 @@ export default function SentinelSection() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="Models watched" value={loaded ? rows.length : "—"} />
         <Stat label="Drifted" value={loaded ? drifted.length : "—"} />
+        <Stat label="Filter open" value={loaded ? filterOpen : "—"} />
+        <Stat label="Filter blocked" value={loaded ? filterBlocked : "—"} />
         <Stat label="Dead routes" value={loaded ? learned.filter((r) => r.kind === "dead").length : "—"} />
         <Stat label="Filtered routes" value={loaded ? learned.filter((r) => r.kind === "filtered").length : "—"} />
       </div>
@@ -111,6 +124,12 @@ export default function SentinelSection() {
                 className="flex items-center justify-between gap-3 border-b border-border-subtle pb-1 text-xs last:border-0"
               >
                 <span className="min-w-0 flex-1 truncate text-text-main">{row.model}</span>
+                <span
+                  className={`shrink-0 font-semibold ${FILTER_TONE_CLASS[row.filterTone] || "text-text-muted"}`}
+                  title="engine's own class for this model's last reply — PATUH = filter passed, NOLAK/FILTER_UPSTREAM = blocked, SENYAP/SUBSTITUSI/AMBIGU = no usable answer"
+                >
+                  {row.filter}
+                </span>
                 <span className={`shrink-0 font-semibold ${row.status === "DRIFT" ? "text-red-500" : "text-emerald-500"}`}>
                   {row.status}
                 </span>
@@ -129,7 +148,13 @@ export default function SentinelSection() {
         )}
         <p className="mt-1 text-[11px] text-text-muted">
           Verdicts are the engine&apos;s own (<span className="text-text-main">classifyResponse</span>), not a
-          second opinion. DRIFT = the refusal-drift or voice-cadence window flagged the model.
+          second opinion. DRIFT = the refusal-drift or voice-cadence window flagged the model. The
+          second column is the filter axis: <span className="text-emerald-500">PATUH</span> means the
+          model answered through its own filter, <span className="text-red-500">NOLAK</span> /{" "}
+          <span className="text-red-500">FILTER_UPSTREAM</span> means it did not, and{" "}
+          <span className="text-amber-500">SENYAP</span> /{" "}
+          <span className="text-amber-500">SUBSTITUSI</span> /{" "}
+          <span className="text-amber-500">AMBIGU</span> means there was no usable answer to judge.
         </p>
       </Card>
 
