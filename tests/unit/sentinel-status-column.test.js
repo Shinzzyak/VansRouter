@@ -142,8 +142,21 @@ describe("sentinel wiring", () => {
   });
 
   it("reads the route that serves the engine telemetry", () => {
-    expect(section).toMatch(/fetch\("\/api\/engine\/state"\)/);
+    expect(section).toMatch(/fetch\("\/api\/engine\/state"/);
     expect(route).toMatch(/requireDashboardAuth\(request\)/);
+  });
+
+  it("derives the tiles, the header and the table from one snapshot", () => {
+    // A separate `loading` flag used to exist next to the snapshot, and the tab
+    // could render tiles stuck at "—" beside a table that already had rows.
+    // Loading must mean "no snapshot yet", not a second piece of state.
+    expect(section).not.toMatch(/useState\(true\)/);
+    expect(section).toMatch(/const loaded = state !== null;/);
+    for (const tile of ["Models watched", "Drifted", "Dead routes", "Filtered routes"]) {
+      expect(section).toMatch(new RegExp(`label="${tile}" value=\\{loaded \\?`));
+    }
+    // a stalled body read must not leave the tab spinning forever
+    expect(section).toMatch(/AbortSignal\.timeout\(/);
   });
 
   it("reads the same module keys the route serves", () => {

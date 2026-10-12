@@ -17,30 +17,44 @@ import { sentinelRows } from "@/lib/sentinel/rows";
 // either the refusal-drift window or the voice-cadence window says so; every
 // other model with traffic is OK.
 export default function SentinelSection() {
+  // One piece of state, not two. The tiles, the header and the table all read
+  // this same snapshot, so they cannot disagree: an earlier version kept a
+  // separate `loading` flag and the tab could render tiles stuck at "—" (and a
+  // header stuck at "Loading…") next to a table that already had rows. The
+  // engine route answers in ~120ms, so "still loading" must mean "no snapshot".
   const [state, setState] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError("");
-    try {
-      const res = await fetch("/api/engine/state");
+    // The signal aborts the body read too, so a stalled response cannot leave
+    // the tab spinning forever; one retry covers a dropped socket, a second
+    // stall surfaces as the error line.
+    const once = async () => {
+      const res = await fetch("/api/engine/state", { signal: AbortSignal.timeout(10000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to read engine state");
+      return data;
+    };
+    try {
+      let data;
+      try {
+        data = await once();
+      } catch {
+        data = await once();
+      }
       setState(data);
     } catch (err) {
       setError(err?.message || String(err));
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch with an initial loading flag; setLoading(true) is intentional at the start of the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; setError("") is intentional at the start of the request.
     load();
   }, [load]);
 
+  const loaded = state !== null;
   const modules = state?.modules || null;
   const rows = sentinelRows(modules);
   const drifted = rows.filter((r) => r.status === "DRIFT");
@@ -49,11 +63,15 @@ export default function SentinelSection() {
   const engineLoaded = state?.engineLoaded;
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    // ponytail: keyed on the snapshot so a subtree from the previous load can
+    // never survive into the next one; drop the key if it ever costs a repaint.
+    <div key={loaded ? "loaded" : "loading"} className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-text-muted">
-          {loading
-            ? "Loading…"
+          {!loaded
+            ? error
+              ? "could not read engine state"
+              : "Loading…"
             : engineLoaded === false
               ? "engine bundle not loaded (degraded plain-proxy mode)"
               : `captured ${state?.capturedAt ? new Date(state.capturedAt).toLocaleTimeString() : "—"}`}
@@ -70,16 +88,20 @@ export default function SentinelSection() {
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Models watched" value={rows.length || "—"} />
-        <Stat label="Drifted" value={state ? drifted.length : "—"} />
-        <Stat label="Dead routes" value={state ? learned.filter((r) => r.kind === "dead").length : "—"} />
-        <Stat label="Filtered routes" value={state ? learned.filter((r) => r.kind === "filtered").length : "—"} />
+        <Stat label="Models watched" value={loaded ? rows.length : "—"} />
+        <Stat label="Drifted" value={loaded ? drifted.length : "—"} />
+        <Stat label="Dead routes" value={loaded ? learned.filter((r) => r.kind === "dead").length : "—"} />
+        <Stat label="Filtered routes" value={loaded ? learned.filter((r) => r.kind === "filtered").length : "—"} />
       </div>
 
       <Card title="Status by model" padding="sm">
         {rows.length === 0 ? (
           <p className="text-xs text-text-muted">
-            {loading ? "Loading…" : "No model has been judged yet — the windows fill as traffic flows."}
+            {!loaded
+              ? error
+                ? "Engine state could not be read — use Refresh to retry."
+                : "Loading…"
+              : "No model has been judged yet — the windows fill as traffic flows."}
           </p>
         ) : (
           <div className="flex flex-col gap-1">
