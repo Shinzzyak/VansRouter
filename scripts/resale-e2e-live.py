@@ -423,6 +423,15 @@ def main():
               f"http {st_bad} :: {txt_bad[:120]}")
         st_rb, _, _ = req("/api/v1/key", "GET", None, {"Authorization": f"Bearer {ipbad_key}"})
         check("G6 the reader also refuses the blocked address", st_rb in (401, 403), f"http {st_rb}")
+
+        # G8: the listing surfaces are not a side door around the binding.
+        # Presenting a key must never be a way to shed its address and read the
+        # catalogue anyway — this is where it used to leak (found live, fixed in
+        # the same wave: the listing routes had no address gate at all).
+        for list_path in ("/v1/models", "/v1/models/image", "/api/v1/models"):
+            st_l, txt_l, _ = req(list_path, "GET", None, {"Authorization": f"Bearer {ipbad_key}"})
+            check(f"G8 {list_path} refuses the blocked address", st_l == 403,
+                  f"http {st_l} :: {txt_l[:120]}")
         # No spoof check here: custom-server.js strips every client-supplied
         # forwarding header before the route sees it, and the precedence rule is
         # pinned deterministically in tests/unit/apikey-resale-hardening.test.js.
@@ -442,7 +451,10 @@ def main():
     else:
         for name in ("G5 bound key refused from another address",
                      "G6 the reader also refuses the blocked address",
-                     "G7 control: unbound key still works"):
+                     "G7 control: unbound key still works",
+                     "G8 /v1/models refuses the blocked address",
+                     "G8 /v1/models/image refuses the blocked address",
+                     "G8 /api/v1/models refuses the blocked address"):
             check(name, False, f"create http {st}")
 
     # ---- H. prepaid balance + redeem code top-up (wave 2) -----------------

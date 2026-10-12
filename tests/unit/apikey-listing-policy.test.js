@@ -56,6 +56,19 @@ vi.mock("@/sse/services/auth.js", () => ({
   isProviderAllowed: async () => true,
   isComboAllowed: () => true,
   isKindAllowed: () => true,
+  // The resolver every listing route goes through: a usable key selects policy,
+  // a key bound to other addresses is refused, anything else falls through.
+  resolveRequestApiKey: async (token) => {
+    const info = token === "k-allow" ? { id: "key-1", allowedModels: ["za/glm-5.3-flash"] } : null;
+    if (info) return { info, refusal: null };
+    if (token === "k-elsewhere") {
+      return {
+        info: null,
+        refusal: { status: 403, message: "API key is not allowed from this IP address" },
+      };
+    }
+    return { info: null, refusal: null };
+  },
 }));
 
 vi.mock("@/lib/db/repos/apiKeyUsageRepo.js", () => ({
@@ -72,6 +85,7 @@ vi.mock("@/lib/modelLookup.js", () => ({
 const keysRoute = await import("@/app/api/keys/route.js");
 const modelsRoute = await import("@/app/api/v1/models/route.js");
 const kindRoute = await import("@/app/api/models/[kind]/[[...path]]/route.js");
+const v1KindRoute = await import("@/app/api/v1/models/[kind]/route.js");
 const { maskApiKey, MASKED_UNKNOWN } = await import("@/lib/db/helpers/apiKeyMask.js");
 
 const req = (token) =>
@@ -111,6 +125,34 @@ describe("listing honours a supplied key in local mode (requireApiKey=false)", (
     const body = await res.json();
 
     expect(body.data).toHaveLength(3);
+  });
+
+  it("an address-bound key is refused instead of silently downgraded to anonymous", async () => {
+    h.state.models = [...catalog];
+
+    const res = await modelsRoute.GET(req("k-elsewhere"));
+    const body = await res.json();
+
+    // 403 with no list: presenting a key must never be a way to shed its
+    // address binding and read the catalogue anyway.
+    expect(res.status).toBe(403);
+    expect(body.error.code).toBe("api_key_ip");
+    expect(body.data).toBeUndefined();
+  });
+
+  it("both kind-listing shapes refuse it too", async () => {
+    h.state.models = [...catalog];
+
+    const flat = await kindRoute.GET(req("k-elsewhere"), {
+      params: Promise.resolve({ kind: "llm", path: [] }),
+    });
+    expect(flat.status).toBe(403);
+
+    // The /v1 kind route only serves the non-chat kinds (llm has no slug there).
+    const v1kind = await v1KindRoute.GET(req("k-elsewhere"), {
+      params: Promise.resolve({ kind: "image" }),
+    });
+    expect(v1kind.status).toBe(403);
   });
 
   it("the kind-listing shape filters too", async () => {

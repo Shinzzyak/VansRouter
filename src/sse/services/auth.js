@@ -639,6 +639,30 @@ async function getNodePrefix(providerId) {
     return null;
   }
 }
+/**
+ * Resolve the key a request presents into the policy it has to honour, in BOTH
+ * auth modes.
+ *
+ * `info` is the key when it is usable here; `refusal` is set when the key exists
+ * but is bound to other source addresses. That one failure must not degrade to
+ * anonymous access: a client could otherwise shed its binding by presenting the
+ * key anyway. Every other failure (unknown, disabled, expired) keeps the caller's
+ * existing behaviour, so a listing route stays reachable when it always was.
+ */
+export async function resolveRequestApiKey(suppliedKey, request = null) {
+  if (!suppliedKey) return { info: null, refusal: null };
+  const info = await isValidApiKey(suppliedKey, request);
+  if (info) return { info, refusal: null };
+  const bound = await resolveApiKeyIgnoringIp(suppliedKey);
+  if (bound && !isIpAllowed(bound, clientIp(request))) {
+    return {
+      info: null,
+      refusal: { status: 403, message: "API key is not allowed from this IP address" },
+    };
+  }
+  return { info: null, refusal: null };
+}
+
 export async function isProviderAllowed(apiKeyInfo, providerIdOrAlias) {
   if (!apiKeyInfo) return true;
   const allowed = apiKeyInfo.allowedProviders;

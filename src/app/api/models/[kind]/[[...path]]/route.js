@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildModelsList, matchesModelAllowlist } from "@/sse/services/allowedModels.js";
-import { isValidApiKey, extractApiKey } from "@/sse/services/auth.js";
+import { resolveRequestApiKey, extractApiKey } from "@/sse/services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { lookupModel } from "@/lib/modelLookup.js";
 
@@ -21,13 +21,16 @@ async function optionalApiKeyInfo(request) {
   if (!settings.requireApiKey) {
     // Local mode: no key is fine, but a key that IS supplied selects the
     // policy the answer must respect (per-key allowlist/ACL), exactly like the
-    // chat dispatch path. An unresolvable key stays non-fatal here.
-    if (!apiKey) return { apiKeyInfo: null, error: null };
-    return { apiKeyInfo: await isValidApiKey(apiKey, request), error: null };
+    // chat dispatch path. An unresolvable key stays non-fatal here — except a
+    // key bound to other source addresses, which is refused outright: falling
+    // back to unfiltered would hand a blocked client the whole catalogue.
+    if (!apiKey) return { apiKeyInfo: null, refusal: null, error: null };
+    const { info, refusal } = await resolveRequestApiKey(apiKey, request);
+    return { apiKeyInfo: info, refusal, error: null };
   }
-  if (!apiKey) return { apiKeyInfo: null, error: 401 };
-  const apiKeyInfo = await isValidApiKey(apiKey, request);
-  return { apiKeyInfo, error: apiKeyInfo ? null : 401 };
+  if (!apiKey) return { apiKeyInfo: null, refusal: null, error: 401 };
+  const { info, refusal } = await resolveRequestApiKey(apiKey, request);
+  return { apiKeyInfo: info, refusal, error: info ? null : (refusal?.status ?? 401) };
 }
 
 export async function GET(request, { params }) {
@@ -40,7 +43,13 @@ export async function GET(request, { params }) {
     }
 
     if (!rest.length && KNOWN_KINDS.includes(kind)) {
-      const { apiKeyInfo: listKeyInfo } = await optionalApiKeyInfo(request);
+      const { apiKeyInfo: listKeyInfo, refusal: listRefusal } = await optionalApiKeyInfo(request);
+      if (listRefusal) {
+        return NextResponse.json(
+          { error: { message: listRefusal.message, type: "permission_error", code: "api_key_ip" } },
+          { status: listRefusal.status }
+        );
+      }
       const models = await buildModelsList([kind], { skipDynamicFetch: true });
       const data = (models || [])
         .filter((m) => matchesModelAllowlist(m.id, listKeyInfo))
@@ -54,7 +63,13 @@ export async function GET(request, { params }) {
       return NextResponse.json({ object: "list", kind, count: data.length, data });
     }
 
-    const { apiKeyInfo, error } = await optionalApiKeyInfo(request);
+    const { apiKeyInfo, refusal, error } = await optionalApiKeyInfo(request);
+    if (refusal) {
+      return NextResponse.json(
+        { error: { message: refusal.message, type: "permission_error", code: "api_key_ip" } },
+        { status: refusal.status }
+      );
+    }
     if (error) {
       return NextResponse.json({ error: "Invalid or missing API key" }, { status: error });
     }

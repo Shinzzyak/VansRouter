@@ -1,4 +1,4 @@
-import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed } from "@/sse/services/auth.js";
+import { isValidApiKey, resolveRequestApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed } from "@/sse/services/auth.js";
 import { apiKeyRefusal } from "@/sse/services/apiKeyRefusal.js";
 import { getSettings } from "@/lib/localDb";
 import { stripComboPrefix } from "open-sse/services/combo.js";
@@ -79,9 +79,18 @@ export async function GET(request) {
     } else if (suppliedKey) {
       // Local mode (requireApiKey=false) with a key supplied: the key still
       // selects the policy this listing has to honour — the same resolution
-      // the chat dispatch path does. Auth is unchanged: an unresolvable key
-      // stays non-fatal here and the list falls back to unfiltered.
-      apiKeyInfo = await isValidApiKey(suppliedKey, request);
+      // the chat dispatch path does. An unresolvable key stays non-fatal here
+      // and the list falls back to unfiltered, with one exception: a key bound
+      // to other source addresses is refused outright. Letting it fall back to
+      // unfiltered would hand a blocked client the catalogue for free.
+      const resolved = await resolveRequestApiKey(suppliedKey, request);
+      if (resolved.refusal) {
+        return Response.json(
+          { error: { message: resolved.refusal.message, type: "permission_error", code: "api_key_ip" } },
+          { status: resolved.refusal.status, headers: { "Access-Control-Allow-Origin": "*" } }
+        );
+      }
+      apiKeyInfo = resolved.info;
     }
 
     let data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
