@@ -45,7 +45,7 @@ export async function handleImageGeneration(request) {
   const trustedInternal = await isTrustedInternalRequest(request);
   if (!trustedInternal && settings.requireApiKey) {
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
-    apiKeyInfo = await isValidApiKey(apiKey);
+    apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
 

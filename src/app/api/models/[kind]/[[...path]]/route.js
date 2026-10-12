@@ -23,10 +23,10 @@ async function optionalApiKeyInfo(request) {
     // policy the answer must respect (per-key allowlist/ACL), exactly like the
     // chat dispatch path. An unresolvable key stays non-fatal here.
     if (!apiKey) return { apiKeyInfo: null, error: null };
-    return { apiKeyInfo: await isValidApiKey(apiKey), error: null };
+    return { apiKeyInfo: await isValidApiKey(apiKey, request), error: null };
   }
   if (!apiKey) return { apiKeyInfo: null, error: 401 };
-  const apiKeyInfo = await isValidApiKey(apiKey);
+  const apiKeyInfo = await isValidApiKey(apiKey, request);
   return { apiKeyInfo, error: apiKeyInfo ? null : 401 };
 }
 

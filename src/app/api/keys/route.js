@@ -54,16 +54,41 @@ export async function POST(request) {
 
     // Always get machineId from server
     const machineId = await getConsistentMachineId();
-    const apiKey = await createApiKey(name, machineId, {
+
+    // Batch mint: a seller filling orders should not have to fire one request
+    // per key. Capped at 100 per call; a batch gets "name #n" suffixes so the
+    // rows stay tellable apart in the dashboard.
+    const rawQuantity = Number(body.quantity);
+    const quantity = Number.isFinite(rawQuantity) ? Math.min(100, Math.max(1, Math.floor(rawQuantity))) : 1;
+
+    // An IP allow-list is security-relevant, so a malformed one is a 400 rather
+    // than a silent fallback to "any source" (which is what normalizePerm would
+    // do with a non-array).
+    const allowedIps = pick("allowedIps");
+    if (allowedIps !== undefined && allowedIps !== null) {
+      if (!Array.isArray(allowedIps) || allowedIps.some((ip) => typeof ip !== "string" || !ip.trim())) {
+        return NextResponse.json({ error: "allowedIps must be an array of non-empty strings" }, { status: 400 });
+      }
+    }
+
+    const policy = {
       ...limits,
       allowedProviders: pick("allowedProviders"),
       allowedCombos: pick("allowedCombos"),
       allowedKinds: pick("allowedKinds"),
       allowedModels,
+      allowedIps: allowedIps === undefined ? null : allowedIps,
+      tokenBalance: pick("tokenBalance"),
       personaInject: pick("personaInject"),
-    });
+    };
 
-    return NextResponse.json({
+    const created = [];
+    for (let i = 0; i < quantity; i += 1) {
+      const label = quantity > 1 ? `${name} #${i + 1}` : name;
+      created.push(await createApiKey(label, machineId, policy));
+    }
+
+    const shape = (apiKey) => ({
       key: apiKey.key,
       name: apiKey.name,
       id: apiKey.id,
@@ -81,14 +106,26 @@ export async function POST(request) {
         tokensMonthly: apiKey.tokensMonthly,
         rateLimitTpm: apiKey.rateLimitTpm,
         rateLimitConcurrency: apiKey.rateLimitConcurrency,
+        tokenBalance: apiKey.tokenBalance,
       },
       allowedProviders: apiKey.allowedProviders,
       allowedCombos: apiKey.allowedCombos,
       allowedKinds: apiKey.allowedKinds,
       allowedModels: apiKey.allowedModels,
+      allowedIps: apiKey.allowedIps,
       personaInject: apiKey.personaInject,
       metadata: apiKey.metadata,
-    }, { status: 201 });
+    });
+
+    // Single-key response keeps the shape every existing caller expects; a batch
+    // adds the array instead of pretending to be one key.
+    if (created.length === 1) {
+      return NextResponse.json(shape(created[0]), { status: 201 });
+    }
+    return NextResponse.json(
+      { count: created.length, keys: created.map(shape) },
+      { status: 201 }
+    );
   } catch (error) {
     console.log("Error creating key:", error);
     return NextResponse.json({ error: "Failed to create key" }, { status: 500 });

@@ -14,7 +14,7 @@ export async function GET(request) {
     let apiKeyInfo = null;
     if (settings.requireApiKey) {
       const apiKey = extractApiKey(request);
-      apiKeyInfo = apiKey ? await isValidApiKey(apiKey) : null;
+      apiKeyInfo = apiKey ? await isValidApiKey(apiKey, request) : null;
       if (!apiKeyInfo) {
         return NextResponse.json({ error: "Invalid or missing API key" }, { status: 401 });
       }

@@ -10,8 +10,9 @@ import m006 from "./006-add-passkeys.js";
 import m007 from "./007-add-combo-context-length.js";
 import m008 from "./008-add-proxy-pool-fitness.js";
 import m009 from "./009-add-api-key-model-access.js";
+import m010 from "./010-add-api-key-ip-balance-and-redeem.js";
 
-export const MIGRATIONS = [m001, m002, m003, m004, m005, m006, m007, m008, m009].sort((a, b) => a.version - b.version);
+export const MIGRATIONS = [m001, m002, m003, m004, m005, m006, m007, m008, m009, m010].sort((a, b) => a.version - b.version);
 
 export function latestVersion() {
   return MIGRATIONS.length ? MIGRATIONS[MIGRATIONS.length - 1].version : 0;

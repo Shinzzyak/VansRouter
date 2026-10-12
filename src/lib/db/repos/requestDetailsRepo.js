@@ -151,6 +151,8 @@ export async function getRequestDetails(filter = {}) {
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
+  if (filter.apiKey) { conds.push("apiKey = ?"); params.push(filter.apiKey); }
+  if (filter.apiKeyName) { conds.push("apiKeyName = ?"); params.push(filter.apiKeyName); }
   if (filter.status) { conds.push("status = ?"); params.push(filter.status); }
   if (filter.startDate) {
     const d = new Date(filter.startDate);
@@ -192,6 +194,33 @@ export async function getRequestDetailById(id) {
   const db = await getAdapter();
   const row = db.get(`SELECT data FROM requestDetails WHERE id = ?`, [id]);
   return row ? parseJson(row.data, null) : null;
+}
+
+/**
+ * Per-key rollup for the resale surface: how much traffic a sold key actually
+ * pushed and how much of it failed. Reads the same rows the dashboard detail
+ * view shows, so the two can never disagree.
+ *
+ * Only as complete as observability retention: requestDetails is capped by
+ * observabilityMaxRecords, so this is "recent traffic", not a lifetime ledger.
+ */
+export async function getRequestStatsForApiKey(apiKey) {
+  if (!apiKey) return { requests: 0, errors: 0, firstAt: null, lastAt: null };
+  const db = await getAdapter();
+  const row = db.get(
+    `SELECT COUNT(*) as requests,
+            SUM(CASE WHEN status IS NULL OR status >= 400 THEN 1 ELSE 0 END) as errors,
+            MIN(timestamp) as firstAt,
+            MAX(timestamp) as lastAt
+       FROM requestDetails WHERE apiKey = ?`,
+    [apiKey]
+  );
+  return {
+    requests: row?.requests ?? 0,
+    errors: row?.errors ?? 0,
+    firstAt: row?.firstAt || null,
+    lastAt: row?.lastAt || null,
+  };
 }
 
 const _shutdownHandler = async () => {

@@ -123,8 +123,32 @@ export const TABLES = {
       lastUsedAt: "TEXT",
       usedCount: "INTEGER",
       metadata: "TEXT",                // free-form operator note (buyer, price)
+      // Resale hardening (migration 010). All three are nullable, so a key that
+      // predates them keeps behaving exactly as it did.
+      allowedIps: "TEXT",              // JSON array of IPv4/CIDR; NULL = any source
+      tokenBalance: "INTEGER",         // prepaid lifetime tokens; NULL = no gate
+      tokensSpent: "INTEGER",          // lifetime tokens debited against balance
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
+  },
+  // Redeem codes — the top-up instrument for a sold key. A seller mints a
+  // batch, the buyer redeems one against their key, and the key's prepaid token
+  // balance and/or expiry move. Zero rows = the feature is simply unused.
+  redeemCodes: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      code: "TEXT UNIQUE NOT NULL",
+      batchName: "TEXT",
+      tokenValue: "INTEGER",
+      extendsDays: "INTEGER",
+      maxUses: "INTEGER DEFAULT 1",
+      usedCount: "INTEGER DEFAULT 0",
+      isActive: "INTEGER DEFAULT 1",
+      createdAt: "TEXT NOT NULL",
+      expiresAt: "TEXT",
+      metadata: "TEXT",
+    },
+    indexes: ["CREATE INDEX IF NOT EXISTS idx_redeem_code ON redeemCodes(code)"],
   },
   // Per-API-key model allowlist (9router-go F-7 parity). One row per
   // (key, model-pattern). Zero rows = no allowlist configured = allow

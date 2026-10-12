@@ -198,6 +198,19 @@ export function checkApiKeyLimits(apiKeyInfo, requestedTokens = 0) {
     }
   }
 
+  // Prepaid balance (migration 010). A key with a non-null balance is capped at
+  // the tokens it has paid for; the counter lives on the row so it survives a
+  // restart, unlike every other limit in this file. null = no gate.
+  if (apiKeyInfo.tokenBalance != null) {
+    const spent = Number(apiKeyInfo.tokensSpent) || 0;
+    if (spent >= apiKeyInfo.tokenBalance) {
+      return { allowed: false, reason: `Prepaid token balance exhausted: ${spent}/${apiKeyInfo.tokenBalance} tokens used` };
+    }
+    if (tokens > 0 && spent + tokens > apiKeyInfo.tokenBalance) {
+      return { allowed: false, reason: `Prepaid token balance too low for this request: ${apiKeyInfo.tokenBalance - spent} of ${apiKeyInfo.tokenBalance} tokens left` };
+    }
+  }
+
   // Simultaneous in-flight requests (Go: rateLimitConcurrency). The slot is
   // taken by acquireApiKeyLease at the gate and given back by
   // recordApiKeyUsage, so a long stream holds its slot for its whole life.
@@ -256,6 +269,17 @@ export function recordApiKeyUsage(apiKeyInfo, tokensUsed = 0) {
     } else {
       monthly.tokens += tokens;
     }
+
+    // Prepaid balance is the one limit here that has to be persisted: it is a
+    // purchased quantity, not a rolling window, so it cannot live in process
+    // memory. Only keys that carry a balance pay this write; the import is
+    // dynamic and the failure is swallowed so a DB hiccup can never stall a
+    // stream that already finished.
+    if (apiKeyInfo.tokenBalance != null) {
+      import("./apiKeysRepo.js")
+        .then((m) => m.addApiKeyTokensSpent(keyId, tokens))
+        .catch(() => {});
+    }
   }
 }
 
@@ -277,5 +301,7 @@ export function getApiKeyUsageSnapshot(apiKeyInfo) {
     tokensMonthly: { limit: apiKeyInfo.tokensMonthly, used: (counters.tokensMonthly.get(keyId)?.tokens || 0) },
     rateLimitTpm: { limit: apiKeyInfo.rateLimitTpm, used: getRollingTokenCount(counters.tpm, keyId, 60_000) },
     rateLimitConcurrency: { limit: apiKeyInfo.rateLimitConcurrency, used: liveLeases(keyId).length },
+    // Prepaid balance: persistent, unlike everything above.
+    tokenBalance: { limit: apiKeyInfo.tokenBalance ?? null, used: Number(apiKeyInfo.tokensSpent) || 0 },
   };
 }

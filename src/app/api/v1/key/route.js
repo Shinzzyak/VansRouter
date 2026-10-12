@@ -1,5 +1,5 @@
 import { getSettings, getApiKeyUsageSnapshot } from "@/lib/localDb";
-import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed } from "@/sse/services/auth.js";
+import { isValidApiKey, extractApiKey, isProviderAllowed, isComboAllowed, isKindAllowed, clientIp } from "@/sse/services/auth.js";
 import { checkApiKeyLimits } from "@/lib/db/repos/apiKeyUsageRepo.js";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export async function GET(request) {
     // requireApiKey only decides whether an unresolvable key is fatal here.
     // A key that IS supplied always has to resolve, otherwise this endpoint
     // would hand policy (limits, expiry) to a caller holding a dead secret.
-    const apiKeyInfo = await isValidApiKey(supplied);
+    const apiKeyInfo = await isValidApiKey(supplied, request);
     if (!apiKeyInfo) {
       return json(
         { error: { message: "Invalid, expired or disabled API key", type: "authentication_error" } },
@@ -78,6 +78,10 @@ export async function GET(request) {
         tokensMonthly: apiKeyInfo.tokensMonthly,
         rateLimitTpm: apiKeyInfo.rateLimitTpm,
         rateLimitConcurrency: apiKeyInfo.rateLimitConcurrency,
+        // Prepaid balance: the number a buyer actually cares about ("how much
+        // have I got left"), so it is reported next to the caps.
+        tokenBalance: apiKeyInfo.tokenBalance,
+        tokensSpent: apiKeyInfo.tokensSpent ?? 0,
       },
       usage,
       // Same gate the dispatch path applies before serving a request, so a
@@ -92,7 +96,12 @@ export async function GET(request) {
         combos: apiKeyInfo.allowedCombos,
         kinds: apiKeyInfo.allowedKinds,
         models: apiKeyInfo.allowedModels || [],
+        ips: apiKeyInfo.allowedIps,
       },
+      // The address the router attributes this call to. Without it an IP-bound
+      // key is undebuggable from the buyer's side ("works from my server" vs
+      // "why is it 403") — they can compare this against the ips list above.
+      sourceIp: clientIp(request),
     });
   } catch (error) {
     console.log("Error reading own key status:", error);

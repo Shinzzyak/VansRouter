@@ -70,6 +70,7 @@ vi.mock("@/sse/services/auth.js", () => ({
   isProviderAllowed: async () => true,
   isComboAllowed: () => true,
   isKindAllowed: () => true,
+  clientIp: () => "203.0.113.7",
 }));
 
 vi.mock("@/lib/db/repos/apiKeyUsageRepo.js", () => ({
@@ -120,6 +121,7 @@ beforeEach(() => {
     allowedCombos: ["smart-fallback"],
     allowedKinds: ["llm"],
     allowedModels: ["za/glm-5.3-flash"],
+    allowedIps: null,
   };
 });
 
@@ -219,6 +221,7 @@ describe("GET /api/v1/key is the buyer's own status reader", () => {
       combos: ["smart-fallback"],
       kinds: ["llm"],
       models: ["za/glm-5.3-flash"],
+      ips: null,
     });
   });
 

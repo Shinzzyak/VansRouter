@@ -77,6 +77,30 @@ def raw_row(key_id):
     return dict(row) if row else None, models
 
 
+def raw_code(code):
+    """Read a redeemCodes row straight from the DB, bypassing the API."""
+    con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    try:
+        row = con.execute("SELECT * FROM redeemCodes WHERE code=?", (code,)).fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        return {"_error": str(e)}
+    finally:
+        con.close()
+
+
+def schema_probe():
+    """Which wave-2 pieces the live DB actually has."""
+    con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    try:
+        cols = [r[1] for r in con.execute("PRAGMA table_info(apiKeys)").fetchall()]
+        tbl = con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redeemCodes'").fetchone()
+        return cols, bool(tbl)
+    finally:
+        con.close()
+
+
 def main():
     stamp = time.strftime("%H%M%S")
     print(f"base={BASE} repo={REPO} run={stamp}", flush=True)
@@ -176,10 +200,15 @@ def main():
     check("B8 bogus key -> 401", st1 == 401, f"http {st1}")
 
     # ---- C. the policy bites ---------------------------------------------
-    def chat(model, key_str=key, kind_path="/v1/chat/completions"):
+    def chat(model, key_str=key, kind_path="/v1/chat/completions", ip=None):
+        headers = {"Authorization": f"Bearer {key_str}"}
+        # Source address is a request header, so the IP allow-list can only be
+        # exercised by claiming one: the router reads x-forwarded-for first.
+        if ip:
+            headers["x-forwarded-for"] = ip
         return req(kind_path, "POST",
                    {"model": model, "messages": [{"role": "user", "content": "say OK"}],
-                    "max_tokens": 16}, {"Authorization": f"Bearer {key_str}"}, timeout=90)
+                    "max_tokens": 16}, headers, timeout=90)
 
     # The per-key model allowlist (9router-go F-7) is enforced at dispatch, but
     # its refusal is a 404 ("not available") - the same shape as an unknown model
@@ -332,6 +361,219 @@ def main():
     else:
         check("F3 max_tokens above the key's cap refused", False, f"create http {st}")
 
+    # ---- G. IP allow-list per key (wave 2) --------------------------------
+    cols, has_redeem_tbl = schema_probe()
+    check("M1 migration 010 live: apiKeys carries the resale columns",
+          all(c in cols for c in ("allowedIps", "tokenBalance", "tokensSpent")),
+          f"missing={[c for c in ('allowedIps','tokenBalance','tokensSpent') if c not in cols]}")
+    check("M2 migration 010 live: redeemCodes table exists", has_redeem_tbl)
+
+    allowed_ip = "203.0.113.7"
+    foreign_ip = "198.51.100.4"
+
+    # The address the router attributes this caller to, read from the buyer
+    # reader. Discovering it instead of asserting a hardcoded one keeps this
+    # section valid both on loopback and against the remote deployment, where the
+    # socket-derived address is the only one that counts.
+    st_si, txt_si, _ = req("/api/v1/key", "GET", None, {"Authorization": f"Bearer {key}"})
+    source_ip = json.loads(txt_si).get("sourceIp") if st_si == 200 else None
+    check("G0 the reader reports the source address the router uses", bool(source_ip),
+          f"http {st_si} sourceIp={source_ip}")
+
+    st, txt, _ = admin("/api/keys", "POST", {
+        "name": f"zz-resale-ip-{stamp}",
+        "limits": {"rpm": 20},
+        "allowedKinds": ["llm"],
+        "allowedIps": [source_ip] if source_ip else [allowed_ip],
+    })
+    ip_id, ip_key = None, None
+    if st == 201:
+        ij = json.loads(txt)
+        ip_id, ip_key = ij["id"], ij["key"]
+        check("G1 create with allowedIps -> 201 and echoed", ij.get("allowedIps") == [source_ip],
+              f"echo={ij.get('allowedIps')}")
+        row, _ = raw_row(ip_id)
+        check("G2 raw row stores the allow-list (not NULL)", bool(row) and row.get("allowedIps") not in (None, ""),
+              f"allowedIps={row.get('allowedIps') if row else None}")
+
+        st_ok, txt_ok, _ = chat(ctl_model, ip_key)
+        check("G3 bound key works from its own address", st_ok != 403 and st_ok != 401,
+              f"http {st_ok} :: {txt_ok[:120]}")
+
+        st_rk, txt_rk, _ = req("/api/v1/key", "GET", None, {"Authorization": f"Bearer {ip_key}"})
+        check("G4 the reader agrees the bound key may read from here", st_rk == 200,
+              f"http {st_rk} :: {txt_rk[:120]}")
+    else:
+        check("G1 create with allowedIps -> 201 and echoed", False, f"http {st}")
+
+    # Second key, bound to an address that is definitely not this caller.
+    st, txt, _ = admin("/api/keys", "POST", {
+        "name": f"zz-resale-ipbad-{stamp}",
+        "limits": {"rpm": 20},
+        "allowedKinds": ["llm"],
+        "allowedIps": [foreign_ip],
+    })
+    ipbad_id, ipbad_key = None, None
+    if st == 201:
+        bj2 = json.loads(txt)
+        ipbad_id, ipbad_key = bj2["id"], bj2["key"]
+        st_bad, txt_bad, _ = chat(ctl_model, ipbad_key)
+        check("G5 bound key refused from another address", st_bad == 403,
+              f"http {st_bad} :: {txt_bad[:120]}")
+        st_rb, _, _ = req("/api/v1/key", "GET", None, {"Authorization": f"Bearer {ipbad_key}"})
+        check("G6 the reader also refuses the blocked address", st_rb in (401, 403), f"http {st_rb}")
+        # No spoof check here: custom-server.js strips every client-supplied
+        # forwarding header before the route sees it, and the precedence rule is
+        # pinned deterministically in tests/unit/apikey-resale-hardening.test.js.
+        # Control: the unbound key is untouched by any of this.
+        st_open, _, _ = chat(ctl_model, key)
+        check("G7 control: unbound key still works", st_open != 403, f"http {st_open}")
+    else:
+        for name in ("G5 bound key refused from another address",
+                     "G6 the reader also refuses the blocked address",
+                     "G7 control: unbound key still works"):
+            check(name, False, f"create http {st}")
+
+    # ---- H. prepaid balance + redeem code top-up (wave 2) -----------------
+    st, txt, _ = admin("/api/keys", "POST", {
+        "name": f"zz-resale-bal-{stamp}",
+        "limits": {"rpm": 20, "tokenBalance": 30},
+        "allowedKinds": ["llm"],
+    })
+    bal_id, bal_key = None, None
+    if st == 201:
+        bj = json.loads(txt)
+        bal_id, bal_key = bj["id"], bj["key"]
+        check("H1 create with tokenBalance -> 201 and echoed",
+              bj.get("limits", {}).get("tokenBalance") == 30, f"echo={bj.get('limits', {}).get('tokenBalance')}")
+
+        st_c1, txt_c1, _ = chat(ctl_model, bal_key)
+        check("H2 first request against a fresh balance passes", st_c1 != 429, f"http {st_c1} :: {txt_c1[:120]}")
+        time.sleep(1)
+        row, _ = raw_row(bal_id)
+        spent = (row or {}).get("tokensSpent") or 0
+        check("H3 the completed request is debited from the balance", spent > 0, f"tokensSpent={spent}")
+
+        # Admin drops the balance below what was already spent: the gate must shut.
+        st_p, _, _ = admin(f"/api/keys/{bal_id}", "PUT", {"limits": {"tokenBalance": 1}})
+        st_c2, txt_c2, _ = chat(ctl_model, bal_key)
+        check("H4 balance below spend -> request refused", st_c2 == 429,
+              f"put={st_p} http {st_c2} :: {txt_c2[:140]}")
+
+        # Buyer tops up with a redeem code and the gate opens again.
+        st_m, txt_m, _ = admin("/api/redeem-codes", "POST", {
+            "quantity": 2, "batchName": f"zz-batch-{stamp}", "tokenValue": 100000, "extendsDays": 30,
+        })
+        codes = json.loads(txt_m).get("codes", []) if st_m == 201 else []
+        check("H5 admin mints a redeem-code batch", st_m == 201 and len(codes) == 2,
+              f"http {st_m} count={len(codes)}")
+        if codes:
+            good = codes[0]["code"]
+            check("H6 minted code is well formed", len(good) == 14 and good.count("-") == 2, f"code={good}")
+            row_before, _ = raw_row(bal_id)
+            row_before = row_before or {}
+            st_r, txt_r, _ = req("/api/v1/redeem", "POST", {"code": good},
+                                 {"Authorization": f"Bearer {bal_key}"})
+            ok = st_r == 200
+            check("H7 buyer redeems the code -> 200", ok, f"http {st_r} :: {txt_r[:140]}")
+            if ok:
+                rj = json.loads(txt_r)
+                check("H8 credit lands on the key row",
+                      (rj.get("key", {}).get("tokenBalance") or 0) > (row_before.get("tokenBalance") or 0),
+                      f"before={row_before.get('tokenBalance')} after={rj.get('key', {}).get('tokenBalance')}")
+                check("H9 top-up pushes expiry out",
+                      (rj.get("key", {}).get("expiresAt") or "") > (row_before.get("expiresAt") or ""),
+                      f"before={row_before.get('expiresAt')} after={rj.get('key', {}).get('expiresAt')}")
+                rc = raw_code(good)
+                check("H10 the code row records exactly one use",
+                      bool(rc) and rc.get("usedCount") == 1, f"usedCount={rc.get('usedCount') if rc else None}")
+
+                st_c3, txt_c3, _ = chat(ctl_model, bal_key)
+                check("H11 gate reopened after top-up", st_c3 != 429, f"http {st_c3} :: {txt_c3[:120]}")
+
+            st_re, txt_re, _ = req("/api/v1/redeem", "POST", {"code": good},
+                                   {"Authorization": f"Bearer {bal_key}"})
+            check("H12 reusing the same code -> 400", st_re == 400, f"http {st_re} :: {txt_re[:140]}")
+
+            st_un, txt_un, _ = req("/api/v1/redeem", "POST", {"code": "ZZZZ-ZZZZ-ZZZZ"},
+                                   {"Authorization": f"Bearer {bal_key}"})
+            check("H13 unknown code -> 400 (not 500)", st_un == 400, f"http {st_un} :: {txt_un[:140]}")
+
+            st_nok, _, _ = req("/api/v1/redeem", "POST", {"code": good})
+            check("H14 redeem without a key -> 401", st_nok == 401, f"http {st_nok}")
+
+            # Revoked code cannot be spent even though it was never used.
+            if len(codes) > 1:
+                revoked = codes[1]
+                st_rv, _, _ = admin(f"/api/redeem-codes/{revoked['id']}", "DELETE")
+                st_try, txt_try, _ = req("/api/v1/redeem", "POST", {"code": revoked["code"]},
+                                         {"Authorization": f"Bearer {bal_key}"})
+                check("H15 revoked code -> 400", st_rv in (200, 204) and st_try == 400,
+                      f"revoke={st_rv} redeem={st_try} :: {txt_try[:120]}")
+                revoked_ids = [revoked["id"]]
+            else:
+                revoked_ids = []
+            code_ids = [c["id"] for c in codes]
+        else:
+            code_ids, revoked_ids = [], []
+
+        st_lg, txt_lg, _ = admin(f"/api/keys/{bal_id}/logs?pageSize=5")
+        if st_lg == 200:
+            lj = json.loads(txt_lg)
+            check("J1 per-key log rollup counts the traffic", (lj.get("stats", {}).get("requests") or 0) > 0,
+                  f"stats={lj.get('stats')}")
+            check("J2 per-key log returns detail rows", len(lj.get("details", [])) > 0,
+                  f"rows={len(lj.get('details', []))}")
+        else:
+            check("J1 per-key log rollup counts the traffic", False, f"http {st_lg} :: {txt_lg[:140]}")
+            check("J2 per-key log returns detail rows", False, "skipped: logs endpoint failed")
+
+        st_lg2, _, _ = admin("/api/keys/does-not-exist/logs")
+        check("J3 unknown key log -> 404", st_lg2 == 404, f"http {st_lg2}")
+    else:
+        for name in ("H1 create with tokenBalance -> 201 and echoed", "H2 first request against a fresh balance passes",
+                     "H3 the completed request is debited from the balance", "H4 balance below spend -> request refused",
+                     "H5 admin mints a redeem-code batch", "J1 per-key log rollup counts the traffic",
+                     "J2 per-key log returns detail rows", "J3 unknown key log -> 404"):
+            check(name, False, f"create http {st}")
+        code_ids, revoked_ids = [], []
+
+    # ---- I. batch mint ----------------------------------------------------
+    st, txt, _ = admin("/api/keys", "POST", {"name": f"zz-resale-batch-{stamp}", "quantity": 3,
+                                             "limits": {"rpm": 20}, "allowedKinds": ["llm"]})
+    batch_ids = []
+    if st == 201:
+        bj = json.loads(txt)
+        batch_ids = [k["id"] for k in bj.get("keys", [])]
+        check("I1 quantity=3 mints three distinct keys", bj.get("count") == 3 and len(set(batch_ids)) == 3,
+              f"count={bj.get('count')}")
+        check("I2 batch keys are individually named",
+              [k["name"] for k in bj.get("keys", [])] == [f"zz-resale-batch-{stamp} #{i}" for i in (1, 2, 3)],
+              f"names={[k['name'] for k in bj.get('keys', [])]}")
+        check("I3 a malformed allow-list is refused, not silently dropped",
+              admin("/api/keys", "POST", {"name": "zz-bad", "allowedIps": "203.0.113.7"})[0] == 400)
+    else:
+        check("I1 quantity=3 mints three distinct keys", False, f"http {st}")
+        check("I2 batch keys are individually named", False, f"http {st}")
+        check("I3 a malformed allow-list is refused, not silently dropped", False, f"http {st}")
+
+    st, txt, _ = admin("/api/redeem-codes")
+    if st == 200:
+        rj = json.loads(txt)
+        check("K1 admin lists redeem codes with a summary", rj.get("count", 0) > 0 and "summary" in rj,
+              f"count={rj.get('count')} summary={rj.get('summary')}")
+    else:
+        check("K1 admin lists redeem codes with a summary", False, f"http {st} :: {txt[:140]}")
+
+    # A buyer must not be able to mint or read codes. Locally the dashboard guard
+    # trusts loopback (internal trust), so this is only meaningful against the
+    # remote deployment.
+    if "127.0.0.1" in BASE or "localhost" in BASE:
+        print("[SKIP] K2 buyer key against /api/redeem-codes (loopback is internal-trusted)", flush=True)
+    else:
+        st_b, _, _ = req("/api/redeem-codes", "GET", None, {"Authorization": f"Bearer {key}"})
+        check("K2 buyer key cannot list redeem codes", st_b in (401, 403), f"http {st_b}")
+
     # ---- E. delete --------------------------------------------------------
     st, _, _ = admin(f"/api/keys/{kid}", "DELETE")
     check("E1 delete -> 200", st in (200, 204), f"http {st}")
@@ -341,10 +583,17 @@ def main():
         st, _, _ = admin(f"/api/keys/{expired_id}", "DELETE")
         check("E3 expired key cleaned up", st in (200, 204), f"http {st}")
     for extra, label in ((combo_id, "combo key"), (kind_id, "kind key"), (model_key_id, "model key"),
-                         (rpm_id, "rpm key"), (tok_id, "maxTokens key")):
+                         (rpm_id, "rpm key"), (tok_id, "maxTokens key"), (ip_id, "IP-bound key"),
+                         (bal_id, "prepaid key")):
         if extra:
             st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
             check(f"E4 {label} cleaned up", st in (200, 204), f"http {st}")
+    for extra in batch_ids:
+        st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
+        check("E5 batch key cleaned up", st in (200, 204), f"http {st}")
+    for extra in code_ids:
+        st, _, _ = admin(f"/api/redeem-codes/{extra}?purge=1", "DELETE")
+        check("E6 redeem code purged", st in (200, 204), f"http {st}")
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n=== {passed}/{len(results)} PASS ===")

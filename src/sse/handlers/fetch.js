@@ -58,7 +58,7 @@ export async function handleFetch(request) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     }
-    apiKeyInfo = await isValidApiKey(apiKey);
+    apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");

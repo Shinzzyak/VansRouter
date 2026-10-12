@@ -63,6 +63,11 @@ function rowToKey(row) {
     lastUsedAt: row.lastUsedAt || null,
     usedCount: parseLimitInt(row.usedCount) ?? 0,
     metadata: row.metadata || null,
+    // Resale hardening (migration 010). NULL keeps today's behaviour: the key is
+    // reachable from any source address and carries no prepaid balance gate.
+    allowedIps: parsePermList(row.allowedIps),
+    tokenBalance: parseLimitInt(row.tokenBalance),
+    tokensSpent: parseLimitInt(row.tokensSpent) ?? 0,
   };
 }
 
@@ -111,14 +116,18 @@ export async function createApiKey(name, machineId, limits = {}) {
     lastUsedAt: null,
     usedCount: 0,
     metadata: limits.metadata ?? null,
+    allowedIps: normalizePerm(limits.allowedIps),
+    tokenBalance: parseLimitInt(limits.tokenBalance),
+    tokensSpent: parseLimitInt(limits.tokensSpent) ?? 0,
   };
   db.run(
     `INSERT INTO apiKeys(
       id, key, name, machineId, isActive, createdAt,
       allowedProviders, allowedCombos, allowedKinds,
       expiresAt, maxTokens, maxTokensDaily, rpm, rph, rpd, tokens5h, tokensWeekly, tokensMonthly, personaInject,
-      rateLimitTpm, rateLimitConcurrency, keyDisplay, lastUsedAt, usedCount, metadata
-    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      rateLimitTpm, rateLimitConcurrency, keyDisplay, lastUsedAt, usedCount, metadata,
+      allowedIps, tokenBalance, tokensSpent
+    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt,
       serializePermList(apiKey.allowedProviders),
@@ -128,6 +137,7 @@ export async function createApiKey(name, machineId, limits = {}) {
       apiKey.tokens5h, apiKey.tokensWeekly, apiKey.tokensMonthly,
       apiKey.personaInject ? 1 : 0,
       apiKey.rateLimitTpm, apiKey.rateLimitConcurrency, apiKey.keyDisplay, null, 0, apiKey.metadata,
+      serializePermList(apiKey.allowedIps), apiKey.tokenBalance, apiKey.tokensSpent,
     ]
   );
   // The per-model allow-list lives in its own table (empty = allow all), so it
@@ -168,6 +178,10 @@ export async function updateApiKey(id, data) {
     if ("rateLimitTpm" in data) merged.rateLimitTpm = parseLimitInt(data.rateLimitTpm);
     if ("rateLimitConcurrency" in data) merged.rateLimitConcurrency = parseLimitInt(data.rateLimitConcurrency);
     if ("metadata" in data) merged.metadata = data.metadata === null || data.metadata === undefined ? null : String(data.metadata);
+    // Resale hardening (migration 010).
+    if ("allowedIps" in data) merged.allowedIps = normalizePerm(data.allowedIps);
+    if ("tokenBalance" in data) merged.tokenBalance = parseLimitInt(data.tokenBalance);
+    if ("tokensSpent" in data) merged.tokensSpent = parseLimitInt(data.tokensSpent) ?? 0;
     if ("key" in data && data.key) {
       merged.key = data.key;
       merged.keyDisplay = maskApiKey(data.key);
@@ -178,7 +192,8 @@ export async function updateApiKey(id, data) {
         allowedProviders = ?, allowedCombos = ?, allowedKinds = ?,
         expiresAt = ?, maxTokens = ?, maxTokensDaily = ?, rpm = ?, rph = ?, rpd = ?,
         tokens5h = ?, tokensWeekly = ?, tokensMonthly = ?, personaInject = ?,
-        rateLimitTpm = ?, rateLimitConcurrency = ?, keyDisplay = ?, metadata = ?
+        rateLimitTpm = ?, rateLimitConcurrency = ?, keyDisplay = ?, metadata = ?,
+        allowedIps = ?, tokenBalance = ?, tokensSpent = ?
       WHERE id = ?`,
       [
         merged.key,
@@ -202,6 +217,9 @@ export async function updateApiKey(id, data) {
         merged.rateLimitConcurrency,
         merged.keyDisplay,
         merged.metadata,
+        serializePermList(merged.allowedIps),
+        merged.tokenBalance,
+        merged.tokensSpent ?? 0,
         id,
       ]
     );
@@ -273,4 +291,33 @@ export async function validateApiKey(key) {
     apiKey.allowedModels = [];
   }
   return apiKey;
+}
+
+// Prepaid balance accounting (migration 010). Only keys that carry a non-null
+// tokenBalance are ever written to — every other key keeps the zero-write
+// dispatch path it had before this column existed.
+//
+// ponytail: one UPDATE per completed request, gated on tokenBalance IS NOT NULL.
+// Batch it into the usage tables if a seller ever runs thousands of balanced
+// keys and the WAL becomes the bottleneck.
+export async function addApiKeyTokensSpent(id, tokens) {
+  const amount = Math.floor(Number(tokens) || 0);
+  if (!id || amount <= 0) return false;
+  const db = await getAdapter();
+  db.run(
+    `UPDATE apiKeys SET tokensSpent = COALESCE(tokensSpent, 0) + ? WHERE id = ? AND tokenBalance IS NOT NULL`,
+    [amount, id]
+  );
+  return true;
+}
+
+// Set a key's prepaid balance outright (admin top-up / correction). null clears
+// the gate entirely and returns the key to unlimited behaviour.
+export async function setApiKeyBalance(id, tokens) {
+  const db = await getAdapter();
+  const row = db.get(`SELECT id FROM apiKeys WHERE id = ?`, [id]);
+  if (!row) return null;
+  const next = tokens === null || tokens === undefined ? null : parseLimitInt(tokens);
+  db.run(`UPDATE apiKeys SET tokenBalance = ? WHERE id = ?`, [next, id]);
+  return { id, tokenBalance: next };
 }

@@ -63,6 +63,18 @@ export async function PUT(request, { params }) {
     if ("metadata" in limits || "metadata" in body) {
       updateData.metadata = limits.metadata ?? body.metadata ?? null;
     }
+    // Resale hardening (migration 010). An IP allow-list is security-relevant:
+    // a malformed value is refused rather than silently normalized to null,
+    // which would quietly re-open the key to every source address.
+    if ("allowedIps" in body) {
+      if (body.allowedIps !== null && (!Array.isArray(body.allowedIps) || body.allowedIps.some((ip) => typeof ip !== "string" || !ip.trim()))) {
+        return NextResponse.json({ error: "allowedIps must be null or an array of non-empty strings" }, { status: 400 });
+      }
+      updateData.allowedIps = body.allowedIps;
+    }
+    if ("tokenBalance" in limits || "tokenBalance" in body) {
+      updateData.tokenBalance = limits.tokenBalance ?? body.tokenBalance ?? null;
+    }
     // Per-key persona opt-out (2026-09-30): false/0 = clean pipe for this key
     // (no owner identity on request side, no brand repair on reply side).
     if ("personaInject" in body) updateData.personaInject = body.personaInject;

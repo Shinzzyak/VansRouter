@@ -52,7 +52,7 @@ export async function GET(request, { params }) {
           { status: 401, headers: { "Access-Control-Allow-Origin": "*" } }
         );
       }
-      apiKeyInfo = await isValidApiKey(apiKey);
+      apiKeyInfo = await isValidApiKey(apiKey, request);
       if (!apiKeyInfo) {
         return Response.json(
           { error: { message: "Invalid API key", type: "authentication_error" } },

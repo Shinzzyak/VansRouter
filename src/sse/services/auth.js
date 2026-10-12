@@ -450,12 +450,122 @@ export function extractApiKey(request) {
 }
 
 /**
+ * Source address of the client, as far as the router can tell.
+ *
+ * The Next.js server exposes no socket peer address to a route handler, so the
+ * only attribution available is what a fronting proxy wrote down.
+ *
+ * Order matters: custom-server.js (the bundled launcher) derives the address
+ * from the TCP socket, strips every client-supplied forwarding header and
+ * re-adds its own as `x-9r-real-ip`, so that value is unspoofable and wins. The
+ * generic headers are the fallback for a plain `next dev`/standalone run with no
+ * wrapper, in the usual trust order: left-most x-forwarded-for entry (the
+ * original client), then the single-value headers a CDN sets.
+ *
+ * @returns {string|null} normalized IPv4/IPv6 string, or null when the request
+ *   cannot be attributed to an address at all.
+ */
+export function clientIp(request) {
+  const headers = request?.headers;
+  const getter = headers?.get;
+  if (typeof getter !== "function") return null;
+  const derived = getter.call(headers, "x-9r-real-ip");
+  if (derived) {
+    const value = normalizeIp(String(derived).trim());
+    if (value) return value;
+  }
+  const xff = getter.call(headers, "x-forwarded-for");
+  if (xff) {
+    const first = String(xff).split(",")[0].trim();
+    if (first) return normalizeIp(first);
+  }
+  const single = getter.call(headers, "x-real-ip") || getter.call(headers, "cf-connecting-ip");
+  return single ? normalizeIp(String(single).trim()) : null;
+}
+
+// "::ffff:1.2.3.4" (v4-mapped v6) → "1.2.3.4"; strips a port and brackets.
+function normalizeIp(raw) {
+  let ip = String(raw).trim();
+  if (ip.startsWith("[")) {
+    const close = ip.indexOf("]");
+    if (close > 0) ip = ip.slice(1, close);
+  } else if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) {
+    ip = ip.split(":")[0];
+  }
+  if (ip.toLowerCase().startsWith("::ffff:")) ip = ip.slice(7);
+  return ip.toLowerCase();
+}
+
+function ipv4ToInt(ip) {
+  const parts = String(ip).split(".");
+  if (parts.length !== 4) return null;
+  let out = 0;
+  for (const part of parts) {
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+    out = (out << 8) | n;
+  }
+  return out >>> 0;
+}
+
+/**
+ * Check whether a key may be used from a given source address.
+ *
+ * Semantics match the other allow-lists: null/undefined = any address (default,
+ * i.e. every key minted before this existed), [] = nowhere, [x] = only x.
+ * Entries are plain IPv4 addresses or CIDR blocks ("203.0.113.7",
+ * "203.0.113.0/24"). IPv6 entries only match by exact string.
+ *
+ * An unattributable request (no proxy header at all) is DENIED for a bound key:
+ * the alternative is that anyone can shed the binding by dropping a header.
+ */
+export function isIpAllowed(apiKeyInfo, ip) {
+  if (!apiKeyInfo) return true;
+  const allowed = apiKeyInfo.allowedIps;
+  if (allowed === null || allowed === undefined) return true; // null = any source
+  if (!Array.isArray(allowed) || allowed.length === 0) return false; // [] = none
+  if (!ip) return false;
+  const candidate = normalizeIp(ip);
+  const candidateInt = ipv4ToInt(candidate);
+  for (const entry of allowed) {
+    if (typeof entry !== "string") continue;
+    const rule = entry.trim().toLowerCase();
+    if (!rule) continue;
+    if (rule === candidate) return true;
+    const slash = rule.indexOf("/");
+    if (slash < 0) continue;
+    const net = ipv4ToInt(rule.slice(0, slash));
+    const bits = Number(rule.slice(slash + 1));
+    if (net === null || candidateInt === null) continue;
+    if (!Number.isInteger(bits) || bits < 0 || bits > 32) continue;
+    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    if ((net & mask) === (candidateInt & mask)) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve a key without applying the IP allow-list.
+ * Used to tell "this secret is bound to other addresses" (refuse, 403) apart
+ * from "this secret is dead" (fall through to today's anonymous handling).
+ */
+export async function resolveApiKeyIgnoringIp(apiKey) {
+  if (!apiKey) return null;
+  return await validateApiKey(apiKey);
+}
+
+/**
  * Validate API key and return key info (including allowedProviders)
  * Returns null if invalid, or the key object if valid
  */
-export async function isValidApiKey(apiKey) {
+export async function isValidApiKey(apiKey, request = null) {
   if (!apiKey) return null;
-  return await validateApiKey(apiKey);
+  const info = await resolveApiKeyIgnoringIp(apiKey);
+  if (!info) return null;
+  // The IP allow-list is part of "is this key usable here", so every caller that
+  // resolves a key inherits the gate without a second call site to keep in sync.
+  if (!isIpAllowed(info, clientIp(request))) return null;
+  return info;
 }
 
 /**

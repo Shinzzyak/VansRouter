@@ -188,7 +188,7 @@ async function validateGeminiNativeClientKey(request) {
     return Response.json({ error: { message: "Missing API key" } }, { status: 401 });
   }
 
-  const valid = await isValidApiKey(apiKey);
+  const valid = await isValidApiKey(apiKey, request);
   if (!valid) {
     return Response.json({ error: { message: "Invalid API key" } }, { status: 401 });
   }

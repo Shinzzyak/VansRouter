@@ -59,7 +59,7 @@ async function requireValidApiKey(request) {
 
   const apiKey = extractApiKey(request);
   if (!apiKey) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key") };
-  const apiKeyInfo = await isValidApiKey(apiKey);
+  const apiKeyInfo = await isValidApiKey(apiKey, request);
   if (!apiKeyInfo) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key") };
   return { apiKeyInfo };
 }

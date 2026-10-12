@@ -36,7 +36,7 @@ export async function handleStt(request) {
   if (!trustedInternal && settings.requireApiKey) {
     const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
-    apiKeyInfo = await isValidApiKey(apiKey);
+    apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
 

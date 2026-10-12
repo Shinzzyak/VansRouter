@@ -6,6 +6,9 @@ import {
   clearAccountError,
   extractApiKey,
   isValidApiKey,
+  resolveApiKeyIgnoringIp,
+  isIpAllowed,
+  clientIp,
   isProviderAllowed,
   isComboAllowed,
   isKindAllowed,
@@ -173,7 +176,7 @@ export async function handleChat(request, clientRawRequest = null) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     }
-    apiKeyInfo = await isValidApiKey(apiKey);
+    apiKeyInfo = await isValidApiKey(apiKey, request);
     if (!apiKeyInfo) {
       log.warn("AUTH", "Invalid API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -185,7 +188,18 @@ export async function handleChat(request, clientRawRequest = null) {
     // false but a key was supplied" was dead while apiKeyInfo stayed null).
     // Auth policy is unchanged: an unresolvable key stays non-fatal here, the
     // request proceeds exactly as before with apiKeyInfo=null.
-    apiKeyInfo = await isValidApiKey(apiKey);
+    apiKeyInfo = await isValidApiKey(apiKey, request);
+    if (!apiKeyInfo) {
+      // One exception to the fall-through above: a key that resolves but is
+      // bound to other source addresses is refused outright. Downgrading it to
+      // anonymous access would let a blocked client shed the binding by simply
+      // presenting the key anyway.
+      const bound = await resolveApiKeyIgnoringIp(apiKey);
+      if (bound && !isIpAllowed(bound, clientIp(request))) {
+        log.warn("AUTH", "API key is not allowed from this source address");
+        return errorResponse(HTTP_STATUS.FORBIDDEN, "API key is not allowed from this IP address");
+      }
+    }
   }
 
   if (!modelStr) {

@@ -49,7 +49,7 @@ export async function GET(request) {
           { status: 401, headers: { "Access-Control-Allow-Origin": "*" } }
         );
       }
-      apiKeyInfo = await isValidApiKey(apiKey);
+      apiKeyInfo = await isValidApiKey(apiKey, request);
       if (!apiKeyInfo) {
         return Response.json(
           { error: { message: "Invalid API key", type: "authentication_error" } },
@@ -70,7 +70,7 @@ export async function GET(request) {
       // selects the policy this listing has to honour — the same resolution
       // the chat dispatch path does. Auth is unchanged: an unresolvable key
       // stays non-fatal here and the list falls back to unfiltered.
-      apiKeyInfo = await isValidApiKey(suppliedKey);
+      apiKeyInfo = await isValidApiKey(suppliedKey, request);
     }
 
     let data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
