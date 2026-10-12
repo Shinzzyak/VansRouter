@@ -600,17 +600,41 @@ def main():
         check("K2 buyer key cannot list redeem codes", st_b in (401, 403), f"http {st_b}")
 
     # ---- N. wave 3: resale dashboard page + buyer diagnosis --------------
-    # The page is server-rendered, so its own copy is in the HTML even though the
-    # data loads client-side. A 200 with the heading proves the route built and
-    # shipped; a 404 here is exactly the "no page anywhere" complaint.
+    # The dashboard is login-gated, so an unauthenticated fetch cannot read the
+    # page HTML. Two facts are still testable from out here: the route EXISTS
+    # (the complaint that prompted this page was "there is no page anywhere",
+    # i.e. a 404) and it is guarded (307 -> /masuk). The page's own copy is
+    # checked against the client chunk the browser loads once logged in.
     st_page, txt_page, _ = req("/dashboard/resale", "GET")
-    check("N1 /dashboard/resale renders (200)", st_page == 200, f"http {st_page}")
-    check("N2 the page carries its own heading", "Resale" in txt_page,
-          f"len={len(txt_page)}")
-    check("N3 the page documents the buyer base URL", "/v1/chat/completions" in txt_page,
-          "missing buyer endpoint copy")
+    check("N1 /dashboard/resale exists and is login-guarded",
+          st_page in (200, 307), f"http {st_page}")
+
+    chunk_root = os.path.join(REPO, ".next", "standalone", ".next", "static", "chunks")
+    page_chunk = None
+    sidebar_src = ""
+    for root, _dirs, files in os.walk(chunk_root):
+        for f in files:
+            if not f.endswith(".js"):
+                continue
+            full = os.path.join(root, f)
+            if os.sep + "resale" + os.sep in root + os.sep and f.startswith("page"):
+                page_chunk = full
+            elif not sidebar_src and "/dashboard/resale" in open(full, encoding="utf-8", errors="replace").read():
+                sidebar_src = full
+    page_src = open(page_chunk, encoding="utf-8", errors="replace").read() if page_chunk else ""
+
+    check("N2 the resale page chunk ships in the built artifact",
+          bool(page_chunk) and "Yang dikirim ke buyer" in page_src,
+          f"chunk={os.path.basename(page_chunk) if page_chunk else 'absent'}")
+    # The page renders `POST {baseUrl}/chat/completions`, so the chunk carries the
+    # path without the /v1 prefix.
+    check("N3 the shipped page documents the buyer base URL",
+          "/chat/completions" in page_src, "missing buyer endpoint copy")
+    check("N3b the shipped page reads the public base URL setting",
+          "publicBaseUrl" in page_src, "knob not referenced in the built chunk")
     check("N4 the sidebar links the page",
-          'href="/dashboard/resale"' in txt_page, "nav entry absent from SSR html")
+          bool(sidebar_src) or 'href="/dashboard/resale"' in txt_page,
+          f"nav entry absent (chunk={os.path.basename(sidebar_src) if sidebar_src else 'none'})")
 
     # A seller must be able to check a key before shipping it: the two calls a
     # buyer makes first, read-only, with the reason spelled out.
@@ -621,8 +645,16 @@ def main():
         mj = json.loads(txt_me)
         check("N6 the self-check exposes the remaining balance", "remainingTokens" in mj,
               f"keys={sorted(mj.keys())[:12]}")
-        check("N7 the self-check exposes a gate code", "code" in (mj.get("gate") or {}),
-              f"gate={mj.get('gate')}")
+        # A gate code belongs to a CLOSED gate. On an open gate the honest answer
+        # is "allowed, no reason" — a code there would be noise the buyer has to
+        # filter, and a seller reading it would think something was wrong.
+        gate = mj.get("gate") or {}
+        if gate.get("allowed"):
+            check("N7 an open gate reports no blocking code",
+                  gate.get("code") in (None, "") and not gate.get("reason"),
+                  f"gate={gate}")
+        else:
+            check("N7 a closed gate names its code", bool(gate.get("code")), f"gate={gate}")
         check("N8 the self-check reports the source address", bool(mj.get("sourceIp")),
               f"sourceIp={mj.get('sourceIp')}")
 
