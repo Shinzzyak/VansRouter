@@ -200,6 +200,12 @@ def main():
     check("B8 bogus key -> 401", st1 == 401, f"http {st1}")
 
     # ---- C. the policy bites ---------------------------------------------
+    def key_id_of(key_str):
+        """The id of a key this harness just minted. /v1/key answers the key
+        about itself, which is the only handle the buyer's side ever gets."""
+        st_self, txt_self, _ = req("/api/v1/key", "GET", None, {"Authorization": f"Bearer {key_str}"})
+        return json.loads(txt_self).get("id") if st_self == 200 else None
+
     def chat(model, key_str=key, kind_path="/v1/chat/completions", ip=None):
         headers = {"Authorization": f"Bearer {key_str}"}
         # Source address is a request header, so the IP allow-list can only be
@@ -467,6 +473,7 @@ def main():
     })
     bal_id, bal_key = None, None
     code_ids = []
+    redeem_key_ids = []
     if st == 201:
         bj = json.loads(txt)
         bal_id, bal_key = bj["id"], bj["key"]
@@ -509,6 +516,8 @@ def main():
             check("H7 a buyer with no key redeems the code -> 200", ok, f"http {st_r} :: {txt_r[:140]}")
             issued = json.loads(txt_r) if ok else {}
             issued_key = issued.get("api_key")
+            if issued_key:
+                redeem_key_ids.append(key_id_of(issued_key))
             if ok:
                 check("H8 the answer is key + address + quota, nothing else to read",
                       bool(issued_key) and str(issued.get("base_url", "")).endswith("/v1")
@@ -544,6 +553,8 @@ def main():
                 check("H12 the next code mints a different key",
                       st_r2 == 200 and second.get("api_key") and second.get("api_key") != issued_key,
                       f"http {st_r2}")
+                if second.get("api_key"):
+                    redeem_key_ids.append(key_id_of(second["api_key"]))
 
             st_re, txt_re, _ = req("/api/v1/redeem", "POST", {"code": good})
             check("H13 reusing the same code -> 400", st_re == 400, f"http {st_re} :: {txt_re[:140]}")
@@ -672,10 +683,7 @@ def main():
             # The key this code minted is a real key: it has to leave with the
             # rest, or every run of this harness leaves a live zz-* key behind.
             if only.get("api_key"):
-                st_self, txt_self, _ = req("/api/v1/key", "GET", None,
-                                           {"Authorization": f"Bearer {only['api_key']}"})
-                if st_self == 200:
-                    quota_only_key_id = json.loads(txt_self).get("id")
+                quota_only_key_id = key_id_of(only["api_key"])
 
         # A code that would carry nothing, and a malformed IP list, are refused.
         st_e1, _, _ = admin("/api/redeem-codes", "POST", {"quantity": 1})
@@ -830,6 +838,10 @@ def main():
     for extra in batch_ids:
         st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
         check("E5 batch key cleaned up", st in (200, 204), f"http {st}")
+    for extra in redeem_key_ids:
+        if extra:
+            st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
+            check("E7 key minted by a code cleaned up", st in (200, 204), f"http {st}")
     for extra in code_ids:
         st, _, _ = admin(f"/api/redeem-codes/{extra}?purge=1", "DELETE")
         check("E6 redeem code purged", st in (200, 204), f"http {st}")
