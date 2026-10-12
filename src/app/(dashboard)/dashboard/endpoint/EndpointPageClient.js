@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
+import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal, KeyQuotaFields } from "@/shared/components";
+import { emptyQuota, quotaFromKey, parseQuota } from "@/shared/utils/keyQuota";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
 import {
@@ -39,16 +40,11 @@ export default function APIPageClient() {
   const [editProvidersAll, setEditProvidersAll] = useState(true);
   const [editCombosAll, setEditCombosAll] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
-  // Limit edit state (empty string = unlimited)
+  // Limit edit state. One object for the whole quota surface (see
+  // shared/utils/keyQuota.js) plus the expiration, which is a datetime and not a
+  // quota axis. "" on an axis = unlimited.
   const [editExpiresAt, setEditExpiresAt] = useState("");
-  const [editMaxTokens, setEditMaxTokens] = useState("");
-  const [editMaxTokensDaily, setEditMaxTokensDaily] = useState("");
-  const [editRpm, setEditRpm] = useState("");
-  const [editRph, setEditRph] = useState("");
-  const [editRpd, setEditRpd] = useState("");
-  const [editTokens5h, setEditTokens5h] = useState("");
-  const [editTokensWeekly, setEditTokensWeekly] = useState("");
-  const [editTokensMonthly, setEditTokensMonthly] = useState("");
+  const [editQuota, setEditQuota] = useState(emptyQuota);
   const [providerList, setProviderList] = useState([]);
   const [aliasMap, setAliasMap] = useState({}); // alias → provider ID
   const [comboList, setComboList] = useState([]);
@@ -466,14 +462,7 @@ export default function APIPageClient() {
     setEditingKey(key);
     setEditName(key.name || "");
     setEditExpiresAt(key.expiresAt ? key.expiresAt.slice(0, 16) : "");
-    setEditMaxTokens(key.maxTokens ?? "");
-    setEditMaxTokensDaily(key.maxTokensDaily ?? "");
-    setEditRpm(key.rpm ?? "");
-    setEditRph(key.rph ?? "");
-    setEditRpd(key.rpd ?? "");
-    setEditTokens5h(key.tokens5h ?? "");
-    setEditTokensWeekly(key.tokensWeekly ?? "");
-    setEditTokensMonthly(key.tokensMonthly ?? "");
+    setEditQuota(quotaFromKey(key));
     const ap = key.allowedProviders;
     const ac = key.allowedCombos;
     const ak = key.allowedKinds;
@@ -510,28 +499,16 @@ export default function APIPageClient() {
     if (!editingKey) return;
     setEditSaving(true);
     try {
-      const parseNum = (v) => {
-        const s = String(v).trim();
-        if (s === "" || s === "null" || s === "undefined") return null;
-        const n = Number(s);
-        return Number.isFinite(n) && n >= 0 ? n : null;
-      };
       const body = {
-        name: editName.trim() || editingKey.name,
         name: editName.trim() || editingKey.name || "",
         allowedProviders: editProvidersAll ? null : editProviders,
         allowedCombos: editCombosAll ? null : editCombos,
         allowedKinds: editKindsAll ? null : editKinds,
         limits: {
           expiresAt: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
-          maxTokens: parseNum(editMaxTokens),
-          maxTokensDaily: parseNum(editMaxTokensDaily),
-          rpm: parseNum(editRpm),
-          rph: parseNum(editRph),
-          rpd: parseNum(editRpd),
-          tokens5h: parseNum(editTokens5h),
-          tokensWeekly: parseNum(editTokensWeekly),
-          tokensMonthly: parseNum(editTokensMonthly),
+          // Every axis the editor shows, blank ones explicitly nulled so
+          // clearing a field really clears the limit.
+          ...parseQuota(editQuota).limits,
         },
       };
       const res = await fetch(`/api/keys/${editingKey.id}`, {
@@ -1870,44 +1847,18 @@ export default function APIPageClient() {
           {/* Limits */}
           <div>
             <label className="text-sm font-medium mb-2 block">Usage Limits (leave blank for unlimited)</label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-text-muted">Expiration</label>
-                <Input type="datetime-local" value={editExpiresAt} onChange={(e) => setEditExpiresAt(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Max tokens / request</label>
-                <Input type="number" min="0" value={editMaxTokens} onChange={(e) => setEditMaxTokens(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Max tokens / day</label>
-                <Input type="number" min="0" value={editMaxTokensDaily} onChange={(e) => setEditMaxTokensDaily(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Requests / minute</label>
-                <Input type="number" min="0" value={editRpm} onChange={(e) => setEditRpm(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Requests / hour</label>
-                <Input type="number" min="0" value={editRph} onChange={(e) => setEditRph(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Requests / day</label>
-                <Input type="number" min="0" value={editRpd} onChange={(e) => setEditRpd(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Tokens / 5 hours</label>
-                <Input type="number" min="0" value={editTokens5h} onChange={(e) => setEditTokens5h(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Tokens / week</label>
-                <Input type="number" min="0" value={editTokensWeekly} onChange={(e) => setEditTokensWeekly(e.target.value)} placeholder="∞" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted">Tokens / month</label>
-                <Input type="number" min="0" value={editTokensMonthly} onChange={(e) => setEditTokensMonthly(e.target.value)} placeholder="∞" />
-              </div>
-            </div>
+            {/* One renderer for every quota axis, shared with the resale page:
+                adding an axis in shared/utils/keyQuota.js shows up here. */}
+            <KeyQuotaFields
+              value={editQuota}
+              onChange={setEditQuota}
+              extra={
+                <div>
+                  <label className="text-xs text-text-muted">Expiration</label>
+                  <Input type="datetime-local" value={editExpiresAt} onChange={(e) => setEditExpiresAt(e.target.value)} />
+                </div>
+              }
+            />
           </div>
 
           {/* ACL info */}

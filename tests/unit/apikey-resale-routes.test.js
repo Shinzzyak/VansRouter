@@ -64,6 +64,7 @@ vi.mock("@/lib/db/repos/redeemCodesRepo.js", () => ({
       usedCount: 0,
       isActive: true,
       batchName: opts.batchName ?? null,
+      limits: opts.limits ?? null,
     }));
     return h.state.codes;
   },
@@ -168,7 +169,7 @@ describe("admin redeem-code endpoints", () => {
   it("refuses a code that carries nothing", async () => {
     const res = await redeemCodesRoute.POST(post("http://local/api/redeem-codes", { quantity: 2 }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/tokenValue and\/or extendsDays/);
+    expect((await res.json()).error).toMatch(/tokenValue, extendsDays or limits/);
   });
 
   it("refuses a negative token value", async () => {
@@ -185,6 +186,58 @@ describe("admin redeem-code endpoints", () => {
     const body = await listed.json();
     expect(body.count).toBe(3);
     expect(body.summary.unused).toBe(3);
+  });
+
+  it("carries the whole quota surface, not just the token total", async () => {
+    const res = await redeemCodesRoute.POST(
+      post("http://local/api/redeem-codes", {
+        quantity: 2,
+        tokenValue: 2_000_000,
+        extendsDays: 30,
+        limits: { rpm: 60, rateLimitTpm: 20_000, rateLimitConcurrency: 3, maxTokensDaily: 500_000 },
+      })
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.count).toBe(2);
+    expect(body.codes[0].limits).toMatchObject({
+      rpm: 60,
+      rateLimitTpm: 20_000,
+      rateLimitConcurrency: 3,
+      maxTokensDaily: 500_000,
+    });
+  });
+
+  it("accepts a code that carries limits only — the axis set is the product", async () => {
+    const res = await redeemCodesRoute.POST(
+      post("http://local/api/redeem-codes", { quantity: 1, limits: { rpm: 60 } })
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).codes[0].limits.rpm).toBe(60);
+  });
+
+  it("refuses limits that are not an object", async () => {
+    const res = await redeemCodesRoute.POST(
+      post("http://local/api/redeem-codes", { tokenValue: 100, limits: ["rpm"] })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/limits must be an object/);
+  });
+
+  it("refuses a malformed IP list inside limits rather than opening the key", async () => {
+    const res = await redeemCodesRoute.POST(
+      post("http://local/api/redeem-codes", { tokenValue: 100, limits: { allowedIps: "203.0.113.7" } })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/allowedIps/);
+  });
+
+  it("drops unknown axes instead of storing junk", async () => {
+    const res = await redeemCodesRoute.POST(
+      post("http://local/api/redeem-codes", { quantity: 1, tokenValue: 100, limits: { rpm: 10, nonsense: 5 } })
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).codes[0].limits).not.toHaveProperty("nonsense");
   });
 
   it("revokes by default and purges only on request", async () => {
@@ -227,6 +280,7 @@ describe("POST /api/v1/redeem — the buyer's front door", () => {
       days: 30,
       expiresAt: "2026-12-01T00:00:00.000Z",
       usesRemaining: 0,
+      limits: { tokenBalance: 5_000_000, rpm: 60, rateLimitTpm: 20_000 },
       key: issuedKey,
     };
 
@@ -247,6 +301,12 @@ describe("POST /api/v1/redeem — the buyer's front door", () => {
     expect(body.tokens).toBe(5_000_000);
     expect(body.days).toBe(30);
     expect(body.expires_at).toBe("2026-12-01T00:00:00.000Z");
+    // A buyer who bought rate limits sees them, as data and as one readable line.
+    expect(body.limits).toMatchObject({ tokenBalance: 5_000_000, rpm: 60, rateLimitTpm: 20_000 });
+    expect(body.quota).toBe("5jt token · 20k TPM · 60/menit");
+    // The page shows the token total itself, so the rate line drops it rather
+    // than printing the balance twice.
+    expect(body.usage_limits).toBe("20k TPM · 60/menit");
   });
 
   it("refuses a body with no code", async () => {

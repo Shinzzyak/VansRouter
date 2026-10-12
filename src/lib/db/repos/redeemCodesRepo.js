@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { buildApiKeyRecord, insertApiKeyRow } from "./apiKeysRepo.js";
+import { sanitizeQuotaLimits, QUOTA_FIELDS } from "@/shared/utils/keyQuota";
 
 // Redeem codes: the only way a buyer gets in.
 //
@@ -49,7 +50,33 @@ function rowToCode(row) {
     createdAt: row.createdAt,
     expiresAt: row.expiresAt || null,
     metadata: row.metadata || null,
+    limits: parseLimitsJson(row.limits),
   };
+}
+
+// The buyer-facing slice of an issued key: the axes the code granted, and
+// nothing about providers or ACLs. Drives the "what you got" block on the
+// redeem page without leaking policy the buyer never bought.
+function quotaOf(record) {
+  const out = {};
+  for (const f of QUOTA_FIELDS) {
+    if (record[f.key] !== null && record[f.key] !== undefined) out[f.key] = record[f.key];
+  }
+  if (Array.isArray(record.allowedIps) && record.allowedIps.length) out.allowedIps = record.allowedIps;
+  return out;
+}
+
+// A malformed blob must not take the whole code list down: an unreadable policy
+// degrades to "no policy", which is the pre-migration behaviour anyway.
+function parseLimitsJson(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -65,13 +92,20 @@ export async function createRedeemCodes({
   maxUses = 1,
   expiresAt = null,
   metadata = null,
+  limits = null,
 } = {}) {
   const db = await getAdapter();
   const count = Math.min(500, Math.max(1, Math.floor(Number(quantity) || 1)));
   const tokens = parseIntOrNull(tokenValue);
   const days = parseIntOrNull(extendsDays);
-  if (tokens === null && days === null) {
-    throw new Error("A code must carry tokenValue and/or extendsDays");
+  // A code is the product: it has to hand the buyer's key something. That can be
+  // the friendly pair (tokens / days) or any axis of the full policy — a code
+  // that only says "60 requests per minute" is still a product.
+  const policy = sanitizeQuotaLimits(limits);
+  if (!policy.ok) throw new Error(policy.error);
+  const codeLimits = policy.set > 0 ? policy.limits : null;
+  if (tokens === null && days === null && !codeLimits) {
+    throw new Error("A code must carry tokenValue, extendsDays, or limits");
   }
   const uses = Math.max(1, parseIntOrNull(maxUses) ?? 1);
   const created = [];
@@ -98,14 +132,16 @@ export async function createRedeemCodes({
       createdAt: now,
       expiresAt: expiresAt || null,
       metadata: metadata === null || metadata === undefined ? null : String(metadata),
+      limits: codeLimits,
     };
     db.run(
       `INSERT INTO redeemCodes(
-        id, code, batchName, tokenValue, extendsDays, maxUses, usedCount, isActive, createdAt, expiresAt, metadata
-      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, code, batchName, tokenValue, extendsDays, maxUses, usedCount, isActive, createdAt, expiresAt, metadata, limits
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         row.id, row.code, row.batchName, row.tokenValue, row.extendsDays,
         row.maxUses, 0, 1, row.createdAt, row.expiresAt, row.metadata,
+        codeLimits ? JSON.stringify(codeLimits) : null,
       ]
     );
     created.push(row);
@@ -180,11 +216,17 @@ export async function redeemCode(code, { name = null, ip = null } = {}) {
   const label =
     preview.maxUses > 1 ? `${base}-${normalized.slice(-4)}-${preview.usedCount + 1}` : base;
   const days = preview.extendsDays;
+  const policy = preview.limits || {};
   const record = await buildApiKeyRecord(label, machineId, {
-    // null = unlimited tokens / no expiry: a code may carry one, the other, or both.
-    tokenBalance: preview.tokenValue,
-    expiresAt: days === null ? null : new Date(Date.now() + days * 86400000).toISOString(),
-    personaInject: true,
+    // The whole policy the code carries: rate axes, token windows, IP lock.
+    ...policy,
+    // tokenValue / extendsDays stay the friendly shortcut and win where both are
+    // set — that pair is what the buyer was sold. null = no gate on that axis.
+    tokenBalance: preview.tokenValue ?? policy.tokenBalance ?? null,
+    expiresAt: days === null
+      ? policy.expiresAt ?? null
+      : new Date(Date.now() + days * 86400000).toISOString(),
+    personaInject: policy.personaInject === false ? false : true,
     metadata: JSON.stringify({
       redeemCode: normalized,
       batch: preview.batchName,
@@ -224,6 +266,7 @@ export async function redeemCode(code, { name = null, ip = null } = {}) {
       days: entry.extendsDays,
       expiresAt: record.expiresAt,
       usesRemaining: Math.max(0, entry.maxUses - (entry.usedCount + 1)),
+      limits: quotaOf(record),
       key: {
         id: record.id,
         name: record.name,

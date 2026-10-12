@@ -588,6 +588,97 @@ def main():
                      "J2 per-key log returns detail rows", "J3 unknown key log -> 404"):
             check(name, False, f"create http {st}")
 
+    # ---- P. a code carries the whole policy, not just a token total -------
+    # The seller sells an axis set: "200rb token, 2 request per menit, 2 barengan".
+    # A code that could only say N tokens / M days minted keys with no rate limits
+    # at all, so the whole product the seller was advertising was unenforceable.
+    st, txt, _ = admin("/api/redeem-codes", "POST", {
+        "quantity": 1,
+        "batchName": f"zz-quota-{stamp}",
+        "tokenValue": 200000,
+        "extendsDays": 30,
+        "limits": {"rpm": 2, "rateLimitTpm": 100000, "rateLimitConcurrency": 2, "maxTokens": 2048},
+    })
+    quota_codes = json.loads(txt).get("codes", []) if st == 201 else []
+    quota_key_id = None
+    check("P1 a code carries a full policy, not just a token total",
+          st == 201 and len(quota_codes) == 1, f"http {st} :: {txt[:140]}")
+    if quota_codes:
+        qc = quota_codes[0]
+        qlim = qc.get("limits") or {}
+        check("P2 the mint echoes every axis it stored",
+              qlim.get("rpm") == 2 and qlim.get("rateLimitTpm") == 100000
+              and qlim.get("rateLimitConcurrency") == 2 and qlim.get("maxTokens") == 2048,
+              f"limits={json.dumps(qlim)[:180]}")
+        qrow = raw_code(qc["code"])
+        check("P3 migration 011 live: the code row stores the policy blob",
+              bool(qrow) and qrow.get("limits") not in (None, ""),
+              f"limits={str((qrow or {}).get('limits'))[:120]}")
+
+        st_rq, txt_rq, _ = req("/api/v1/redeem", "POST", {"code": qc["code"]})
+        issued_q = json.loads(txt_rq) if st_rq == 200 else {}
+        quota_key = issued_q.get("api_key")
+        check("P4 the buyer's answer shows the quota it bought",
+              st_rq == 200 and (issued_q.get("limits") or {}).get("rpm") == 2
+              and bool(issued_q.get("quota")) and bool(issued_q.get("usage_limits")),
+              f"http {st_rq} quota={issued_q.get('quota')!r} rate={issued_q.get('usage_limits')!r}")
+        check("P5 the buyer is not shown the seller's ACL policy",
+              "allowedProviders" not in (issued_q.get("limits") or {})
+              and "allowedCombos" not in (issued_q.get("limits") or {}),
+              f"keys={sorted((issued_q.get('limits') or {}).keys())}")
+
+        if quota_key:
+            con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+            con.row_factory = sqlite3.Row
+            found_q = con.execute("SELECT * FROM apiKeys WHERE metadata LIKE ?", (f"%{qc['code']}%",)).fetchone()
+            con.close()
+            krow_q = dict(found_q) if found_q else {}
+            quota_key_id = krow_q.get("id")
+            check("P6 the issued key row really carries the axes",
+                  krow_q.get("rpm") == 2 and krow_q.get("rateLimitTpm") == 100000
+                  and krow_q.get("rateLimitConcurrency") == 2 and krow_q.get("maxTokens") == 2048,
+                  f"rpm={krow_q.get('rpm')} tpm={krow_q.get('rateLimitTpm')} "
+                  f"conc={krow_q.get('rateLimitConcurrency')} maxTok={krow_q.get('maxTokens')}")
+
+            # And they bite on the live data path: rpm=2, so the third call in
+            # the same minute is refused. A stored limit nobody enforces is the
+            # failure this section exists to catch.
+            s1, t1, _ = chat(ctl_model, quota_key)
+            s2, t2, _ = chat(ctl_model, quota_key)
+            s3, t3, _ = chat(ctl_model, quota_key)
+            check("P7 rpm=2 bought through a code bites: third call -> 429",
+                  s3 == 429, f"http {s1}/{s2}/{s3} :: {t3[:140]}")
+            check("P7b the 429 names the rate limit, not the balance",
+                  "rate" in t3.lower() or "rpm" in t3.lower() or "per minute" in t3.lower(),
+                  f"body={t3[:140]}")
+
+        # A code that carries limits and nothing else is a legal product: the
+        # buyer gets a key with the axes, no prepaid balance, no expiry.
+        st_q2, txt_q2, _ = admin("/api/redeem-codes", "POST", {
+            "quantity": 1, "batchName": f"zz-quota-only-{stamp}", "limits": {"rpm": 30},
+        })
+        q2_codes = json.loads(txt_q2).get("codes", []) if st_q2 == 201 else []
+        check("P8 a limits-only code is accepted", st_q2 == 201 and len(q2_codes) == 1,
+              f"http {st_q2} :: {txt_q2[:140]}")
+        if q2_codes:
+            st_r2, txt_r2, _ = req("/api/v1/redeem", "POST", {"code": q2_codes[0]["code"]})
+            only = json.loads(txt_r2) if st_r2 == 200 else {}
+            check("P9 the limits-only key comes out unbounded on tokens, bounded on rpm",
+                  st_r2 == 200 and (only.get("limits") or {}).get("rpm") == 30
+                  and only.get("tokens") in (None, 0),
+                  f"http {st_r2} limits={json.dumps(only.get('limits'))[:120]} tokens={only.get('tokens')}")
+            code_ids.append(q2_codes[0]["id"])
+
+        # A code that would carry nothing, and a malformed IP list, are refused.
+        st_e1, _, _ = admin("/api/redeem-codes", "POST", {"quantity": 1})
+        check("P10 a code that carries nothing -> 400", st_e1 == 400, f"http {st_e1}")
+        st_e2, txt_e2, _ = admin("/api/redeem-codes", "POST",
+                                 {"quantity": 1, "tokenValue": 100, "limits": {"allowedIps": "203.0.113.7"}})
+        check("P11 a malformed IP list inside limits -> 400", st_e2 == 400,
+              f"http {st_e2} :: {txt_e2[:140]}")
+
+        code_ids.extend(c["id"] for c in quota_codes)
+
     # ---- I. batch mint ----------------------------------------------------
     st, txt, _ = admin("/api/keys", "POST", {"name": f"zz-resale-batch-{stamp}", "quantity": 3,
                                              "limits": {"rpm": 20}, "allowedKinds": ["llm"]})
@@ -668,6 +759,9 @@ def main():
     check("N3c the buyer page ships with its own copy and the code field",
           bool(buyer_chunk) and "Masukkan kode pembelian" in buyer_src and "base_url" in buyer_src,
           f"chunk={os.path.basename(buyer_chunk) if buyer_chunk else 'absent'}")
+    check("N3d the buyer page ships the rate-limit row a code can fill",
+          "Batas pakai" in buyer_src and "usage_limits" in buyer_src,
+          f"chunk={os.path.basename(buyer_chunk) if buyer_chunk else 'absent'}")
     check("N4 the sidebar links the page",
           bool(sidebar_src) or 'href="/dashboard/resale"' in txt_page,
           f"nav entry absent (chunk={os.path.basename(sidebar_src) if sidebar_src else 'none'})")
@@ -720,7 +814,7 @@ def main():
     for extra, label in ((combo_id, "combo key"), (kind_id, "kind key"), (model_key_id, "model key"),
                          (rpm_id, "rpm key"), (tok_id, "maxTokens key"), (ip_id, "IP-bound key"),
                          (bal_id, "prepaid key"), (open_id, "control key"),
-                         (ipbad_id, "blocked-address key")):
+                         (ipbad_id, "blocked-address key"), (quota_key_id, "code-minted quota key")):
         if extra:
             st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
             check(f"E4 {label} cleaned up", st in (200, 204), f"http {st}")

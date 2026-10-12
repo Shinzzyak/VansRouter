@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Button, Input, Modal, ConfirmModal, Badge, CardSkeleton } from "@/shared/components";
+import { Card, Button, Input, Modal, ConfirmModal, Badge, CardSkeleton, KeyQuotaFields } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { emptyQuota, parseQuota, quotaSummary } from "@/shared/utils/keyQuota";
 
 // Resale, one screen, phone first.
 //
@@ -12,8 +13,15 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 // limits) lives on the keys page where it belongs. Keys minted here are keys
 // like any other — the list is an overview, not a control panel.
 
-const emptyCode = () => ({ batchName: "", quantity: "10", quotaM: "5", days: "30", maxUses: "1" });
-const emptyManual = () => ({ name: "", quotaM: "", days: "" });
+const emptyCode = () => ({
+  batchName: "",
+  quantity: "10",
+  quotaM: "5",
+  days: "30",
+  maxUses: "1",
+  quota: emptyQuota(),
+});
+const emptyManual = () => ({ name: "", quotaM: "", days: "", quota: emptyQuota() });
 
 // A fetch wrapper that surfaces the router's own error text: an admin staring at
 // "HTTP 400" learns nothing.
@@ -155,8 +163,12 @@ export default function ResalePage() {
       if (codeForm.batchName.trim()) body.batchName = codeForm.batchName.trim();
       if (codeForm.quotaM !== "") body.tokenValue = Math.round(Number(codeForm.quotaM) * 1_000_000);
       if (codeForm.days !== "") body.extendsDays = Number(codeForm.days);
-      if (body.tokenValue === undefined && body.extendsDays === undefined) {
-        throw new Error("Isi kuota token, masa aktif, atau keduanya");
+      // The whole policy, not just the token total: a seller selling "2jt token,
+      // 60 request per menit" has to be able to say both.
+      const { limits, set } = parseQuota(codeForm.quota);
+      if (set > 0) body.limits = limits;
+      if (body.tokenValue === undefined && body.extendsDays === undefined && set === 0) {
+        throw new Error("Isi kuota token, masa aktif, atau salah satu batas di Kuota lengkap");
       }
       const data = await api("/api/redeem-codes", {
         method: "POST",
@@ -190,6 +202,8 @@ export default function ResalePage() {
       if (!body.name) throw new Error("Nama key wajib diisi");
       if (manual.quotaM !== "") body.tokenBalance = Math.round(Number(manual.quotaM) * 1_000_000);
       if (manual.days !== "") body.expiresAt = new Date(Date.now() + Number(manual.days) * 86400000).toISOString();
+      const { limits, set } = parseQuota(manual.quota);
+      if (set > 0) body.limits = limits;
       const data = await api("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,6 +238,8 @@ export default function ResalePage() {
   const codeSummary = (code) => {
     const parts = [fmtQuota(code.tokenValue)];
     if (code.extendsDays !== null) parts.push(`${code.extendsDays} hari`);
+    const extra = quotaSummary(code.limits);
+    if (extra) parts.push(extra);
     parts.push(`${code.usedCount}/${code.maxUses} dipakai`);
     return parts.join(" · ");
   };
@@ -335,6 +351,24 @@ export default function ResalePage() {
             hint="1 = sekali pakai."
           />
         </div>
+
+        {/* The rest of the quota surface. Collapsed because most batches sell on
+            tokens alone; open it and the code carries every axis you fill in. */}
+        <details className="mt-3 rounded-[10px] border border-border-subtle bg-surface-2 p-3">
+          <summary className="cursor-pointer text-xs font-medium text-text-main">
+            Kuota lengkap (opsional) — request, TPM, barengan, per hari/minggu/bulan
+          </summary>
+          <div className="mt-3">
+            <KeyQuotaFields
+              value={codeForm.quota}
+              onChange={(quota) => setCodeForm({ ...codeForm, quota })}
+              omit={["tokenBalance"]}
+            />
+            <p className="mt-2 text-xs text-text-muted">
+              Kosongkan yang tidak dipakai. Batas ini nempel ke key yang buyer dapat.
+            </p>
+          </div>
+        </details>
         <Button className="mt-4 w-full sm:w-auto" onClick={handleMintCodes} disabled={busy} loading={busy}>
           Bikin kode
         </Button>
@@ -405,7 +439,7 @@ export default function ResalePage() {
         padding="sm"
         title={`Key (${liveKeys.length} aktif / ${keys.length} total)`}
         action={
-          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/dashboard/keys"; }}>
+          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/dashboard/endpoint"; }}>
             Atur di Keys
           </Button>
         }
@@ -497,6 +531,16 @@ export default function ResalePage() {
             placeholder="kosong = tanpa batas"
           />
         </div>
+        <details className="mt-3 rounded-[10px] border border-border-subtle bg-surface-2 p-3">
+          <summary className="cursor-pointer text-xs font-medium text-text-main">Kuota lengkap (opsional)</summary>
+          <div className="mt-3">
+            <KeyQuotaFields
+              value={manual.quota}
+              onChange={(quota) => setManual({ ...manual, quota })}
+              omit={["tokenBalance"]}
+            />
+          </div>
+        </details>
         <Button className="mt-3 w-full sm:w-auto" variant="secondary" onClick={handleMintManual} disabled={busy}>
           Bikin key
         </Button>

@@ -406,3 +406,119 @@ describe("per-key traffic is attributable without storing the key", () => {
     expect(page.pagination.totalItems).toBe(1);
   });
 });
+
+// ── The whole quota surface, not just the token total (migration 011) ────────
+// A code is a product. Before this, a code could only say "N tokens, M days";
+// a seller selling "2jt token, 60 request per menit, 3 barengan" had no way to
+// say it, and the buyer's key came out with no rate limits at all.
+describe("a code carries the key's whole policy", () => {
+  it("lands the limits column and stamps the new schema version", async () => {
+    const { driver, migrations } = await load();
+    const db = await driver.getAdapter();
+
+    const columns = db.all(`PRAGMA table_info(redeemCodes)`).map((c) => c.name);
+    expect(columns).toContain("limits");
+
+    const stamped = db.get(`SELECT value FROM _meta WHERE key='schemaVersion'`);
+    expect(parseInt(stamped.value, 10)).toBe(migrations.latestVersion());
+  });
+
+  it("hands the buyer's key every axis the code named", async () => {
+    const { keys, redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({
+      quantity: 1,
+      batchName: "full-quota",
+      tokenValue: 2_000_000,
+      extendsDays: 30,
+      limits: { rpm: 2, rateLimitTpm: 20_000, rateLimitConcurrency: 1, maxTokensDaily: 500_000 },
+    });
+
+    // The blob survives the row round trip, so the seller sees what they sold.
+    const listed = await redeem.getRedeemCodes({ batchName: "full-quota" });
+    expect(listed[0].limits).toMatchObject({
+      rpm: 2,
+      rateLimitTpm: 20_000,
+      rateLimitConcurrency: 1,
+      maxTokensDaily: 500_000,
+    });
+
+    const result = await redeem.redeemCode(code.code);
+    expect(result.ok).toBe(true);
+
+    const info = await keys.validateApiKey(result.key.key);
+    expect(info.tokenBalance).toBe(2_000_000);
+    expect(info.rpm).toBe(2);
+    expect(info.rateLimitTpm).toBe(20_000);
+    expect(info.rateLimitConcurrency).toBe(1);
+    expect(info.maxTokensDaily).toBe(500_000);
+
+    // The buyer-facing slice is quota only — never provider or ACL policy.
+    expect(result.limits).toMatchObject({ rpm: 2, rateLimitTpm: 20_000 });
+    expect(result.limits).not.toHaveProperty("allowedProviders");
+    expect(result.limits).not.toHaveProperty("allowedCombos");
+  });
+
+  it("enforces the axes on the issued key: the rate limit really bites", async () => {
+    const { keys, redeem, usage } = await load();
+    const [code] = await redeem.createRedeemCodes({ quantity: 1, limits: { rpm: 2 } });
+    const result = await redeem.redeemCode(code.code);
+    const info = await keys.validateApiKey(result.key.key);
+
+    expect(usage.checkApiKeyLimits(info, 0).allowed).toBe(true);
+    usage.recordApiKeyUsage(info, 0);
+    expect(usage.checkApiKeyLimits(info, 0).allowed).toBe(true);
+    usage.recordApiKeyUsage(info, 0);
+
+    const third = usage.checkApiKeyLimits(info, 0);
+    expect(third.allowed).toBe(false);
+    expect(third.reason).toMatch(/requests per minute/);
+  });
+
+  it("lets tokenValue win over a conflicting limits.tokenBalance", async () => {
+    const { keys, redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({
+      quantity: 1,
+      tokenValue: 1000,
+      limits: { tokenBalance: 999_999, rpm: 5 },
+    });
+    const result = await redeem.redeemCode(code.code);
+    const info = await keys.validateApiKey(result.key.key);
+
+    expect(info.tokenBalance).toBe(1000);
+    expect(info.rpm).toBe(5);
+  });
+
+  it("reads an axis the seller left blank as unlimited, not as zero", async () => {
+    const { keys, redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 500, limits: { rpm: 10 } });
+    const result = await redeem.redeemCode(code.code);
+    const info = await keys.validateApiKey(result.key.key);
+
+    expect(info.rateLimitTpm).toBeNull();
+    expect(info.tokens5h).toBeNull();
+    expect(info.rateLimitConcurrency).toBeNull();
+  });
+
+  it("refuses a code that would carry nothing at all", async () => {
+    const { redeem } = await load();
+    await expect(redeem.createRedeemCodes({ quantity: 1 })).rejects.toThrow(/tokenValue, extendsDays, or limits/);
+  });
+
+  it("keeps a pre-011 code working: tokenValue alone, no policy blob", async () => {
+    const { keys, redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 700, extendsDays: 7 });
+    expect(code.limits).toBeNull();
+
+    const result = await redeem.redeemCode(code.code);
+    const info = await keys.validateApiKey(result.key.key);
+    expect(info.tokenBalance).toBe(700);
+    expect(info.rpm).toBeNull();
+  });
+
+  it("drops unknown axes rather than writing a column that does not exist", async () => {
+    const { redeem } = await load();
+    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 100, limits: { rpm: 10, nonsense: 5 } });
+    expect(code.limits.rpm).toBe(10);
+    expect(Object.keys(code.limits)).not.toContain("nonsense");
+  });
+});

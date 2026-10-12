@@ -1,4 +1,5 @@
 import { redeemCode } from "@/lib/db/repos/redeemCodesRepo.js";
+import { quotaSummary } from "@/shared/utils/keyQuota";
 import { getSettings } from "@/lib/localDb";
 import { checkLock, recordFail, recordSuccess, getClientIp } from "@/lib/auth/loginLimiter.js";
 
@@ -84,6 +85,13 @@ export async function POST(request) {
       tokens: result.tokens,
       expires_at: result.expiresAt,
       days: result.days,
+      // Every axis the code granted, plus the same thing as one readable line —
+      // a buyer who bought "2jt token, 60/menit" should see both.
+      limits: result.limits,
+      quota: quotaSummary(result.limits),
+      // The page shows the token total in its own cell, so the rate axes get a
+      // line of their own instead of repeating the balance inside it.
+      usage_limits: quotaSummary({ ...(result.limits || {}), tokenBalance: null }),
       uses_remaining: result.usesRemaining,
     });
   } catch (error) {

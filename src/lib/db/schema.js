@@ -147,6 +147,7 @@ export const TABLES = {
       createdAt: "TEXT NOT NULL",
       expiresAt: "TEXT",
       metadata: "TEXT",
+      limits: "TEXT", // JSON of the key policy this code grants (see shared/utils/keyQuota.js)
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_redeem_code ON redeemCodes(code)"],
   },

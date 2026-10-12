@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRedeemCodes, getRedeemCodes } from "@/lib/db/repos/redeemCodesRepo.js";
+import { sanitizeQuotaLimits } from "@/shared/utils/keyQuota";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,13 @@ export async function GET(request) {
 }
 
 // POST /api/redeem-codes
-// { quantity, batchName?, tokenValue?, extendsDays?, maxUses?, expiresAt?, metadata? }
-// At least one of tokenValue / extendsDays is required, otherwise the code would
-// carry nothing.
+// { quantity, batchName?, tokenValue?, extendsDays?, maxUses?, expiresAt?, metadata?, limits? }
+//
+// `tokenValue` + `extendsDays` are the short form (quota + validity). `limits`
+// is the whole key policy the code hands the buyer: rpm, rateLimitTpm,
+// rateLimitConcurrency, maxTokens, maxTokensDaily, tokens5h, tokensWeekly,
+// tokensMonthly, tokenBalance, allowedIps, personaInject. A code has to carry
+// at least one axis from either form, otherwise it would buy nothing.
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -49,12 +54,21 @@ export async function POST(request) {
       maxUses = 1,
       expiresAt = null,
       metadata = null,
+      limits = null,
     } = body || {};
+
+    const policy = sanitizeQuotaLimits(limits);
+    if (!policy.ok) {
+      return NextResponse.json({ error: policy.error }, { status: 400 });
+    }
 
     const tokens = tokenValue === null || tokenValue === undefined || tokenValue === "" ? null : Number(tokenValue);
     const days = extendsDays === null || extendsDays === undefined || extendsDays === "" ? null : Number(extendsDays);
-    if (tokens === null && days === null) {
-      return NextResponse.json({ error: "tokenValue and/or extendsDays is required" }, { status: 400 });
+    if (tokens === null && days === null && policy.set === 0) {
+      return NextResponse.json(
+        { error: "tokenValue, extendsDays or limits is required" },
+        { status: 400 }
+      );
     }
     if (tokens !== null && (!Number.isFinite(tokens) || tokens < 0)) {
       return NextResponse.json({ error: "tokenValue must be a non-negative number" }, { status: 400 });
@@ -71,6 +85,7 @@ export async function POST(request) {
       maxUses,
       expiresAt,
       metadata,
+      limits: policy.set > 0 ? policy.limits : null,
     });
 
     return NextResponse.json({ count: codes.length, codes }, { status: 201 });

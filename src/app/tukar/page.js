@@ -132,6 +132,13 @@ export default function TukarPage() {
               </div>
             </div>
 
+            {result.usage_limits ? (
+              <div className="flex flex-col gap-0.5 border-t border-border-subtle pt-3">
+                <span className="text-xs uppercase tracking-wide text-text-muted">Batas pakai</span>
+                <span className="text-sm font-semibold text-text-main">{result.usage_limits}</span>
+              </div>
+            ) : null}
+
             <p className="text-xs text-text-muted">
               Simpan key ini sekarang. Setelah halaman ditutup, key tidak ditampilkan lagi.
             </p>
