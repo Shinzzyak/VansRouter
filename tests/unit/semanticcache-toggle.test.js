@@ -132,6 +132,26 @@ describe("semantic cache toggle", () => {
     expect(engineEpoch({ ...BASE_SETTINGS })).toBe(off);
   });
 
+  it("changes the epoch when a provider overrides an injection setting", () => {
+    const base = engineEpoch({ ...BASE_SETTINGS, providerStrategies: { kiro: { fallbackStrategy: "round-robin" } } });
+
+    const withGodmode = engineEpoch({
+      ...BASE_SETTINGS,
+      providerStrategies: { kiro: { fallbackStrategy: "round-robin", godmodeEnabled: true } },
+    });
+
+    expect(withGodmode).not.toBe(base);
+  });
+
+  it("ignores a provider-strategy change that cannot alter a reply", () => {
+    const before = engineEpoch({ ...BASE_SETTINGS, providerStrategies: { kiro: { proxyPoolId: "a", fallbackStrategy: "round-robin" } } });
+    const after = engineEpoch({ ...BASE_SETTINGS, providerStrategies: { kiro: { proxyPoolId: "b", fallbackStrategy: "sticky" } } });
+
+    // Rotating a proxy cannot change the text of a completion, so it must not
+    // throw away a warm cache.
+    expect(after).toBe(before);
+  });
+
   it("folds the epoch into the key only when one is supplied", () => {
     const plain = buildCacheKey(request());
     expect(buildCacheKey(request(), { salt: "" })).toBe(plain);

@@ -21,6 +21,10 @@ import { setSemanticCacheEnabled } from "./chatHook.js";
  * body means. Listed explicitly rather than derived: a new injection setting
  * must be added here by hand, which is the point — a setting that changes the
  * reply and is missing from this list would silently leak across the epoch.
+ *
+ * `rtkEnabled` / `headroomEnabled` belong here even though they are compressors
+ * rather than injectors: they rewrite the request body before it reaches the
+ * provider, so they change what the model was asked.
  */
 const ENGINE_SETTING_KEYS = [
   "godmodeEnabled",
@@ -30,7 +34,49 @@ const ENGINE_SETTING_KEYS = [
   "cavemanLevel",
   "ponytailEnabled",
   "ponytailLevel",
+  "rtkEnabled",
+  "headroomEnabled",
 ];
+
+/** Per-provider overrides of the same settings, under `providerStrategies`. */
+const PROVIDER_STRATEGY_INJECTION_KEYS = [
+  "godmodeEnabled",
+  "godmodeLevel",
+  "bypassMode",
+  "cavemanEnabled",
+  "cavemanLevel",
+  "ponytailEnabled",
+  "ponytailLevel",
+  "rtkEnabled",
+  "headroomEnabled",
+];
+
+/**
+ * The injection settings as one stable string.
+ *
+ * A provider can override the global injection settings for itself
+ * (`providerStrategies[<provider>].godmodeEnabled`, and so on), so the global
+ * keys alone are not the whole picture. Only the injection keys are pulled out
+ * of each provider entry — a proxy-pool rotation change must not invalidate the
+ * cache, because it cannot change the text of a reply.
+ */
+function injectionFingerprint(settings) {
+  const parts = ENGINE_SETTING_KEYS.map((key) => `${key}=${settings?.[key] ?? ""}`);
+
+  const strategies = settings?.providerStrategies;
+  if (strategies && typeof strategies === "object") {
+    for (const provider of Object.keys(strategies).sort()) {
+      const entry = strategies[provider];
+      if (!entry || typeof entry !== "object") continue;
+      for (const key of PROVIDER_STRATEGY_INJECTION_KEYS) {
+        if (entry[key] === undefined) continue;
+        parts.push(`${provider}.${key}=${entry[key]}`);
+      }
+    }
+  }
+
+  return parts.join("|");
+}
 
 /** The built engine bundle, relative to the server's working directory. */
 const ENGINE_BUNDLE = path.join("data", "engine", "engine.cjs");
@@ -44,7 +90,7 @@ const ENGINE_BUNDLE = path.join("data", "engine", "engine.cjs");
  * be waste for a value that only has to change when the file does.
  */
 export function engineEpoch(settings) {
-  const parts = ENGINE_SETTING_KEYS.map((key) => `${key}=${settings?.[key] ?? ""}`);
+  const parts = [injectionFingerprint(settings)];
 
   try {
     const stat = statSync(path.join(process.cwd(), ENGINE_BUNDLE));
