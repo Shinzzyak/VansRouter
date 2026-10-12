@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { defaultCache } from "@/lib/semanticcache/cache.js";
+import { setSemanticCacheEnabledPersisted } from "@/lib/semanticcache/runtime.js";
 
 export const dynamic = "force-dynamic";
 
 // Semantic-cache administration (9router-go parity: /api/cache).
 //
 // GET    /api/cache -> hit/miss/size stats
+// PATCH  /api/cache -> {"enabled": bool} toggles the prompt cache at runtime
 // DELETE /api/cache -> clear every entry
 //
 // ?model=<id> on DELETE invalidates one model's entries; ?signature=<key> drops
@@ -19,6 +21,24 @@ export async function GET() {
   } catch (error) {
     console.error("GET /api/cache failed:", error);
     return NextResponse.json({ error: "Failed to read cache stats" }, { status: 500 });
+  }
+}
+
+// The toggle the Usage page drives. Persisted to settings so it survives a
+// restart, then applied in-process — the request path reads a mirrored flag, not
+// the database, so a flip takes effect on the next request without a restart.
+export async function PATCH(request) {
+  try {
+    const body = await request.json().catch(() => null);
+    if (typeof body?.enabled !== "boolean") {
+      return NextResponse.json({ error: "enabled must be a boolean" }, { status: 400 });
+    }
+
+    const applied = await setSemanticCacheEnabledPersisted(body.enabled);
+    return NextResponse.json({ status: "ok", epoch: applied.salt, cache: defaultCache.stats() });
+  } catch (error) {
+    console.error("PATCH /api/cache failed:", error);
+    return NextResponse.json({ error: "Failed to update cache setting" }, { status: 500 });
   }
 }
 

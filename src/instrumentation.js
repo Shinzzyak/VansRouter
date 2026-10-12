@@ -32,6 +32,19 @@ export async function register() {
 
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync");
     startModelCatalogSync();
+
+    // Semantic cache: mirror the stored `semanticCacheEnabled` setting and the
+    // engine epoch into the request-path predicate. Must run before the first
+    // request, or a restart would silently serve the cache as off until someone
+    // opened the dashboard. Fail-open: a settings read failure leaves it off,
+    // which is the default anyway.
+    try {
+      const { applySemanticCacheConfig } = await import("@/lib/semanticcache/runtime.js");
+      const applied = await applySemanticCacheConfig();
+      console.log(`[semantic-cache] enabled=${applied.enabled} epoch=${applied.salt}`);
+    } catch (e) {
+      console.warn("[semantic-cache] init failed (fail-open):", e?.message || e);
+    }
   }
 
   // Apply outbound proxy (gateway 8081) env early — layout-import is not

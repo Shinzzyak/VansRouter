@@ -48,6 +48,9 @@ const DEFAULT_SETTINGS = {
   headroomUrl: DEFAULT_HEADROOM_URL,
   headroomCompressUserMessages: false,
   headroomTimeoutMs: 3000,
+  // Prompt-cache switch, toggled from the Usage page. Off by default, matching
+  // the historical SEMANTIC_CACHE=1 boot gate; the env var still forces it on.
+  semanticCacheEnabled: false,
   cavemanEnabled: false,
   cavemanLevel: "full",
   ponytailEnabled: false,

@@ -15,7 +15,7 @@ import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { enforceChatBrand } from "./brandRepair.js";
-import { emptyReasonFor, emptyReasonHeaders } from "./emptyReason.js";
+import { emptyReasonFor, emptyReasonHeaders, isReplayableReply } from "./emptyReason.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
@@ -510,12 +510,18 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   // Prompt cache write. Deliberately the LAST thing before the reply leaves, so
   // the stored bytes are the post-repair text this caller received — replaying a
   // pre-repair body would serve a reply the brand contract had already rejected.
-  // Inert unless SEMANTIC_CACHE=1.
-  storeCachedResponse({
-    requestBody: body,
-    finalResponse,
-    sessionId: apiKeyInfo?.id ?? apiKey ?? "",
-  });
+  // Inert unless the semanticCacheEnabled setting (or SEMANTIC_CACHE=1) is on.
+  //
+  // A reply that was empty for a non-tool reason is not stored: that is a failed
+  // generation, and caching it would pin the failure for the whole TTL. A
+  // tool-call turn is a complete answer and is stored.
+  if (isReplayableReply(emptyReason)) {
+    storeCachedResponse({
+      requestBody: body,
+      finalResponse,
+      sessionId: apiKeyInfo?.id ?? apiKey ?? "",
+    });
+  }
 
   return {
     success: true,

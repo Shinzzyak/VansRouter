@@ -52,3 +52,22 @@ export function emptyReasonHeaders(reason) {
 export function emptyReasonHeadersFor({ content, toolCalls = 0, finishReason = null } = {}) {
   return emptyReasonHeaders(emptyReasonFor({ content, sawToolCalls: toolCalls > 0, finishReason }));
 }
+
+/**
+ * Whether a reply that carried no visible text is still worth replaying.
+ *
+ * A tool-call turn is a complete answer whose payload lives in `tool_calls`, so
+ * caching it saves a real round trip. A `no_text*` reply is a failed generation
+ * (typically a reasoning budget that ate the whole cap): caching that would pin
+ * the failure for the entire TTL and keep serving it after the upstream
+ * recovered — the silent-empty-200 family, made durable.
+ *
+ * Lives here rather than at the cache write site so the rule has one home, for
+ * the same reason `emptyReasonFor` does.
+ *
+ * @param {string|null} reason — output of emptyReasonFor
+ * @returns {boolean} true when the reply may be stored for replay
+ */
+export function isReplayableReply(reason) {
+  return !reason || reason === "tool_calls";
+}

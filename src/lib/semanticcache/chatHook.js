@@ -10,10 +10,28 @@
 import { defaultCache, setCacheEnabledPredicate } from "./cache.js";
 
 /**
- * Boot-time switch. Off unless SEMANTIC_CACHE=1, so deploying this file changes
- * no behaviour on a running gateway.
+ * Runtime switch, mirroring the stored `semanticCacheEnabled` setting.
+ *
+ * The predicate is consulted on the hot request path and must stay synchronous,
+ * so the setting is mirrored into this module-level flag by
+ * semanticcache/runtime.js — at boot (instrumentation) and on every write to
+ * /api/cache — rather than read from the database per request.
+ *
+ * SEMANTIC_CACHE=1 remains a hard override: a deployment that pins the env var
+ * keeps the cache on regardless of the stored setting, so the original
+ * boot-time contract is unchanged for anyone relying on it.
  */
-setCacheEnabledPredicate(() => process.env.SEMANTIC_CACHE === "1");
+let settingsEnabled = false;
+
+export function semanticCacheEnabled() {
+  return process.env.SEMANTIC_CACHE === "1" || settingsEnabled === true;
+}
+
+export function setSemanticCacheEnabled(on) {
+  settingsEnabled = on === true;
+}
+
+setCacheEnabledPredicate(semanticCacheEnabled);
 
 /** Response headers a replayed body carries, so a hit is identifiable on the wire. */
 export const CACHE_HIT_HEADER = "X-Router-Cache";

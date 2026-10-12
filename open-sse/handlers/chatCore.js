@@ -643,7 +643,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Prompt cache. A non-streaming request whose exact inputs were already
   // answered is served from the store and the upstream call is skipped — that
   // skip is the entire point, so the lookup has to sit before the executor, not
-  // after it. Inert unless SEMANTIC_CACHE=1 (see semanticcache/chatHook.js).
+  // after it. Inert unless the semanticCacheEnabled setting (or SEMANTIC_CACHE=1)
+  // is on — see semanticcache/chatHook.js.
   //
   // The hit still writes a request-log line: a reply that leaves no trace in the
   // log is indistinguishable from a request that never arrived, which is the

@@ -46,6 +46,9 @@ export class SemanticCache {
     };
     this.store = config.store || new LruStore(this.config.maxEntries, this.config.ttlMs);
     this.enabledFn = config.enabledFn || null;
+    // Engine epoch folded into every key. Empty means "no epoch" and reproduces
+    // the historical key scheme. Set by semanticcache/runtime.js.
+    this.keySalt = typeof config.keySalt === "string" ? config.keySalt : "";
     this.hits = 0;
     this.misses = 0;
     this.tokensSaved = 0;
@@ -58,6 +61,15 @@ export class SemanticCache {
   }
 
   /**
+   * Sets the engine epoch folded into every key. Changing it orphans existing
+   * entries rather than deleting them, so a stale body can never be served
+   * after an engine or injection-config change.
+   */
+  setKeySalt(salt) {
+    this.keySalt = typeof salt === "string" ? salt : "";
+  }
+
+  /**
    * Looks up a completed response for this request.
    *
    * @returns {{ hit: false } | { hit: true, body: string, contentType: string, model: string }}
@@ -65,7 +77,7 @@ export class SemanticCache {
   lookup(request, { sessionId = "" } = {}) {
     if (!this.enabled() || request?.stream === true) return { hit: false };
 
-    const key = buildCacheKey(request, { sessionId });
+    const key = buildCacheKey(request, { sessionId, salt: this.keySalt });
     if (!key) return { hit: false };
 
     const entry = this.store.get(key);
@@ -101,7 +113,7 @@ export class SemanticCache {
     // A stored error would outlive the failure it recorded.
     if (status < 200 || status >= 300) return false;
 
-    const key = buildCacheKey(request, { sessionId });
+    const key = buildCacheKey(request, { sessionId, salt: this.keySalt });
     if (!key) return false;
 
     this.store.put(key, {

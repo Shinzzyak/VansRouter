@@ -92,7 +92,7 @@ function writeParam(parts, label, value) {
  * Returns "" for an unusable request (missing messages), which callers treat as
  * "do not cache" rather than "cache under the empty key".
  */
-export function buildCacheKey(request, { sessionId = "" } = {}) {
+export function buildCacheKey(request, { sessionId = "", salt = "" } = {}) {
   if (!request || !Array.isArray(request.messages) || request.messages.length === 0) return "";
 
   const parts = [];
@@ -100,6 +100,15 @@ export function buildCacheKey(request, { sessionId = "" } = {}) {
   // Tenant / session isolation. Two callers replaying the same prompt with
   // different session identity must not share an entry.
   if (sessionId) parts.push(`session:${sessionId}`);
+
+  // Engine epoch. Covers what the request body cannot express: the engine
+  // bundle that shaped the reply and the injection settings that were active
+  // when it was produced. Without it, a body generated under one engine (or one
+  // godmode/bypass configuration) would be replayed verbatim under another, and
+  // the failure is silent — the caller gets a 200 with a body the current engine
+  // would never have produced. An empty salt reproduces the historical key
+  // scheme, so callers that do not supply one keep their existing entries.
+  if (salt) parts.push(`salt:${salt}`);
 
   parts.push(`model:${typeof request.model === "string" ? request.model : ""}`);
 

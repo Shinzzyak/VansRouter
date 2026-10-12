@@ -5,6 +5,7 @@ import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 import Badge from "@/shared/components/Badge";
 import Input from "@/shared/components/Input";
+import Toggle from "@/shared/components/Toggle";
 
 // Semantic-cache section of the Usage page (9router-go parity: the cache
 // analytics view). Reads the live cache, so the numbers shown are the numbers
@@ -20,6 +21,7 @@ export default function CacheSection() {
   const [search, setSearch] = useState("");
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const limit = 20;
@@ -69,6 +71,28 @@ export default function CacheSection() {
     refresh();
   };
 
+  // Flips the prompt cache. The setting is persisted server-side and applied to
+  // the running process, so the change lands on the next request — no restart.
+  const toggleEnabled = async (next) => {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/cache", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update cache setting");
+      setStats(data.cache || null);
+      await loadEntries();
+    } catch (err) {
+      setError(err?.message || String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pageCount = Math.max(1, Math.ceil(total / limit));
 
   return (
@@ -85,6 +109,14 @@ export default function CacheSection() {
         subtitle={stats ? `${stats.tokensSaved} tokens saved · TTL ${Math.round((stats.ttlMs || 0) / 1000)}s · cap ${stats.maxEntries}` : undefined}
         action={
           <div className="flex items-center gap-2">
+            <Toggle
+              size="sm"
+              checked={!!stats?.enabled}
+              disabled={loading || saving || !stats}
+              onChange={toggleEnabled}
+              aria-label="Enable semantic cache"
+              title="Enable semantic cache"
+            />
             {stats && <Badge variant={stats.enabled ? "success" : "default"} size="sm">{stats.enabled ? "enabled" : "disabled"}</Badge>}
             <Button size="sm" variant="secondary" icon="refresh" onClick={refresh} disabled={loading}>Refresh</Button>
             <Button size="sm" variant="danger" icon="delete_sweep" onClick={clearAll} disabled={loading || !total}>Clear all</Button>
