@@ -387,6 +387,7 @@ def main():
         "allowedIps": [source_ip] if source_ip else [allowed_ip],
     })
     ip_id, ip_key = None, None
+    open_id = None
     if st == 201:
         ij = json.loads(txt)
         ip_id, ip_key = ij["id"], ij["key"]
@@ -426,8 +427,18 @@ def main():
         # forwarding header before the route sees it, and the precedence rule is
         # pinned deterministically in tests/unit/apikey-resale-hardening.test.js.
         # Control: the unbound key is untouched by any of this.
-        st_open, _, _ = chat(ctl_model, key)
-        check("G7 control: unbound key still works", st_open != 403, f"http {st_open}")
+        # Control key, freshly minted with no IP binding and no provider ACL: the
+        # main key below carries an allowedProviders list, so its refusal would be
+        # the provider gate answering, not the address gate we are testing.
+        st_co, txt_co, _ = admin("/api/keys", "POST", {
+            "name": f"zz-resale-open-{stamp}", "limits": {"rpm": 20}, "allowedKinds": ["llm"]})
+        if st_co == 201:
+            open_id = json.loads(txt_co)["id"]
+            st_open, txt_open, _ = chat(ctl_model, json.loads(txt_co)["key"])
+            check("G7 control: unbound key still works", st_open != 403,
+                  f"http {st_open} :: {txt_open[:120]}")
+        else:
+            check("G7 control: unbound key still works", False, f"create http {st_co}")
     else:
         for name in ("G5 bound key refused from another address",
                      "G6 the reader also refuses the blocked address",
@@ -517,9 +528,17 @@ def main():
         else:
             code_ids, revoked_ids = [], []
 
-        st_lg, txt_lg, _ = admin(f"/api/keys/{bal_id}/logs?pageSize=5")
+        # The observability writer buffers rows and flushes on a timer, so the
+        # row for the request above lands a few seconds later: poll, don't race.
+        lj, st_lg, txt_lg = {}, 0, ""
+        for _ in range(12):
+            st_lg, txt_lg, _ = admin(f"/api/keys/{bal_id}/logs?pageSize=5")
+            if st_lg == 200:
+                lj = json.loads(txt_lg)
+                if (lj.get("stats", {}).get("requests") or 0) > 0 and lj.get("details"):
+                    break
+            time.sleep(2)
         if st_lg == 200:
-            lj = json.loads(txt_lg)
             check("J1 per-key log rollup counts the traffic", (lj.get("stats", {}).get("requests") or 0) > 0,
                   f"stats={lj.get('stats')}")
             check("J2 per-key log returns detail rows", len(lj.get("details", [])) > 0,
@@ -584,7 +603,7 @@ def main():
         check("E3 expired key cleaned up", st in (200, 204), f"http {st}")
     for extra, label in ((combo_id, "combo key"), (kind_id, "kind key"), (model_key_id, "model key"),
                          (rpm_id, "rpm key"), (tok_id, "maxTokens key"), (ip_id, "IP-bound key"),
-                         (bal_id, "prepaid key")):
+                         (bal_id, "prepaid key"), (open_id, "control key")):
         if extra:
             st, _, _ = admin(f"/api/keys/{extra}", "DELETE")
             check(f"E4 {label} cleaned up", st in (200, 204), f"http {st}")

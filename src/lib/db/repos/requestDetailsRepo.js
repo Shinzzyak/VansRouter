@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { maskApiKey } from "../helpers/apiKeyMask.js";
 
 const DEFAULT_MAX_RECORDS = 200;
 const DEFAULT_BATCH_SIZE = 20;
@@ -90,7 +91,7 @@ async function flushToDatabase() {
             provider: item.provider || null,
             model: item.model || null,
             connectionId: item.connectionId || null,
-            apiKey: item.apiKey || null,
+            apiKey: item.apiKey ? maskApiKey(item.apiKey) : null,
             apiKeyName: item.apiKeyName || null,
             timestamp: item.timestamp,
             status: item.status || null,
@@ -152,6 +153,12 @@ export async function getRequestDetails(filter = {}) {
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
   if (filter.apiKey) { conds.push("apiKey = ?"); params.push(filter.apiKey); }
+  // Same key, several stored spellings: rows written before the writer started
+  // masking hold the plaintext, newer ones the mask. One filter, both forms.
+  if (filter.apiKeyAny?.length) {
+    conds.push(`apiKey IN (${filter.apiKeyAny.map(() => "?").join(", ")})`);
+    params.push(...filter.apiKeyAny);
+  }
   if (filter.apiKeyName) { conds.push("apiKeyName = ?"); params.push(filter.apiKeyName); }
   if (filter.status) { conds.push("status = ?"); params.push(filter.status); }
   if (filter.startDate) {
@@ -205,15 +212,16 @@ export async function getRequestDetailById(id) {
  * observabilityMaxRecords, so this is "recent traffic", not a lifetime ledger.
  */
 export async function getRequestStatsForApiKey(apiKey) {
-  if (!apiKey) return { requests: 0, errors: 0, firstAt: null, lastAt: null };
+  const forms = (Array.isArray(apiKey) ? apiKey : [apiKey]).filter(Boolean);
+  if (!forms.length) return { requests: 0, errors: 0, firstAt: null, lastAt: null };
   const db = await getAdapter();
   const row = db.get(
     `SELECT COUNT(*) as requests,
             SUM(CASE WHEN status IS NULL OR status >= 400 THEN 1 ELSE 0 END) as errors,
             MIN(timestamp) as firstAt,
             MAX(timestamp) as lastAt
-       FROM requestDetails WHERE apiKey = ?`,
-    [apiKey]
+       FROM requestDetails WHERE apiKey IN (${forms.map(() => "?").join(", ")})`,
+    forms
   );
   return {
     requests: row?.requests ?? 0,

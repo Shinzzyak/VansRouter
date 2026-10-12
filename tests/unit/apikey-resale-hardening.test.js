@@ -41,6 +41,8 @@ const load = async () => ({
   keys: await import("@/lib/db/repos/apiKeysRepo.js"),
   redeem: await import("@/lib/db/repos/redeemCodesRepo.js"),
   usage: await import("@/lib/db/repos/apiKeyUsageRepo.js"),
+  details: await import("@/lib/db/repos/requestDetailsRepo.js"),
+  mask: await import("@/lib/db/helpers/apiKeyMask.js"),
 });
 
 describe("migration 010 lands the resale columns and the redeem table", () => {
@@ -320,5 +322,68 @@ describe("IP binding", () => {
     const open = await keys.createApiKey("open", "machine-1", {});
     expect(await isValidApiKey(open.key, req({ "x-forwarded-for": "198.51.100.4" }))).not.toBeNull();
     expect(await isValidApiKey(open.key, req({}))).not.toBeNull();
+  });
+});
+
+// The per-key traffic view is what a seller opens when a buyer asks "why is my
+// key slow?". It must find a key's requests without the observability table
+// keeping the key itself in plaintext — a sold key sitting readable in the DB is
+// a spendable key.
+describe("per-key traffic is attributable without storing the key", () => {
+  const push = async (details, apiKey, n) => {
+    for (let i = 0; i < n; i += 1) {
+      await details.saveRequestDetail({
+        id: `d${i}`,
+        provider: "p",
+        model: "m",
+        apiKey,
+        apiKeyName: "sold",
+        timestamp: new Date(Date.now() + i).toISOString(),
+        status: "success",
+      });
+    }
+    // The writer batches (batchSize rows or flushIntervalMs); 20 pushes trip the
+    // batch threshold, the tick lets the flush land.
+    await new Promise((r) => setTimeout(r, 100));
+  };
+
+  it("writes the mask, never the plaintext, and still finds the rows", async () => {
+    const { driver, details, mask } = await load();
+    await driver.getAdapter();
+
+    const raw = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
+    await push(details, raw, 20);
+
+    const db = await driver.getAdapter();
+    const masked = mask.maskApiKey(raw);
+    expect(db.get(`SELECT COUNT(*) as c FROM requestDetails`).c).toBe(20);
+    expect(db.get(`SELECT COUNT(*) as c FROM requestDetails WHERE apiKey = ?`, [raw]).c).toBe(0);
+    expect(db.get(`SELECT COUNT(*) as c FROM requestDetails WHERE apiKey = ?`, [masked]).c).toBe(20);
+    // The JSON blob the dashboard renders is the same story.
+    expect(db.get(`SELECT COUNT(*) as c FROM requestDetails WHERE data LIKE ?`, [`%${raw}%`]).c).toBe(0);
+
+    // Both spellings resolve to the same key's traffic.
+    const stats = await details.getRequestStatsForApiKey([masked, raw]);
+    expect(stats.requests).toBe(20);
+    const page = await details.getRequestDetails({ apiKeyAny: [masked, raw] });
+    expect(page.pagination.totalItems).toBe(20);
+    expect(page.details[0].apiKeyName).toBe("sold");
+  });
+
+  it("keeps rows written before the mask (plaintext) visible to the same filter", async () => {
+    const { driver, details, mask } = await load();
+    await driver.getAdapter();
+
+    const raw = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
+    const db = await driver.getAdapter();
+    db.run(
+      `INSERT INTO requestDetails(id, timestamp, provider, model, apiKey, apiKeyName, status, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+      ["legacy", new Date().toISOString(), "p", "m", raw, "sold", "success", JSON.stringify({ id: "legacy", apiKey: raw })]
+    );
+
+    const stats = await details.getRequestStatsForApiKey([mask.maskApiKey(raw), raw]);
+    expect(stats.requests).toBe(1);
+    const page = await details.getRequestDetails({ apiKeyAny: [mask.maskApiKey(raw), raw] });
+    expect(page.pagination.totalItems).toBe(1);
   });
 });

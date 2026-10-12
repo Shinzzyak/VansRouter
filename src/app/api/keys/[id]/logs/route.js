@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiKeyById } from "@/lib/localDb";
+import { maskApiKey } from "@/lib/db/helpers/apiKeyMask.js";
 import { getRequestDetails, getRequestStatsForApiKey } from "@/lib/db/repos/requestDetailsRepo.js";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,12 @@ export async function GET(request, { params }) {
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1);
     const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get("pageSize") || "50", 10) || 50));
 
+    // One key, two stored spellings: rows written before the writer masked
+    // keys hold the plaintext, newer ones the mask. Match both.
+    const keyForms = [key.key, maskApiKey(key.key)];
     const [details, stats] = await Promise.all([
-      getRequestDetails({ apiKey: key.key, page, pageSize }),
-      getRequestStatsForApiKey(key.key),
+      getRequestDetails({ apiKeyAny: keyForms, page, pageSize }),
+      getRequestStatsForApiKey(keyForms),
     ]);
 
     return NextResponse.json({
