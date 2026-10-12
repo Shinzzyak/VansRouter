@@ -648,15 +648,26 @@ def main():
                 sidebar_src = full
     page_src = open(page_chunk, encoding="utf-8", errors="replace").read() if page_chunk else ""
 
+    # The buyer's page is static copy, so its text is assertable from its chunk.
+    buyer_chunk = ""
+    for root, _dirs, files in os.walk(chunk_root):
+        if os.sep + "tukar" + os.sep not in root + os.sep:
+            continue
+        for f in files:
+            if f.endswith(".js") and f.startswith("page"):
+                buyer_chunk = os.path.join(root, f)
+    buyer_src = open(buyer_chunk, encoding="utf-8", errors="replace").read() if buyer_chunk else ""
+
     check("N2 the resale page chunk ships in the built artifact",
-          bool(page_chunk) and "Yang dikirim ke buyer" in page_src,
+          bool(page_chunk) and "/api/redeem-codes" in page_src,
           f"chunk={os.path.basename(page_chunk) if page_chunk else 'absent'}")
-    # The page renders `POST {baseUrl}/chat/completions`, so the chunk carries the
-    # path without the /v1 prefix.
-    check("N3 the shipped page documents the buyer base URL",
-          "/chat/completions" in page_src, "missing buyer endpoint copy")
+    check("N3 the shipped resale page points the buyer at the redeem page",
+          "/tukar" in page_src, f"page={os.path.basename(page_chunk) if page_chunk else 'absent'}")
     check("N3b the shipped page reads the public base URL setting",
-          "publicBaseUrl" in page_src, "knob not referenced in the built chunk")
+          "publicBaseUrl" in page_src, f"page={os.path.basename(page_chunk) if page_chunk else 'absent'}")
+    check("N3c the buyer page ships with its own copy and the code field",
+          bool(buyer_chunk) and "Masukkan kode pembelian" in buyer_src and "base_url" in buyer_src,
+          f"chunk={os.path.basename(buyer_chunk) if buyer_chunk else 'absent'}")
     check("N4 the sidebar links the page",
           bool(sidebar_src) or 'href="/dashboard/resale"' in txt_page,
           f"nav entry absent (chunk={os.path.basename(sidebar_src) if sidebar_src else 'none'})")
