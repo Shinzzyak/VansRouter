@@ -6,6 +6,7 @@ import { UsageStats, RequestLogger, CardSkeleton, SegmentedControl } from "@/sha
 import RequestDetailsTab from "./components/RequestDetailsTab";
 import CacheSection from "./components/CacheSection";
 import CompressionSection from "./components/CompressionSection";
+import SentinelSection from "./components/SentinelSection";
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -30,7 +31,7 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl && ["overview", "logs", "details", "cache", "compression"].includes(tabFromUrl)
+  const activeTab = tabFromUrl && ["overview", "logs", "details", "cache", "compression", "sentinel"].includes(tabFromUrl)
     ? tabFromUrl
     : "overview";
 
@@ -51,6 +52,7 @@ function UsageContent() {
             { value: "details", label: "Details" },
             { value: "cache", label: "Cache" },
             { value: "compression", label: "Compression" },
+            { value: "sentinel", label: "Sentinel" },
           ]}
           value={activeTab}
           onChange={handleTabChange}
@@ -76,6 +78,7 @@ function UsageContent() {
       {activeTab === "details" && <RequestDetailsTab />}
       {activeTab === "cache" && <CacheSection />}
       {activeTab === "compression" && <CompressionSection />}
+      {activeTab === "sentinel" && <SentinelSection />}
     </div>
   );
 }
