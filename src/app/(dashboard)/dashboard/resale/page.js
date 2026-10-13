@@ -95,6 +95,10 @@ export default function ResalePage() {
   const [mintedKey, setMintedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [publicBaseUrl, setPublicBaseUrl] = useState("");
+  // Key-list controls. Every redemption mints a key, so the list only grows;
+  // uncapped it buries the forms below it and the page becomes a scroll hunt.
+  const [keyQuery, setKeyQuery] = useState("");
+  const [showAllKeys, setShowAllKeys] = useState(false);
   const { copy, copied } = useCopyToClipboard();
 
   // The address handed to a buyer. The dashboard may be open on an address a
@@ -247,6 +251,19 @@ export default function ResalePage() {
   const liveKeys = keys.filter((k) => k.isActive);
   const openCodes = codes.filter((c) => c.isActive && c.usedCount < c.maxUses);
 
+  // Active first, newest first, searchable. Inactive keys are hidden by default
+  // because they are history, not stock.
+  const visibleKeys = useMemo(() => {
+    const q = keyQuery.trim().toLowerCase();
+    return keys
+      .filter((k) => (showAllKeys || k.isActive) && (!q || String(k.name || "").toLowerCase().includes(q)))
+      .sort(
+        (a, b) =>
+          Number(b.isActive) - Number(a.isActive) ||
+          String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+      );
+  }, [keys, keyQuery, showAllKeys]);
+
   return (
     <div className="flex flex-col gap-4 pb-16">
       <div className="flex flex-col gap-1">
@@ -381,7 +398,7 @@ export default function ResalePage() {
         ) : codes.length === 0 ? (
           <p className="text-sm text-text-muted">Belum ada kode. Bikin batch pertama di atas.</p>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex max-h-[22rem] flex-col overflow-y-auto pr-1">
             {codes.map((code) => {
               const state = codeState(code);
               return (
@@ -449,57 +466,92 @@ export default function ResalePage() {
         ) : keys.length === 0 ? (
           <p className="text-sm text-text-muted">Belum ada key. Buyer dapat key sendiri lewat kode.</p>
         ) : (
-          <div className="flex flex-col">
-            {keys.map((key) => {
+          <>
+            <div className="mb-2 flex items-center gap-2">
+              <Input
+                value={keyQuery}
+                onChange={(e) => setKeyQuery(e.target.value)}
+                placeholder="Cari nama key"
+                inputClassName="text-sm"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setShowAllKeys((v) => !v)}
+              >
+                {showAllKeys ? "Aktif saja" : `Semua (${keys.length})`}
+              </Button>
+            </div>
+            {visibleKeys.length === 0 ? (
+              <p className="text-sm text-text-muted">Tidak ada key yang cocok.</p>
+            ) : (
+          <div className="flex max-h-[22rem] flex-col divide-y divide-border-subtle overflow-y-auto pr-1">
+            {visibleKeys.map((key) => {
               const state = keyState(key);
               const left = remaining(key);
+              const copiedId = `key-${key.id}`;
               return (
-                <Row key={key.id}>
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-text-main">{key.name}</span>
-                      <Badge variant={state.variant}>{state.label}</Badge>
-                    </div>
-                    <span className="font-mono text-xs text-text-muted">{key.keyDisplay}</span>
-                    <span className="text-xs text-text-muted">
-                      sisa {fmtQuota(left)} · sampai {fmtDate(key.expiresAt)}
+                // Collapsed row is ONE line per key (nama, badge, sisa, masa aktif):
+                // with 50 keys the list is a scan, not a scroll hunt. The key string
+                // and the three actions sit one tap away inside the same row, so the
+                // buttons stop competing with the names for width on mobile.
+                <details key={key.id} className="group py-2.5">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-0.5 [&::-webkit-details-marker]:hidden">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-main">{key.name}</span>
+                    <Badge variant={state.variant}>{state.label}</Badge>
+                    <span className="basis-full truncate text-xs text-text-muted sm:basis-auto sm:shrink-0">
+                      {fmtQuota(left)} · {fmtDate(key.expiresAt)}
                     </span>
+                    <span className="shrink-0 text-text-muted transition-transform group-open:rotate-90">›</span>
+                  </summary>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <code className="min-w-0 flex-1 truncate rounded-[10px] border border-border bg-surface-2 px-2 py-1.5 font-mono text-[11px] text-text-muted">
+                        {key.keyDisplay}
+                      </code>
+                      <Button variant="secondary" size="sm" onClick={() => copy(key.keyDisplay, copiedId)}>
+                        {copied === copiedId ? "Tersalin" : "Salin"}
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => toggleKey(key)}>
+                        {key.isActive ? "Nonaktifkan" : "Aktifkan"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setConfirmState({
+                            title: "Rotasi key",
+                            message: `Key lama ${key.name} langsung mati. Lanjut?`,
+                            onConfirm: () => rotateKey(key),
+                          })
+                        }
+                      >
+                        Rotasi
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setConfirmState({
+                            title: "Hapus key",
+                            message: `Hapus permanen ${key.name}?`,
+                            onConfirm: () => deleteKey(key),
+                          })
+                        }
+                      >
+                        Hapus
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => toggleKey(key)}>
-                      {key.isActive ? "Nonaktifkan" : "Aktifkan"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setConfirmState({
-                          title: "Rotasi key",
-                          message: `Key lama ${key.name} langsung mati. Lanjut?`,
-                          onConfirm: () => rotateKey(key),
-                        })
-                      }
-                    >
-                      Rotasi
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setConfirmState({
-                          title: "Hapus key",
-                          message: `Hapus permanen ${key.name}?`,
-                          onConfirm: () => deleteKey(key),
-                        })
-                      }
-                    >
-                      Hapus
-                    </Button>
-                  </div>
-                </Row>
+                </details>
               );
             })}
           </div>
+            )}
+          </>
         )}
       </Card>
 
