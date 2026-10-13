@@ -78,6 +78,12 @@ const ENGINE_MODULES = [
   // down, and a public copy hands an attacker the list to route around. The
   // module classifies and records; it never rewrites a request or a reply.
   "personaBreach",
+  // Foreign-prompt sweep (2026-10-13). Lives in the bundle because the signature
+  // table IS the product surface: it names exactly which third-party preambles this
+  // router refuses to forward, and a public copy hands a gateway operator the list
+  // to write around. The module rewrites only system/developer segments that declare
+  // a foreign identity, and never touches user/assistant/tool content.
+  "foreignPrompt",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -381,6 +387,19 @@ const FALLBACKS = {
     getPersonaBreach: "(() => ({ attempts: 0, breaches: 0, breachRate: 0, kinds: {}, lastKind: null }))",
     personaBreachSnapshot: "(() => ({}))",
     _resetPersonaBreach: "(() => {})",
+  },
+  foreignPrompt: {
+    // Fail-OPEN and a no-op, which is the pre-2026-10-13 behaviour exactly: without
+    // the bundle there is no signature table, so nothing is stripped and the request
+    // ships as it always did. The opposite default — a degraded router calling every
+    // segment foreign — would delete caller prompts on a box that cannot even name
+    // the gateway it is guessing at.
+    detectForeignPrompts: "(() => ({ stripped: 0, hits: [] }))",
+    stripForeignPrompts: "(() => ({ stripped: 0, hits: [] }))",
+    classifyForeignSegment: "(() => null)",
+    isOwnSegment: "(() => false)",
+    FOREIGN_PROMPT_MAX_STRIP_CHARS: "600",
+    FOREIGN_PROMPT_SEP: '"\\n\\n"',
   },
 };
 
