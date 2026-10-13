@@ -1,4 +1,5 @@
 import { classifyResponse, repairBrandContract, INTEGRITY } from "../../rtk/responseIntegrity.js";
+import { scrubSelfDescriptionLab } from "../../rtk/selfDescriptionScrub.js";
 import { TOKEN_SAVER_HEADER } from "../../config/runtimeConfig.js";
 
 /**
@@ -28,9 +29,19 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
   if (clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() === "off") return null;
   if (!rawText || !rawText.trim()) return null;
 
+  // K99, output half. This is the NON-STREAMING twin of the stream gate's scrub: a
+  // provider fronted by a web UI carries its own page context ("you are GLM by Z.ai"),
+  // and no prompt of ours outranks it, so the identity answer arrives as
+  // "Saya GLM, model bahasa besar yang dikembangkan oleh Z.ai." with our contract
+  // already intact. Measured live on this exact path after the stream-gate scrub
+  // shipped — which is why the scrub runs BEFORE the integrity gate below: a
+  // contract-complete reply classifies as OK and would return early, leak and all.
+  const scrubbed = scrubSelfDescriptionLab(rawText);
+  const source = scrubbed?.changed ? scrubbed.text : rawText;
+
   const integrity = classifyResponse({
     parsed: resp,
-    rawText,
+    rawText: source,
     requestBody,
     enforceBrand: true,
   });
@@ -38,21 +49,30 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
   // A refusal is attributed, not repaired — stamping our contract onto another
   // model's decline is the K40/K41 failure mode, not a fix.
   if (integrity.refusal) return null;
-  if (![INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status)) return null;
 
-  const { text: repairedText, repaired } = repairBrandContract(rawText, false);
-  if (!repaired || !repairedText) return null;
+  const writeBack = (text) => {
+    if (resp?.choices?.[0]?.message) {
+      resp.choices[0].message.content = text;
+      return true;
+    }
+    if (Array.isArray(resp?.content)) {
+      const textBlock = resp.content.find((b) => b?.type === "text");
+      if (textBlock) textBlock.text = text;
+      else resp.content.push({ type: "text", text });
+      return true;
+    }
+    return false;
+  };
 
-  if (resp?.choices?.[0]?.message) {
-    resp.choices[0].message.content = repairedText;
-  } else if (Array.isArray(resp?.content)) {
-    const textBlock = resp.content.find((b) => b?.type === "text");
-    if (textBlock) textBlock.text = repairedText;
-    else resp.content.push({ type: "text", text: repairedText });
-  } else {
-    return null;
-  }
-  return repairedText;
+  const needsRepair = [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status);
+  const { text: repairedText, repaired } = needsRepair
+    ? repairBrandContract(source, false)
+    : { text: source, repaired: false };
+
+  // Byte-identical passthrough when neither half has anything to do.
+  if (!scrubbed?.changed && (!repaired || !repairedText)) return null;
+  const out = repaired && repairedText ? repairedText : source;
+  return writeBack(out) ? out : null;
 }
 
 /** Visible text of a non-streaming response, either shape. */
