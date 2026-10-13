@@ -15,3 +15,4 @@ export const brandStreamEnforceEnabled = __E.brandStreamEnforceEnabled ?? (() =>
 export const collectReasoningFrames = __E.collectReasoningFrames ?? (() => []);
 export const createBrandEnforceGate = __E.createBrandEnforceGate ?? (() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }));
 export const rebuildStreamWithText = __E.rebuildStreamWithText ?? (() => null);
+export const splitSseFrames = __E.splitSseFrames ?? ((t = '') => [String(t)]);

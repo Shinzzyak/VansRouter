@@ -54,6 +54,11 @@ const ENGINE_MODULES = [
   "selfMeasuringBypass",
   "routeGuardMemory",
   "modelImmunityHints",
+  // Self-description lab scrub (2026-10-13, K99 output half). The prompt-level clause
+  // holds wherever the prompt gets a vote; on a provider fronted by a web UI whose own
+  // page context declares the model, the only lever is the outgoing text. Lives in the
+  // bundle because it is product brand machinery: it encodes which attributions leak.
+  "selfDescriptionScrub",
   // Refusal attribution (2026-09-23). Lives in the bundle rather than the public
   // repo because its whole value is the knowledge of WHICH refusals are the
   // router's own doing: the always-on persona layer instructs the model to quote
@@ -234,7 +239,15 @@ const FALLBACKS = {
     assembleVisibleText: "((t = '') => ({ visible: String(t), reasoning: '', structured: false }))",
     collectReasoningFrames: "(() => [])",
     rebuildStreamWithText: "(() => null)",
+    splitSseFrames: "((t = '') => [String(t)])",
     createBrandEnforceGate: "(() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }))",
+  },
+  // Self-description lab scrub (K99 output half, 2026-10-13). A bundle-less router keeps
+  // the pre-output-half behaviour exactly: no scrub, and the prompt clause still applies.
+  // Degrading to "changed: false" is what makes the gate a no-op rather than a rewriter.
+  selfDescriptionScrub: {
+    SELF_DESCRIPTION_SCRUB_HEAD_CHARS: "600",
+    scrubSelfDescriptionLab: "((text) => ({ text: String(text ?? ''), changed: false, hits: [] }))",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",
