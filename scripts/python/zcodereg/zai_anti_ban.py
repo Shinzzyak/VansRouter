@@ -86,6 +86,10 @@ _load()
 # One browser at a time. Serialising is both the RAM fix and the ban fix.
 BROWSER_GATE = threading.Semaphore(MAX_CONCURRENT)
 
+# ponytail: tunggu gate tak terbatas = request bisa lewat gate 200s router
+# sebelum browser-nya sendiri mulai. Batasi, lalu serahkan keputusan ke pemanggil.
+GATE_WAIT_S = float(os.environ.get("ZAI_GATE_WAIT_S", "20"))
+
 
 def _prune(now: float, stamps: list[float]) -> list[float]:
     cutoff = now - 3600.0

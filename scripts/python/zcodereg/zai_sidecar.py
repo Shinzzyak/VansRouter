@@ -184,7 +184,14 @@ class Handler(BaseHTTPRequestHandler):
             email, why = _pick_slot()
             if not email:
                 return self._json({"error": last or why}, 502)
-            with guard.BROWSER_GATE:
+            # ponytail: gagal cepat kalau antrean browser sudah lebih panjang dari
+            # kesabaran router (STREAM_FIRST_CHUNK_TIMEOUT_MS=200s). 503 di sini jauh
+            # lebih baik daripada 200s senyap yang berakhir BrokenPipe di baris 259.
+            if not guard.BROWSER_GATE.acquire(timeout=guard.GATE_WAIT_S):
+                return self._json(
+                    {"error": "browser busy (gate wait > %ss)" % guard.GATE_WAIT_S,
+                     "email": email}, 503)
+            try:
                 # ponytail: a worker exception used to escape do_POST entirely --
                 # BaseHTTPRequestHandler then wrote NO response and the client saw
                 # an empty body (journal: "Exception occurred during processing").
@@ -196,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                             "email": email}
                     out = None
                     continue
+            finally:
+                guard.BROWSER_GATE.release()
             guard.note_result(email, "error" not in out)
             if "error" not in out:
                 break
