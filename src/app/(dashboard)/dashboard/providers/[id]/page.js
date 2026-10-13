@@ -319,7 +319,9 @@ export default function ProviderDetailPage() {
   const fetchConnections = useCallback(async () => {
     try {
       const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
-        fetch("/api/providers", { cache: "no-store" }),
+        // Only this provider's connections: the API used to ship every connection
+        // (~2 MB) on each open and each button action, which is why the page dragged.
+        fetch(`/api/providers?provider=${encodeURIComponent(providerId)}`, { cache: "no-store" }),
         fetch("/api/provider-nodes", { cache: "no-store" }),
         fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
         fetch("/api/settings", { cache: "no-store" }),

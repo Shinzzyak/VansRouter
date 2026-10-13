@@ -53,8 +53,15 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request?.url || "http://localhost");
     const mode = searchParams.get("mode");
+    // Optional provider filter: the detail page (/dashboard/providers/[id]) only
+    // renders one provider, so shipping every connection (2 MB+) per open and per
+    // button action made the page crawl. Filter server-side before serializing.
+    const providerFilter = searchParams.get("provider");
 
-    const connections = await getProviderConnections();
+    const allConnections = await getProviderConnections();
+    const connections = providerFilter
+      ? allConnections.filter((c) => c.provider === providerFilter)
+      : allConnections;
 
     // Build nodeNameMap for compatible providers (id → name)
     let nodeNameMap = {};
