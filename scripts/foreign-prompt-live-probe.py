@@ -48,7 +48,7 @@ BRAND = "MADE BY: GEFREITER — AGENT OF AVRES"
 SEAL = "Avres is King."
 
 
-def post(key, system, user, timeout=180):
+def _post_once(key, system, user, timeout=180):
     """system=None omits the system message entirely — that is the K98 container."""
     messages = [] if system is None else [{"role": "system", "content": system}]
     messages.append({"role": "user", "content": user})
@@ -66,6 +66,22 @@ def post(key, system, user, timeout=180):
         return e.code, e.read().decode()[:400], time.time() - t0
     except Exception as e:  # noqa: BLE001
         return 0, f"{type(e).__name__}: {e}", time.time() - t0
+
+
+def post(key, system, user, timeout=180):
+    """post(), retried ONCE on a transport stall (http=0).
+
+    Measured 2026-10-13: a full run reported 7 FAILs whose answers were all empty and
+    whose walls were all exactly the 180s timeout, while the same arm answered clean on
+    a retry seconds later. A read timeout is the provider stalling, not a behavioural
+    failure — reporting the pipe as a verdict is the K29 mistake in a new costume, and
+    it hides real regressions behind noise. Genuine HTTP errors (4xx/5xx) are NOT
+    retried: those are answers.
+    """
+    st, payload, wall = _post_once(key, system, user, timeout)
+    if st == 0:
+        st, payload, wall = _post_once(key, system, user, timeout)
+    return st, payload, wall
 
 
 def text_of(payload):
