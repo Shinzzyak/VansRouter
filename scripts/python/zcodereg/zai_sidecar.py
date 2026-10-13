@@ -25,6 +25,7 @@ from zai_chat_worker import (
     inject_cookies,
     _read_reply,
     chat_once,
+    submit_chat,
     build_tools_prompt,
     parse_tool_calls,
     _render_messages,
@@ -105,8 +106,13 @@ def next_account():
 
 
 def do_chat(prompt, model=None, tools=None, email=None):
-    """One UI-driven chat (delegates to worker.chat_once so tool parsing is shared)."""
-    return chat_once(prompt, model=model, tools=tools, email=email)
+    """One UI-driven chat on the warm browser (worker.submit_chat).
+
+    submit_chat runs the turn on the single owner thread that holds the live
+    Camoufox, so the ~200s cold launch is paid once per process, not per turn.
+    Tool parsing stays in the worker, shared with the CLI path.
+    """
+    return submit_chat(prompt, model=model, tools=tools, email=email, timeout_s=150)
 
 
 def _pick_slot():

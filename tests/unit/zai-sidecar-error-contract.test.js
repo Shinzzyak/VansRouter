@@ -43,14 +43,19 @@ function codeOnly(source) {
 /** The send block inside chat_once: composer lookup through the submit attempt. */
 function sendBlock(source) {
   const start = source.indexOf("box = page.query_selector('#chat-input')");
-  const end = source.indexOf("_wait_submit_armed(page)");
+  const end = source.indexOf("_wait_submit_armed(page", start);
   if (start === -1 || end === -1) return "";
   return source.slice(start, end);
 }
 
 /** The do_chat call site inside do_POST (the bounded account-retry loop). */
 function chatCallBlock(source) {
-  const start = source.indexOf("with guard.BROWSER_GATE:");
+  // Two accepted gate shapes: the original `with guard.BROWSER_GATE:` block and
+  // the bounded acquire/release that replaced it. Anchor on whichever the
+  // source actually uses -- a hardcoded `with` anchor silently returned "" once
+  // the gate became acquire/release, which is how this guard went red.
+  let start = source.indexOf("if not guard.BROWSER_GATE.acquire(");
+  if (start === -1) start = source.indexOf("with guard.BROWSER_GATE:");
   // NB: end on the assistant-message assembly that FOLLOWS the give-up branch,
   // NOT on `guard.note_result(email,` -- the guarded version calls note_result
   // INSIDE the except block, so anchoring there truncates the slice before the
@@ -94,9 +99,11 @@ describe("zai sidecar — a worker failure must never kill the HTTP response", (
     // the loop must exist, must re-pick an account, and must be bounded
     expect(retry).toMatch(/for attempt in range\(ACCOUNT_ATTEMPTS\):\s*\n\s*if attempt and[\s\S]{0,200}?t_attempt = time\.monotonic\(\)\s*\n\s*email, why = _pick_slot\(\)/);
     expect(chatCode).toMatch(/continue/);
-    // the 502 must fire only AFTER the except block, never from inside it
+    // the 502 must fire only AFTER the except block, never from inside it.
+    // lastIndexOf: the slice opens on the gate, so the FIRST `_json(` is the
+    // 503 fast-fail that precedes the try -- the give-up 502 is the last one.
     const exceptAt = chatCode.indexOf("except Exception as e:");
-    const jsonAt = chatCode.indexOf("_json(");
+    const jsonAt = chatCode.lastIndexOf("_json(");
     expect(exceptAt).toBeGreaterThan(-1);
     expect(jsonAt).toBeGreaterThan(exceptAt);
     expect(chatCode.slice(exceptAt, jsonAt)).not.toMatch(/_json\(/);

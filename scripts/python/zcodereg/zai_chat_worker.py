@@ -14,7 +14,7 @@ Usage:
 Env:
   ZCODE_DB  path to data.sqlite (default VansRouter data/db/data.sqlite)
 """
-import sys, os, json, time, sqlite3, uuid, re
+import sys, os, json, time, sqlite3, uuid, re, threading, queue
 
 DB = os.environ.get("ZCODE_DB", "/home/ubuntu/VansRouter/data/db/data.sqlite")
 
@@ -253,19 +253,23 @@ def parse_tool_calls(text):
 
 
 def _dismiss_welcome(page, appear_ms=8000):
-    """Close the chat.z.ai welcome overlay so the composer actually arms.
+    """Click the chat.z.ai welcome overlay's own Close button, if one is up.
 
-    chat.z.ai renders a welcome modal at z=10000 ("New / GLM-5.3-Flash -- A new
-    native multimodal model...") that swallows the composer: measured, the submit
-    button NEVER arms while it is up ("submit armed at goto+NEVER" over 25s with
-    no interaction). The old path cleared it with a fixed `wait_for_timeout(6000)`
-    plus 3 blind Escape presses -- 9.5s of stall on EVERY request, and Escape is
-    not guaranteed to hit the modal. Clicking the modal's own Close button costs
-    ~2s and is deterministic (probe_modal_v3.py: 21.5s avg vs 26.1s old).
+    chat.z.ai renders an announcement modal ("Explore the GLM-5.3 ...") that
+    swallows the composer: while it is up the submit button never arms, so the
+    turn would sit until the reply timeout. The old path cleared it with a fixed
+    `wait_for_timeout(6000)` plus 3 blind Escape presses -- 9.5s of stall on EVERY
+    request, and Escape is not guaranteed to hit the modal. Clicking the modal's
+    own Close button costs ~0.3s and is deterministic.
 
-    Escape presses are kept as a fallback for the no-Close-button case.
+    The modal is DELAYED and per-account: probed 2026-10-13, it mounts anywhere
+    from goto+3.9s to goto+16.7s, or never at all (justin.stewart, emily.campbell
+    both showed runs with no modal). No fixed pre-wait can cover that window, so
+    this is called only when the composer provably failed to arm -- at which point
+    the overlay is up and its Close button already exists, so the poll returns on
+    the first pass. `appear_ms` is just a ceiling for the pathological case.
     """
-    js = """() => {
+    click_js = """() => {
       for (const o of document.querySelectorAll('div.fixed.inset-0')) {
         if (parseInt(getComputedStyle(o).zIndex || 0) <= 1000) continue;
         const b = [...o.querySelectorAll('button, [role="button"]')]
@@ -277,18 +281,54 @@ def _dismiss_welcome(page, appear_ms=8000):
     deadline = time.time() + appear_ms / 1000
     while time.time() < deadline:
         try:
-            if page.evaluate(js) == "clicked":
+            if page.evaluate(click_js) == "clicked":
                 page.wait_for_timeout(300)
                 return True
         except Exception:
             pass
         page.wait_for_timeout(200)
+    # no Close button ever appeared: blind Escape as a last resort
     for _ in range(3):
         try:
             page.keyboard.press("Escape")
             page.wait_for_timeout(700)
         except Exception:
             pass
+    return False
+
+
+def _composer_covered(page):
+    """True when a welcome overlay is sitting on top of the composer.
+
+    The composer renders UNDER the announcement modal, so plain existence is not
+    enough -- a fill() aimed at a covered composer lands on the overlay and the
+    text never reaches the app.
+    """
+    js = """() => {
+      const e = document.querySelector('#chat-input') || document.querySelector('textarea');
+      if (!e) return false;
+      const r = e.getBoundingClientRect();
+      if (r.width < 10 || r.height < 10) return false;
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !top || !(e === top || e.contains(top) || top.contains(e));
+    }"""
+    try:
+        return bool(page.evaluate(js))
+    except Exception:
+        return False
+
+
+def _wait_composer_exists(page, timeout_ms=10000):
+    """Wait for the composer node to exist at all. Returns True on success."""
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        try:
+            if page.evaluate(
+                    "() => !!(document.querySelector('#chat-input') || document.querySelector('textarea'))"):
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(200)
     return False
 
 
@@ -336,49 +376,71 @@ def _generation_finished(page):
 
 
 def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
+    """Cold one-shot turn (CLI + probes): launch a browser, run one turn, close it.
+
+    The HTTP path does NOT use this -- it goes through submit_chat() so the
+    Camoufox launch happens once and the browser is reused across turns.
+    """
+    from camoufox.sync_api import Camoufox
+    # t0 is taken BEFORE the turn body, so timeout_s bounds the WHOLE turn
+    # (goto + fill + submit + poll), not just the reply poll. Live 2026-10-11
+    # 20:03: one request sat 4m44s before the client dropped the socket
+    # (BrokenPipeError in the sidecar journal) while the poll loop still believed
+    # it was in budget.
+    t0 = time.time()
+    with Camoufox(headless=True, timeout=LAUNCH_TIMEOUT_MS) as browser:
+        return _turn(browser, prompt, model, email, tools, timeout_s, t0)
+
+
+def _turn(browser, prompt, model, email, tools, timeout_s, t0):
+    """One UI chat turn on an ALREADY-LIVE browser.
+
+    A fresh context per turn is deliberate: the pool round-robins accounts, so
+    the cookie jar must be per-account. Closing the context releases the page.
+    """
     acc = load_account(email)
     if not acc:
         return {"error": "no zcode account"}
-    from camoufox.sync_api import Camoufox
-    # t0 is taken BEFORE the browser exists, so timeout_s bounds the WHOLE turn
-    # (launch + goto + fill + submit + poll), not just the reply poll. Live
-    # 2026-10-11 20:03: launch+goto+fill ran entirely outside the old deadline and
-    # one request sat 4m44s before the client dropped the socket (BrokenPipeError in
-    # the sidecar journal) while the poll loop still believed it was in budget.
-    t0 = time.time()
-    with Camoufox(headless=True, timeout=LAUNCH_TIMEOUT_MS) as browser:
-        ctx = browser.new_context()
+    ctx = browser.new_context()
+    try:
         inject_cookies(ctx, acc["cookies"])
         page = ctx.new_page()
         try:
             page.goto("https://chat.z.ai", wait_until="domcontentloaded", timeout=60000)
         except Exception as e:
             return {"error": f"goto: {str(e)[:100]}"}
-        _dismiss_welcome(page)
-        # optional: select model (defaults to top model if omitted)
-        if model:
-            try:
-                btn = page.query_selector('button:has-text("GLM"), [class*="model-select"]')
-                # model dropdown exists but leaving default is fine for now
-                pass
-            except Exception:
-                pass
         # fill + send
         full_prompt = build_tools_prompt(prompt, tools)
         after = _assistant_block_count(page)
-        box = page.query_selector('#chat-input') or page.query_selector('textarea')
-        if not box:
-            return {"error": "no #chat-input"}
-        # ponytail: click is best-effort only. The welcome overlay is
-        # pointer-events-none but its children still swallow clicks, so this
-        # raises a 30s TimeoutError on some boots (seen in the sidecar journal).
-        # fill() focuses the element itself, so a failed click is survivable.
-        try:
-            box.click(timeout=3000)
-        except Exception:
-            pass
-        box.fill(full_prompt)
-        _wait_submit_armed(page)
+        _wait_composer_exists(page)
+        # A delayed per-account announcement modal mounts at an arbitrary point in
+        # the first ~17s after load. It covers the composer AND replaces its node,
+        # which wipes whatever was typed -- measured: fill() reported success with
+        # the input value back at 0 and the submit button never armed. So retry the
+        # whole dismiss/fill/arm sequence rather than trusting a single pass.
+        box = None
+        for attempt in (1, 2, 3):
+            if _composer_covered(page):
+                _dismiss_welcome(page)
+            box = page.query_selector('#chat-input') or page.query_selector('textarea')
+            if not box:
+                return {"error": "no #chat-input"}
+            # ponytail: click is best-effort only. The welcome overlay is
+            # pointer-events-none but its children still swallow clicks, so this
+            # raises a 30s TimeoutError on some boots (seen in the sidecar journal).
+            # fill() focuses the element itself, so a failed click is survivable.
+            try:
+                box.click(timeout=3000)
+            except Exception:
+                pass
+            try:
+                box.fill(full_prompt)
+            except Exception:
+                continue
+            if _wait_submit_armed(page, timeout_ms=1500):
+                break
+        else:
+            return {"error": "composer never armed", "email": acc["email"]}
         sent = False
         for sel in ['button[type="submit"]', '[data-testid="send-button"]']:
             try:
@@ -423,6 +485,108 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
                 prev_txt = txt
             page.wait_for_timeout(1000)
         return {"error": "timeout waiting for reply", "email": acc["email"]}
+    finally:
+        try:
+            ctx.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Warm browser: one owner thread + a job queue.
+#
+# The Playwright sync API is bound to the thread that created the browser, so a
+# process-wide browser cannot be shared directly -- behind ThreadingHTTPServer,
+# request 2 lands on a different thread and dies with "cannot switch to a
+# different thread". One owner thread therefore creates the browser once and
+# runs every turn on it; HTTP handlers submit a job and block on the result.
+# This deletes the per-request Camoufox launch -- the dominant latency term
+# (10-30s warm, 205-209s measured cold) and the memory spike that put the
+# unit's peak at 1.4G.
+#
+# The browser is recycled after RECYCLE_TURNS turns or RECYCLE_SEC seconds so
+# the Camoufox fingerprint rotates instead of being pinned to the pool forever
+# (every account already shares one IP; a single frozen fingerprint on top of
+# that is needless correlation).
+# ---------------------------------------------------------------------------
+RECYCLE_TURNS = int(os.environ.get("ZAI_BROWSER_RECYCLE_TURNS", "40"))
+RECYCLE_SEC = float(os.environ.get("ZAI_BROWSER_RECYCLE_SEC", "1800"))
+
+_JOB_Q = queue.Queue()
+_OWNER: dict = {"thread": None}
+_OWNER_LOCK = threading.Lock()
+
+
+def _owner_loop():
+    """Owns the Camoufox session for the process lifetime; one turn at a time."""
+    from camoufox.sync_api import Camoufox
+    cm = None
+    browser = None
+    turns = 0
+    born = 0.0
+    while True:
+        job = _JOB_Q.get()
+        if job is None:
+            break
+        if job["cancelled"]:
+            job["event"].set()
+            continue
+        if cm is not None and (turns >= RECYCLE_TURNS or time.time() - born > RECYCLE_SEC):
+            _teardown(cm)
+            cm = browser = None
+        try:
+            if browser is None:
+                cm = Camoufox(headless=True, timeout=LAUNCH_TIMEOUT_MS)
+                browser = cm.__enter__()
+                turns, born = 0, time.time()
+            job["result"] = _turn(browser, job["prompt"], job["model"], job["email"],
+                                  job["tools"], job["timeout_s"], time.time())
+            turns += 1
+        except Exception as e:
+            # a wedged or crashed browser must not poison the next turn
+            _teardown(cm)
+            cm = browser = None
+            job["result"] = {"error": f"worker: {type(e).__name__}: {str(e)[:180]}"}
+        finally:
+            job["event"].set()
+
+
+def _teardown(cm):
+    """Close a Camoufox session; __exit__ also stops its playwright loop."""
+    if cm is None:
+        return
+    try:
+        cm.__exit__(None, None, None)
+    except Exception:
+        pass
+
+
+def _ensure_owner():
+    with _OWNER_LOCK:
+        t = _OWNER["thread"]
+        if t is None or not t.is_alive():
+            t = threading.Thread(target=_owner_loop, name="zai-browser-owner", daemon=True)
+            _OWNER["thread"] = t
+            t.start()
+
+
+def submit_chat(prompt, model=None, email=None, timeout_s=150, tools=None, wait_s=None):
+    """Run one turn on the warm-browser owner thread; return _turn()'s dict.
+
+    The sidecar calls this while holding BROWSER_GATE, so at most one job is in
+    flight and the wait is normally just the turn itself. `wait_s` is a wedge
+    backstop: if the owner never answers, fail instead of hanging the gate.
+    """
+    _ensure_owner()
+    job = {"prompt": prompt, "model": model, "email": email,
+           "timeout_s": timeout_s, "tools": tools,
+           "event": threading.Event(), "result": None, "cancelled": False}
+    _JOB_Q.put(job)
+    budget = wait_s if wait_s else timeout_s + 30
+    if not job["event"].wait(budget):
+        job["cancelled"] = True
+        return {"error": "worker timeout (no result in %ss)" % budget, "email": email}
+    return job["result"] or {"error": "worker returned nothing", "email": email}
 
 
 def main():
