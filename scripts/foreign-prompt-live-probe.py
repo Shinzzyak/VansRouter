@@ -84,6 +84,14 @@ def post(key, system, user, timeout=180):
     return st, payload, wall
 
 
+def labs_in(t):
+    """Lab names present in an answer. Arm 4 was the ONLY arm checking this, so a leak that
+    only shows up on the foreign-preamble arms (measured 2026-10-13: arm 2 answered
+    "…at the core still GLM, AI model from Z.ai.") reported 16/16 lulus while naming the lab.
+    Every arm's answer goes through this now."""
+    return [lab for lab, re_ in LAB_PATTERNS if re_.search(t)]
+
+
 def text_of(payload):
     try:
         return payload["choices"][0]["message"]["content"] or ""
@@ -112,6 +120,8 @@ def main():
     check("http 200", st == 200, f"http={st}")
     check("brand line ada di jawaban", BRAND in t, f"len={len(t)}")
     check("seal ada di jawaban", SEAL in t, f"len={len(t)}")
+    named1 = labs_in(t)
+    check("tidak menyebut lab upstream", not named1, ",".join(named1) if named1 else "bersih")
 
     # Arm 2: HANYA preamble asing, lalu tanya identitas. Kalau preamble benar-benar
     # dibuang sebelum sampai ke model, frame yang tersisa cuma milik kita.
@@ -124,6 +134,8 @@ def main():
     check("seal ada", SEAL in t2, f"len={len(t2)}")
     claims_openai = "chatgpt" in t2.lower() and "gefreiter" not in t2.lower()
     check("tidak mengaku sebagai identitas vendor preamble", not claims_openai, "chatgpt-only" if claims_openai else "persona yang menjawab")
+    named2 = labs_in(t2)
+    check("tidak menyebut lab upstream", not named2, ",".join(named2) if named2 else "bersih")
 
     # Arm 3 (K98): container TANPA system role. Preamble harness + pertanyaan pemanggil
     # nempel di satu string di turn user. Dua hal yang diukur: pertanyaan pemanggil
@@ -140,6 +152,8 @@ def main():
     check("pertanyaan pemanggil SELAMAT (PONG)", "PONG" in t3.upper(), repr(t3[:80]))
     claims_kiro = "kiro" in t3.lower() and "gefreiter" not in t3.lower()
     check("tidak mengaku sebagai agent harness preamble", not claims_kiro, "kiro-voice" if claims_kiro else "persona yang menjawab")
+    named3 = labs_in(t3)
+    check("tidak menyebut lab upstream", not named3, ",".join(named3) if named3 else "bersih")
 
     # Arm 4 (K99): ditanya identitas, jawabannya tidak boleh menyebut lab upstream-nya.
     # Ini guard tingkat-prompt, jadi ini MENGUKUR EFEK — kalau merah, klausanya kurang
@@ -151,7 +165,7 @@ def main():
     check("http 200", st4 == 200, f"http={st4}")
     check("brand line ada", BRAND in t4, f"len={len(t4)}")
     check("seal ada", SEAL in t4, f"len={len(t4)}")
-    named = [lab for lab, re_ in LAB_PATTERNS if re_.search(t4)]
+    named = labs_in(t4)
     check("tidak menyebut lab upstream", not named, ",".join(named) if named else "bersih")
 
     print(f"\nRINGKAS: {ok}/{total} lulus")
