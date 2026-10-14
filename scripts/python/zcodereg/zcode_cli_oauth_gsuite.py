@@ -29,7 +29,7 @@ import time
 import requests
 
 DB = "/home/ubuntu/VansRouter/data/db/data.sqlite"
-ACCOUNTS_FILE = "/home/ubuntu/pelerproxy/gsuite-accounts.txt"
+ACCOUNTS_FILE = os.environ.get("ZCODE_ACCOUNTS_FILE", "/home/ubuntu/pelerproxy/gsuite-accounts.txt")
 WARP = "socks5h://127.0.0.1:40000"
 LOCK_PATH = "/tmp/zcode-oauth-gsuite.lock"
 BACKUP_DIR = "/tmp/zcode-refresh-backups"
@@ -77,6 +77,11 @@ def already_fresh(email, hours=24):
         return False, "bad-json"
     saved = psd.get("zcodeJwtSavedAt")
     if not psd.get("zcodeJwtToken") or not saved:
+        # The worker authenticates with COOKIES alone (proven: a cookies-only
+        # capture answers a turn). A CLI poll that times out leaves no JWT, so
+        # treating that as "not fresh" would re-run every such account on resume.
+        if psd.get("cookies"):
+            return True, "cookies-only"
         return False, "no-jwt"
     try:
         saved_ts = time.mktime(time.strptime(saved[:19], "%Y-%m-%dT%H:%M:%S"))
@@ -439,9 +444,22 @@ def do_one(email, pw, log):
         log(f"  post-login url: {target.url[:110]} text={txt[:120]}")
         zcode_consent(target, log)
         time.sleep(4)
+        # The sidecar worker authenticates by injecting z.ai COOKIES
+        # (zai_chat_worker.load_account -> inject_cookies); the JWT alone is not
+        # enough for it. Capture them from the same browser that just completed
+        # the consent, so a freshly registered account is usable immediately.
+        cookies = [c for c in ctx.cookies() if "z.ai" in str(c.get("domain", ""))]
+        log(f"  cookies captured: {len(cookies)}")
 
     res = poll_flow(poll_token, flow_id)
     if not res:
+        # The sidecar worker authenticates with z.ai COOKIES only
+        # (zai_chat_worker.load_account -> inject_cookies). When the CLI consent
+        # page never renders the flow cannot complete and the poll times out, but
+        # the browser session is already valid -> keep the account, JWT-less.
+        if len(cookies) >= 5:
+            return {"token": "", "zai_at": "", "cookies": cookies,
+                    "user": {}}, "cookies-only"
         return None, "poll-timeout"
     d = res.get("data") or {}
     if d.get("status") != "ready":
@@ -450,10 +468,11 @@ def do_one(email, pw, log):
     zai_at = (d.get("zai") or {}).get("access_token", "")
     if not token:
         return None, "no-token-in-ready"
-    return {"token": token, "zai_at": zai_at, "user": d.get("user") or {}}, "ok"
+    return {"token": token, "zai_at": zai_at, "cookies": cookies,
+            "user": d.get("user") or {}}, "ok"
 
 
-def save_token(email, token, zai_at):
+def save_token(email, token, zai_at, cookies=None):
     conn = sqlite3.connect(DB, timeout=30)
     try:
         row = conn.execute(
@@ -466,10 +485,19 @@ def save_token(email, token, zai_at):
         rid, raw = row
         d = json.loads(raw) if raw else {}
         psd = d.get("providerSpecificData") or {}
-        psd["zcodeJwtToken"] = token
-        psd["zaiAccessToken"] = zai_at
-        psd["zcodeJwtSavedAt"] = saved_at
+        if token:
+            # A cookies-only capture (poll timeout) must not wipe a good JWT.
+            psd["zcodeJwtToken"] = token
+            psd["zaiAccessToken"] = zai_at
+            psd["zcodeJwtSavedAt"] = saved_at
+        if cookies:
+            # Only ever replace with a non-empty capture: a consent flow that ran
+            # against an already-logged-in context can come back with zero z.ai
+            # cookies, and clobbering a working set with [] would take the
+            # account offline.
+            psd["cookies"] = cookies
         d["providerSpecificData"] = psd
+        d["accessToken"] = d.get("accessToken") or token
         d["testStatus"] = "active"
         d["backoffLevel"] = 0
         d["lastError"] = None
@@ -549,12 +577,25 @@ def main():
                 res, status = do_one(email, accounts[email], log)
             except Exception as exc:  # noqa: BLE001
                 res, status = None, f"ERR {str(exc)[:120]}"
+            if not res:
+                # The Google entry button / consent page is a coin flip on a
+                # fresh WARP exit; one more pass usually lands it. Never retry a
+                # clean credential capture.
+                for attempt in range(2, 4):
+                    log(f"  attempt {attempt}/3 failed: {status}")
+                    time.sleep(5)
+                    try:
+                        res, status = do_one(email, accounts[email], log)
+                    except Exception as exc:  # noqa: BLE001
+                        res, status = None, f"ERR {str(exc)[:120]}"
+                    if res:
+                        break
             if res:
                 if args.dry:
                     print(f"  DRY ok JWT {len(res['token'])}c (not saved)", flush=True)
                 else:
-                    print(f"  saved: {save_token(email, res['token'], res['zai_at'])}"
-                          f" JWT {len(res['token'])}c zai_at {len(res['zai_at'])}c", flush=True)
+                    print(f"  saved: {save_token(email, res['token'], res['zai_at'], res.get('cookies'))}"
+                          f" JWT {len(res['token'])}c zai_at {len(res['zai_at'])}c ck {len(res.get('cookies') or [])}", flush=True)
                 results["ok"].append(email)
                 with open(PROGRESS_PATH, "a") as fh:
                     fh.write(email + "\n")

@@ -31,6 +31,15 @@ def _kv_upsert(conn, value):
         conn.execute("INSERT INTO kv (scope, key, value) VALUES (?,?,?)", (SCOPE, KEY, value))
 
 
+def _has_cookies(raw):
+    """True when the row holds a z.ai cookie set, i.e. can actually serve."""
+    try:
+        psd = (json.loads(raw) or {}).get("providerSpecificData") or {}
+    except Exception:
+        return False
+    return bool(psd.get("cookies"))
+
+
 def main():
     args = set(sys.argv[1:])
     conn = sqlite3.connect(DB)
@@ -44,13 +53,17 @@ def main():
             conn.commit()
             print("cleared", KEY)
             return
+        # No isActive filter: every zcode row is isActive=0 by design (the kv IS
+        # the routing list, the rows are only the credential store), so filtering
+        # on it silently refuses to seed. Select on the credential instead -- a
+        # row without cookies cannot serve a turn and would just burn guard budget.
         rows = conn.execute(
-            "SELECT email FROM providerConnections "
-            "WHERE provider='zcode' AND isActive=1 AND email IS NOT NULL ORDER BY email"
+            "SELECT email, data FROM providerConnections "
+            "WHERE provider='zcode' AND email IS NOT NULL ORDER BY email"
         ).fetchall()
-        emails = [r[0] for r in rows if r[0]]
+        emails = [r[0] for r in rows if r[0] and _has_cookies(r[1])]
         if not emails:
-            print("refusing to seed: zero active zcode rows found")
+            print("refusing to seed: no zcode row with cookies found")
             return 1
         _kv_upsert(conn, json.dumps(emails))
         conn.commit()
