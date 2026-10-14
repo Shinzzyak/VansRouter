@@ -25,6 +25,12 @@ const IP_LIMIT_BODY = /limit|rate|quota|exhausted|capacity|too many|retry/i;
 // Size, header order, x-opencode-client/project/request, proxy egress and
 // tool_choice are all irrelevant. A UA below 1.18.0 returns 426
 // "OpenCode 1.18.0 or newer is required to use the free tier".
+//
+// RE-MEASURED 2026-10-14: the 12 hex chars are no longer shape-checked only —
+// upstream now decodes them as a timestamp and 403s anything that is not an
+// inverted one, so a plain clock value or a SHA-256 prefix (both of which our
+// generators used to emit) is rejected while the four shape rules above still
+// hold. See sessionTimePrefix() for the A/B numbers.
 const OPENCODE_MIN_FREE_VERSION = "1.18.0";
 // Decoy definition used for the injected fingerprint stubs; only the names are
 // checked by the gate, so the model sees tools it has no schema for.
@@ -48,20 +54,45 @@ function generateRequestId() {
   return `msg_${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
+// 12-hex prefix of every session id we mint. The gate decodes it as a
+// timestamp: ~ms * 4096 truncated to 48 bit, which is why real ids render as
+// `ses_ecc164b4fffe…`. A plain clock value or a digest prefix decodes to a
+// huge number and is rejected with 403 FreeTierError even though the SHAPE
+// (12 lowercase hex + 14 base62) is perfect.
+//
+// Single-variable A/B 2026-10-14 against /zen/v1/chat/completions (big-pickle,
+// stream + bash/read tools), one request per case:
+//   inverted prefix -> 200   (UA 1.18.0 / 1.18.31 / 1.19.0 all pass)
+//   plain timestamp -> 403
+//   sha256 prefix   -> 403   (this is what toGateSessionId used to send)
+//   prefix all-zero -> 403
+// Age is not checked: inverted prefixes aged 0 s, 5 m, 15 m, 30 m, 2 h, 24 h,
+// 7 d and +1 h (future) all return 200, so the prefix does not need to be minted
+// per request. Refreshed daily anyway: a long-lived process never ages out of
+// upstream tolerance, and a day is short enough that prompt-cache continuity
+// (same seed -> same id) survives for real.
+// ponytail: daily granularity — switch to a per-request prefix only if
+// upstream starts rejecting ids older than a day.
+let cachedPrefixDay = -1;
+let cachedPrefix = "";
+
+function sessionTimePrefix() {
+  const day = Math.floor(Date.now() / 86400000);
+  if (day !== cachedPrefixDay) {
+    cachedPrefixDay = day;
+    const inverted = ~(BigInt(Date.now()) * 0x1000n) & 0xffffffffffffn;
+    cachedPrefix = inverted.toString(16).padStart(12, "0");
+  }
+  return cachedPrefix;
+}
+
 // `ses_` + 26 chars where the first 12 are lowercase hex. A randomUUID-based id
 // (32 hex) is rejected by the gate with the same 403.
 function generateSessionId() {
-  const ts = Date.now();
-  let time = "";
-  for (let i = 0; i < 6; i++) {
-    time += Number((BigInt(ts) >> BigInt(40 - 8 * i)) & 0xffn)
-      .toString(16)
-      .padStart(2, "0");
-  }
   const bytes = crypto.getRandomValues(new Uint8Array(14));
   let rand = "";
   for (const b of bytes) rand += B62[b % 62];
-  return `ses_${time}${rand}`;
+  return `ses_${sessionTimePrefix()}${rand}`;
 }
 
 // The session manager hands back a `randomUUID()+Date.now()` string, which the
@@ -69,10 +100,11 @@ function generateSessionId() {
 // is preserved: the same seed always maps to the same gate-valid id.
 function toGateSessionId(seed) {
   const digest = createHash("sha256").update(String(seed)).digest();
-  const time = digest.subarray(0, 6).toString("hex"); // 12 lowercase hex chars
+  // Keep the digest-derived tail (stable per seed) but mint a gate-valid
+  // timestamp prefix — a digest prefix is what produced the 403s.
   let rand = "";
   for (let i = 0; i < 14; i++) rand += B62[digest[6 + i] % 62];
-  return `ses_${time}${rand}`;
+  return `ses_${sessionTimePrefix()}${rand}`;
 }
 
 // A client-supplied session id is only forwarded when it already has the shape
