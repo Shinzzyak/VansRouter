@@ -8,6 +8,9 @@ import { OpenCodeExecutor } from "../../open-sse/executors/opencode.js";
 //   User-Agent `opencode/<version>` with version >= 1.18.0
 //   x-opencode-session `ses_` + 12 lowercase hex + 14 base62
 //
+// 2026-10-14: the 12 hex chars are decoded as a timestamp too, so the SHAPE
+// check alone is no longer the whole gate — see the prefix test below.
+//
 // The live A/B proof lives in tests/opencode-zen-gate.live.mjs (not run by vitest).
 
 const SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
@@ -82,6 +85,25 @@ describe("OpenCodeExecutor — free-tier gate", () => {
     const ex = makeExecutor();
     const h = ex.buildHeaders({}, true);
     expect(h["x-opencode-session"]).toMatch(SESSION_RE);
+  });
+
+  // The shape check is not the whole gate: upstream decodes the 12 hex chars as
+  // ~ms * 4096 truncated to 48 bit and 403s anything else. ms * 4096 is divisible
+  // by 4096, so an inverted prefix always ends in `fff` (counter 0). Both of the
+  // generators that shipped without this test emitted a prefix whose low 12 bits
+  // were effectively random — a plain clock value, or the first 6 bytes of a
+  // sha256 digest — and every free-tier request came back 403 FreeTierError.
+  // Covers both call sites: buildHeaders with no session (generateSessionId)
+  // and after transformRequest has written runtimeOpencodeSession (toGateSessionId).
+  it("mints an inverted-timestamp prefix on both session id paths", () => {
+    const prefixOf = (h) => h["x-opencode-session"].slice(4, 16);
+
+    expect(prefixOf(makeExecutor().buildHeaders({}, true))).toMatch(/^[0-9a-f]{9}fff$/);
+
+    const credentials = {};
+    makeExecutor().transformRequest("big-pickle", { model: "big-pickle", messages: [], stream: true }, true, credentials);
+    expect(credentials.runtimeOpencodeSession).toMatch(SESSION_RE);
+    expect(prefixOf(makeExecutor().buildHeaders({}, true, credentials))).toMatch(/^[0-9a-f]{9}fff$/);
   });
 
   it("generates a distinct session id per call", () => {
