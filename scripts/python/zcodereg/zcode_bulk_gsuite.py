@@ -8,10 +8,12 @@ DB: providerConnections (provider='zcode')
 """
 import sys, time, json, os, sqlite3, subprocess, re, random
 
-ACCOUNTS_FILE = "/home/ubuntu/Avres Second Brain/Avres Second Brain/VansRouter/gsuite-bty-110-accounts.txt"
+ACCOUNTS_FILE = os.environ.get(
+    "ZCODE_ACCOUNTS_FILE",
+    "/home/ubuntu/Avres Second Brain/Avres Second Brain/VansRouter/gsuite-bty-110-accounts.txt")
 OUT_DIR = "/tmp/zcode_batch"
 DB_PATH = "/home/ubuntu/VansRouter/data/db/data.sqlite"
-PYTHON = "/home/ubuntu/camoufox-env/bin/python"
+PYTHON = os.environ.get("ZCODE_PYTHON", "/home/ubuntu/pelerproxy/venv/bin/python")  # camoufox-env retired; this venv carries camoufox
 os.makedirs(OUT_DIR, exist_ok=True)
 
 ONE_SHOT = r'''
@@ -35,8 +37,23 @@ def grab(page):
             page.wait_for_timeout(1000)
     if not tok or len(tok) < 20:
         return None
+    # A token is NOT proof of a session. The CLI-OAuth redirect hands back a
+    # token in the URL fragment while the browser is still an anonymous guest
+    # (role='guest', email='guest-<ts>@guest.com'), and z.ai answers guests too,
+    # so a successful chat turn is not evidence either. Ask the site who we are
+    # and require a real user before saving.
+    try:
+        role = page.evaluate("""async () => {
+            const r = await fetch('/api/v1/auths/', {credentials: 'include'});
+            const d = await r.json();
+            return ((d && d.role) || '?') + '|' + ((d && d.email) || '');
+        }""")
+    except Exception as e:
+        role = 'fetch-error|' + str(e)[:60]
+    if not str(role).startswith("user|"):
+        return None
     cookies = page.context.cookies()
-    return {"token": tok, "cookies": [{"name": c["name"], "value": c["value"], "domain": c["domain"], "path": c.get("path", "/")} for c in cookies]}
+    return {"token": tok, "role": role, "cookies": [{"name": c["name"], "value": c["value"], "domain": c["domain"], "path": c.get("path", "/")} for c in cookies]}
 
 with Camoufox(headless=False) as browser:
     page = browser.new_page()
@@ -103,7 +120,7 @@ with Camoufox(headless=False) as browser:
     rec = grab(page)
     if rec:
         json.dump(rec, open(out, "w"))
-        print("OK " + email + " " + str(len(rec["token"])) + " " + str(len(rec["cookies"])))
+        print("OK " + email + " " + str(len(rec["token"])) + " " + str(len(rec["cookies"])) + " role=" + str(rec.get("role", "?")))
     else:
         print("NO_TOKEN")
 '''
@@ -150,7 +167,15 @@ def insert_db(email, rec):
 def main():
     start = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     count = int(sys.argv[2]) if len(sys.argv) > 2 else 110
-    accs = [l.strip().split("|") for l in open(ACCOUNTS_FILE) if "|" in l]
+    accs = []
+    for _l in open(ACCOUNTS_FILE):
+        _l = _l.strip()
+        if not _l:
+            continue
+        _sep = "|" if "|" in _l else ":"
+        _p = _l.split(_sep, 1)
+        if len(_p) == 2 and _p[0].strip() and _p[1].strip():
+            accs.append([_p[0].strip(), _p[1].strip()])
     print(f"total: {len(accs)}, range: {start}-{min(start+count, len(accs))}", flush=True)
     ok = 0
     for i in range(start, min(start + count, len(accs))):

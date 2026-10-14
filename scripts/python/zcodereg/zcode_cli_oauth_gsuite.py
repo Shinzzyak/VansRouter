@@ -77,11 +77,6 @@ def already_fresh(email, hours=24):
         return False, "bad-json"
     saved = psd.get("zcodeJwtSavedAt")
     if not psd.get("zcodeJwtToken") or not saved:
-        # The worker authenticates with COOKIES alone (proven: a cookies-only
-        # capture answers a turn). A CLI poll that times out leaves no JWT, so
-        # treating that as "not fresh" would re-run every such account on resume.
-        if psd.get("cookies"):
-            return True, "cookies-only"
         return False, "no-jwt"
     try:
         saved_ts = time.mktime(time.strptime(saved[:19], "%Y-%m-%dT%H:%M:%S"))
@@ -453,13 +448,12 @@ def do_one(email, pw, log):
 
     res = poll_flow(poll_token, flow_id)
     if not res:
-        # The sidecar worker authenticates with z.ai COOKIES only
-        # (zai_chat_worker.load_account -> inject_cookies). When the CLI consent
-        # page never renders the flow cannot complete and the poll times out, but
-        # the browser session is already valid -> keep the account, JWT-less.
-        if len(cookies) >= 5:
-            return {"token": "", "zai_at": "", "cookies": cookies,
-                    "user": {}}, "cookies-only"
+        # No token means no session. Do NOT keep the captured cookies as a
+        # "cookies-only" account: a token-less poll leaves the ANONYMOUS guest
+        # jar (role='guest'), which seeds as a usable-looking row that cannot
+        # serve -- and z.ai answers guests, so a chat smoke test does not catch
+        # it either. Verified live 2026-10-14: 99 accounts saved this way were
+        # all guests and the pool had to be rolled back.
         return None, "poll-timeout"
     d = res.get("data") or {}
     if d.get("status") != "ready":
