@@ -14,6 +14,10 @@ const UP = arg("--upstream", "http://127.0.0.1:4096");
 const PROVIDER_ID = "opencode";     // provider id inside `opencode serve`
 const MODEL_PREFIX = "oc/";
 
+// Upstream still lists these, but every call comes back with an empty body
+// (parts: []) — the bridge answers 502 empty_upstream. Don't advertise them.
+const DEAD_MODELS = new Set(["exo-free"]);
+
 // Health-gate: poll upstream until `opencode serve` answers, so pm2 does not
 // start the bridge before the server is listening (that race orphaned the
 // bridge on a stale port once — see 2026-10-14 fix log).
@@ -89,9 +93,11 @@ const server = http.createServer(async (req, res) => {
     const r = await jfetch("/provider");
     const provs = r.json?.all || r.json?.providers || r.json || [];
     const oc = (Array.isArray(provs) ? provs : []).find((p) => p?.id === PROVIDER_ID);
-    const data = Object.keys(oc?.models || {}).map((id) => ({
-      id: MODEL_PREFIX + id, object: "model", owned_by: "opencode-local",
-    }));
+    const data = Object.keys(oc?.models || {})
+      .filter((id) => !DEAD_MODELS.has(id))
+      .map((id) => ({
+        id, object: "model", owned_by: "opencode-local",
+      }));
     return send(200, { object: "list", data });
   }
 
