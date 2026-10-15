@@ -414,6 +414,33 @@ export default async function run() {
       const { text } = await probe(frames);
       ok("jendela: output terstruktur tidak disentuh", text === frames.join(""));
     }
+
+    // 7. K45 (2026-10-15): provider menstempel `reasoning_content: ""` di SETIAP
+    //    frame jawaban. `typeof "" === "string"` — jadi `collectReasoningFrames`
+    //    versi lama mengumpulkan frame JAWABAN juga, dan kepala yang diperbaiki
+    //    keluar sebagai [jawaban-asli][brand+jawaban]: brand jatuh ke index 112,
+    //    baris pertama dobel, observer mencatat `missing_brand` padahal gerbang
+    //    melaporkan `repaired head`. Terukur di wire glm-5.3-flash (1.194 read).
+    {
+      const head = "1. SSE streaming adalah protokol HTTP satu arah.";
+      const body = `${head}\n${pad("jendela")}`;
+      const frames = [
+        // penalaran asli: content kosong, reasoning terisi
+        ...["The user", " asks", " about SSE", "."].map((t) =>
+          `data: ${JSON.stringify({ id: "d", choices: [{ index: 0, delta: { content: "", reasoning_content: t } }] })}\n\n`),
+        // jawaban: SETIAP frame membawa reasoning_content:"" (bentuk provider nyata)
+        ...body.split("").map((ch) =>
+          `data: ${JSON.stringify({ id: "d", choices: [{ index: 0, delta: { content: ch, reasoning_content: "" } }] })}\n\n`),
+      ];
+      const { text } = await probe(frames);
+      const { visible, reasoning } = assembleVisibleText(text);
+      ok("K45: brand = baris PERTAMA", visible.startsWith(BRAND), `head="${visible.slice(0, 40)}"`);
+      ok("K45: baris pertama tidak diulang di kepala", visible.split(head).length - 1 === 1,
+        `n=${visible.split(head).length - 1}`);
+      ok("K45: brand hanya satu", visible.split(BRAND).length - 1 === 1, `n=${visible.split(BRAND).length - 1}`);
+      ok("K45: penalaran tetap di kanal sendiri", String(reasoning ?? "").includes("asks about SSE"));
+      ok("K45: seal di ekor", visible.trimEnd().endsWith(SEAL));
+    }
   }
 
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
