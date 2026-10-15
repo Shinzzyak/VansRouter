@@ -12,7 +12,10 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 
 const CAPABILITY_KEYS = ["vision", "pdf", "audioInput", "videoInput"];
 const HARD_CAPS = new Set(CAPABILITY_KEYS);
-const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.5-free";
+// The empty-pool sentinel must be a model that actually exists: mimo-v2.5-free was
+// deprecated (successor mimo-v2.6-flash-free) and is absent from the oc roster, so
+// the fallback used to resolve to a ghost.
+const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.6-flash-free";
 
 // Normalize a capability entry to { enabled, roundRobin, models }. Backward-compat:
 // accept the legacy array form [{model, enabled}] (treated as enabled, fallback).

@@ -13,6 +13,9 @@ const PORT = Number(arg("--port", "4870"));
 const UP = arg("--upstream", "http://127.0.0.1:4096");
 const PROVIDER_ID = "opencode";     // provider id inside `opencode serve`
 const MODEL_PREFIX = "oc/";
+// Hard ceiling on a single upstream turn, so a wedged session cannot hang the
+// bridge forever (the router gives up at 180s; this only stops an infinite hold).
+const UPSTREAM_TIMEOUT_MS = Number(process.env.OC_BRIDGE_TIMEOUT_MS || 300000);
 
 // Upstream still lists these, but every call comes back with an empty body
 // (parts: []) — the bridge answers 502 empty_upstream. Don't advertise them.
@@ -50,21 +53,23 @@ async function jfetch(path, opts = {}) {
   return { status: r.status, json, text };
 }
 
-// One session per model keeps prompt caching warm; do NOT key by system prompt
-// (the router injects persona text, which would fragment the cache per turn).
-const sessions = new Map();
-let lastUsed = 0;
-async function getSession() {
-  if (sessions.has("main")) return sessions.get("main");
+// One session PER REQUEST, deleted after use. The router resends the whole
+// conversation on every call, so a reused session re-appends that history each
+// time and the upstream context snowballs (a reused session reached 49 messages /
+// 2.3M chars and `big-pickle` timed out at 180s; a fresh session answered in 7.6s).
+// Prompt caching was the old reason to reuse — it never helped, because the full
+// history is resent anyway, so the session only ever grew.
+async function newSession() {
   const r = await jfetch("/session", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ title: "vansrouter-bridge" }),
   });
   if (!r.json?.id) throw new Error("session create failed: " + r.text.slice(0, 200));
-  sessions.set("main", r.json.id);
-  lastUsed = Date.now();
   return r.json.id;
+}
+async function dropSession(sid) {
+  try { await jfetch(`/session/${sid}`, { method: "DELETE" }); } catch { /* best effort */ }
 }
 
 function toParts(messages) {
@@ -73,8 +78,8 @@ function toParts(messages) {
     const content = typeof m.content === "string"
       ? m.content
       : (m.content || []).map((p) => p?.text || "").join("");
-    if (m.role === "system") out.push("[system]\n" + content);
-    else if (m.role === "assistant") out.push("[assistant]\n" + content);
+    if (m.role === "system") continue; // carried by the `system` field — never duplicated inline
+    if (m.role === "assistant") out.push("[assistant]\n" + content);
     else out.push(content);
   }
   return [{ type: "text", text: out.join("\n\n") }];
@@ -110,15 +115,22 @@ const server = http.createServer(async (req, res) => {
   catch { return send(400, { error: { message: "bad json" } }); }
 
   const modelId = String(body.model || "").replace(MODEL_PREFIX, "").replace(/^oclocal\//, "");
-  const sys = (body.messages || []).find((m) => m.role === "system")?.content || "";
+  // Every system message goes into the single `system` field (joined); the parts
+  // list then carries only the conversation, so the persona is sent once.
+  const sys = (body.messages || [])
+    .filter((m) => m.role === "system")
+    .map((m) => (typeof m.content === "string" ? m.content : (m.content || []).map((p) => p?.text || "").join("")))
+    .filter(Boolean)
+    .join("\n\n");
   const created = Math.floor(Date.now() / 1000);
 
+  let sid = null;
   try {
-    const sid = await getSession();
-    lastUsed = Date.now();
+    sid = await newSession();
     const r = await jfetch(`/session/${sid}/message`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       body: JSON.stringify({
         model: { providerID: PROVIDER_ID, modelID: modelId },
         system: typeof sys === "string" ? sys : "",
@@ -156,13 +168,10 @@ const server = http.createServer(async (req, res) => {
     res.end();
   } catch (e) {
     send(502, { error: { message: "bridge failure: " + e.message, type: "bridge_error" } });
+  } finally {
+    if (sid) await dropSession(sid);
   }
 });
-
-// Recycle the upstream session if idle a long time (keeps memory bounded).
-setInterval(() => {
-  if (sessions.size && Date.now() - lastUsed > 6 * 3600 * 1000) sessions.clear();
-}, 3600 * 1000).unref?.();
 
 server.listen(PORT, "127.0.0.1", async () => {
   console.log(`opencode-local-bridge listening on http://127.0.0.1:${PORT} -> ${UP}`);
