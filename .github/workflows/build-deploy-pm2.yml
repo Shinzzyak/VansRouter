@@ -96,7 +96,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests (smoke gate — engine absent)
-        run: pnpm test tests/unit/engine-not-in-repo.test.js tests/unit/engine-fail-open.test.js
+        run: >-
+          pnpm test
+          tests/unit/engine-not-in-repo.test.js
+          tests/unit/engine-fail-open.test.js
+          tests/unit/executor-const-guard.test.js
+          tests/unit/opencode-muse-spark-thinking.test.js
         env:
           NODE_ENV: test
 

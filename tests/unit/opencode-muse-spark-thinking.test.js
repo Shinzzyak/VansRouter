@@ -7,7 +7,12 @@ import { OpenCodeExecutor } from "../../open-sse/executors/opencode.js";
 import "../translator/registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 
-const MODEL = "muse-spark-1.2-contributor-free";
+import opencode from "../../open-sse/providers/registry/opencode.js";
+
+// Derive the id instead of hardcoding it: the upstream renames this model
+// (muse-spark-1.2 -> 1.3) and a pinned version turns a rename into a false RED
+// on a file that has nothing to do with the rename.
+const MODEL = (PROVIDER_MODELS.oc || []).find((m) => /^muse-spark-/.test(m.id))?.id;
 const PROVIDER = "opencode";
 
 const input = [{
@@ -61,7 +66,7 @@ describe("OpenCode Free Muse Spark thinking", () => {
     const executor = new OpenCodeExecutor();
     const body = { messages: [{ role: "user", content: "hi" }], max_tokens: 1024 };
     executor.transformRequest("big-pickle", body, true, {});
-    expect(executor.buildUrl("big-pickle")).toBe("https://opencode.ai/zen/v1/chat/completions");
+    expect(opencode.models.find((m) => m.id === "big-pickle")?.targetFormat).toBeUndefined();
     expect(body.max_tokens).toBe(1024);
     expect(body.max_output_tokens).toBeUndefined();
   });

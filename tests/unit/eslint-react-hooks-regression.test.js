@@ -12,7 +12,11 @@ import path from "path";
  * the build early.
  */
 describe("eslint react-hooks regression guard", () => {
-  it("the project has zero react-hooks errors", { timeout: 300_000 }, () => {
+  // 300s was thin: ESLint over src/ takes ~92s on an idle box, so any other
+  // heavy job on this shared host (engine suite, pack build) pushes it past the
+  // cap and reports a timeout — a false RED on a green tree. Measured 384s wall
+  // under load, 92.7s alone; 600s keeps the guard honest without hiding a hang.
+  it("the project has zero react-hooks errors", { timeout: 600_000 }, () => {
     let stdout;
     try {
       stdout = execFileSync(
