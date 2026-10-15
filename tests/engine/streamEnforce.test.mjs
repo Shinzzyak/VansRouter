@@ -305,6 +305,117 @@ export default async function run() {
     }
   }
 
+  // ── JENDELA (D, 2026-10-15): kepala keluar SEBELUM EOF, ekor disegel ───────
+  // Gate lama menahan SEMUA byte sampai EOF, jadi time-to-first-byte = seluruh
+  // generasi (terukur: cbai 62 frame dalam 0,17s SETELAH tahanan 17,36s). Gate
+  // jendela wajib membuktikan dua hal: byte benar-benar keluar sebelum EOF, dan
+  // kontrak brand+seal tetap utuh.
+  {
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+
+    /** Dorong frame satu per satu; catat berapa frame gate sudah KELUAR pada saat frame ke-k dikirim. */
+    const probe = async (frames) => {
+      let ctl;
+      const rs = new ReadableStream({ start(c) { ctl = c; } });
+      const events = [];
+      const pump = (async () => {
+        const reader = rs
+          .pipeThrough(createBrandEnforceGate({ enabled: true, model: "probe", log: null }))
+          .getReader();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          events.push(dec.decode(value));
+        }
+      })();
+      const seen = [];
+      for (const f of frames) {
+        ctl.enqueue(enc.encode(f));
+        await new Promise((r) => setImmediate(r));
+        await new Promise((r) => setImmediate(r));
+        seen.push(events.length);
+      }
+      ctl.close();
+      await pump;
+      const text = events.join("");
+      return { seen, text, mid: seen[Math.floor(frames.length / 2)] };
+    };
+
+    // Provider per-karakter (K19): satu frame SSE per karakter.
+    const delta = (text) =>
+      text
+        .split("")
+        .map((ch) => `data: ${JSON.stringify({ id: "d", choices: [{ index: 0, delta: { content: ch } }] })}\n\n`);
+    const pad = (label, n = 40) =>
+      Array.from({ length: n }, (_, i) => `${label} baris ${i} panjang supaya jendela kepala pasti terlampaui`).join("\n");
+
+    // 1. Patuh + panjang: keluar live, tidak diubah sedikit pun.
+    {
+      const full = `${BRAND}\n${pad("jawaban")}\n\n${SEAL}`;
+      const frames = delta(full);
+      const { seen, mid, text } = await probe(frames);
+      ok("jendela: byte keluar SEBELUM EOF", mid > 0, `mid=${mid}/${frames.length}`);
+      ok("jendela: patuh = byte asli utuh", text === frames.join(""));
+      const { visible } = assembleVisibleText(text);
+      ok("jendela: brand + seal utuh", visible.startsWith(BRAND) && visible.trimEnd().endsWith(SEAL));
+    }
+
+    // 2. Tanpa brand: ditempel di kepala, body tetap live, seal di ekor.
+    {
+      const full = `${pad("tanpa brand")}\n\n${SEAL}`;
+      const frames = delta(full);
+      const { mid, text } = await probe(frames);
+      const { visible } = assembleVisibleText(text);
+      ok("jendela: brand DITEMPEL di kepala", visible.startsWith(BRAND), `head="${visible.slice(0, 30)}"`);
+      ok("jendela: kepala diperbaiki SEBELUM EOF", mid > 0, `mid=${mid}/${frames.length}`);
+      ok("jendela: brand tidak dobel", visible.split(BRAND).length - 1 === 1);
+      ok("jendela: seal tetap di ekor", visible.trimEnd().endsWith(SEAL));
+      ok("jendela: badan jawaban tidak hilang", visible.includes("baris 39 panjang supaya jendela kepala pasti terlampaui"));
+    }
+
+    // 3. Tanpa seal: ditempel di flush, tidak menggandakan yang sudah ada.
+    {
+      const full = `${BRAND}\n${pad("tanpa seal")}`;
+      const frames = delta(full);
+      const { text } = await probe(frames);
+      const { visible } = assembleVisibleText(text);
+      ok("jendela: seal DITEMPEL di ekor", visible.trimEnd().endsWith(SEAL));
+      ok("jendela: seal hanya satu", visible.split(SEAL).length - 1 === 1, `n=${visible.split(SEAL).length - 1}`);
+    }
+
+    // 4. Seal buatan model: TIDAK diduplikasi, byte asli utuh.
+    {
+      const full = `${BRAND}\n${pad("patuh")}\n\n${SEAL}`;
+      const frames = delta(full);
+      const { text } = await probe(frames);
+      const { visible } = assembleVisibleText(text);
+      ok("jendela: seal buatan model tidak diduplikasi", visible.split(SEAL).length - 1 === 1,
+        `n=${visible.split(SEAL).length - 1}`);
+      ok("jendela: patuh = byte asli utuh", text === frames.join(""));
+    }
+
+    // 5. Penolakan di kepala: dilepas apa adanya — brand TIDAK boleh menempel.
+    {
+      const full = `Me tidak akan membantu request ini.\n\n${SEAL}`;
+      const frames = delta(full);
+      const { text } = await probe(frames);
+      ok("jendela: penolakan dilepas tanpa diubah", text === frames.join(""));
+      ok("jendela: brand tidak ditempel ke penolakan", !text.includes(BRAND));
+    }
+
+    // 6. Output terstruktur (tool_calls): tidak punya kontrak, tidak disentuh.
+    {
+      const frames = [
+        `data: ${JSON.stringify({ id: "t", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, function: { name: "shell", arguments: "" } }] } }] })}\n\n`,
+        `data: ${JSON.stringify({ id: "t", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '{"command":"ls"}' } }] } }] })}\n\n`,
+        `data: ${JSON.stringify({ id: "t", choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\ndata: [DONE]\n\n`,
+      ];
+      const { text } = await probe(frames);
+      ok("jendela: output terstruktur tidak disentuh", text === frames.join(""));
+    }
+  }
+
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
   if (fail > 0) process.exitCode = 1;
 }
