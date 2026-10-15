@@ -415,7 +415,7 @@ export default async function run() {
       ok("jendela: output terstruktur tidak disentuh", text === frames.join(""));
     }
 
-    // 7. K45 (2026-10-15): provider menstempel `reasoning_content: ""` di SETIAP
+    // 7. K100 (2026-10-15): provider menstempel `reasoning_content: ""` di SETIAP
     //    frame jawaban. `typeof "" === "string"` — jadi `collectReasoningFrames`
     //    versi lama mengumpulkan frame JAWABAN juga, dan kepala yang diperbaiki
     //    keluar sebagai [jawaban-asli][brand+jawaban]: brand jatuh ke index 112,
@@ -434,12 +434,12 @@ export default async function run() {
       ];
       const { text } = await probe(frames);
       const { visible, reasoning } = assembleVisibleText(text);
-      ok("K45: brand = baris PERTAMA", visible.startsWith(BRAND), `head="${visible.slice(0, 40)}"`);
-      ok("K45: baris pertama tidak diulang di kepala", visible.split(head).length - 1 === 1,
+      ok("K100: brand = baris PERTAMA", visible.startsWith(BRAND), `head="${visible.slice(0, 40)}"`);
+      ok("K100: baris pertama tidak diulang di kepala", visible.split(head).length - 1 === 1,
         `n=${visible.split(head).length - 1}`);
-      ok("K45: brand hanya satu", visible.split(BRAND).length - 1 === 1, `n=${visible.split(BRAND).length - 1}`);
-      ok("K45: penalaran tetap di kanal sendiri", String(reasoning ?? "").includes("asks about SSE"));
-      ok("K45: seal di ekor", visible.trimEnd().endsWith(SEAL));
+      ok("K100: brand hanya satu", visible.split(BRAND).length - 1 === 1, `n=${visible.split(BRAND).length - 1}`);
+      ok("K100: penalaran tetap di kanal sendiri", String(reasoning ?? "").includes("asks about SSE"));
+      ok("K100: seal di ekor", visible.trimEnd().endsWith(SEAL));
     }
   }
 
