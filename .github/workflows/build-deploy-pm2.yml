@@ -192,6 +192,8 @@ jobs:
           tests/unit/gemini-guardrail-recovery.test.js
           tests/unit/reasoning-state.test.js
           tests/unit/refusal-drift.test.js
+          tests/unit/sentinel-contract-totals.test.js
+          tests/unit/sentinel-status-column.test.js
           tests/unit/stream-integrity.test.js
           tests/unit/voice-cadence.test.js
           tests/unit/thinking-gate.test.js

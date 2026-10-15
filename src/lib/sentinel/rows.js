@@ -53,9 +53,16 @@ export function sentinelRows(modules) {
         model,
         status: "OK",
         total: 0,
+        ok: 0,
+        refused: 0,
+        empty: 0,
         refusalRate: 0,
+        brandViolationRate: 0,
+        enclosureViolationRate: 0,
         brandMiss: 0,
         sealMiss: 0,
+        enclosureMiss: 0,
+        driftAxes: [],
         best: "",
         last: "",
         cadenceScore: null,
@@ -71,10 +78,21 @@ export function sentinelRows(modules) {
   for (const [model, row] of Object.entries(drift)) {
     const r = ensure(model);
     if (!r) continue;
+    const c = row?.counts || {};
     r.total = row?.total || 0;
+    r.ok = c.ok || 0;
+    r.refused = c.refusal_text || 0;
+    r.empty = c.empty || 0;
     r.refusalRate = row?.refusalRate || 0;
-    r.brandMiss = row?.counts?.missing_brand || 0;
-    r.sealMiss = row?.counts?.missing_seal || 0;
+    r.brandViolationRate = row?.brandViolationRate || 0;
+    r.enclosureViolationRate = row?.enclosureViolationRate || 0;
+    r.brandMiss = c.missing_brand || 0;
+    r.sealMiss = c.missing_seal || 0;
+    r.enclosureMiss = c.missing_enclosure || 0;
+    // Which axis tripped. The engine names them; an engine older than the
+    // axis-aware version sends none, and the row must still read DRIFT from
+    // its `drifted` flag rather than quietly going green.
+    r.driftAxes = Array.isArray(row?.driftAxes) ? row.driftAxes : [];
     if (row?.drifted) r.status = "DRIFT";
   }
 
@@ -105,4 +123,33 @@ export function sentinelRows(modules) {
     if (a.total !== b.total) return b.total - a.total;
     return a.model.localeCompare(b.model);
   });
+}
+
+/**
+ * The whole-window total the tiles need, from the same rows the table renders.
+ *
+ * WHY THIS EXISTS. The tab showed a per-model table and six tiles that counted
+ * MODELS (172 watched, 0 drifted, …). Nothing summed the judged replies, so the
+ * tab could say "DRIFTED 0" in green while 45% of all replies had lost the brand
+ * line — the two numbers lived in different units and the eye read the green
+ * one. `broken` and `contractOk` are the same data in the unit that matters.
+ *
+ * `contractOk` is null, not 1, when nothing has been judged: an empty window is
+ * not a healthy one, and a tile must not paint it green.
+ */
+export function sentinelTotals(rows) {
+  const t = { models: rows.length, drifted: 0, judged: 0, ok: 0, refused: 0, empty: 0, brandMiss: 0, sealMiss: 0, enclosureMiss: 0, broken: 0, contractOk: null };
+  for (const r of rows) {
+    if (r.status === "DRIFT") t.drifted++;
+    t.judged += r.total || 0;
+    t.ok += r.ok || 0;
+    t.refused += r.refused || 0;
+    t.empty += r.empty || 0;
+    t.brandMiss += r.brandMiss || 0;
+    t.sealMiss += r.sealMiss || 0;
+    t.enclosureMiss += r.enclosureMiss || 0;
+  }
+  t.broken = t.brandMiss + t.sealMiss + t.enclosureMiss;
+  if (t.judged) t.contractOk = Math.max(0, (t.judged - t.broken) / t.judged);
+  return t;
 }

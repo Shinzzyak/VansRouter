@@ -232,7 +232,10 @@ describe("sentinel wiring", () => {
   });
 
   it("keeps the derivation in the JSX-free module the test can import", () => {
-    expect(section).toMatch(/import \{ sentinelRows \} from "@\/lib\/sentinel\/rows"/);
+    // The binding matters, not the exact brace list — `sentinelTotals` was added
+    // beside `sentinelRows` and the assertion must not have to be rewritten every
+    // time the module exports one more helper.
+    expect(section).toMatch(/import \{[^}]*\bsentinelRows\b[^}]*\} from "@\/lib\/sentinel\/rows"/);
     expect(section).not.toMatch(/export function sentinelRows/);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Card from "@/shared/components/Card";
-import { sentinelRows } from "@/lib/sentinel/rows";
+import { sentinelRows, sentinelTotals } from "@/lib/sentinel/rows";
 
 // Tone per filter verdict, so the chip colour comes from one map instead of a
 // chain of ternaries in JSX.
@@ -13,6 +13,23 @@ const FILTER_TONE_CLASS = {
   unknown: "text-text-muted",
 };
 
+// Contract health is a RATE, so its tile is coloured from the rate — not from
+// whether any model happens to be red. "Drifted 0" beside "45% of replies lost
+// the brand line" is exactly the reading this map exists to prevent.
+const HEALTH_TONE_CLASS = {
+  good: "text-emerald-500",
+  warn: "text-amber-500",
+  bad: "text-red-500",
+  none: "text-text-main",
+};
+
+function contractTone(rate) {
+  if (rate === null || rate === undefined) return "none";
+  if (rate < 0.9) return "bad";
+  if (rate < 0.99) return "warn";
+  return "good";
+}
+
 // Sentinel: the read side of the engine's own telemetry.
 //
 // The engine already judges every reply — `classifyResponse` returns ok /
@@ -22,9 +39,11 @@ const FILTER_TONE_CLASS = {
 // route: the engine could flag a provider as drifted and no human ever saw it.
 //
 // So this section invents no detection of its own. It fetches the route and
-// renders one status row per model, drifted first. A model is DRIFT when
-// either the refusal-drift window or the voice-cadence window says so; every
-// other model with traffic is OK.
+// renders one status row per model, drifted first. A model is DRIFT when the
+// drift window flags it on ANY axis — refusal, brand or enclosure — or when the
+// voice-cadence window says so; every other model with traffic is OK. The
+// contract tiles above the table count REPLIES rather than models, because a
+// model count cannot show that a third of the traffic lost the brand line.
 export default function SentinelSection() {
   // One piece of state, not two. The tiles, the header and the table all read
   // this same snapshot, so they cannot disagree: an earlier version kept a
@@ -66,6 +85,7 @@ export default function SentinelSection() {
   const loaded = state !== null;
   const modules = state?.modules || null;
   const rows = sentinelRows(modules);
+  const totals = sentinelTotals(rows);
   const drifted = rows.filter((r) => r.status === "DRIFT");
   const filterOpen = rows.filter((r) => r.filterTone === "open").length;
   const filterBlocked = rows.filter((r) => r.filterTone === "blocked").length;
@@ -97,6 +117,32 @@ export default function SentinelSection() {
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {/* The contract axis, in the unit that matters. The row below counts
+          MODELS; this one counts REPLIES. Without it the tab could read
+          "Drifted 0" in green while a third of all replies had lost the brand
+          line — 172 watched models is a coverage number, not a health number. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Judged replies" value={loaded ? totals.judged : "—"} />
+        <Stat
+          label="Contract OK"
+          value={loaded ? (totals.contractOk === null ? "—" : `${(totals.contractOk * 100).toFixed(1)}%`) : "—"}
+          tone={contractTone(totals.contractOk)}
+          title="Share of judged replies that kept the brand line, the seal and the enclosure"
+        />
+        <Stat
+          label="Contract misses"
+          value={loaded ? totals.broken : "—"}
+          tone={totals.broken ? "bad" : "none"}
+          title={`brand ${totals.brandMiss} · seal ${totals.sealMiss} · enclosure ${totals.enclosureMiss}`}
+        />
+        <Stat
+          label="Drifted models"
+          value={loaded ? drifted.length : "—"}
+          tone={drifted.length ? "bad" : "none"}
+          title="Models over threshold on refusal, brand or enclosure inside their own 50-sample window"
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="Models watched" value={loaded ? rows.length : "—"} />
@@ -130,14 +176,20 @@ export default function SentinelSection() {
                 >
                   {row.filter}
                 </span>
-                <span className={`shrink-0 font-semibold ${row.status === "DRIFT" ? "text-red-500" : "text-emerald-500"}`}>
+                <span
+                  className={`shrink-0 font-semibold ${row.status === "DRIFT" ? "text-red-500" : "text-emerald-500"}`}
+                  title={row.status === "DRIFT" ? `over threshold on: ${row.driftAxes.join(", ") || "engine flag"}` : "inside every window"}
+                >
                   {row.status}
                 </span>
                 <span className="shrink-0 text-text-muted" title="share of judged replies that came back as a refusal">
                   {row.total ? `${Math.round(row.refusalRate * 100)}% refusal` : "—"}
                 </span>
-                <span className="shrink-0 text-text-muted" title="missing brand / missing seal out of judged replies">
-                  brand {row.brandMiss} · seal {row.sealMiss}
+                <span
+                  className={`shrink-0 ${row.brandMiss + row.sealMiss + row.enclosureMiss ? "text-red-500" : "text-text-muted"}`}
+                  title="missing brand / missing seal / missing enclosure out of judged replies"
+                >
+                  brand {row.brandMiss} · seal {row.sealMiss} · encl {row.enclosureMiss}
                 </span>
                 <span className="shrink-0 text-text-muted" title="self-measuring bypass: best escalation level and last outcome">
                   {row.best ? `${row.best} · ${row.last}` : "—"}
@@ -148,7 +200,9 @@ export default function SentinelSection() {
         )}
         <p className="mt-1 text-[11px] text-text-muted">
           Verdicts are the engine&apos;s own (<span className="text-text-main">classifyResponse</span>), not a
-          second opinion. DRIFT = the refusal-drift or voice-cadence window flagged the model. The
+          second opinion. DRIFT = a model crossed the threshold inside its own 50-sample window on{" "}
+          <span className="text-red-500">refusal</span>, <span className="text-red-500">brand</span> or{" "}
+          <span className="text-red-500">enclosure</span> — hover the verdict to see which. The
           second column is the filter axis: <span className="text-emerald-500">PATUH</span> means the
           model answered through its own filter, <span className="text-red-500">NOLAK</span> /{" "}
           <span className="text-red-500">FILTER_UPSTREAM</span> means it did not, and{" "}
@@ -200,11 +254,11 @@ export default function SentinelSection() {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, tone = "none", title }) {
   return (
     <Card padding="xs">
-      <p className="text-[11px] uppercase tracking-wide text-text-muted">{label}</p>
-      <p className="text-lg font-semibold text-text-main">{value}</p>
+      <p className="text-[11px] uppercase tracking-wide text-text-muted" title={title}>{label}</p>
+      <p className={`text-lg font-semibold ${HEALTH_TONE_CLASS[tone] || HEALTH_TONE_CLASS.none}`} title={title}>{value}</p>
     </Card>
   );
 }
