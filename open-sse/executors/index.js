@@ -45,6 +45,7 @@ const executors = {
   cu: new CursorExecutor(), // Alias for cursor
   vertex: new VertexExecutor("vertex"),
   "vertex-partner": new VertexExecutor("vertex-partner"),
+  "opencode": new OpenCodeExecutor(),
   "opencode-go": new OpenCodeGoExecutor(),
   "grok-web": new GrokWebExecutor(),
   "grok-cli": new GrokCliExecutor(),

@@ -139,3 +139,54 @@ export function convertResponsesApiFormat(body) {
 
   return result;
 }
+
+// Responses API rejects call_id longer than 64 chars and rejects a
+// function_call/function_call_output pair whose ids differ, so every call_id
+// passing through the opencode executor is clamped to one shared ceiling.
+export const MAX_RESPONSES_CALL_ID_LEN = 64;
+let responsesCallIdSeq = 0;
+
+export function clampResponsesCallId(id) {
+  if (typeof id !== "string" || !id) return `call_${Date.now()}_${(responsesCallIdSeq += 1)}`;
+  return id.length > MAX_RESPONSES_CALL_ID_LEN ? id.substring(0, MAX_RESPONSES_CALL_ID_LEN) : id;
+}
+
+// Tool arguments must be a JSON string; a non-string or unparsable value is
+// rejected upstream, so coerce to "{}" rather than forwarding garbage.
+export function coerceResponsesArguments(value) {
+  if (value === undefined || value === null || value === "") return "{}";
+  if (typeof value !== "string") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "{}";
+    }
+  }
+  try {
+    JSON.parse(value);
+    return value;
+  } catch {
+    return "{}";
+  }
+}
+
+// function_call_output.output must be a string; content-block arrays are
+// flattened to their text so the upstream accepts the item.
+export function coerceResponsesOutput(value) {
+  if (typeof value === "string") return value;
+  if (value === undefined || value === null) return "";
+  if (Array.isArray(value)) {
+    return value.map((c) => {
+      try {
+        return c?.text ?? JSON.stringify(c);
+      } catch {
+        return String(c);
+      }
+    }).join("");
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}

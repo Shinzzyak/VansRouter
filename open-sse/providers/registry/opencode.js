@@ -1,23 +1,29 @@
-// OpenCode provider (free tier).
+// OpenCode provider (free tier) — direct lane, no local bridge.
 //
-// The upstream free lane (opencode.ai/zen/v1) gates by TLS/ALPN + client
-// handshake: a plain HTTP POST from a datacenter IP gets 403 FreeTierError
-// regardless of headers (see second-brain/vansrouter/opencode-403-bridge-opencode-serve-2026-10-14.md).
-// The real OpenCode binary passes, so this provider is served through a local
-// `opencode serve` bridge — a plain [OI]-compatible endpoint on
-// http://127.0.0.1:4870/v1 (pm2: opencode-serve + opencode-bridge).
+// 2026-10-17: the free lane moved from /zen/v1 to /inference/v1 and the gate
+// changed from a TLS/ALPN handshake to a request-shape check. Live A/B from
+// this host, one variable at a time:
+//   A. POST /inference/v1/chat/completions + UA opencode/latest/2.0.26/cli
+//      + tools [read, shell]  -> 200
+//   B. POST /zen/v1/chat/completions + UA v2                     -> 200
+//   C. POST /zen/v1/chat/completions + UA opencode/1.18.x        -> 200
+//   D. POST /inference/v1/chat/completions without the fingerprint tools
+//      -> 403 FreeTierError "OpenCode's free tier can only be used from within
+//      OpenCode"
+// So the gate is the tool fingerprint (read + shell, v2 descriptions), NOT the
+// source IP. The old "datacenter IP 403s regardless of headers" diagnosis was
+// wrong, and the local `opencode serve` bridge it justified (pm2:
+// opencode-serve + opencode-bridge, ~655 MB RSS) is no longer needed.
 //
-// Two things matter here:
-//  1. Do NOT register an executor for "opencode" in executors/index.js.
-//     OpenCodeExecutor.buildUrl hardcodes /zen/v1/... and would 403. With no
-//     entry in the executors map, getExecutor() falls through to DefaultExecutor,
-//     which posts to transport.baseUrl below (the bridge).
-//  2. noAuth: true, same shape as mimo-free — the bridge needs no credential and
-//     the dashboard renders this as a Free Tier card (category "free").
+// The OpenCodeExecutor registered in executors/index.js owns buildUrl
+// (/inference/v1/...) and the v2 headers; this file declares the base and the
+// roster source.
 //
-// The roster is auto-detected: modelsFetcher polls the bridge's /v1/models
-// (bare ids), so a new upstream model appears with no deploy. The static
-// `models` list below is only a seed for when the bridge is unreachable.
+// The roster is auto-detected: modelsFetcher polls the live public catalogue
+// (ids ending in `-free`), so a new upstream model appears with no deploy. The
+// static `models` list below is a seed for when the fetch fails, plus the ids
+// the fetcher's `-free` filter drops (big-pickle) and the non-chat models whose
+// endpoint differs per model.
 export default {
   id: "opencode",
   priority: 40,
@@ -33,20 +39,60 @@ export default {
   category: "free",
   noAuth: true,
   transport: {
-    baseUrl: "http://127.0.0.1:4870/v1/chat/completions",
+    baseUrl: "https://opencode.ai",
+    headers: {
+      // Inert: nothing merges transport.headers onto the wire — OpenCodeExecutor
+      // .buildHeaders() owns the real set. Kept aligned so the next reader is not
+      // misled; the live value is `cli` (A/B 2026-10-17, /inference/v1 200).
+      "x-opencode-client": "cli",
+    },
+    forceStream: true,
     noAuth: true,
+    // Zen reasoning models reject multi-turn history whose assistant messages
+    // carry no reasoning_content (400 missing_required_parameter), and the
+    // response pipeline strips the field before it reaches the client, so the
+    // echo can never come from the client. Inject a placeholder instead.
+    reasoningInject: {
+      scope: "all",
+    },
+    quirks: {
+      forceAutoToolChoiceModels: ["muse-spark-1.3-contributor-free"],
+    },
   },
   models: [
+    // Endpoint formats differ per model, so declare non-chat models explicitly.
+    { id: "muse-spark-1.2-contributor-free", name: "Muse Spark 1.2 Contributor Free", targetFormat: "openai-responses" },
+    { id: "muse-spark-1.3-contributor-free", name: "Muse Spark 1.3 Contributor Free", targetFormat: "openai-responses" },
+    { id: "jev-1.13-free", name: "Jev 1.13 Free", kind: "systemone" },
+    // Seed for when the live catalogue fetch fails. Pruned 2026-10-17 against
+    // https://opencode.ai/inference/v1/models (88 ids): `cat-jam-free`,
+    // `step-5-preview-free`, `nemotron-3-ultra-free` and `union-alpha` are gone
+    // from the roster — `union-alpha` also answers 400 "Model is unavailable."
+    // on /inference/v1/messages. Re-add from the live list, never from memory.
     { id: "big-pickle", name: "Big Pickle" },
-    { id: "mimo-v2.6-flash-free", name: "MiMo v2.6 Flash (free)" },
-    { id: "space-bunny-free", name: "Space Bunny (free)" },
-    { id: "cat-jam-free", name: "Cat Jam (free)" },
-    { id: "longcat-2.5-preview-free", name: "LongCat 2.5 Preview (free)" },
-    { id: "nemotron-3-ultra-free", name: "Nemotron 3 Ultra (free)" },
+    { id: "glm-5.3-flash-free", name: "GLM 5.3 Flash (free)" },
+    { id: "nemotron-3.5-super-vl-free", name: "Nemotron 3.5 Super VL (free)" },
     { id: "nemotron-3.5-lightning-free", name: "Nemotron 3.5 Lightning (free)" },
-    { id: "step-5-preview-free", name: "Step 5 Preview (free)" },
-    { id: "muse-spark-1.3-contributor-free", name: "Muse Spark 1.3 Contributor (free)" },
+    { id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash (free)" },
+    { id: "mimo-v2.6-flash-free", name: "MiMo v2.6 Flash (free)" },
+    { id: "longcat-2.5-preview-free", name: "LongCat 2.5 Preview (free)" },
+    { id: "space-bunny-free", name: "Space Bunny (free)" },
+    { id: "beam-free", name: "Beam (free)" },
+    { id: "ll-alpha-free", name: "LL Alpha (free)" },
   ],
-  modelsFetcher: { url: "http://127.0.0.1:4870/v1/models", type: "openai" },
+  serviceKinds: ["llm", "systemone"],
+  systemoneConfig: {
+    // 2026-10-17 probe: /zen/v1/systemone AND /inference/v1/systemone both answer
+    // 400 api_usage_error "Invalid request." under UA opencode/1.18.31 and
+    // opencode/latest/2.0.26/cli, so `kind: "systemone"` (jev-1.13-free) has no
+    // working lane. Unchanged pending a body-shape sample from a real CLI run —
+    // do not "fix" the URL without one.
+    baseUrl: "https://opencode.ai/zen/v1/systemone",
+    headers: {
+      "x-opencode-client": "desktop",
+      "User-Agent": "opencode/1.18.31",
+    },
+  },
+  modelsFetcher: { url: "https://opencode.ai/inference/v1/models", type: "opencode-free" },
   passthroughModels: true,
 };

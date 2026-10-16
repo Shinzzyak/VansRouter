@@ -1,20 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { OpenCodeExecutor } from "../../open-sse/executors/opencode.js";
+import { OPENCODE_FINGERPRINT_TOOLS } from "../../open-sse/utils/opencodeFingerprint.js";
 
-// The OpenCode free tier (/zen/v1) gates on request shape. These are the four
-// conditions verified live on two independent hosts on 2026-09-22:
+// The OpenCode free tier gates on request SHAPE. v2 (/inference/v1), verified
+// live from this host on 2026-10-17 — A/B/C/D probes in
+// open-sse/providers/registry/opencode.js:
 //   body.stream === true
-//   tools contains one named `bash` AND one named `read`
-//   User-Agent `opencode/<version>` with version >= 1.18.0
-//   x-opencode-session `ses_` + 12 lowercase hex + 14 base62
+//   tools contains OpenCode's own `read` AND `shell` (exact definitions)
+//   User-Agent `opencode/latest/<version>/cli`
+//   session headers x-opencode-session / -session-id / x-session-affinity / x-session-id
 //
-// 2026-10-14: the 12 hex chars are decoded as a timestamp too, so the SHAPE
-// check alone is no longer the whole gate — see the prefix test below.
-//
-// The live A/B proof lives in tests/opencode-zen-gate.live.mjs (not run by vitest).
+// The v1 quartet (bash/glob/grep/read) and the `opencode/1.18.x` UA are dead:
+// upstream answers them with 403 FreeTierError since 2026-10-14.
+// The live probe script is tests/opencode-zen-gate.live.mjs (not run by vitest).
 
 const SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
-const UA_RE = /^opencode\/(\d+)\.(\d+)\.(\d+)/;
+const UA_V2_RE = /^opencode\/latest\/\d+\.\d+\.\d+\/cli$/;
 
 function names(tools) {
   return (tools || []).map((t) => t?.function?.name ?? t?.name);
@@ -24,145 +25,142 @@ function makeExecutor() {
   return new OpenCodeExecutor();
 }
 
-describe("OpenCodeExecutor — free-tier gate", () => {
+describe("OpenCodeExecutor — free-tier gate (v2)", () => {
   // transformRequest returns the body BaseExecutor actually sends; assert on
   // that return value, not on the caller's input object.
   const transform = (model, body, credentials = {}) => makeExecutor().transformRequest(model, body, true, credentials);
 
   it("forces body.stream so the upstream serves the free tier", () => {
-    const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [], stream: false });
+    const out = transform("big-pickle", { model: "big-pickle", messages: [], stream: false });
     expect(out.stream).toBe(true);
   });
 
-  it("injects the fingerprint quartet when the client sends none", () => {
-    const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [] });
-    expect(names(out.tools)).toEqual(["bash", "glob", "grep", "read"]);
-    // No caller tools: the decoys must not be selectable.
-    expect(out.tool_choice).toBe("none");
+  it("injects the fingerprint pair when the client sends none", () => {
+    const out = transform("big-pickle", { model: "big-pickle", messages: [] });
+    expect(names(out.tools)).toEqual(["read", "shell"]);
+    // Chat shape leaves tool_choice to the client; the stub tools are marked
+    // "do not call" in the system prompt instead.
+    expect(out.tool_choice).toBeUndefined();
   });
 
   it("keeps the caller's own tools and appends the stubs, preserving indexes", () => {
     const own = [{ type: "function", function: { name: "str_replace_editor" } }];
-    const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [], tools: own });
+    const out = transform("big-pickle", { model: "big-pickle", messages: [], tools: own });
     expect(out.tools[0]).toBe(own[0]);
-    expect(names(out.tools)).toEqual(["str_replace_editor", "bash", "glob", "grep", "read"]);
-    // Caller brought tools, so tool_choice is left to the client.
+    expect(names(out.tools)).toEqual(["str_replace_editor", "read", "shell"]);
     expect(out.tool_choice).toBeUndefined();
   });
 
-  it("does not duplicate tools the caller already provides", () => {
+  it("forwards caller case variants untouched and does not duplicate exact names", () => {
     const own = [
-      { type: "function", function: { name: "bash", description: "real bash" } },
-      { type: "function", function: { name: "glob", description: "real glob" } },
-      { type: "function", function: { name: "grep", description: "real grep" } },
-      { type: "function", function: { name: "read", description: "real read" } },
+      { type: "function", function: { name: "Read", description: "cc" } },
+      { type: "function", function: { name: "Bash", description: "cc" } },
     ];
-    const out = transform("mimo-v2.5-free", { model: "mimo-v2.5-free", messages: [], tools: own });
-    expect(out.tools).toEqual(own);
+    const out = transform("big-pickle", { model: "big-pickle", messages: [], tools: own });
+    // Capitalised variants are accepted by upstream, so they travel as-is.
+    expect(names(out.tools)).toEqual(["Read", "Bash", "read", "shell"]);
   });
 
-  it("uses the flat Responses shape for /zen/v1/responses models", () => {
+  it("aliases a caller tool that reuses an exact fingerprint name", () => {
+    const own = [{ type: "function", function: { name: "read", description: "cc" } }];
+    const out = transform("big-pickle", { model: "big-pickle", messages: [], tools: own });
+    expect(names(out.tools)).toEqual(["read_client", "read", "shell"]);
+  });
+
+  it("uses the flat Responses shape for the contributor-free models", () => {
     const out = transform("muse-spark-1.2-contributor-free", { model: "muse-spark-1.2-contributor-free", input: [] });
     for (const t of out.tools) {
       expect(t.type).toBe("function");
       expect(typeof t.name).toBe("string");
       expect(t.function).toBeUndefined();
     }
-    expect(out.tools.map((t) => t.name)).toEqual(["bash", "glob", "grep", "read"]);
+    expect(out.tools.map((t) => t.name)).toEqual(["read", "shell"]);
     expect(out.tool_choice).toBe("auto");
   });
 
-  it("sends a User-Agent the free tier accepts (opencode >= 1.18.0)", () => {
-    const ex = makeExecutor();
-    const h = ex.buildHeaders({}, true);
-    expect(h["User-Agent"]).toMatch(UA_RE);
-    const [, maj, min] = h["User-Agent"].match(UA_RE);
-    expect(Number(maj)).toBeGreaterThanOrEqual(1);
-    if (Number(maj) === 1) expect(Number(min)).toBeGreaterThanOrEqual(18);
+  it("sends a User-Agent the v2 free tier accepts", () => {
+    const h = makeExecutor().buildHeaders({}, true);
+    expect(h["User-Agent"]).toMatch(UA_V2_RE);
   });
 
-  it("generates a session id in the shape the gate accepts", () => {
-    const ex = makeExecutor();
-    const h = ex.buildHeaders({}, true);
+  it("sends the four session headers the gate expects", () => {
+    const h = makeExecutor().buildHeaders({}, true);
     expect(h["x-opencode-session"]).toMatch(SESSION_RE);
+    expect(h["x-opencode-session-id"]).toBe(h["x-opencode-session"]);
+    expect(h["x-session-affinity"]).toBe(h["x-opencode-session"]);
+    expect(h["x-session-id"]).toBe(h["x-opencode-session"]);
+  });
+
+  it("does not send the retired x-opencode-request header", () => {
+    const h = makeExecutor().buildHeaders({}, true);
+    expect(h["x-opencode-request"]).toBeUndefined();
+  });
+
+  it("authenticates as the public free-tier client", () => {
+    const h = makeExecutor().buildHeaders({}, true);
+    expect(h.Authorization).toBe("Bearer public");
   });
 
   // The shape check is not the whole gate: upstream decodes the 12 hex chars as
   // ~ms * 4096 truncated to 48 bit and 403s anything else. ms * 4096 is divisible
-  // by 4096, so an inverted prefix always ends in `fff` (counter 0). Both of the
-  // generators that shipped without this test emitted a prefix whose low 12 bits
-  // were effectively random — a plain clock value, or the first 6 bytes of a
-  // sha256 digest — and every free-tier request came back 403 FreeTierError.
-  // Covers both call sites: buildHeaders with no session (generateSessionId)
-  // and after transformRequest has written runtimeOpencodeSession (toGateSessionId).
-  it("mints an inverted-timestamp prefix on both session id paths", () => {
+  // by 4096, so an inverted prefix always ends in `ffe`. A generator that emits a
+  // plain clock value or a sha256 digest here gets 403 FreeTierError on every call.
+  it("mints an inverted-timestamp prefix on every session id path", () => {
     const prefixOf = (h) => h["x-opencode-session"].slice(4, 16);
+    const ex = makeExecutor();
 
-    expect(prefixOf(makeExecutor().buildHeaders({}, true))).toMatch(/^[0-9a-f]{9}fff$/);
-
-    const credentials = {};
-    makeExecutor().transformRequest("big-pickle", { model: "big-pickle", messages: [], stream: true }, true, credentials);
-    expect(credentials.runtimeOpencodeSession).toMatch(SESSION_RE);
-    expect(prefixOf(makeExecutor().buildHeaders({}, true, credentials))).toMatch(/^[0-9a-f]{9}fff$/);
+    // Path 1: no connection to key on.
+    expect(prefixOf(ex.buildHeaders({}, true))).toMatch(/^[0-9a-f]{9}ffe$/);
+    // Path 2: keyed on a connection, which is the path the router uses.
+    expect(prefixOf(ex.buildHeaders({ connectionId: "conn-prefix-1" }, true))).toMatch(/^[0-9a-f]{9}ffe$/);
   });
 
-  it("generates a distinct session id per call", () => {
+  // Free-tier quota is counted per session, so a fresh session per request burns
+  // the budget and the upstream answers 429. Sessions are memoised per connection.
+  it("reuses one session per connection and never mints a fresh one per call", () => {
     const ex = makeExecutor();
-    const a = ex.buildHeaders({}, true)["x-opencode-session"];
-    const b = ex.buildHeaders({}, true)["x-opencode-session"];
+    const first = ex.buildHeaders({ connectionId: "conn-stable-1" }, true)["x-opencode-session"];
+    const second = ex.buildHeaders({ connectionId: "conn-stable-1" }, true)["x-opencode-session"];
+
+    expect(first).toMatch(SESSION_RE);
+    expect(second).toBe(first);
+  });
+
+  it("gives different connections different sessions", () => {
+    const ex = makeExecutor();
+    const a = ex.buildHeaders({ connectionId: "conn-a" }, true)["x-opencode-session"];
+    const b = ex.buildHeaders({ connectionId: "conn-b" }, true)["x-opencode-session"];
+
     expect(a).not.toBe(b);
+    expect(a).toMatch(SESSION_RE);
+    expect(b).toMatch(SESSION_RE);
   });
 
   it("sends text/event-stream when streaming (the gate requires it)", () => {
+    expect(makeExecutor().buildHeaders({}, true).Accept).toBe("text/event-stream");
+  });
+
+  it("keeps a caller-supplied v2 opencode UA", () => {
+    const h = makeExecutor().buildHeaders({ rawHeaders: { "user-agent": "opencode/latest/2.0.26/cli" } }, true);
+    expect(h["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+  });
+
+  it("replaces the retired v1 opencode UA", () => {
+    const h = makeExecutor().buildHeaders({ rawHeaders: { "user-agent": "opencode/1.18.19" } }, true);
+    expect(h["User-Agent"]).toMatch(UA_V2_RE);
+  });
+
+  it("declares the client identity header the gate reads", () => {
+    expect(makeExecutor().buildHeaders({}, true)["x-opencode-client"]).toBe("cli");
+  });
+
+  it("routes chat models to /inference/v1/chat/completions and muse-spark to /responses", () => {
     const ex = makeExecutor();
-    expect(ex.buildHeaders({}, true).Accept).toBe("text/event-stream");
+    expect(ex.buildUrl("muse-spark-1.3-contributor-free")).toMatch(/\/inference\/v1\/responses$/);
+    expect(ex.buildUrl("big-pickle")).toMatch(/\/inference\/v1\/chat\/completions$/);
   });
 
-  it("keeps a caller-supplied opencode UA that carries a version", () => {
-    const ex = makeExecutor();
-    const h = ex.buildHeaders({ rawHeaders: { "user-agent": "opencode/1.19.0" } }, true);
-    expect(h["User-Agent"]).toBe("opencode/1.19.0");
-  });
-
-  it("does not forward a versionless opencode UA (the gate needs a version)", () => {
-    const ex = makeExecutor();
-    const h = ex.buildHeaders({ rawHeaders: { "user-agent": "opencode" } }, true);
-    expect(h["User-Agent"]).toMatch(UA_RE);
-  });
-
-  it("does not let CLI-header synthesis reinstate the rejected identity", () => {
-    const prev = process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS;
-    process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS = "true";
-    try {
-      const ex = makeExecutor();
-      const h = ex.buildHeaders({}, true);
-      expect(h["User-Agent"]).toMatch(UA_RE);
-      expect(h["x-opencode-session"]).toMatch(SESSION_RE);
-    } finally {
-      if (prev === undefined) delete process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS;
-      else process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS = prev;
-    }
-  });
-
-  it("honours an explicit OPENCODE_CLI_USER_AGENT override", () => {
-    const prev = process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS;
-    const prevUa = process.env.OPENCODE_CLI_USER_AGENT;
-    process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS = "true";
-    process.env.OPENCODE_CLI_USER_AGENT = "opencode/1.20.0";
-    try {
-      const ex = makeExecutor();
-      expect(ex.buildHeaders({}, true)["User-Agent"]).toBe("opencode/1.20.0");
-    } finally {
-      if (prev === undefined) delete process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS;
-      else process.env.OPENCODE_SYNTHESIZE_CLI_HEADERS = prev;
-      if (prevUa === undefined) delete process.env.OPENCODE_CLI_USER_AGENT;
-      else process.env.OPENCODE_CLI_USER_AGENT = prevUa;
-    }
-  });
-
-  it("routes the two contributor-free models to the responses endpoint", () => {
-    const ex = makeExecutor();
-    expect(ex.buildUrl("muse-spark-1.3-contributor-free")).toMatch(/\/zen\/v1\/responses$/);
-    expect(ex.buildUrl("mimo-v2.5-free")).toMatch(/\/zen\/v1\/chat\/completions$/);
+  it("keeps the fingerprint pair in sync with the registry contract", () => {
+    expect(OPENCODE_FINGERPRINT_TOOLS).toEqual(["read", "shell"]);
   });
 });
