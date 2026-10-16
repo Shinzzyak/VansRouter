@@ -51,11 +51,19 @@ export function sentinelRows(modules) {
     if (!byModel.has(model)) {
       byModel.set(model, {
         model,
+        // The label the table renders. The FULL key lives in the row's `title`:
+        // multi-slash keys differ in their TAIL
+        // (`…-a594f060-f951-4bf9-b753-653786ec0d1`), so a right-truncated label
+        // made six distinct keys render identically on screen.
+        shortModel: model.length <= 44 ? model : `…${model.slice(-43)}`,
         status: "OK",
         total: 0,
         ok: 0,
         refused: 0,
         empty: 0,
+        filtered: 0,
+        answered: 0,
+        answeredRate: 0,
         refusalRate: 0,
         brandViolationRate: 0,
         enclosureViolationRate: 0,
@@ -83,6 +91,13 @@ export function sentinelRows(modules) {
     r.ok = c.ok || 0;
     r.refused = c.refusal_text || 0;
     r.empty = c.empty || 0;
+    r.filtered = c.output_filtered || 0;
+    // "Did the model actually answer?" — visible text came back at all. This is
+    // deliberately NOT one of the contract axes: `ok` means the model wrote the
+    // brand line ITSELF, which a perfectly healthy model can fail while the
+    // reply it delivered is fine (the gate repairs it downstream).
+    r.answered = Math.max(0, r.total - r.empty - r.filtered);
+    r.answeredRate = r.total ? r.answered / r.total : 0;
     r.refusalRate = row?.refusalRate || 0;
     r.brandViolationRate = row?.brandViolationRate || 0;
     r.enclosureViolationRate = row?.enclosureViolationRate || 0;
@@ -136,20 +151,39 @@ export function sentinelRows(modules) {
  *
  * `contractOk` is null, not 1, when nothing has been judged: an empty window is
  * not a healthy one, and a tile must not paint it green.
+ *
+ * WHAT `contractOk` ACTUALLY MEASURES — corrected 2026-10-16, and the correction
+ * changes the words on the tile, not the number. Every count here comes from the
+ * reply the MODEL wrote, because the tap sits UPSTREAM of the brand gate:
+ *
+ *     providerResponse.body.pipeThrough(upstreamTap)
+ *                          .pipeThrough(transformStream)   <-- judged here
+ *                          .pipeThrough(brandGate)         <-- repaired here
+ *
+ * The gate then prepends the brand and stamps the seal before the client sees a
+ * byte, so for gated traffic `missing_brand` is a REPAIR RATE, not a delivery
+ * failure — the delivered contract holds by construction. The engine's own gate
+ * draws the same line in its comments: its `modelVisible` verdict is labelled the
+ * "telemetry verdict". A tile reading "Contract OK 55%" beside a gate that
+ * repairs everything is a tile that lies about what it measured, which is why the
+ * labels now say "self-branded" and "gate repairs".
  */
 export function sentinelTotals(rows) {
-  const t = { models: rows.length, drifted: 0, judged: 0, ok: 0, refused: 0, empty: 0, brandMiss: 0, sealMiss: 0, enclosureMiss: 0, broken: 0, contractOk: null };
+  const t = { models: rows.length, drifted: 0, judged: 0, ok: 0, refused: 0, empty: 0, filtered: 0, answered: 0, answeredRate: null, brandMiss: 0, sealMiss: 0, enclosureMiss: 0, broken: 0, contractOk: null };
   for (const r of rows) {
     if (r.status === "DRIFT") t.drifted++;
     t.judged += r.total || 0;
     t.ok += r.ok || 0;
     t.refused += r.refused || 0;
     t.empty += r.empty || 0;
+    t.filtered += r.filtered || 0;
+    t.answered += r.answered || 0;
     t.brandMiss += r.brandMiss || 0;
     t.sealMiss += r.sealMiss || 0;
     t.enclosureMiss += r.enclosureMiss || 0;
   }
   t.broken = t.brandMiss + t.sealMiss + t.enclosureMiss;
   if (t.judged) t.contractOk = Math.max(0, (t.judged - t.broken) / t.judged);
+  if (t.judged) t.answeredRate = t.answered / t.judged;
   return t;
 }

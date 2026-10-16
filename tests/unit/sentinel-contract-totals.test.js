@@ -68,6 +68,55 @@ describe("sentinelRows — contract axes reach the row", () => {
   });
 });
 
+describe("sentinelRows — answered is its own axis", () => {
+  // The contract counts come from the MODEL's own output (the tap sits upstream
+  // of the brand gate), so a model that never writes its own brand line can be
+  // perfectly healthy. "Did it answer at all" is a different question and needs
+  // its own number — the roster lists models that cannot be answered.
+  it("separates 'never self-branded' from 'did not answer'", () => {
+    const rows = sentinelRows(
+      driftModule({
+        "a/m": { total: 50, refusalRate: 0, brandViolationRate: 0.6, drifted: true, driftAxes: ["brand"], counts: { ok: 20, missing_brand: 30, total: 50 } },
+        "b/m": { total: 50, refusalRate: 0, drifted: false, driftAxes: [], counts: { ok: 30, empty: 20, total: 50 } },
+      }),
+    );
+    const [a, b] = rows; // DRIFT sorts first
+    expect(a.answered).toBe(50);      // leaned on the gate every time, answered every time
+    expect(a.answeredRate).toBe(1);
+    expect(b.answered).toBe(30);      // self-branded what it answered; 20 came back empty
+    expect(b.answeredRate).toBeCloseTo(0.6, 5);
+  });
+
+  it("counts a filtered output as unanswered, not as an answer", () => {
+    const rows = sentinelRows(driftModule({ "p/m": { total: 10, counts: { ok: 4, output_filtered: 6, total: 10 } } }));
+    expect(rows[0].answered).toBe(4);
+  });
+
+  it("clamps at zero on a torn window", () => {
+    // `total` can lag its counts while a window is being appended.
+    const rows = sentinelRows(driftModule({ "p/m": { total: 2, counts: { ok: 0, empty: 5, total: 2 } } }));
+    expect(rows[0].answered).toBe(0);
+  });
+});
+
+describe("sentinelRows — the label keeps the tail", () => {
+  // The dashboard truncated from the RIGHT, so six distinct multi-slash keys
+  // rendered as the same string on screen. The distinguishing part is the tail.
+  it("a long key gets a tail-preserving label and keeps the full key", () => {
+    const key = "openai-compatible-chat-a594f060-f951-4bf9-b753-653786ec0d1";
+    const rows = sentinelRows(driftModule({ [key]: { total: 1, counts: { ok: 1, total: 1 } } }));
+    expect(rows[0].model).toBe(key);
+    expect(rows[0].shortModel.length).toBeLessThanOrEqual(44);
+    expect(key.endsWith(rows[0].shortModel.replace("…", ""))).toBe(true);
+    expect(rows[0].shortModel.startsWith("…")).toBe(true);
+  });
+
+  it("a short key is labelled whole, with no ellipsis", () => {
+    const rows = sentinelRows(driftModule({ "zai/glm-5.3-flash": { total: 1, counts: { ok: 1, total: 1 } } }));
+    expect(rows[0].shortModel).toBe("zai/glm-5.3-flash");
+  });
+});
+
 describe("sentinelTotals — the number the tiles were missing", () => {
   const rows = sentinelRows(
     driftModule({
@@ -92,5 +141,15 @@ describe("sentinelTotals — the number the tiles were missing", () => {
     const t = sentinelTotals([]);
     expect(t.judged).toBe(0);
     expect(t.contractOk).toBeNull();
+    expect(t.answeredRate).toBeNull();
+  });
+
+  it("totals answered beside judged, from the same rows", () => {
+    const t = sentinelTotals(
+      sentinelRows(driftModule({ "a/m": { total: 100, counts: { ok: 70, empty: 20, output_filtered: 10, total: 100 } } })),
+    );
+    expect(t.judged).toBe(100);
+    expect(t.answered).toBe(70);
+    expect(t.answeredRate).toBeCloseTo(0.7, 5);
   });
 });

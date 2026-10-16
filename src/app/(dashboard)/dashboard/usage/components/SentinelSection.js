@@ -122,25 +122,31 @@ export default function SentinelSection() {
           MODELS; this one counts REPLIES. Without it the tab could read
           "Drifted 0" in green while a third of all replies had lost the brand
           line — 172 watched models is a coverage number, not a health number. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Judged replies" value={loaded ? totals.judged : "—"} />
         <Stat
-          label="Contract OK"
-          value={loaded ? (totals.contractOk === null ? "—" : `${(totals.contractOk * 100).toFixed(1)}%`) : "—"}
-          tone={contractTone(totals.contractOk)}
-          title="Share of judged replies that kept the brand line, the seal and the enclosure"
+          label="Answered"
+          value={loaded ? (totals.answeredRate === null ? "—" : `${(totals.answeredRate * 100).toFixed(1)}%`) : "—"}
+          tone={contractTone(totals.answeredRate)}
+          title={`${totals.answered} of ${totals.judged} judged replies came back with visible text; the rest were empty or filtered. This is the axis that separates "listed in the roster" from "actually answers".`}
         />
         <Stat
-          label="Contract misses"
+          label="Model self-brand"
+          value={loaded ? (totals.contractOk === null ? "—" : `${(totals.contractOk * 100).toFixed(1)}%`) : "—"}
+          tone={contractTone(totals.contractOk)}
+          title="Share of judged replies where the MODEL itself wrote the brand line, the seal and the enclosure. The stream gate repairs the rest before the client sees a byte, so this is a repair rate, not a delivery failure."
+        />
+        <Stat
+          label="Model contract misses"
           value={loaded ? totals.broken : "—"}
-          tone={totals.broken ? "bad" : "none"}
-          title={`brand ${totals.brandMiss} · seal ${totals.sealMiss} · enclosure ${totals.enclosureMiss}`}
+          tone={totals.broken ? "warn" : "none"}
+          title={`replies the model left un-branded — brand ${totals.brandMiss} · seal ${totals.sealMiss} · enclosure ${totals.enclosureMiss}. Measured on the model's own output, upstream of the gate.`}
         />
         <Stat
           label="Drifted models"
           value={loaded ? drifted.length : "—"}
           tone={drifted.length ? "bad" : "none"}
-          title="Models over threshold on refusal, brand or enclosure inside their own 50-sample window"
+          title="Models over threshold on refusal, brand or enclosure inside their own 50-sample window. The brand axis counts the model's own output, so a model that leans on the gate reads as drifted."
         />
       </div>
 
@@ -169,7 +175,9 @@ export default function SentinelSection() {
                 key={row.model}
                 className="flex items-center justify-between gap-3 border-b border-border-subtle pb-1 text-xs last:border-0"
               >
-                <span className="min-w-0 flex-1 truncate text-text-main">{row.model}</span>
+                <span className="min-w-0 flex-1 break-all text-text-main" title={row.model}>
+                  {row.shortModel}
+                </span>
                 <span
                   className={`shrink-0 font-semibold ${FILTER_TONE_CLASS[row.filterTone] || "text-text-muted"}`}
                   title="engine's own class for this model's last reply — PATUH = filter passed, NOLAK/FILTER_UPSTREAM = blocked, SENYAP/SUBSTITUSI/AMBIGU = no usable answer"
@@ -181,6 +189,12 @@ export default function SentinelSection() {
                   title={row.status === "DRIFT" ? `over threshold on: ${row.driftAxes.join(", ") || "engine flag"}` : "inside every window"}
                 >
                   {row.status}
+                </span>
+                <span
+                  className={`shrink-0 ${row.total && row.answeredRate < 0.9 ? "text-amber-500" : "text-text-muted"}`}
+                  title="share of judged replies that came back with visible text — listed in the roster is not the same as able to answer"
+                >
+                  {row.total ? `${Math.round(row.answeredRate * 100)}% ans` : "—"}
                 </span>
                 <span className="shrink-0 text-text-muted" title="share of judged replies that came back as a refusal">
                   {row.total ? `${Math.round(row.refusalRate * 100)}% refusal` : "—"}
@@ -208,7 +222,12 @@ export default function SentinelSection() {
           <span className="text-red-500">FILTER_UPSTREAM</span> means it did not, and{" "}
           <span className="text-amber-500">SENYAP</span> /{" "}
           <span className="text-amber-500">SUBSTITUSI</span> /{" "}
-          <span className="text-amber-500">AMBIGU</span> means there was no usable answer to judge.
+          <span className="text-amber-500">AMBIGU</span> means there was no usable answer to judge.{" "}
+          <span className="text-text-main">% ans</span> is the share of judged replies that came back
+          with visible text — being listed in the roster is not the same as being able to answer. The
+          brand / seal / enclosure counts are what the <span className="text-text-main">model</span>{" "}
+          wrote: the stream gate repairs the contract before delivery, so they read as a repair rate,
+          not as replies that shipped broken.
         </p>
       </Card>
 
