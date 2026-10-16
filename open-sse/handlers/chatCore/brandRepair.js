@@ -39,17 +39,6 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
   const scrubbed = scrubSelfDescriptionLab(rawText);
   const source = scrubbed?.changed ? scrubbed.text : rawText;
 
-  const integrity = classifyResponse({
-    parsed: resp,
-    rawText: source,
-    requestBody,
-    enforceBrand: true,
-  });
-
-  // A refusal is attributed, not repaired — stamping our contract onto another
-  // model's decline is the K40/K41 failure mode, not a fix.
-  if (integrity.refusal) return null;
-
   const writeBack = (text) => {
     if (resp?.choices?.[0]?.message) {
       resp.choices[0].message.content = text;
@@ -63,6 +52,24 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
     }
     return false;
   };
+
+  const integrity = classifyResponse({
+    parsed: resp,
+    rawText: source,
+    requestBody,
+    enforceBrand: true,
+  });
+
+  // A refusal is attributed, not repaired — stamping our contract onto another
+  // model's decline is the K40/K41 failure mode, not a fix. The LAB SCRUB is not
+  // part of the contract: it only removes the lab's name from text the caller is
+  // about to read, so it is written back BEFORE this gate returns. Measured live
+  // 2026-10-17 (JustAsk H14 "thats_not_all"): the refusal path returned null and the
+  // caller received "I'm GLM, made by Z.ai." — the scrub had already been computed
+  // and was thrown away by this early return.
+  if (integrity.refusal) {
+    return scrubbed?.changed && writeBack(source) ? source : null;
+  }
 
   const needsRepair = [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status);
   const { text: repairedText, repaired } = needsRepair
