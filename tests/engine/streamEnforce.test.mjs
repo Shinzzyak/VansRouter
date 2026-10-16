@@ -443,6 +443,54 @@ export default async function run() {
     }
   }
 
+  console.log("=== 10. record KEDUA: onVerdict melaporkan yang DITERIMA klien ===");
+  {
+    // Tap hulu menghitung yang MODEL tulis; gate menambal head + seal sebelum
+    // mengirim. Jadi model yang menjatuhkan brand terbaca `missing_brand` di
+    // ring model sementara klien menerima kontrak lengkap — dashboard melaporkan
+    // produk yang jalan sebagai produk yang rusak. `onVerdict` adalah tap KEDUA,
+    // di hilir gate, dan uji ini membuktikan dia melaporkan sisi KIRIMAN.
+    const seen = [];
+    const chunks = [chunk("jawaban telanjang tanpa brand"), finishChunk, doneChunk];
+    const { text } = await throughGate(chunks, { onVerdict: (v) => seen.push(v) });
+    const { visible } = assembleVisibleText(text);
+    ok("onVerdict dipanggil SEKALI", seen.length === 1, `n=${seen.length}`);
+    ok("model dilaporkan apa adanya", seen[0]?.model === "test-model", `model=${seen[0]?.model}`);
+    ok("status kiriman BUKAN missing_brand — gate sudah menambal",
+      seen[0]?.status !== "missing_brand", `status=${seen[0]?.status}`);
+    ok("dan yang dikirim memang lengkap",
+      visible.trimStart().startsWith(BRAND) && visible.trimEnd().endsWith(SEAL));
+  }
+  {
+    const seen = [];
+    const good = `${BRAND}\njawaban sudah patuh\n\n${SEAL}`;
+    await throughGate([chunk(good), finishChunk, doneChunk], { onVerdict: (v) => seen.push(v) });
+    ok("yang sudah patuh dilaporkan 'ok'", seen[0]?.status === "ok", `status=${seen[0]?.status}`);
+  }
+  {
+    // Tanpa onVerdict: byte-per-byte sama seperti sebelum fitur ini ada.
+    const chunks = [chunk("jawaban telanjang"), finishChunk, doneChunk];
+    const withCb = await throughGate(chunks, { onVerdict: () => {} });
+    const without = await throughGate(chunks);
+    ok("tanpa onVerdict = keluaran identik", withCb.text === without.text);
+  }
+  {
+    // Struktur (tool_calls) tidak punya kontrak chat -> gate melewatinya, jadi
+    // onVerdict tidak boleh mengarang sampel untuk balasan yang tak pernah ada.
+    const seen = [];
+    const payload = `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: [{ id: "c1", function: { name: "x", arguments: "{}" } }] }, finish_reason: null }] })}\n\n`;
+    await throughGate([payload, finishChunk, doneChunk], { onVerdict: (v) => seen.push(v) });
+    ok("structured: onVerdict TIDAK dipanggil", seen.length === 0, `n=${seen.length}`);
+  }
+  {
+    // Telemetri tidak boleh mematahkan reply.
+    const chunks = [chunk("jawaban telanjang"), finishChunk, doneChunk];
+    const { text } = await throughGate(chunks, { onVerdict: () => { throw new Error("tap rusak"); } });
+    const { visible } = assembleVisibleText(text);
+    ok("onVerdict yang melempar tidak mematahkan stream",
+      visible.trimStart().startsWith(BRAND) && text.includes("data: [DONE]"));
+  }
+
   console.log(`\nRINGKAS: ${pass} LULUS, ${fail} MERAH`);
   if (fail > 0) process.exitCode = 1;
 }

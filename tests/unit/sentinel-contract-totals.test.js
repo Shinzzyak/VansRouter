@@ -12,6 +12,9 @@ import { sentinelRows, sentinelTotals } from "@/lib/sentinel/rows.js";
 //      `sentinelTotals` is that number.
 
 const driftModule = (drift) => ({ refusalDrift: { drift } });
+// The other side of the same gate: filled by the gate's own verdict, so the
+// number is "what the client received", not "what the model wrote".
+const deliveredModule = (drift) => ({ refusalDriftDelivered: { drift } });
 
 describe("sentinelRows — contract axes reach the row", () => {
   it("carries enclosure misses and the violation rates", () => {
@@ -151,5 +154,61 @@ describe("sentinelTotals — the number the tiles were missing", () => {
     expect(t.judged).toBe(100);
     expect(t.answered).toBe(70);
     expect(t.answeredRate).toBeCloseTo(0.7, 5);
+  });
+});
+
+describe("the delivered side — what the client received, not what the model wrote", () => {
+  it("pairs the two rings on the same row", () => {
+    const rows = sentinelRows({
+      refusalDrift: { drift: { "zai/glm-5.3-flash": { total: 50, counts: { ok: 20, missing_brand: 30, total: 50 } } } },
+      refusalDriftDelivered: { drift: { "zai/glm-5.3-flash": { total: 50, counts: { ok: 50, total: 50 } } } },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].brandMiss).toBe(30);      // the model dropped the brand 30 times
+    expect(rows[0].deliveredTotal).toBe(50);
+    expect(rows[0].deliveredRate).toBe(1);   // the client still got it 50 times
+  });
+
+  it("an unmeasured delivery is null, never 0% — a tile must not paint it red", () => {
+    const rows = sentinelRows(driftModule({ "p/m": { total: 10, counts: { ok: 10, total: 10 } } }));
+    expect(rows[0].deliveredRate).toBeNull();
+    const t = sentinelTotals(rows);
+    expect(t.deliveredJudged).toBe(0);
+    expect(t.deliveredRate).toBeNull();
+  });
+
+  it("a model that exists only on the delivered side still gets a row", () => {
+    const rows = sentinelRows(deliveredModule({ "p/m": { total: 8, counts: { ok: 8, total: 8 } } }));
+    expect(rows.map((r) => r.model)).toEqual(["p/m"]);
+    expect(rows[0].deliveredRate).toBe(1);
+  });
+
+  it("totals the delivered side separately from the model side", () => {
+    const rows = sentinelRows({
+      refusalDrift: { drift: {
+        "a/m1": { total: 100, counts: { ok: 70, missing_brand: 30, total: 100 } },
+        "b/m2": { total: 100, counts: { ok: 100, total: 100 } },
+      } },
+      refusalDriftDelivered: { drift: {
+        "a/m1": { total: 100, counts: { ok: 100, total: 100 } },
+        "b/m2": { total: 100, counts: { ok: 90, missing_seal: 10, total: 100 } },
+      } },
+    });
+    const t = sentinelTotals(rows);
+    expect(t.brandMiss).toBe(30);
+    expect(t.contractOk).toBeCloseTo(0.85, 5);      // (200-30)/200 — the model's own output
+    expect(t.deliveredJudged).toBe(200);
+    expect(t.deliveredBroken).toBe(10);
+    expect(t.deliveredRate).toBeCloseTo(0.95, 5);   // the gate's output
+  });
+
+  it("a delivered ring older than the model ring stays honest per row", () => {
+    const rows = sentinelRows({
+      refusalDrift: { drift: { "a/m1": { total: 10, counts: { ok: 10, total: 10 } }, "b/m2": { total: 10, counts: { ok: 10, total: 10 } } } },
+      refusalDriftDelivered: { drift: { "a/m1": { total: 10, counts: { ok: 10, total: 10 } } } },
+    });
+    const t = sentinelTotals(rows);
+    expect(t.deliveredJudged).toBe(10);            // only the rows that have samples
+    expect(rows.find((r) => r.model === "b/m2").deliveredRate).toBeNull();
   });
 });

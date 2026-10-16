@@ -10,7 +10,10 @@ import { loadEngine } from "./engineLoader.js";
 
 const __E = loadEngine("refusalDrift") ?? {};
 
+export const _resetDeliveredDrift = __E._resetDeliveredDrift ?? (() => {});
 export const _resetDrift = __E._resetDrift ?? (() => {});
+export const getAllDeliveredDrift = __E.getAllDeliveredDrift ?? (() => ({}));
 export const getAllDrift = __E.getAllDrift ?? (() => ({}));
 export const getDrift = __E.getDrift ?? (() => null);
+export const recordDeliveredIntegrity = __E.recordDeliveredIntegrity ?? (() => {});
 export const recordIntegrity = __E.recordIntegrity ?? (() => {});

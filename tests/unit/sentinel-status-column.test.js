@@ -238,4 +238,20 @@ describe("sentinel wiring", () => {
     expect(section).toMatch(/import \{[^}]*\bsentinelRows\b[^}]*\} from "@\/lib\/sentinel\/rows"/);
     expect(section).not.toMatch(/export function sentinelRows/);
   });
+
+  it("gives the model label the whole row on a phone", () => {
+    // `break-all` on a label that shares its line with six counters has a
+    // one-character sliver to work with on a phone, so a long key rendered one
+    // character per line. The label must own the row below `sm` and go back to
+    // a single truncated line from `sm` up.
+    const label = section.match(/<span className="([^"]*)" title=\{row\.model\}>/);
+    expect(label).not.toBeNull();
+    const cls = label[1];
+    expect(cls).toContain("w-full");
+    expect(cls).toContain("sm:flex-1");
+    expect(cls).toContain("sm:truncate");
+    // …and the row has to be allowed to wrap, or the full-width label just
+    // pushes the counters off the card instead of stacking them.
+    expect(section).toMatch(/flex flex-wrap items-baseline[^"]*"/);
+  });
 });

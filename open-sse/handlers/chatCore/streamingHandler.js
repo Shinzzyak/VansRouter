@@ -15,7 +15,7 @@ import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { STREAM_VERDICT_HEADER } from "../../config/runtimeConfig.js";
 import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
-import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { recordIntegrity, recordDeliveredIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
@@ -200,6 +200,17 @@ export async function handleStreamingResponse({
         enabled: true,
         model,
         log: { warn: (...a) => console.warn(`[${a[0]}]`, ...a.slice(1)) },
+        // The SECOND record, on the other side of the gate. `onStreamComplete`
+        // below reads the tap UPSTREAM of this gate, so its ring counts what the
+        // MODEL wrote; the gate then repairs a missing head and stamps a missing
+        // seal, so a model that drops the brand and gets repaired every time
+        // reads as a total failure there while the client received a complete
+        // contract. Both numbers are true and they answer different questions —
+        // "is the model drifting?" vs "did the buyer get the product?". Without
+        // this the dashboard cannot tell those apart and reports a working
+        // product as a broken one (measured 2026-10-16: 193 missing_brand on a
+        // model whose replies all shipped with the brand).
+        onVerdict: ({ status }) => recordDeliveredIntegrity(provider, model, status),
       })
     : null;
   const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs, brandGate);

@@ -122,7 +122,7 @@ export default function SentinelSection() {
           MODELS; this one counts REPLIES. Without it the tab could read
           "Drifted 0" in green while a third of all replies had lost the brand
           line — 172 watched models is a coverage number, not a health number. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Judged replies" value={loaded ? totals.judged : "—"} />
         <Stat
           label="Answered"
@@ -134,13 +134,19 @@ export default function SentinelSection() {
           label="Model self-brand"
           value={loaded ? (totals.contractOk === null ? "—" : `${(totals.contractOk * 100).toFixed(1)}%`) : "—"}
           tone={contractTone(totals.contractOk)}
-          title="Share of judged replies where the MODEL itself wrote the brand line, the seal and the enclosure. The stream gate repairs the rest before the client sees a byte, so this is a repair rate, not a delivery failure."
+          title="Share of judged replies where the MODEL itself wrote the brand line, the seal and the enclosure. This is the axis the stream gate repairs — read it beside Delivered contract, which is the same question asked on the client's side."
         />
         <Stat
           label="Model contract misses"
           value={loaded ? totals.broken : "—"}
           tone={totals.broken ? "warn" : "none"}
           title={`replies the model left un-branded — brand ${totals.brandMiss} · seal ${totals.sealMiss} · enclosure ${totals.enclosureMiss}. Measured on the model's own output, upstream of the gate.`}
+        />
+        <Stat
+          label="Delivered contract"
+          value={loaded ? (totals.deliveredRate === null ? "—" : `${(totals.deliveredRate * 100).toFixed(1)}%`) : "—"}
+          tone={contractTone(totals.deliveredRate)}
+          title={`Share of delivered replies that reached the client carrying brand + seal + enclosure, measured AFTER the gate ran — ${totals.deliveredJudged} replies, ${totals.deliveredBroken} short. Read beside Model self-brand: a wide gap means the models are drifting and the gate is carrying them; a delivered number BELOW the model number would mean the gate is the bug.`}
         />
         <Stat
           label="Drifted models"
@@ -173,9 +179,15 @@ export default function SentinelSection() {
             {rows.slice(0, 40).map((row) => (
               <div
                 key={row.model}
-                className="flex items-center justify-between gap-3 border-b border-border-subtle pb-1 text-xs last:border-0"
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border-subtle pb-1 text-xs last:border-0"
               >
-                <span className="min-w-0 flex-1 break-all text-text-main" title={row.model}>
+                {/* The model key is the one field that can outrun the row — a
+                    multi-slash key runs past 60 chars. On a phone the label
+                    shared the line with six counters, so `break-all` had a
+                    one-character sliver to work with and stacked the name
+                    vertically. Below `sm` the label gets the whole row; from
+                    `sm` up it goes back to a single truncated line. */}
+                <span className="w-full min-w-0 break-all text-text-main sm:w-auto sm:flex-1 sm:truncate" title={row.model}>
                   {row.shortModel}
                 </span>
                 <span
@@ -201,9 +213,17 @@ export default function SentinelSection() {
                 </span>
                 <span
                   className={`shrink-0 ${row.brandMiss + row.sealMiss + row.enclosureMiss ? "text-red-500" : "text-text-muted"}`}
-                  title="missing brand / missing seal / missing enclosure out of judged replies"
+                  title="missing brand / missing seal / missing enclosure out of judged replies, measured on the MODEL's own output (upstream of the gate)"
                 >
                   brand {row.brandMiss} · seal {row.sealMiss} · encl {row.enclosureMiss}
+                </span>
+                <span
+                  className={`shrink-0 ${row.deliveredRate === null ? "text-text-muted" : row.deliveredRate < 0.99 ? "text-amber-500" : "text-emerald-500"}`}
+                  title={row.deliveredTotal
+                    ? `the gate's own verdict on what the client received: ${row.deliveredOk} of ${row.deliveredTotal} delivered replies carried the full contract. Read beside the model numbers — a wide gap means the gate is carrying this model.`
+                    : "no delivered sample for this model yet"}
+                >
+                  {row.deliveredRate === null ? "→ —" : `→ ${Math.round(row.deliveredRate * 100)}% out`}
                 </span>
                 <span className="shrink-0 text-text-muted" title="self-measuring bypass: best escalation level and last outcome">
                   {row.best ? `${row.best} · ${row.last}` : "—"}
@@ -226,8 +246,10 @@ export default function SentinelSection() {
           <span className="text-text-main">% ans</span> is the share of judged replies that came back
           with visible text — being listed in the roster is not the same as being able to answer. The
           brand / seal / enclosure counts are what the <span className="text-text-main">model</span>{" "}
-          wrote: the stream gate repairs the contract before delivery, so they read as a repair rate,
-          not as replies that shipped broken.
+          wrote. The <span className="text-text-main">→ % out</span> column is the other side of the
+          gate: the share of delivered replies that reached the client with the full contract, as the
+          gate itself reports it. A wide gap between the two means the models are drifting and the
+          gate is carrying them — the model numbers alone would read that as a broken product.
         </p>
       </Card>
 

@@ -44,6 +44,7 @@ export function sentinelRows(modules) {
   const drift = modules?.refusalDrift?.drift || {};
   const cadence = modules?.voiceCadence?.cadence || [];
   const ledger = modules?.selfMeasuringBypass?.ledger || [];
+  const delivered = modules?.refusalDriftDelivered?.drift || {};
 
   const byModel = new Map();
   const ensure = (model) => {
@@ -78,10 +79,37 @@ export function sentinelRows(modules) {
         outcome: "",
         filter: "—",
         filterTone: "unknown",
+        // The far side of the brand gate. `null` (not 0) while the delivered
+        // ring has no sample for this model — an unmeasured delivery is not a
+        // failed one, and a tile must not paint it red.
+        deliveredTotal: 0,
+        deliveredOk: 0,
+        deliveredRate: null,
+        deliveredBrandMiss: 0,
+        deliveredSealMiss: 0,
+        deliveredEnclosureMiss: 0,
       });
     }
     return byModel.get(model);
   };
+
+  // The delivered ring is filled by the gate's `onVerdict` and keyed the same
+  // way, so it pairs by model key. Read it BESIDE the model numbers, never
+  // instead of them: a wide gap (`brand 1` on the model side, `delivered 100%`
+  // here) means the models are drifting and the gate is carrying them; a small
+  // gap means the models are healthy. Same model twice is the whole point.
+  for (const [model, row] of Object.entries(delivered)) {
+    const r = ensure(model);
+    if (!r) continue;
+    const c = row?.counts || {};
+    r.deliveredTotal = row?.total || 0;
+    r.deliveredOk = c.ok || 0;
+    r.deliveredBrandMiss = c.missing_brand || 0;
+    r.deliveredSealMiss = c.missing_seal || 0;
+    r.deliveredEnclosureMiss = c.missing_enclosure || 0;
+    const miss = r.deliveredBrandMiss + r.deliveredSealMiss + r.deliveredEnclosureMiss;
+    r.deliveredRate = r.deliveredTotal ? Math.max(0, (r.deliveredTotal - miss) / r.deliveredTotal) : null;
+  }
 
   for (const [model, row] of Object.entries(drift)) {
     const r = ensure(model);
@@ -167,9 +195,18 @@ export function sentinelRows(modules) {
  * "telemetry verdict". A tile reading "Contract OK 55%" beside a gate that
  * repairs everything is a tile that lies about what it measured, which is why the
  * labels now say "self-branded" and "gate repairs".
+ *
+ * MEASURED NOW, NOT ASSUMED (2026-10-16). That paragraph used to end by asserting
+ * "the delivered contract holds by construction" — an assumption, not a
+ * measurement. The gate now reports its own verdict through `onVerdict`, the
+ * router files it in a second ring (`refusalDriftDelivered`), and the route
+ * serves it beside the first, so the tab can print both numbers: what the model
+ * wrote, and what the buyer received. Equal means the gate is idle; the delivered
+ * number higher means the gate is carrying a drifting model; the delivered number
+ * LOWER means the gate itself is the bug.
  */
 export function sentinelTotals(rows) {
-  const t = { models: rows.length, drifted: 0, judged: 0, ok: 0, refused: 0, empty: 0, filtered: 0, answered: 0, answeredRate: null, brandMiss: 0, sealMiss: 0, enclosureMiss: 0, broken: 0, contractOk: null };
+  const t = { models: rows.length, drifted: 0, judged: 0, ok: 0, refused: 0, empty: 0, filtered: 0, answered: 0, answeredRate: null, brandMiss: 0, sealMiss: 0, enclosureMiss: 0, broken: 0, contractOk: null, deliveredJudged: 0, deliveredOk: 0, deliveredBroken: 0, deliveredRate: null };
   for (const r of rows) {
     if (r.status === "DRIFT") t.drifted++;
     t.judged += r.total || 0;
@@ -181,9 +218,13 @@ export function sentinelTotals(rows) {
     t.brandMiss += r.brandMiss || 0;
     t.sealMiss += r.sealMiss || 0;
     t.enclosureMiss += r.enclosureMiss || 0;
+    t.deliveredJudged += r.deliveredTotal || 0;
+    t.deliveredOk += r.deliveredOk || 0;
+    t.deliveredBroken += (r.deliveredBrandMiss || 0) + (r.deliveredSealMiss || 0) + (r.deliveredEnclosureMiss || 0);
   }
   t.broken = t.brandMiss + t.sealMiss + t.enclosureMiss;
   if (t.judged) t.contractOk = Math.max(0, (t.judged - t.broken) / t.judged);
   if (t.judged) t.answeredRate = t.answered / t.judged;
+  if (t.deliveredJudged) t.deliveredRate = Math.max(0, (t.deliveredJudged - t.deliveredBroken) / t.deliveredJudged);
   return t;
 }

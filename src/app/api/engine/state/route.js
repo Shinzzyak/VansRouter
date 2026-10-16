@@ -20,7 +20,7 @@ import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
 import { stateStatus } from "open-sse/rtk/engineState.js";
 import { ledgerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
 import { routeSnapshot } from "open-sse/rtk/routeGuardMemory.js";
-import { getAllDrift } from "open-sse/rtk/refusalDrift.js";
+import { getAllDrift, getAllDeliveredDrift } from "open-sse/rtk/refusalDrift.js";
 import { cadenceSnapshot } from "open-sse/rtk/voiceCadence.js";
 import { immunitySnapshot } from "open-sse/rtk/modelImmunityHints.js";
 
@@ -81,6 +81,11 @@ export async function GET(request) {
       })),
       routeGuardMemory: read(loaded, "routeGuardMemory", () => ({ routes: routeSnapshot() ?? null })),
       refusalDrift: read(loaded, "refusalDrift", () => ({ drift: getAllDrift() ?? {} })),
+      // The far side of the brand gate: what the client received once the head
+      // repair and the seal stamp ran. Same shape as `refusalDrift`, different
+      // source — the pair answers "is the model drifting?" and "did the buyer
+      // get the product?" separately. See streamingHandler's `onVerdict`.
+      refusalDriftDelivered: read(loaded, "refusalDriftDelivered", () => ({ drift: getAllDeliveredDrift() ?? {} })),
       voiceCadence: read(loaded, "voiceCadence", () => ({ cadence: cadenceSnapshot() ?? [] })),
       modelImmunityHints: read(loaded, "modelImmunityHints", () => ({ hints: immunitySnapshot() ?? [] })),
     },

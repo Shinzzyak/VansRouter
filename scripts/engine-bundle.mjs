@@ -226,6 +226,12 @@ const FALLBACKS = {
     getAllDrift: "(() => ({}))",
     getDrift: "(() => null)",
     recordIntegrity: "(() => {})",
+    // Delivered side of the gate (2026-10-16). Without the bundle the second
+    // ring simply never fills, which is the honest degradation: a router with no
+    // gate has no delivery to measure.
+    _resetDeliveredDrift: "(() => {})",
+    getAllDeliveredDrift: "(() => ({}))",
+    recordDeliveredIntegrity: "(() => {})",
   },
   streamIntegrity: {
     classifyStreamContent: "(() => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }))",
