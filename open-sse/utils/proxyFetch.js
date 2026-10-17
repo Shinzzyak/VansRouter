@@ -224,6 +224,24 @@ async function createBypassRequest(parsedUrl, realIP, options) {
   });
 }
 
+/**
+ * K146 — hosts whose gate is the request shape, not the egress IP.
+ *
+ * OpenCode's free tier answers 200 to a datacenter IP that speaks the CLI
+ * fingerprint and 403 FreeTierError to the same IP when the `read`/`shell`
+ * placeholder tools are missing (A/B, 2026-10-17). Routing it through the shared
+ * pool therefore changes nothing about the gate while adding a real cost: one
+ * measured request hung 90 s on a dead pool proxy before falling back to direct.
+ * Exported so the rule can be asserted without a network.
+ */
+export function staysDirect(targetUrl) {
+  try {
+    return /(^|\.)opencode\.ai$/i.test(new URL(targetUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const targetUrl = typeof url === "string" ? url : url.toString();
 
@@ -233,6 +251,17 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
     || !!proxyOptions?.vercelRelayUrl
     || !!proxyOptions?.proxyPoolId;
   if (options.provider === "antigravity" && !hasExplicitProxy) {
+    return originalFetch(url, options);
+  }
+
+  // K146: OpenCode's free tier is gated by REQUEST SHAPE, not by source IP (A/B
+  // 2026-10-17: datacenter IP + CLI fingerprint = 200; missing tools = 403), so a
+  // proxy buys nothing there and costs plenty: measured 2026-10-17, one trivial
+  // `oc/glm-5.3-flash-free` request hung 90 s because the pool proxy died first and
+  // only then fell back to direct ("[ProxyFetch] Proxy failed, falling back to
+  // direct: fetch failed"). Same request direct answers in 0.4-3 s. Keep the free
+  // lane direct unless the connection explicitly asks for a proxy.
+  if (!hasExplicitProxy && staysDirect(targetUrl)) {
     return originalFetch(url, options);
   }
 
