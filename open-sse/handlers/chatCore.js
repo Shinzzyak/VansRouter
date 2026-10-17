@@ -189,6 +189,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // getEscalationPromptForLevel; T1/T2 are identity-free and unchanged).
   const personaExempt = apiKeyInfo?.personaInject === false;
   const requestStartTime = Date.now();
+  // K140: escalation is a bounded attempt at flipping a refusal, not an
+  // open-ended retry. Three ladders x three attempts x every combo candidate
+  // turned one hard refusal into a 7-minute wait (measured 2026-10-17: client
+  // timed out at 420 s with an empty body). Past the budget the ladder stops and
+  // K139 ships whatever answer exists — a refusal in 20 s beats a timeout in 420.
+  const escalationBudgetMs = Number(process.env.VR_ESCALATION_BUDGET_MS || 45000);
+  const escalationBudgetSpent = () => Date.now() - requestStartTime > escalationBudgetMs;
 
   // Check for bypass patterns (warmup, skip, cc naming)
   const bypassResponse = handleBypassRequest(body, model, userAgent, ccFilterNaming);
@@ -826,6 +833,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const triedL1 = [];
       let lvl1 = firstLevel(model);
       for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+        if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
         triedL1.push(lvl1);
         const esc = getEscalationPromptForLevel(lvl1, { identityFree: personaExempt });
         const appended = appendEscalationToBody(translatedBody, esc);
@@ -986,6 +994,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         const triedL2 = [];
         let lvl2 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+          if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
           triedL2.push(lvl2);
           // K129: same first-move as the streaming gate — disown the refusal
           // instead of arguing for permission.
@@ -1096,6 +1105,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         let lvl3 = firstLevel(model);
         recordRefusalMetric("retried", { provider, model, reason: `stream-head ${headVerdict}` });
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+          if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
           triedL3.push(lvl3);
           // K129: attempt 0 does not argue about permission — it hands the
           // refusal back to a fictional foreign agent so continuing is the
