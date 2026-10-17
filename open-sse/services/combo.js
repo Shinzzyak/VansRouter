@@ -562,6 +562,11 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
     }
   }
   
+  // K141: rotation is bounded in WALL CLOCK, not in attempts. smart-fallback
+  // holds nine candidates; each one refusing at ~60 s turns a hard refusal into
+  // a seven-minute request that ends in a client timeout with an empty body.
+  const comboDeadlineMs = Number(process.env.VR_COMBO_DEADLINE_MS || 90000);
+  const comboStartedAt = Date.now();
   let lastError = null;
   // K139: the refusal text is an ANSWER (K109). Keep the last one so the tail of
   // this function can ship it instead of synthesizing an empty 502 when every
@@ -576,6 +581,12 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
+
+    // K141: past the deadline, stop rotating. K139 ships the refusal below.
+    if (Date.now() - comboStartedAt > comboDeadlineMs) {
+      log.warn("COMBO", `Rotation deadline ${comboDeadlineMs}ms reached — stopping`);
+      break;
+    }
 
     // Honor external abort before trying the next target.
     if (signal?.aborted) {

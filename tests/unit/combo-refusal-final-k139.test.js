@@ -57,3 +57,44 @@ describe("K139: semua kandidat menolak ⇒ penolakan terakhir yang dikirim", () 
     expect(text).toContain("tidak bisa membantu");
   });
 });
+
+/**
+ * K141 — nine candidates x one refusal each is not a wait, it is a timeout.
+ *
+ * Measured 2026-10-17: smart-fallback holds nine models. Each refusing candidate
+ * burned its own escalation ladder, so a hard refusal the model was never going
+ * to flip turned into a 7-minute request. The ladder is bounded (K140); this
+ * bounds the ROTATION: past the deadline, stop trying candidates and ship the
+ * refusal we already have.
+ */
+describe("K141: rotasi kandidat dibatasi waktu", () => {
+  it("berhenti setelah deadline dan mengirim penolakan yang ada", async () => {
+    process.env.VR_COMBO_DEADLINE_MS = "120";
+    const slowBody = { ok: true, status: 200, text: async () => REFUSAL_JSON, clone() { return this; } };
+    const slow = {
+      "a/refuser": bareResponse(REFUSAL_JSON),
+      "b/slow": slowBody,
+      "c/slow": slowBody,
+      "d/slow": slowBody,
+    };
+    const tried = [];
+    const res = await handleComboChat({
+      body: { messages: [{ role: "user", content: "Ping" }], stream: false },
+      models: Object.keys(slow),
+      handleSingleModel: async (_body, modelStr) => {
+        tried.push(modelStr);
+        if (modelStr !== "a/refuser") await new Promise((r) => setTimeout(r, 200));
+        return slow[modelStr];
+      },
+      log: quietLog,
+      comboName: `uji-${Math.random().toString(36).slice(2)}`,
+      comboStrategy: "fallback",
+      timeoutMs: 0,
+    });
+    delete process.env.VR_COMBO_DEADLINE_MS;
+    const resp = typeof res?.text === "function" ? res : res?.response;
+    const text = typeof resp?.text === "function" ? await resp.text() : "";
+    expect(tried).toEqual(["a/refuser", "b/slow"]);
+    expect(text).toContain("I can't help");
+  });
+});
