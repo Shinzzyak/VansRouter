@@ -99,12 +99,15 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
 }
 
 /**
- * Collapse a stuttered brand line (K121).
+ * Collapse a stuttered brand line (K121, widened by K143).
  *
- * Only the first four lines are inspected: a brand line further down is content
- * (a quoted example, a code block) and must survive untouched. The first
- * brand-shaped line wins; later ones in that window are dropped, and the
- * "GEFREITER — GEFREITER" stutter inside the survivor is normalised.
+ * The window is the leading ATTRIBUTION BLOCK — the run of blank, brand and seal
+ * lines at the top of the reply — not the first four lines. A stutter that starts
+ * on line six is still a stutter; a brand-shaped line that differs is content (a
+ * quoted example) and ends the block, so it survives untouched.
+ *
+ * Rule borrowed from opencode-jb-launcher: retire a duplicate only when it IS a
+ * duplicate (`cmp -s`), never when it merely looks similar.
  *
  * @param {string} text
  * @returns {{text: string, changed: boolean}}
@@ -112,20 +115,24 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
 export function collapseDuplicateBrand(text) {
   if (typeof text !== "string" || !text) return { text, changed: false };
   const lines = text.split("\n");
-  let seen = false;
+  const BRAND_RE = /^MADE BY:\s*GEFREITER\b/;
+  const SEAL_RE = /^Avres is King\.?$/;
+  const normalise = (line) => line.replace(/GEFREITER\s+—\s+GEFREITER/g, "GEFREITER");
+  let seenBrand = null;
+  let inBlock = true;
   let changed = false;
   const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const isBrand = /^MADE BY:\s*GEFREITER\b/.test(lines[i].trim());
-    if (isBrand && i < 4) {
-      if (seen) { changed = true; continue; }
-      seen = true;
-      const fixed = lines[i].replace(/GEFREITER\s+—\s+GEFREITER/g, "GEFREITER");
-      if (fixed !== lines[i]) changed = true;
-      out.push(fixed);
-      continue;
-    }
-    out.push(lines[i]);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!inBlock) { out.push(line); continue; }
+    if (trimmed === "" || SEAL_RE.test(trimmed)) { out.push(line); continue; }
+    if (!BRAND_RE.test(trimmed)) { inBlock = false; out.push(line); continue; }
+    const fixed = normalise(line);
+    if (fixed !== line) changed = true;
+    if (seenBrand === null) { seenBrand = fixed.trim(); out.push(fixed); continue; }
+    if (fixed.trim() === seenBrand) { changed = true; continue; }
+    inBlock = false;
+    out.push(fixed);
   }
   return { text: changed ? out.join("\n") : text, changed };
 }

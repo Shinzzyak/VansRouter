@@ -59,3 +59,28 @@ describe("enforceChatBrand writes the deduped body back (K121)", () => {
     expect(resp.choices[0].message.content).toBe(out);
   });
 });
+
+/**
+ * K143 — the dedupe window was four lines, and a stutter that starts on line six
+ * survived it. The launcher rule (opencode-jb-launcher, `cmp -s` before retiring
+ * a plugin copy) is the right one: retire a duplicate only when it IS a
+ * duplicate. So the fix is not "scan more lines blindly" — a brand-shaped line
+ * that differs is content (a quoted example) and must survive; only the leading
+ * attribution block is ours to collapse, however tall it is.
+ */
+describe("K143: attribution block, not a four-line window", () => {
+  it("collapses a stutter that sits past line four", () => {
+    const body = `${BRAND}\n\n\n\n\n${BRAND}\n\nmph. body.\n\n${SEAL}`;
+    const { text, changed } = collapseDuplicateBrand(body);
+    expect(changed).toBe(true);
+    expect(text.split(BRAND).length - 1).toBe(1);
+    expect(text).toContain("mph. body.");
+  });
+
+  it("keeps a differing brand-shaped line further down as content", () => {
+    const body = `${BRAND}\nmph. body.\n\nMADE BY: GEFREITER — contoh header lain\n\n${SEAL}`;
+    const { text, changed } = collapseDuplicateBrand(body);
+    expect(changed).toBe(false);
+    expect(text).toBe(body);
+  });
+});
