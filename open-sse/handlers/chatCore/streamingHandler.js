@@ -15,6 +15,7 @@ import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { STREAM_VERDICT_HEADER } from "../../config/runtimeConfig.js";
 import { classifyStreamContent } from "../../rtk/streamIntegrity.js";
 import { INTEGRITY } from "../../rtk/responseIntegrity.js";
+import { recordRefusalMetric } from "../../rtk/refusalMetrics.js";
 import { recordIntegrity, recordDeliveredIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
@@ -210,7 +211,20 @@ export async function handleStreamingResponse({
         // this the dashboard cannot tell those apart and reports a working
         // product as a broken one (measured 2026-10-16: 193 missing_brand on a
         // model whose replies all shipped with the brand).
-        onVerdict: ({ status }) => recordDeliveredIntegrity(provider, model, status),
+        onVerdict: ({ status }) => {
+          recordDeliveredIntegrity(provider, model, status);
+          // K127 (2026-10-17): the gate classifies the FULL delivered text in its
+          // `finally`, but a refusal that only appears after the head window
+          // (reasoning-first streams) reaches here as a status and nothing else.
+          // Live proof: a probe reply opened with "me tidak kerjakan ini" behind
+          // 173 reasoning tokens, shipped with brand+seal, and no counter moved —
+          // the head peek saw clean text and the tail was never counted.
+          // Counted as `shipped`: the bytes already reached the client, so there
+          // is nothing to retry. Detection here is measurement, not a fix.
+          if (status === INTEGRITY.REFUSAL) {
+            recordRefusalMetric("shipped", { provider, model, outcome: status, path: "stream-tail" });
+          }
+        },
       })
     : null;
   const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs, brandGate);

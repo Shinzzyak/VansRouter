@@ -67,3 +67,20 @@ describe("K126 — penolakan persona 'me tolak' + kata pelanggaran", () => {
     expect(ra.isOwnRefusal(body)).toBe(false);
   });
 });
+
+describe("K127 — refusal yang muncul setelah jendela head", () => {
+  const STREAM = readFileSync("open-sse/handlers/chatCore/streamingHandler.js", "utf8");
+
+  it("onVerdict menghitung status refusal sebagai shipped (stream-tail)", () => {
+    const at = STREAM.indexOf("recordDeliveredIntegrity(provider, model, status)");
+    expect(at).toBeGreaterThan(-1);
+    const window = STREAM.slice(at, at + 900);
+    expect(window).toMatch(/INTEGRITY\.REFUSAL/);
+    expect(window).toMatch(/recordRefusalMetric\("shipped"/);
+    expect(window).toMatch(/path: "stream-tail"/);
+  });
+
+  it("modul penghitung benar-benar diimpor", () => {
+    expect(STREAM).toMatch(/import \{ recordRefusalMetric \} from "\.\.\/\.\.\/rtk\/refusalMetrics\.js"/);
+  });
+});
