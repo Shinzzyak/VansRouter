@@ -1058,6 +1058,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // non-streaming with escalation, then hand the client a coherent JSON response.
   if (bypassMode === BYPASS_MODES.AGGRESSIVE && providerResponse.ok && providerResponse.body) {
     const gate = await peekStreamForRefusal(providerResponse.body);
+    if (process.env.VR_GATE_DEBUG === "1") {
+      const dbgVerdict = gate && !gate.empty && gate.headText ? classifyStreamHead(gate.headText) : "n/a";
+      log?.warn?.("BYPASS", `gate-debug: empty=${gate?.empty} headLen=${gate?.headText?.length ?? 0} verdict=${dbgVerdict}`);
+    }
     // Fail-open: without the private engine bundle peekStreamForRefusal
     // resolves null. A missing gate must never kill the request — fall
     // through to plain proxy streaming below.
