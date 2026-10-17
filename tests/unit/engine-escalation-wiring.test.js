@@ -124,7 +124,13 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // Jalur pertama tidak boleh memakai predikat loop: itu yang jadi bug.
     const inspectIdx = chatCore.indexOf('inspect: outcome=');
     expect(inspectIdx).toBeGreaterThan(-1);
-    const gate = chatCore.slice(inspectIdx, inspectIdx + 900);
+    // Jendela 900 -> 1400 (2026-10-17). Bukan pelonggaran invarian: yang dijaga
+    // tetap "gerbang percobaan pertama memakai needsFirstPassEscalation dan BUKAN
+    // needsAnotherTry(outcome)". Jendela 900 adalah tebakan ukuran, dan penghitung
+    // refusal (3 baris, K-refusal-metrics) mendorong gerbangnya lewat tepi —
+    // tes merah padahal perilakunya tidak berubah. Yang tidak boleh ada di jendela
+    // ini adalah needsAnotherTry(outcome); itu masih diperiksa di bawah.
+    const gate = chatCore.slice(inspectIdx, inspectIdx + 1400);
     expect(gate).toMatch(/needsFirstPassEscalation\(/);
     expect(gate).not.toMatch(/needsAnotherTry\(outcome\)/);
   });
