@@ -29,6 +29,7 @@ export const getEscalationPromptForLevel = __E.getEscalationPromptForLevel ?? ((
 export const getFramingStrategy = __E.getFramingStrategy ?? (() => null);
 export const isContentSafetyRejected = __E.isContentSafetyRejected ?? (() => false);
 export const isOutputFiltered = __E.isOutputFiltered ?? (() => false);
+export const openerRefusal = __E.openerRefusal ?? (() => false);
 export const peekStreamForRefusal = __E.peekStreamForRefusal ?? (async () => null);
 export const reconstructPeekedStream = __E.reconstructPeekedStream ?? (() => null);
 export const refusalAttributionOf = __E.refusalAttributionOf ?? (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }));
