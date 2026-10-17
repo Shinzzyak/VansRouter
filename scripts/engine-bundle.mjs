@@ -254,6 +254,11 @@ const FALLBACKS = {
   selfDescriptionScrub: {
     SELF_DESCRIPTION_SCRUB_HEAD_CHARS: "600",
     scrubSelfDescriptionLab: "((text) => ({ text: String(text ?? ''), changed: false, hits: [] }))",
+    // Fail-OPEN: with no bundle there is nothing to strip, and returning the text
+    // unchanged is the only shape that cannot corrupt a reply. The dump strip is
+    // already called from inside scrubSelfDescriptionLab, so this standalone entry
+    // only exists for callers that import it directly (tests, probes).
+    stripPromptDump: "((text) => ({ text: String(text ?? ''), changed: false, hits: [] }))",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",
