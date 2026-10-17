@@ -46,7 +46,14 @@ describe("K99 output half: sapuan dipasang sebelum gerbang integritas", () => {
   it("hasil sapuan tetap ditulis balik walau kontrak sudah utuh", () => {
     // Kalau baris ini hilang, sapuan jadi dekorasi: kasus live-nya justru
     // balasan yang kontraknya sudah lengkap.
-    expect(src).toMatch(/if \(!scrubbed\?\.changed && \(!repaired \|\| !repairedText\)\) return null;/);
+    // K121 menambah syarat kedua (`!deduped.changed`): badan yang hanya berubah
+    // karena brand ganda diratakan juga harus lolos passthrough. Invariannya
+    // sama — write-back TIDAK boleh digantung pada "kontrak sudah utuh".
+    expect(src).toMatch(
+      /if \(!scrubbed\?\.changed && !deduped\.changed && \(!repaired \|\| !repairedText\)\) return null;/
+    );
+    // dan jalur tulis-baliknya tetap menyertakan kedua sumber perubahan
+    expect(src).toMatch(/return \(scrubbed\?\.changed \|\| deduped\.changed\) && writeBack\(source\)/);
   });
 });
 
