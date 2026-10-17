@@ -83,7 +83,10 @@ describe("engine is not in the repository", () => {
     for (const m of ENGINE_MODULES) {
       const src = readFileSync(resolve(RTK, `${m}.js`), "utf8");
       expect(src, `${m}.js must be a generated shim`).toContain("GENERATED SHIM");
-      expect(src.length, `${m}.js should be tiny (a shim, not an implementation)`).toBeLessThan(2500);
+      // The bound tracks the export surface, not a fixed byte count: each new
+      // export adds its own fallback expression to the shim. An implementation
+      // is tens of kilobytes, so the guard stays meaningful at 3000.
+      expect(src.length, `${m}.js should be tiny (a shim, not an implementation)`).toBeLessThan(3000);
     }
   });
 
