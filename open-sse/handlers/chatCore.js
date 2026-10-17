@@ -1069,6 +1069,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const headVerdict = classifyStreamHead(gate.headText);
       if (headVerdict !== "ok") {
         log?.warn?.("BYPASS", `${provider}/${model} | streaming ${headVerdict} detected in first events, retrying non-streaming with escalation`);
+        // K125 (2026-10-17): this gate had NO counter. Live proof: a request that
+        // shipped a persona-voiced refusal (brand+seal intact) logged exactly this
+        // line while /tmp/vansrouter-refusal-metrics.jsonl stayed empty — so the
+        // one path that actually leaks refusals to the buyer was the one path the
+        // instrument could not see. Both counters live in the non-streaming
+        // inspect block; the streaming gate is a separate exit and needs its own.
+        recordRefusalMetric("detected", { provider, model, outcome: headVerdict, path: "stream-head" });
         // DO NOT cancel the replay branch here (registry K20). It is the ONLY copy
         // of the original stream, and the "escalation exhausted, pass the original
         // through" path below hands exactly this branch to the client. Cancelling a
@@ -1079,6 +1086,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // branch, so there is nothing to free up front.
         const triedL3 = [];
         let lvl3 = firstLevel(model);
+        recordRefusalMetric("retried", { provider, model, reason: `stream-head ${headVerdict}` });
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
           triedL3.push(lvl3);
           const esc = getEscalationPromptForLevel(lvl3, { identityFree: personaExempt });
@@ -1138,6 +1146,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // would turn every streaming combo into a non-streaming one. So the
         // verdict travels in a header instead of being recomputed.
         log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation exhausted, passing original stream through`);
+        recordRefusalMetric("shipped", { provider, model, outcome: headVerdict, path: "stream-head" });
         const passThroughHeaders = new Headers(providerResponse.headers);
         passThroughHeaders.set(STREAM_VERDICT_HEADER, headVerdict);
         const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: passThroughHeaders });
