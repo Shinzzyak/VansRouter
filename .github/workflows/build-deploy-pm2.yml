@@ -28,6 +28,16 @@ env:
   DEPLOY_PATH: /home/ubuntu/VansRouter
   PM2_NAME: 9router
   PORT: "20128"
+  # PINNED ENGINE COMMIT — the engine is a separate private repo, and without this the
+  # checkout below silently takes whatever its default branch HEAD is at build time.
+  # Measured 2026-10-17 (K112): two runs at the SAME router commit d0ce17e6 produced two
+  # DIFFERENT bundles, because the engine moved between them. A router commit then does not
+  # determine the bytes the buyer runs, so "we shipped X" is unverifiable after the fact.
+  #
+  # To ship a new engine: bump this SHA to the engine commit you verified, in the same push.
+  # Trade-off accepted: an engine push alone no longer redeploys — that is the point, and
+  # the cost is one extra line here per engine release.
+  ENGINE_REF: 751dce8a9f618c214606917e1d5969c30b51d8fd
 
 jobs:
   build:
@@ -122,6 +132,7 @@ jobs:
           repository: Shinzzyak/VansRouter-engine
           token: ${{ secrets.ENGINE_REPO_TOKEN }}
           path: .engine
+          ref: ${{ env.ENGINE_REF }}
 
       - name: Build private engine bundle
         run: |
