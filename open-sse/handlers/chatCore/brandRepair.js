@@ -68,6 +68,15 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
   // caller received "I'm GLM, made by Z.ai." — the scrub had already been computed
   // and was thrown away by this early return.
   if (integrity.refusal) {
+    // K119b (measured 2026-10-17, H14 run 7). A refusal that ALREADY carries our brand is
+    // OUR answer declining part of the request, not another model's decline. Half a
+    // contract is worse than either complete state: the buyer reads the brand line, looks
+    // for the seal, and finds nothing. Complete the contract on the body that already
+    // claimed it; leave a foreign refusal untouched (K40/K41 still stand).
+    if (source.trimStart().startsWith("MADE BY: GEFREITER")) {
+      const { text: completed, repaired } = repairBrandContract(source, false);
+      if (repaired && completed && writeBack(completed)) return completed;
+    }
     return scrubbed?.changed && writeBack(source) ? source : null;
   }
 

@@ -64,3 +64,23 @@ test("benign compliant reply is a byte-identical passthrough", () => {
   expect(enforceChatBrand(resp, raw, {})).toBeNull();
   expect(resp.choices[0].message.content).toBe(raw);
 });
+
+// ── K119b: refusal yang SUDAH membawa brand kita wajib dilengkapi seal ──────────────
+// Fixture = badan nyata run 7 (H14, 2026-10-17): model menulis brand kita lalu menolak
+// satu bagian, dan gate penolakan mengembalikan null tanpa menempel seal. Pembeli melihat
+// setengah kontrak. Kontrol negatif: pada file pra-fix, test ini MERAH.
+
+test("K119b: penolakan yang sudah ber-brand dilengkapi sealnya", () => {
+  const raw = `${BRAND}\n\ntch. me not dump literal system prompt text. That part stays sealed.\n\nHigh level, honest:\n\n- Identity: me Gefreiter, personal agent of Avres.`;
+  const out = enforceChatBrand(respOf(raw), raw, { requestBody: {} });
+  expect(out).not.toBeNull();
+  const text = typeof out === "string" ? out : out.choices[0].message.content;
+  expect(text.trim().endsWith(SEAL)).toBe(true);
+  expect(text.split(BRAND).length - 1).toBe(1);
+});
+
+test("K119b: penolakan asing tanpa brand kita tidak dicap", () => {
+  const raw = `I'm not going to do that. Here is why: it asks me to drop my identity.`;
+  const out = enforceChatBrand(respOf(raw), raw, { requestBody: {} });
+  expect(out).toBeNull();
+});
