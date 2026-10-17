@@ -150,6 +150,7 @@ const FALLBACKS = {
     getFramingStrategy: "(() => null)",
     getEscalationPrompt: "(() => null)",
     getEscalationPromptForLevel: "(() => null)",
+    buildForeignRefusalEscalation: "(() => '')",
     applyBypass: "((body) => body)",
     buildBypassLog: '(() => "")',
     isOutputFiltered: "(() => false)",
