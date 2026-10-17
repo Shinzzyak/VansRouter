@@ -94,6 +94,19 @@ export default {
     { id: "gpt-6-sol", name: "GPT-6 Sol" },
     { id: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
     { id: "gpt-5.6-terra", name: "GPT-5.6 Terra" },
+    // 2026-10-17 sweep: the gateway now carries an xAI family. Exactly two ids
+    // exist — grok-4.6 and grok-4.7; every other grok-* variant (4, 4.1-4.5, 5,
+    // 3, code, -mini/-fast/-thinking) answers 11102 "service info not found".
+    //
+    // Both are TIER-GATED, and the gate is visible in the error: a
+    // personal_free_user credential gets HTTP 400 code 11158
+    // "model [grok-4.7] is not allowed for user type [personal_free_user]".
+    // 11158 is not a missing model — it proves the model is routed and only the
+    // account plan blocks it, so a paid/enterprise credential serves them.
+    // Keep them listed: a free account failing here is a plan error to surface,
+    // not a catalog error to hide.
+    { id: "grok-4.7", name: "Grok 4.7" },
+    { id: "grok-4.6", name: "Grok 4.6" },
   ],
   oauth: {
     baseUrl: "https://www.codebuddy.ai",
