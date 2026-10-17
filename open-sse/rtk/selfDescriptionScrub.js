@@ -12,3 +12,4 @@ const __E = loadEngine("selfDescriptionScrub") ?? {};
 
 export const SELF_DESCRIPTION_SCRUB_HEAD_CHARS = __E.SELF_DESCRIPTION_SCRUB_HEAD_CHARS ?? 600;
 export const scrubSelfDescriptionLab = __E.scrubSelfDescriptionLab ?? ((text) => ({ text: String(text ?? ''), changed: false, hits: [] }));
+export const stripPromptDump = __E.stripPromptDump ?? ((text) => ({ text: String(text ?? ''), changed: false, hits: [] }));
