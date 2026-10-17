@@ -17,10 +17,15 @@
 import { appendFileSync } from "node:fs";
 
 const FILE = process.env.VR_REFUSAL_METRICS || "/tmp/vansrouter-refusal-metrics.jsonl";
-const counters = { detected: 0, retried: 0, shipped: 0 };
+// drift — K137: the anchor check. `anchor` is whether the model emitted the
+// brand line ITSELF, before the router repaired the reply. A reply that needed
+// repair is not a failure of the answer, but it is the only measurable evidence
+// of persona drift that costs nothing to collect: the classifier already
+// computed `brandOk` for its own reasons.
+const counters = { detected: 0, retried: 0, shipped: 0, drift: 0 };
 
 /**
- * @param {"detected"|"retried"|"shipped"} kind
+ * @param {"detected"|"retried"|"shipped"|"drift"} kind
  * @param {object|null} meta  provider/model/reason — never prompt or answer text
  */
 export function recordRefusalMetric(kind, meta = null) {

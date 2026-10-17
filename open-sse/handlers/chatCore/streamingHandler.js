@@ -299,6 +299,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       // would file SUBSTITUSI into the ledger for a defect that is by design —
       // one loss per buyer reply, poisoning firstLevel() for the shared model.
       const integrity = classifyStreamContent(safeContent, { requestBody: body, enforceBrand: !personaExempt });
+      recordRefusalMetric("drift", { provider, model, anchor: integrity.brandOk === true, path: "stream" });
       // ── Tool-call turns are not model-quality failures (2026-09-25) ──────────
       // The ledger below got this gate on 2026-09-22 and the RING never did, so
       // the ring has been reporting a false signal on the same traffic.

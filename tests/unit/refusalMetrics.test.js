@@ -23,7 +23,7 @@ describe("refusalMetrics", () => {
   it("ignores unknown kinds instead of inventing a counter", () => {
     recordRefusalMetric("banana");
     const m = getRefusalMetrics();
-    expect(Object.keys(m).filter((k) => k !== "file")).toEqual(["detected", "retried", "shipped"]);
+    expect(Object.keys(m).filter((k) => k !== "file")).toEqual(["detected", "retried", "shipped", "drift"]);
   });
 
   it("survives a broken sink — diagnostics never throw into a request", () => {

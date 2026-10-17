@@ -10,6 +10,7 @@ import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { parseLenientJson } from "../../utils/lenientJson.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats } from "./requestDetail.js";
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
+import { recordRefusalMetric } from "../../rtk/refusalMetrics.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { extractToolNames } from "../../translator/concerns/toolCall.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
@@ -410,6 +411,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   try {
     const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body, enforceBrand: !personaExempt });
     recordIntegrity(provider, model, integrity.status);
+    recordRefusalMetric("drift", { provider, model, anchor: integrity.brandOk === true, path: "non-stream" });
 
     // Persona breach (K28) — same two-signal rule as the streaming path, and
     // the same reason it lives here: `integrity.brandOk` is already computed,
