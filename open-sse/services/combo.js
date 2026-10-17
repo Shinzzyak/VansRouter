@@ -578,6 +578,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // strip stale provider-native state (signatures, previous_response_id) before
   // it leaks into a different provider/family on fallback (400 / drift).
   let prevCandidate = null;
+  // K145: how many candidates actually got a turn. The client-facing line uses it,
+  // because "All combo models unavailable" without a count reads like a dead route
+  // when in fact one candidate answered 403 and the other eight never ran.
+  let attempted = 0;
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
@@ -597,9 +601,11 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       );
     }
 
+    attempted++;
     // Reasoning-state gate: prepare the shared body for THIS candidate. First
     // candidate (prevCandidate=null) is a no-op; later candidates strip stale
-    // state when crossing provider/model-family. Fail-open; never throws.
+    // provider-native state (signatures, previous_response_id) before it leaks
+    // into a different provider/family on fallback (400 / drift).
     const nextCandidate = parseModel(modelStr);
     if (prevCandidate) {
       prepareBodyForCandidate(body, prevCandidate, nextCandidate, log);
@@ -767,16 +773,34 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   }
 
   const allDisabled = lastError && lastError.toLowerCase().includes("no credentials");
-  const status = allDisabled ? 503 : (lastStatus || 503);
-  const msg = lastError || "All combo models unavailable";
+  // K145: a candidate's own 4xx is not the caller's fault. Before this, the FIRST
+  // candidate's status (a 403 FreeTierError from an OpenCode lane) was handed to the
+  // client — a buyer reading "you are not allowed" for a provider problem, with the
+  // upstream's own prose in the body naming the provider. 429 stays 429 (that one IS
+  // about the caller's rate). Everything else that is not 5xx becomes 502.
+  const rawStatus = lastStatus || 503;
+  const status = allDisabled
+    ? 503
+    : rawStatus === 429
+      ? 429
+      : rawStatus >= 500
+        ? rawStatus
+        : 502;
+  // K145: never echo upstream prose. Only our own synthesized labels may travel to
+  // the client; provider payloads, URLs and brand names stay in the log, and the
+  // caller gets a class line that says how many candidates were actually tried.
+  const OWN_LABEL = /^(?:empty-refusal|all combo|no credentials|combo deadline|rotation deadline|model .*timed out)/i;
+  const safe = lastError && OWN_LABEL.test(lastError) ? lastError : null;
+  const msg = safe
+    || `All combo models unavailable (${attempted}/${rotatedModels.length} tried, last status ${rawStatus})`;
 
   if (earliestRetryAfter) {
     const retryHuman = formatRetryAfter(earliestRetryAfter);
-    log.warn("COMBO", `All models failed | ${msg} (${retryHuman})`);
+    log.warn("COMBO", `All models failed | ${lastError || msg} | client ${status} (${retryHuman})`);
     return unavailableResponse(status, msg, earliestRetryAfter, retryHuman);
   }
 
-  log.warn("COMBO", `All models failed | ${msg}`);
+  log.warn("COMBO", `All models failed | ${lastError || msg} | client ${status}`);
   return new Response(
     JSON.stringify({ error: { message: msg } }),
     { status, headers: { "Content-Type": "application/json" } }
