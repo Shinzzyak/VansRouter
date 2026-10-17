@@ -991,6 +991,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
         recordRefusalMetric("retried", { provider, model, reason });
         let escalationWon = false;
+        // K142: keep the refusal the client is going to read. The ladder below
+        // overwrites `result` on every attempt, so a ladder that ends on a
+        // transport error (429/502) replaced a perfectly good refusal body with
+        // an empty error — measured 2026-10-17: 93 s, then `502` with nothing in
+        // it, while the refusal text had been sitting in `result` the whole time.
+        const preEscalationResult = result;
         const triedL2 = [];
         let lvl2 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
@@ -1050,6 +1056,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // caller is about to read. That is the number the audit could not produce.
         if ((refusalDetected || outputFiltered) && !escalationWon) {
           recordRefusalMetric("shipped", { provider, model, outcome });
+          // K142/K109: the refusal IS the answer. Ship the body the classifier
+          // read instead of whatever the last failed attempt left behind.
+          if (preEscalationResult) {
+            log?.warn?.("BYPASS", `${provider}/${model} | escalation exhausted, shipping the original refusal as content`);
+            return preEscalationResult;
+          }
         }
       }
     }
