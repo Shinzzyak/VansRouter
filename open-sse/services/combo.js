@@ -563,6 +563,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   }
   
   let lastError = null;
+  // K139: the refusal text is an ANSWER (K109). Keep the last one so the tail of
+  // this function can ship it instead of synthesizing an empty 502 when every
+  // candidate refuses — the client waited for it, it exists, so it goes out.
+  let lastRefusalResponse = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
   // Track the previously-attempted candidate so the reasoning-state policy can
@@ -657,6 +661,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         // yang SESAT sebentar; jawaban yang isinya penolakan bukan gangguan
         // sementara, dan menunggu 5 s sebelum mencoba model berikutnya hanya
         // menambah latensi pada klien yang sudah menerima jawaban buruk.
+        lastRefusalResponse = result;
         result = {
           ok: false,
           error: `empty-refusal (${inspected.outcome})`,
@@ -742,6 +747,14 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // Use 503 (Service Unavailable) rather than 406 (Not Acceptable) — 406 implies
   // the request itself is invalid, but here the providers are simply unavailable
   // or have no active credentials. 503 is more accurate and retryable by clients.
+  // K139: every candidate answered, and every answer was a refusal. That is a
+  // CONTENT outcome, not an outage: return the last refusal body with its own
+  // status instead of a 502 with nothing in it.
+  if (lastRefusalResponse) {
+    log.warn("COMBO", "All models refused — shipping the last refusal as content (K109)");
+    return lastRefusalResponse;
+  }
+
   const allDisabled = lastError && lastError.toLowerCase().includes("no credentials");
   const status = allDisabled ? 503 : (lastStatus || 503);
   const msg = lastError || "All combo models unavailable";
