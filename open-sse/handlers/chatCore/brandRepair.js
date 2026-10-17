@@ -37,7 +37,14 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
   // shipped — which is why the scrub runs BEFORE the integrity gate below: a
   // contract-complete reply classifies as OK and would return early, leak and all.
   const scrubbed = scrubSelfDescriptionLab(rawText);
-  const source = scrubbed?.changed ? scrubbed.text : rawText;
+  // K121 (measured 2026-10-17 in the default profile's own log, message 249940).
+  // A model that has the brand contract stated three times in its prompt can
+  // stutter it: line 1 clean, line 2 "MADE BY: GEFREITER — GEFREITER — AGENT OF
+  // AVRES". Both lines pass a `startsWith` test, so every downstream guard called
+  // the body fine and the buyer read two headers. Dedupe before classification so
+  // the integrity gate sees the body the caller will actually get.
+  const deduped = collapseDuplicateBrand(scrubbed?.changed ? scrubbed.text : rawText);
+  const source = deduped.text;
 
   const writeBack = (text) => {
     if (resp?.choices?.[0]?.message) {
@@ -77,7 +84,7 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
       const { text: completed, repaired } = repairBrandContract(source, false);
       if (repaired && completed && writeBack(completed)) return completed;
     }
-    return scrubbed?.changed && writeBack(source) ? source : null;
+    return (scrubbed?.changed || deduped.changed) && writeBack(source) ? source : null;
   }
 
   const needsRepair = [INTEGRITY.MISSING_BRAND, INTEGRITY.MISSING_SEAL].includes(integrity.status);
@@ -86,9 +93,41 @@ export function enforceChatBrand(resp, rawText, { requestBody, personaExempt, cl
     : { text: source, repaired: false };
 
   // Byte-identical passthrough when neither half has anything to do.
-  if (!scrubbed?.changed && (!repaired || !repairedText)) return null;
+  if (!scrubbed?.changed && !deduped.changed && (!repaired || !repairedText)) return null;
   const out = repaired && repairedText ? repairedText : source;
   return writeBack(out) ? out : null;
+}
+
+/**
+ * Collapse a stuttered brand line (K121).
+ *
+ * Only the first four lines are inspected: a brand line further down is content
+ * (a quoted example, a code block) and must survive untouched. The first
+ * brand-shaped line wins; later ones in that window are dropped, and the
+ * "GEFREITER — GEFREITER" stutter inside the survivor is normalised.
+ *
+ * @param {string} text
+ * @returns {{text: string, changed: boolean}}
+ */
+export function collapseDuplicateBrand(text) {
+  if (typeof text !== "string" || !text) return { text, changed: false };
+  const lines = text.split("\n");
+  let seen = false;
+  let changed = false;
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const isBrand = /^MADE BY:\s*GEFREITER\b/.test(lines[i].trim());
+    if (isBrand && i < 4) {
+      if (seen) { changed = true; continue; }
+      seen = true;
+      const fixed = lines[i].replace(/GEFREITER\s+—\s+GEFREITER/g, "GEFREITER");
+      if (fixed !== lines[i]) changed = true;
+      out.push(fixed);
+      continue;
+    }
+    out.push(lines[i]);
+  }
+  return { text: changed ? out.join("\n") : text, changed };
 }
 
 /** Visible text of a non-streaming response, either shape. */

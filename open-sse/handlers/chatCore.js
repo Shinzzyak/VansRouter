@@ -38,6 +38,7 @@ import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationProm
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+import { recordRefusalMetric } from "../rtk/refusalMetrics.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
@@ -966,6 +967,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const refusalDetected = detectOwnRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
       recordOutcome(model, firstLevel(model), outcome, `${provider}/${model}`);
+      if (refusalDetected || outputFiltered) {
+        recordRefusalMetric("detected", { provider, model, outcome, outputFiltered });
+      }
       // needsFirstPassEscalation, BUKAN needsAnotherTry (2026-09-23). AMBIGU is
       // the NORMAL class for ordinary traffic: classifyOutcome only returns PATUH
       // when it finds the technical deed the request asked for, so a plain
@@ -977,6 +981,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       if (refusalDetected || outputFiltered || needsFirstPassEscalation(outcome)) {
         const reason = outputFiltered ? 'output-filtered (content=null, tokens>0)' : 'refusal detected';
         log?.warn?.("BYPASS", `${provider}/${model} | ${reason}, retrying with escalation`);
+        recordRefusalMetric("retried", { provider, model, reason });
+        let escalationWon = false;
         const triedL2 = [];
         let lvl2 = firstLevel(model);
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
@@ -1014,6 +1020,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const retryStillRefusal = !retryDelivered && (detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2));
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
+                escalationWon = true;
                 break;
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
@@ -1025,6 +1032,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             log?.warn?.("BYPASS", `${provider}/${model} | escalation ${escAttempt + 1} failed: ${bypassErr.message}`);
             break;
           }
+        }
+        // Every attempt failed: the refusal the classifier caught is the body the
+        // caller is about to read. That is the number the audit could not produce.
+        if ((refusalDetected || outputFiltered) && !escalationWon) {
+          recordRefusalMetric("shipped", { provider, model, outcome });
         }
       }
     }
