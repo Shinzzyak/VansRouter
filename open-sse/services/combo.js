@@ -572,6 +572,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // this function can ship it instead of synthesizing an empty 502 when every
   // candidate refuses — the client waited for it, it exists, so it goes out.
   let lastRefusalResponse = null;
+  // K25 vs K142: a refusal with TEXT is a content outcome and must ship
+  // (K139/K142). A body with no visible text and no tool call is SENYAP —
+  // shipping it as 200 hands the client an empty answer, which is the K25 bug.
+  let lastRefusalOutcome = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
   // Track the previously-attempted candidate so the reasoning-state policy can
@@ -679,6 +683,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         // sementara, dan menunggu 5 s sebelum mencoba model berikutnya hanya
         // menambah latensi pada klien yang sudah menerima jawaban buruk.
         lastRefusalResponse = result;
+        lastRefusalOutcome = inspected.outcome;
         result = {
           ok: false,
           error: `empty-refusal (${inspected.outcome})`,
@@ -767,9 +772,14 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // K139: every candidate answered, and every answer was a refusal. That is a
   // CONTENT outcome, not an outage: return the last refusal body with its own
   // status instead of a 502 with nothing in it.
-  if (lastRefusalResponse) {
+  if (lastRefusalResponse && lastRefusalOutcome !== "SENYAP") {
     log.warn("COMBO", "All models refused — shipping the last refusal as content (K109)");
     return lastRefusalResponse;
+  }
+  if (lastRefusalResponse && lastRefusalOutcome === "SENYAP") {
+    // K25: nothing to ship. An empty 2xx is silence, not an answer — fall
+    // through to the 502 so the caller learns the turn produced no output.
+    log.warn("COMBO", "All candidates answered empty (SENYAP) — reporting a content failure, not an empty 200");
   }
 
   const allDisabled = lastError && lastError.toLowerCase().includes("no credentials");

@@ -41,6 +41,9 @@ describe("CodeBuddy international registry parity", () => {
       // 2026-10-05 sweep additions — probed live with the real request shape.
       "gemini-3.5-flash", "gemini-3.8-flash", "glm-5.3-flash",
       "gpt-6-luna", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra",
+      // grok-4.6 / grok-4.7 — the only grok variants the free-tier intl
+      // account is allowed to call; everything else 403s by user type.
+      "grok-4.7", "grok-4.6",
     ]);
   });
 
