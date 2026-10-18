@@ -1161,7 +1161,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
               if (escAttempt < 2) {
-                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryText)?.level ?? lvl3;
+                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw)?.level ?? lvl3;
               }
             }
           } catch (bypassErr) {

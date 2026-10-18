@@ -62,7 +62,7 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // K163: argumen keempat = model, supaya buku catatan per model dipakai.
     // Bentuk tiga-argumen tetap sah secara perilaku (identik dengan tangga lama),
     // tapi tidak lagi cukup untuk mengadaptasi — jadi bentuknya dipaku.
-    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d, model, retryText\)/g) || [];
+    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d, model, (?:retryText|retryRaw)\)/g) || [];
     expect(bentuk.length).toBe(3);
   });
 
@@ -73,7 +73,10 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     for (const n of ['triedL1', 'triedL2', 'triedL3']) {
       const push = chatCore.indexOf(`${n}.push(`);
       // K163 menambah argumen keempat, jadi penanda pemakaian ikut bergeser.
-      const pakai = chatCore.indexOf(`, ${n}, model, retryText)`);
+      const pakai = Math.max(
+        chatCore.indexOf(`, ${n}, model, retryText)`),
+        chatCore.indexOf(`, ${n}, model, retryRaw)`),
+      );
       expect(push, `${n}.push tidak ada`).toBeGreaterThan(-1);
       expect(pakai, `${n} tidak dipakai sebagai argumen`).toBeGreaterThan(push);
     }
