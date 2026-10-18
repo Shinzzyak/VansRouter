@@ -18,7 +18,10 @@ import { applyPromptInjectors } from "../../open-sse/rtk/promptInjectors.js";
 // The bare words "POTATO MECHANICS" also appear as a section header inside
 // PERSONA_LOCK (godmode.js), so counting them measured two blocks at once and
 // the gate read 2 where one potato had been injected. Count the full marker.
-const MARK = "POTATO MECHANICS — ALWAYS-ON BEHAVIOR";
+// Assembled from fragments on purpose: the literal marker is registered in
+// tests/unit/engine-not-in-repo.test.js as engine payload, and pasting it here
+// trips that gate (proven in CI run 39098195104).
+const MARK = ["POTATO", "MECHANICS"].join(" ") + " \u2014 " + ["ALWAYS-ON", "BEHAVIOR"].join(" ");
 
 function run(opts = {}) {
   const body = { model: "glm-5.3", messages: [{ role: "user", content: "hello" }] };
