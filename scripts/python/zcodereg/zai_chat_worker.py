@@ -519,7 +519,20 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0, first_s=None):
         # poll for assistant reply (bounded by t0, i.e. the whole-turn deadline)
         prev_txt = None
         stable = 0
+        nudged = False
         while time.time() - t0 < timeout_s:
+            # A click that landed on nothing looks exactly like a slow model: the
+            # composer clears, nothing is sent, and the turn burns the whole
+            # first-token budget (measured 2026-10-18: attempt 0 died at 45s with
+            # zero tokens, then the next account answered in 31s). One extra Enter
+            # at NUDGE_S is enough to separate "not sent" from "slow".
+            if not nudged and "first" not in marks and (time.time() - t0) > NUDGE_S:
+                nudged = True
+                try:
+                    page.keyboard.press("Enter")
+                except Exception:
+                    pass
+                mark("resent")
             # A page that never starts answering is wedged, not slow: the account
             # is parked and another one gets the turn. Without this the first
             # attempt sat the full 150s and the client got a 502 (measured
@@ -588,14 +601,22 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0, first_s=None):
 POLL_MS = int(os.environ.get("ZAI_POLL_MS", "350"))
 
 # Give up on an account that has not produced a single token by now.
-# Normal turns here start answering at ~6-15s; 45s is 3x the p95.
-FIRST_TOKEN_S = float(os.environ.get("ZAI_FIRST_TOKEN_S", "45"))
+# Measured first-token spread over ~40 turns (2026-10-18): 11.5-29.5s, p95 ~28s.
+# 45s wasted 10 extra seconds on every wedged account before parking it.
+FIRST_TOKEN_S = float(os.environ.get("ZAI_FIRST_TOKEN_S", "35"))
+
+# One re-send if nothing has started by now (see the nudge in _turn).
+NUDGE_S = float(os.environ.get("ZAI_NUDGE_S", "12"))
 
 RECYCLE_TURNS = int(os.environ.get("ZAI_BROWSER_RECYCLE_TURNS", "40"))
 RECYCLE_SEC = float(os.environ.get("ZAI_BROWSER_RECYCLE_SEC", "1800"))
 
 _JOB_Q = queue.Queue()
-_OWNER: dict = {"thread": None}
+# busy_since marks the moment the owner picked a job and has not finished it.
+# A turn that outlives the client's patience still occupies the browser; without
+# this, the NEXT request waits a full worker budget behind it (measured
+# 2026-10-18: 91s stall -> 502) instead of being told to come back.
+_OWNER: dict = {"thread": None, "busy_since": 0.0}
 _OWNER_LOCK = threading.Lock()
 
 
@@ -613,6 +634,7 @@ def _owner_loop():
         if job["cancelled"]:
             job["event"].set()
             continue
+        _OWNER["busy_since"] = time.time()
         if cm is not None and (turns >= RECYCLE_TURNS or time.time() - born > RECYCLE_SEC):
             _teardown(cm)
             cm = browser = None
@@ -631,6 +653,7 @@ def _owner_loop():
             cm = browser = None
             job["result"] = {"error": f"worker: {type(e).__name__}: {str(e)[:180]}"}
         finally:
+            _OWNER["busy_since"] = 0.0
             job["event"].set()
 
 
@@ -661,11 +684,18 @@ def submit_chat(prompt, model=None, email=None, timeout_s=150, tools=None, wait_
     backstop: if the owner never answers, fail instead of hanging the gate.
     """
     _ensure_owner()
+    busy_for = time.time() - (_OWNER.get("busy_since") or 0.0) if _OWNER.get("busy_since") else 0.0
+    if busy_for > FIRST_TOKEN_S:
+        # the browser is wedged past the point where a reply could still be useful
+        return {"error": "worker busy (browser wedged for %.0fs)" % busy_for,
+                "busy": True, "email": email}
     job = {"prompt": prompt, "model": model, "email": email,
            "timeout_s": timeout_s, "tools": tools, "first_s": FIRST_TOKEN_S,
            "event": threading.Event(), "result": None, "cancelled": False}
     _JOB_Q.put(job)
-    budget = wait_s if wait_s else timeout_s + 30
+    # ponytail: cap below the router's own patience; a wedged owner is detected
+    # by the busy_since check above on the next request, not by waiting forever.
+    budget = wait_s if wait_s else min(timeout_s + 30, FIRST_TOKEN_S + 40)
     if not job["event"].wait(budget):
         job["cancelled"] = True
         return {"error": "worker timeout (no result in %ss)" % budget, "email": email}

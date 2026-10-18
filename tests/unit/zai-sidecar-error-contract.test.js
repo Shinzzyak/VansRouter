@@ -82,12 +82,15 @@ describe("zai sidecar — a worker failure must never kill the HTTP response", (
     expect(sendCode).toMatch(/try:\s*\n\s*box\.fill\(full_prompt\)\s*\n\s*except Exception:\s*\n\s*continue/);
   });
 
-  it("wraps do_chat and answers 502 instead of dying silently", () => {
+  it("wraps do_chat and answers an error status instead of dying silently", () => {
     expect(chatCode.trim()).not.toBe("");
     expect(chatCode).toMatch(/try:\s*\n\s*out = do_chat\(/);
     expect(chatCode).toMatch(/except Exception as e:/);
     expect(chatCode).toMatch(/_json\(/);
-    expect(chatCode).toMatch(/502\)/);
+    // 502 = the accounts were bad. 503 = the browser itself is wedged, which is a
+    // queue problem the caller should retry shortly, not a broken model.
+    expect(chatCode).toMatch(/503 if isinstance\(last, dict\) and last\.get\("busy"\) else 502/);
+    expect(chatCode).toMatch(/self\._json\(\{"error": last\}, code\)/);
   });
 
   // A dead account in the pool used to be the CLIENT's problem: one bad member

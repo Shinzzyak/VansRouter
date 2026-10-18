@@ -188,6 +188,10 @@ class Handler(BaseHTTPRequestHandler):
         out = None
         last = None
         t_attempt = 0.0
+        # one line per request: without it a 113s client wait looked identical to a
+        # 20s turn, because retries and gate waits leave no trace in the journal.
+        _t_req = time.monotonic()
+        print("[req] start model=%s msgs=%d" % (model, len(messages)), flush=True)
         for attempt in range(ACCOUNT_ATTEMPTS):
             # Retry ONLY when the previous account failed fast. If it already burned
             # the client's patience, a second attempt doubles the wait instead of
@@ -221,6 +225,9 @@ class Handler(BaseHTTPRequestHandler):
             finally:
                 guard.BROWSER_GATE.release()
             guard.note_result(email, "error" not in out)
+            print("[req] attempt=%d %.1fs %s" % (
+                attempt, time.monotonic() - _t_req,
+                "ok" if "error" not in out else ("err " + str(out.get("error"))[:110])), flush=True)
             if "error" not in out:
                 break
             last = out
@@ -229,7 +236,11 @@ class Handler(BaseHTTPRequestHandler):
             # Reached when every attempted account was bad, or the first attempt was
             # too slow to be worth retrying. note_result parks the bad accounts, so the
             # pool heals and later requests skip them.
-            return self._json({"error": last}, 502)
+            #
+            # A wedged browser is a QUEUE problem, not a bad account: answer 503 so
+            # the caller retries shortly instead of treating the model as broken.
+            code = 503 if isinstance(last, dict) and last.get("busy") else 502
+            return self._json({"error": last}, code)
         msg = {"role": "assistant", "content": None}
         tool_calls = out.get("tool_calls") or []
         if tool_calls:
