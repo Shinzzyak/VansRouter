@@ -34,14 +34,13 @@ Connect Claude Code, Codex, Cursor, Cline, Copilot, Gemini, OpenCode & more to a
 ### 🔀 Combo strategies
 Route each request through a named **combo** — an ordered list of models with a strategy:
 
-<<<<<<< HEAD
 | Strategy | What it does |
 |---|---|
 | **Fallback** | Try models in order; on failure (5xx, timeout, quota, 429) move to the next — zero downtime |
 | **Round-robin** | Rotate across models/accounts to spread load and stay under rate limits |
 | **Fusion** | Merge several models into one response pipeline |
 | **Capacity adapter** | Auto-switch to adapter-pool models when the request needs capabilities the combo lacks |
-=======
+
 | Feature | 9Router | OmniRoute | **VansRouter** |
 |---------|---------|-----------|---------------|
 | **Gemini 3.7 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
@@ -66,7 +65,6 @@ Route each request through a named **combo** — an ordered list of models with 
 | **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation |
 | **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
 | **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 |
->>>>>>> upstream/main
 
 ### 🧠 Think-Execute (2-pass reasoning)
 Combo requests can run a two-pass pipeline: a **think** pass (non-streaming, plans/tool-calls) followed by an **execute** pass (streaming with real tool execution). Tool-call plans are forwarded raw to the executor — no echoed plans, no loops.
@@ -104,9 +102,8 @@ Auto-compresses `tool_result` content before it reaches the model — **save 20�
 > **VansRouter is a fork of [Vanszs/VansRouter](https://github.com/Vanszs/VansRouter)** with extra automation, resilience, and capacity features. Requires **Node ≥ 22.5**.
 
 ```bash
-<<<<<<< HEAD
 git clone https://github.com/Shinzzyak/VansRouter.git
-=======
+
 npm install -g vansrouter
 vansrouter
 ```
@@ -1189,7 +1186,6 @@ Model: cc/claude-opus-4-7
 ```bash
 # Clone and install
 git clone https://github.com/Vanszs/VansRouter.git
->>>>>>> upstream/main
 cd VansRouter
 npm install
 
