@@ -158,7 +158,7 @@ export default function EngineGenome() {
         />
         <Metric
           label="Identity Preambles"
-          value={corpus.enabled ? fmt(corpus.shapes?.identityish)} : "—"}
+          value={corpus.enabled ? fmt(corpus.shapes?.identityish) : "—"}
           tone="text-warning"
           note="claim to be a vendor, not a tool"
         />
