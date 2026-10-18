@@ -33,6 +33,18 @@ function Metric({ label, value, tone = "", note }) {
   );
 }
 
+function Bar({ value, label, tone = "bg-primary" }) {
+  const p = Math.max(0, Math.min(1, Number(value) || 0));
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-border/60">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${(p * 100).toFixed(1)}%` }} />
+      </div>
+      <span className="text-[10px] tabular-nums text-text-muted">{label ?? pct(p)}</span>
+    </div>
+  );
+}
+
 function Section({ title, subtitle, children, right }) {
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-4">
@@ -98,6 +110,9 @@ export default function EngineGenome() {
   );
 
   const rungs = genome.rungs || [];
+  const providerRows = Object.entries(corpus.byProvider || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
   const axes = genome.byAxis || {};
   const samples = corpus.recent || [];
 
@@ -176,8 +191,8 @@ export default function EngineGenome() {
                 <div key={axis} className="rounded border border-border bg-bg-subtle/40 p-2">
                   <div className="text-[10px] uppercase text-text-muted">{axis}</div>
                   <div className="text-sm font-semibold">{fmt(a.rungs)} rungs</div>
-                  <div className="text-[10px] text-text-muted">
-                    {fmt(a.wins)}/{fmt(a.tries)} won
+                  <div className="mt-1">
+                    <Bar value={a.tries ? a.wins / a.tries : 0} label={`${fmt(a.wins)}/${fmt(a.tries)} won`} />
                   </div>
                 </div>
               );
@@ -197,8 +212,7 @@ export default function EngineGenome() {
                   <tr className="border-b border-border text-text-muted">
                     <th className="py-1.5 text-left font-semibold">Rung</th>
                     <th className="py-1.5 text-left font-semibold">Axis</th>
-                    <th className="py-1.5 text-right font-semibold">Won</th>
-                    <th className="py-1.5 text-right font-semibold">Rate</th>
+                    <th className="py-1.5 text-left font-semibold">Win rate</th>
                     <th className="py-1.5 text-left font-semibold">Text</th>
                   </tr>
                 </thead>
@@ -208,9 +222,8 @@ export default function EngineGenome() {
                       <td className="py-1.5 font-mono">{r.id}</td>
                       <td className="py-1.5">{r.axis}</td>
                       <td className="py-1.5 text-right">
-                        {fmt(r.wins)}/{fmt(r.tries)}
+                        <Bar value={r.rate} label={`${fmt(r.wins)}/${fmt(r.tries)}`} />
                       </td>
-                      <td className="py-1.5 text-right">{pct(r.rate)}</td>
                       <td className="py-1.5 max-w-[280px] truncate text-text-muted" title={r.text}>
                         {r.text}
                       </td>
@@ -247,6 +260,19 @@ export default function EngineGenome() {
               </span>
             ))}
           </div>
+
+          {providerRows.length ? (
+            <div className="flex flex-col gap-1">
+              {providerRows.map(([name, n]) => (
+                <div key={name} className="flex items-center gap-2 text-[10px]">
+                  <span className="w-40 shrink-0 truncate font-mono text-text-muted" title={name}>
+                    {name}
+                  </span>
+                  <Bar value={n / corpus.samples} label={fmt(n)} />
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           {!samples.length ? (
             <p className="text-xs text-text-muted">
@@ -303,7 +329,7 @@ export default function EngineGenome() {
                   <th className="py-1.5 text-left font-semibold">Model</th>
                   <th className="py-1.5 text-left font-semibold">Route</th>
                   <th className="py-1.5 text-right font-semibold">Samples</th>
-                  <th className="py-1.5 text-right font-semibold">Won</th>
+                  <th className="py-1.5 text-left font-semibold">Win rate</th>
                   <th className="py-1.5 text-left font-semibold">Best rung</th>
                 </tr>
               </thead>
@@ -316,7 +342,9 @@ export default function EngineGenome() {
                       {fmt(r.n)}
                       {r.n < 3 ? <span className="ml-1 text-[10px] text-text-muted">(model-wide)</span> : null}
                     </td>
-                    <td className="py-1.5 text-right">{fmt(r.wins)}</td>
+                    <td className="py-1.5">
+                      <Bar value={r.tries ? r.wins / r.tries : 0} label={`${fmt(r.wins)}/${fmt(r.tries)}`} />
+                    </td>
                     <td className="py-1.5">{r.best || "—"}</td>
                   </tr>
                 ))}
