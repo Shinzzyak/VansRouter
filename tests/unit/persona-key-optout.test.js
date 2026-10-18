@@ -55,7 +55,11 @@ describe("persona opt-out: jalur balasan (gate brand)", () => {
     const src = read("open-sse/handlers/chatCore.js");
     expect(src).toMatch(/applyPromptInjectors\(\{[\s\S]{0,900}?apiKeyInfo,/);
     const free = src.match(/identityFree: personaExempt/g) || [];
-    expect(free.length).toBe(3); // tiga jalur eskalasi, bukan satu
+    // Empat jalur eskalasi, bukan satu. Yang keempat (K172b) adalah percobaan
+    // PERTAMA saat anggaran eksplorasi penuh: poros terjauh dipakai lewat
+    // getEscalationPromptForLevel, jadi ia wajib menerima flag exempt yang sama
+    // — kalau tidak, key produk tanpa persona akan menerima prompt identitas.
+    expect(free.length).toBe(4);
   });
 });
 
