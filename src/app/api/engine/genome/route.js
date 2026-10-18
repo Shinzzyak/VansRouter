@@ -7,7 +7,8 @@ import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 // answer with `available:false` instead of throwing (Zero Break Guarantee).
 import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
 import { genomeSnapshot } from "open-sse/rtk/framingGenome.js";
-import { corpusStats } from "open-sse/rtk/promptCorpus.js";
+import { corpusStats, corpusTail } from "open-sse/rtk/promptCorpus.js";
+import { ledgerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
 
 /**
  * GET /api/engine/genome — the part of the engine that rewrites itself.
@@ -46,6 +47,13 @@ export async function GET(request) {
     capturedAt: new Date().toISOString(),
     engineLoaded: loaded,
     genome: read(loaded, "framingGenome", () => ({ ...genomeSnapshot(), available: true })),
-    corpus: read(loaded, "promptCorpus", () => ({ ...corpusStats(), available: true })),
+    // The ladder's evidence, per model AND per route (K165). A table needs the
+    // rows; "how many models have learned something" is not a dashboard.
+    ledger: read(loaded, "selfMeasuringBypass", () => ({ models: ledgerSnapshot(50) ?? [], available: true })),
+    corpus: read(loaded, "promptCorpus", () => ({
+      ...corpusStats(),
+      recent: corpusTail(20, 600),
+      available: true,
+    })),
   });
 }

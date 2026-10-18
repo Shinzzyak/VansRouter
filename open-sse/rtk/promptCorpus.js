@@ -12,5 +12,6 @@ const __E = loadEngine("promptCorpus") ?? {};
 
 export const _resetCorpusCounter = __E._resetCorpusCounter ?? (() => {});
 export const corpusStats = __E.corpusStats ?? (() => ({ enabled: false, samples: 0, available: false }));
+export const corpusTail = __E.corpusTail ?? (() => []);
 export const extractSystemTexts = __E.extractSystemTexts ?? (() => []);
 export const sampleSystemPrompts = __E.sampleSystemPrompts ?? (() => null);

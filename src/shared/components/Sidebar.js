@@ -26,6 +26,7 @@ const navItems = [
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
   { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
   { href: "/dashboard/token-saver", label: "AI Engine", icon: "savings" },
+  { href: "/dashboard/engine", label: "Engine Genome", icon: "genetics" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
 ];
 

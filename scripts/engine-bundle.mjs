@@ -342,6 +342,7 @@ const FALLBACKS = {
     sampleSystemPrompts: "(() => null)",
     extractSystemTexts: "(() => [])",
     corpusStats: "(() => ({ enabled: false, samples: 0, available: false }))",
+    corpusTail: "(() => [])",
     _resetCorpusCounter: "(() => {})",
   },
   routeGuardMemory: {
