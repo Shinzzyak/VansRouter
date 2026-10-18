@@ -38,6 +38,9 @@ import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationProm
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+// K165 — sample the system prompts we receive so the next framing can be written
+// against a measured shape instead of a guess. Off unless VR_PROMPT_CORPUS=1.
+import { sampleSystemPrompts } from "../rtk/promptCorpus.js";
 import { recordRefusalMetric } from "../rtk/refusalMetrics.js";
 import { classifyResponseFailure } from "../rtk/modelCapabilities.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -181,6 +184,9 @@ function recordSaverEvent({ tokenSaverEnabled, rtkEnabled, headroomEnabled, rtkS
 
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, clientBodyBytes, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
+  // K165 corpus hook. Deliberately first: the sample must describe the request
+  // as the client sent it, before any layer of ours rewrites the messages.
+  try { sampleSystemPrompts(body, provider, model); } catch { /* measurement never fails a request */ }
   // Persona-exempt key (per-key opt-out, e.g. DeutschUp's product key): the
   // request-side registry already skips the identity stack; the 3 refusal
   // retries below append ESCALATION text as USER turns, and T3's second half
@@ -877,7 +883,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
-              lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText)?.level ?? lvl1;
+              lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText, `${provider}/${model}`)?.level ?? lvl1;
             }
           }
         } catch (bypassErr) {
@@ -1044,7 +1050,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
               if (escAttempt < 2) {
-                lvl2 = nextFraming(cls2, lvl2, triedL2, model, retryText)?.level ?? lvl2;
+                lvl2 = nextFraming(cls2, lvl2, triedL2, model, retryText, `${provider}/${model}`)?.level ?? lvl2;
               }
             }
           } catch (bypassErr) {
@@ -1161,7 +1167,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
               if (escAttempt < 2) {
-                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw)?.level ?? lvl3;
+                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw, `${provider}/${model}`)?.level ?? lvl3;
               }
             }
           } catch (bypassErr) {

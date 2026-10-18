@@ -52,6 +52,12 @@ const ENGINE_MODULES = [
   "thinkingGate",
   "instructionReceipts",
   "selfMeasuringBypass",
+  // K164/K165 — the genome is what the ladder grows into, and the prompt corpus
+  // is the evidence the next framing gets written against. Both are read from
+  // the dashboard now, so both need a shim (a module in the bundle without a
+  // shim is invisible to the router).
+  "framingGenome",
+  "promptCorpus",
   "routeGuardMemory",
   "modelImmunityHints",
   // Self-description lab scrub (2026-10-13, K99 output half). The prompt-level clause
@@ -313,6 +319,30 @@ const FALLBACKS = {
     resetLedger: "(() => {})",
     DEFAULT_LEVEL: "'T2'",
     FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3'])",
+  },
+  // K164 — read side only. Without the bundle there is no genome, and inventing
+  // an empty-looking one would be a lie the dashboard could not distinguish from
+  // "no rungs yet". `available:false` is the honest answer.
+  framingGenome: {
+    genomeSnapshot: "(() => ({ count: 0, cap: 0, rungs: [], available: false }))",
+    listDynamic: "(() => [])",
+    dynamicIds: "(() => [])",
+    resolveDynamic: "(() => null)",
+    adoptFraming: "(() => null)",
+    isSafeFraming: "(() => false)",
+    synthesize: "(() => [])",
+    noteDynamic: "(() => {})",
+    resetGenome: "(() => {})",
+    AXES: "Object.freeze(['UNIT', 'SHAPE', 'FORMAT', 'PARTIAL'])",
+  },
+  // K165 — corpus is a measurement sidecar; without the bundle nothing is
+  // sampled and nothing is written to disk. Fail-silent is correct here: a
+  // missing measurement must never change routing behaviour.
+  promptCorpus: {
+    sampleSystemPrompts: "(() => null)",
+    extractSystemTexts: "(() => [])",
+    corpusStats: "(() => ({ enabled: false, samples: 0, available: false }))",
+    _resetCorpusCounter: "(() => {})",
   },
   routeGuardMemory: {
     isRouteFiltered: "(() => false)",
