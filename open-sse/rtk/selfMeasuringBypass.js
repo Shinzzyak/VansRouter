@@ -11,8 +11,8 @@ import { loadEngine } from "./engineLoader.js";
 const __E = loadEngine("selfMeasuringBypass") ?? {};
 
 export const DEFAULT_LEVEL = __E.DEFAULT_LEVEL ?? 'T2';
-export const FRAMING_LEVELS = __E.FRAMING_LEVELS ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
 export const EXPLORE_EVERY = __E.EXPLORE_EVERY ?? 8;
+export const FRAMING_LEVELS = __E.FRAMING_LEVELS ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
 export const classifyOutcome = __E.classifyOutcome ?? (() => 'PATUH');
 export const evidenceLevel = __E.evidenceLevel ?? (() => null);
 export const firstLevel = __E.firstLevel ?? (() => 'T2');
