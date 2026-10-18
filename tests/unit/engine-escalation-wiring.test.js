@@ -73,9 +73,11 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     for (const n of ['triedL1', 'triedL2', 'triedL3']) {
       const push = chatCore.indexOf(`${n}.push(`);
       // K163 menambah argumen keempat, jadi penanda pemakaian ikut bergeser.
+      // K165 menambah argumen keenam (routeId), jadi penanda tidak boleh
+      // mensyaratkan `)` tepat setelah argumen kelima.
       const pakai = Math.max(
-        chatCore.indexOf(`, ${n}, model, retryText)`),
-        chatCore.indexOf(`, ${n}, model, retryRaw)`),
+        chatCore.indexOf(`, ${n}, model, retryText`),
+        chatCore.indexOf(`, ${n}, model, retryRaw`),
       );
       expect(push, `${n}.push tidak ada`).toBeGreaterThan(-1);
       expect(pakai, `${n} tidak dipakai sebagai argumen`).toBeGreaterThan(push);
