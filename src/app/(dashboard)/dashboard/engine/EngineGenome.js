@@ -36,8 +36,8 @@ function Metric({ label, value, tone = "", note }) {
 function Bar({ value, label, tone = "bg-primary" }) {
   const p = Math.max(0, Math.min(1, Number(value) || 0));
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-border/60">
+    <div className="flex w-full items-center gap-2">
+      <div className="h-1.5 w-full min-w-[64px] max-w-[220px] overflow-hidden rounded-full bg-border/60">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${(p * 100).toFixed(1)}%` }} />
       </div>
       <span className="text-[10px] tabular-nums text-text-muted">{label ?? pct(p)}</span>
