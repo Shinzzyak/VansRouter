@@ -46,6 +46,11 @@ describe("/api/engine/genome", () => {
     // the dashboard has no way to show which provider installs the wall.
     expect(src, "provider evidence").toMatch(/providerSnapshot\(/);
     expect(src, "providers array").toMatch(/providers:\s*providerSnapshot\(/);
+    // K168 — the readiness panel is computed from the SAME ledger object the
+    // route returns, so the numbers on screen cannot disagree with the table.
+    expect(src, "synthesis readiness").toMatch(/synthesisReadiness\(/);
+    expect(src, "synthesis key").toMatch(/synthesis:\s*\{/);
+    expect(src, "explore cadence reported").toMatch(/exploreEvery:\s*EXPLORE_EVERY/);
   });
 
   it("separates a missing engine from an empty one", () => {

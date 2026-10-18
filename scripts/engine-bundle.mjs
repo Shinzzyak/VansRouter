@@ -320,7 +320,11 @@ const FALLBACKS = {
     providerSnapshot: "(() => [])",
     resetLedger: "(() => {})",
     DEFAULT_LEVEL: "'T2'",
-    FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3'])",
+    // K168 — the fallback said three levels; the engine ships four (T4 = UNIT).
+    // A fallback that under-counts makes "all levels burned" fire one rung early
+    // and the readiness panel would invent a trigger that does not exist.
+    FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3', 'T4'])",
+    EXPLORE_EVERY: "8",
   },
   // K164 — read side only. Without the bundle there is no genome, and inventing
   // an empty-looking one would be a lie the dashboard could not distinguish from

@@ -66,6 +66,7 @@ const EMPTY = {
   genome: { available: false },
   ledger: { available: false, models: [] },
   corpus: { available: false, recent: [], byProvider: {}, shapes: {} },
+  synthesis: { available: false, levels: [], rows: [], ready: 0, models: 0 },
 };
 
 export default function EngineGenome() {
@@ -100,6 +101,7 @@ export default function EngineGenome() {
   const genome = data.genome || EMPTY.genome;
   const ledger = data.ledger || EMPTY.ledger;
   const corpus = data.corpus || EMPTY.corpus;
+  const synthesis = data.synthesis || EMPTY.synthesis;
 
   const routes = useMemo(
     () =>
@@ -378,6 +380,67 @@ export default function EngineGenome() {
               </div>
             ))}
           </div>
+        )}
+      </Section>
+
+      <Section
+        title="Synthesis readiness"
+        subtitle="A new rung is born only when a model has burned every built-in level on a refusal that carries text. Zero rungs is the normal state until then — this panel names the missing condition instead of guessing."
+      >
+        {!synthesis.available ? (
+          <p className="text-xs text-text-muted">
+            Ledger unavailable — engine bundle not loaded.
+          </p>
+        ) : !(synthesis.rows || []).length ? (
+          <p className="text-xs text-text-muted">
+            No model has evidence yet. The trigger needs a resolved refusal with text on a model
+            that has tried all {synthesis.levels?.length || 4} levels without a win.
+          </p>
+        ) : (
+          <>
+            <p className="mb-2 text-[11px] text-text-muted">
+              {fmt(synthesis.models)} model(s) tracked ·{" "}
+              <span className={synthesis.ready ? "text-primary" : ""}>
+                {fmt(synthesis.ready)} ready to synthesize
+              </span>{" "}
+              · exploration every {fmt(synthesis.exploreEvery)} outcomes · levels{" "}
+              <span className="font-mono">{(synthesis.levels || []).join(" → ")}</span>
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border text-text-muted">
+                    <th className="py-1.5 text-left font-semibold">Model</th>
+                    <th className="py-1.5 text-right font-semibold">Samples</th>
+                    <th className="py-1.5 text-left font-semibold">Levels tried</th>
+                    <th className="py-1.5 text-left font-semibold">Missing</th>
+                    <th className="py-1.5 text-left font-semibold">Blocked by</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {(synthesis.rows || []).map((r) => (
+                    <tr key={r.model} className="hover:bg-bg-subtle transition-colors">
+                      <td className="py-1.5 font-mono">{r.model}</td>
+                      <td className="py-1.5 text-right">{fmt(r.n)}</td>
+                      <td className="py-1.5">
+                        <Bar
+                          value={r.total ? r.tried / r.total : 0}
+                          label={`${fmt(r.tried)}/${fmt(r.total)}`}
+                          tone={r.burned ? "bg-red-500" : "bg-primary"}
+                        />
+                      </td>
+                      <td className="py-1.5 font-mono text-text-muted">
+                        {r.missing.length ? r.missing.join(" ") : "—"}
+                      </td>
+                      <td className="py-1.5">
+                        <span className={r.ready ? "text-primary" : "text-text-muted"}>{r.blocked}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Section>
     </div>

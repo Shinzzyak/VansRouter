@@ -8,7 +8,8 @@ import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
 import { genomeSnapshot } from "open-sse/rtk/framingGenome.js";
 import { corpusStats, corpusTail } from "open-sse/rtk/promptCorpus.js";
-import { ledgerSnapshot, providerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
+import { ledgerSnapshot, providerSnapshot, FRAMING_LEVELS, EXPLORE_EVERY } from "open-sse/rtk/selfMeasuringBypass.js";
+import { synthesisReadiness } from "@/lib/engine/synthesisReadiness.js";
 
 /**
  * GET /api/engine/genome — the part of the engine that rewrites itself.
@@ -41,6 +42,13 @@ export async function GET(request) {
   }
 
   const loaded = isEngineLoaded();
+  const ledger = read(loaded, "selfMeasuringBypass", () => ({
+    models: ledgerSnapshot(50) ?? [],
+    // K167 — a wall is installed per provider, so provider evidence is a row
+    // a reader needs: a fresh model behind a walled provider inherits it.
+    providers: providerSnapshot(20) ?? [],
+    available: true,
+  }));
 
   return NextResponse.json({
     ok: true,
@@ -49,13 +57,16 @@ export async function GET(request) {
     genome: read(loaded, "framingGenome", () => ({ ...genomeSnapshot(), available: true })),
     // The ladder's evidence, per model AND per route (K165). A table needs the
     // rows; "how many models have learned something" is not a dashboard.
-    ledger: read(loaded, "selfMeasuringBypass", () => ({
-      models: ledgerSnapshot(50) ?? [],
-      // K167 — a wall is installed per provider, so provider evidence is a row
-      // a reader needs: a fresh model behind a walled provider inherits it.
-      providers: providerSnapshot(20) ?? [],
-      available: true,
-    })),
+    ledger,
+    // K168 — "why is there no synthesized rung yet?" answered with numbers.
+    // Zero rungs is normal and stays normal until a model burns all four levels
+    // on a refusal that carries text; the panel names the missing condition
+    // instead of leaving the reader to guess.
+    synthesis: {
+      ...synthesisReadiness(ledger, { levels: [...FRAMING_LEVELS] }),
+      exploreEvery: EXPLORE_EVERY,
+      classes: ["PATUH", "NOLAK", "INFRA"],
+    },
     corpus: read(loaded, "promptCorpus", () => ({
       ...corpusStats(),
       recent: corpusTail(20, 600),
