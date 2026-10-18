@@ -554,6 +554,42 @@ const WILSON_Z = 1.28;
 // sering untuk mengisi bukti poros baru dalam hitungan hari.
 export const EXPLORE_EVERY = 8;
 
+// K172b — jadwal eksplorasi harus bisa ditanyakan SEBELUM tangga retry dibangun.
+//
+// Tangga retry memakai `firstLevel(model)` untuk percobaan pertama, dan
+// `nextFraming` hanya dipanggil setelah percobaan pertama GAGAL. Di produksi
+// percobaan pertama biasanya MENANG (bingkai kerja + prompt disown), jadi
+// `nextFraming` jarang tersentuh dan poros T4 tetap 0 walau anggaran sudah
+// menumpuk: terukur `skg/z-ai/glm-5.3-flash` esc 9, lastExplore 0, T4 tries 0.
+//
+// Karena itu keputusan "sedang waktunya menjelajah?" dipisah dari pemilih
+// tingkat: call-site bisa mengambil poros terjauh untuk percobaan PERTAMA, lalu
+// menandai anggaran terpakai hanya kalau percobaan itu benar-benar dikirim.
+export function explorationDue(model, routeId = null) {
+  const e = model ? resolveModel(model, routeId)?.e : null;
+  if (!e) return false;
+  return (e.esc || 0) - (e.lastExplore || 0) >= EXPLORE_EVERY;
+}
+
+/** Poros TERJAUH yang belum pernah dicoba model/jalur ini, atau null. */
+export function nextUnseenLevel(model, routeId = null) {
+  const e = model ? resolveModel(model, routeId)?.e : null;
+  if (!e) return null;
+  const unseen = FRAMING_LEVELS.filter((l) => !((e.tries || {})[l] > 0));
+  if (!unseen.length) return null;
+  // FRAMING_LEVELS urut dari bingkai kerja ke unit terkecil; ambil yang terakhir
+  // yang belum dicoba supaya poros paling jauh yang selama ini tak terukur.
+  return unseen[unseen.length - 1];
+}
+
+/** Tandai anggaran eksplorasi terpakai — hanya setelah percobaan dikirim. */
+export function markExplored(model, routeId = null) {
+  const e = model ? resolveModel(model, routeId)?.e : null;
+  if (!e) return false;
+  e.lastExplore = e.esc || 0;
+  return true;
+}
+
 function wilsonLower(wins, tries) {
   const n = Number(tries) || 0;
   if (n <= 0) return 0;

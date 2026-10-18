@@ -37,7 +37,7 @@ import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
-import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, explorationDue, nextUnseenLevel, markExplored } from "../rtk/selfMeasuringBypass.js";
 // K165 — sample the system prompts we receive so the next framing can be written
 // against a measured shape instead of a guess. Off unless VR_PROMPT_CORPUS=1.
 import { sampleSystemPrompts } from "../rtk/promptCorpus.js";
@@ -838,6 +838,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       // percobaan sebelumnya, bukan indeks percobaan.
       const triedL1 = [];
       let lvl1 = firstLevel(model);
+      // K172b (jalur streaming) — anggaran eksplorasi yang penuh memakai poros
+      // terjauh untuk percobaan PERTAMA. Tanpa ini poros T4 hanya bisa dicoba
+      // kalau percobaan pertama gagal, dan percobaan pertama hampir selalu menang.
+      let exploreFar1 = false;
+      if (explorationDue(model, `${provider}/${model}`)) {
+        const far1 = nextUnseenLevel(model, `${provider}/${model}`);
+        if (far1 && far1 !== lvl1) {
+          lvl1 = far1;
+          exploreFar1 = true;
+          log?.info?.("BYPASS", `${provider}/${model} | exploration budget full — first retry uses the far axis ${far1} (stream gate)`);
+        }
+      }
       for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
         if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
         triedL1.push(lvl1);
@@ -846,6 +858,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         if (!appended) {
           log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
           break;
+        }
+        if (exploreFar1 && escAttempt === 0) {
+          markExplored(model, `${provider}/${model}`);
+          log?.info?.("BYPASS", `${provider}/${model} | exploration ${lvl1} sent (budget burned, stream gate)`);
         }
         try {
           retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
@@ -1005,20 +1021,47 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         const preEscalationResult = result;
         const triedL2 = [];
         let lvl2 = firstLevel(model);
+        // K172b — eksplorasi harus bisa menyentuh percobaan PERTAMA.
+        //
+        // `nextFraming` hanya dipanggil setelah percobaan pertama gagal, dan di
+        // produksi percobaan pertama biasanya menang (bingkai kerja + prompt
+        // disown). Akibatnya anggaran eksplorasi menumpuk tanpa pernah terpakai:
+        // terukur `skg/z-ai/glm-5.3-flash` esc 9, lastExplore 0, T4 tries 0.
+        // Kalau anggaran penuh, poros terjauh dipakai untuk percobaan pertama
+        // dan anggaran ditandai terpakai hanya setelah body-nya benar-benar
+        // dikirim — bukan saat direncanakan.
+        const routeKey = `${provider}/${model}`;
+        let exploreFar = false;
+        if (explorationDue(model, routeKey)) {
+          const far = nextUnseenLevel(model, routeKey);
+          if (far && far !== lvl2) {
+            lvl2 = far;
+            exploreFar = true;
+            log?.info?.("BYPASS", `${routeKey} | exploration budget full — first retry uses the far axis ${far}`);
+          }
+        }
         for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
           if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
           triedL2.push(lvl2);
           // K129: same first-move as the streaming gate — disown the refusal
           // instead of arguing for permission.
-          const esc = escAttempt === 0
-            ? buildForeignRefusalEscalation()
-            : getEscalationPromptForLevel(lvl2, { identityFree: personaExempt });
+          let esc;
+          if (escAttempt === 0) {
+            const farPrompt = exploreFar ? getEscalationPromptForLevel(lvl2, { identityFree: personaExempt }) : null;
+            esc = farPrompt || buildForeignRefusalEscalation();
+          } else {
+            esc = getEscalationPromptForLevel(lvl2, { identityFree: personaExempt });
+          }
           // Append to the LAST user message in whatever shape the translated body is
-          // (OpenAI messages[], Gemini/Antigravity contents[], Responses input[]).
+          // ([OI] messages[], Gemini/Antigravity contents[], Responses input[]).
           const appended = appendEscalationToBody(translatedBody, esc);
           if (!appended) {
             log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
             break;
+          }
+          if (exploreFar && escAttempt === 0) {
+            markExplored(model, routeKey);
+            log?.info?.("BYPASS", `${routeKey} | exploration ${lvl2} sent (budget burned)`);
           }
           try {
             const retryResult = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions });

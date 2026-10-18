@@ -312,6 +312,12 @@ const FALLBACKS = {
     // persis seperti sebelum fitur ini ada.
     evidenceLevel: "(() => null)",
     nextFraming: "(() => null)",
+    // K172 — tanpa bundle tidak ada anggaran untuk dijelajahi dan tidak ada
+    // poros yang bisa diklaim: fail-CLOSED ke "jangan menjelajah" supaya
+    // perilaku plain-proxy persis seperti sebelum fitur ini ada.
+    explorationDue: "(() => false)",
+    nextUnseenLevel: "(() => null)",
+    markExplored: "(() => false)",
     recordOutcome: "(() => {})",
     preferredLevel: "(() => null)",
     firstLevel: "(() => 'T2')",
