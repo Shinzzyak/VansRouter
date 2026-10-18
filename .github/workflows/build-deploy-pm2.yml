@@ -37,7 +37,7 @@ env:
   # To ship a new engine: bump this SHA to the engine commit you verified, in the same push.
   # Trade-off accepted: an engine push alone no longer redeploys — that is the point, and
   # the cost is one extra line here per engine release.
-  ENGINE_REF: 7288b55851190afe0b1f73a4a0182d2a22879631
+  ENGINE_REF: 689875b7bbadfda665505a43ff895ba77bf43b88
 
 jobs:
   build:
