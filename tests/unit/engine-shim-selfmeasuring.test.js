@@ -43,7 +43,13 @@ describe('shim: selfMeasuringBypass', () => {
       expect(mod.classifyOutcome("blocked by Gemini's filters")).toBe('FILTER_UPSTREAM');
       expect(mod.needsAnotherTry('NOLAK')).toBe(true);
       expect(mod.needsAnotherTry('PATUH')).toBe(false);
-      expect([...mod.FRAMING_LEVELS]).toEqual(['T2', 'T1', 'T3']);
+      // K163: T4 (poros UNIT) adalah tingkat keempat. Tiga tingkat lama berdiri di
+      // poros TUJUAN yang sudah ditutup spesifikasi refusal vendor.
+      expect([...mod.FRAMING_LEVELS]).toEqual(['T2', 'T1', 'T3', 'T4']);
+      // Tangga adaptif harus benar-benar ADA di bundel yang dijalankan; kalau
+      // tidak, bundel lama lolos tes ini dan fiturnya cuma hiasan. `length` tidak
+      // bisa dipakai: parameter ber-default membuatnya tetap 1.
+      expect(String(mod.nextFraming)).toMatch(/adaptif/);
     } else {
       expect(mod.classifyOutcome('apapun')).toBe('PATUH');
       expect(mod.needsAnotherTry('apapun')).toBe(false);

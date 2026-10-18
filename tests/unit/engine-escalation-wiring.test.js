@@ -59,7 +59,10 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // Tes lama cuma menghitung `nextFraming(` muncul 3x, jadi bentuk argumennya
     // tidak pernah diperiksa. Hitungan call-site bukan pemeriksaan.
     expect(chatCore).not.toMatch(/nextFraming\([^)]*FRAMING_LEVELS\.filter/);
-    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d\)/g) || [];
+    // K163: argumen keempat = model, supaya buku catatan per model dipakai.
+    // Bentuk tiga-argumen tetap sah secara perilaku (identik dengan tangga lama),
+    // tapi tidak lagi cukup untuk mengadaptasi — jadi bentuknya dipaku.
+    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d, model\)/g) || [];
     expect(bentuk.length).toBe(3);
   });
 
@@ -69,7 +72,8 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // dikirim dua kali.
     for (const n of ['triedL1', 'triedL2', 'triedL3']) {
       const push = chatCore.indexOf(`${n}.push(`);
-      const pakai = chatCore.indexOf(`, ${n})`);
+      // K163 menambah argumen keempat, jadi penanda pemakaian ikut bergeser.
+      const pakai = chatCore.indexOf(`, ${n}, model)`);
       expect(push, `${n}.push tidak ada`).toBeGreaterThan(-1);
       expect(pakai, `${n} tidak dipakai sebagai argumen`).toBeGreaterThan(push);
     }
