@@ -88,7 +88,12 @@ BROWSER_GATE = threading.Semaphore(MAX_CONCURRENT)
 
 # ponytail: tunggu gate tak terbatas = request bisa lewat gate 200s router
 # sebelum browser-nya sendiri mulai. Batasi, lalu serahkan keputusan ke pemanggil.
-GATE_WAIT_S = float(os.environ.get("ZAI_GATE_WAIT_S", "20"))
+#
+# 35s, bukan 20s: satu turn sekarang ~20s, jadi 20s berarti request kedua SELALU
+# kalah balapan dan dapat 503 -> router menaiki tangga retry dan klien melihat
+# 110s (terukur 2026-10-18 14:43). 35s cukup untuk mengantre satu turn: klien
+# dapat 200 di ~40-55s, masih jauh di bawah kesabaran router (200s).
+GATE_WAIT_S = float(os.environ.get("ZAI_GATE_WAIT_S", "35"))
 
 
 def _prune(now: float, stamps: list[float]) -> list[float]:
