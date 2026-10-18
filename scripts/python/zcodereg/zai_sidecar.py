@@ -56,8 +56,10 @@ ACCOUNT_ATTEMPTS = int(os.environ.get("ZAI_ACCOUNT_ATTEMPTS", "2"))
 
 # A retry is only cheap if the first account failed fast. Past this many seconds a
 # second attempt no longer shortens the client's wait, it doubles it -- so the loop
-# stops instead. Keeps the worst case near a single attempt.
-ATTEMPT_BUDGET_S = float(os.environ.get("ZAI_ATTEMPT_BUDGET_S", "30"))
+# stops instead. Keeps the worst case near a single attempt. Raised to 70s because
+# a wedged account now fails at FIRST_TOKEN_S (45s) instead of the full 150s, and
+# that failure is exactly the one worth retrying.
+ATTEMPT_BUDGET_S = float(os.environ.get("ZAI_ATTEMPT_BUDGET_S", "70"))
 
 # Pool source of truth. Seeded into kv(scope='settings', key='zaiPoolEmails') by
 # scripts/python/zcodereg/seed_zai_pool.py so the 108 providerConnections rows
@@ -142,11 +144,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, obj, status=200):
         body = json.dumps(obj).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        # The router abandons a slow attempt and retries elsewhere, so by the time
+        # a 502 is written the socket can already be gone. That used to print a
+        # full traceback per request (journal 2026-10-18 14:14 and 14:16) and bury
+        # the real cause; a closed socket is not an error worth a stack.
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def do_GET(self):
         if self.path == "/health":

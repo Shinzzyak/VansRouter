@@ -9,11 +9,11 @@
  * blew up with "Expecting value: line 2 column 1".
  *
  * Two shapes are pinned here:
- *   1. worker  -- the composer click is best-effort. The welcome overlay is
- *      `pointer-events-none` but its CHILDREN still swallow clicks, so a bare
- *      `box.click()` raised `ElementHandle.click: Timeout 30000ms exceeded`
- *      (full traceback in the sidecar journal). `fill()` focuses the element
- *      itself, so a failed click must not abort the request.
+ *   1. worker  -- the composer is focused by `fill()`, never by a click. The
+ *      welcome overlay is `pointer-events-none` but its CHILDREN swallow clicks,
+ *      so `box.click()` retried until its timeout on every pass: measured 3s x 2
+ *      passes = ~6s of a ~20s turn (probe 2026-10-18). `fill()` focuses the
+ *      element itself, so the click was pure cost and is gone.
  *   2. sidecar -- `do_chat` is wrapped, so any worker exception becomes a clean
  *      502 JSON body instead of a dead connection.
  *
@@ -69,18 +69,17 @@ const sendCode = codeOnly(sendBlock(workerSrc));
 const chatCode = codeOnly(chatCallBlock(sidecarSrc));
 
 describe("zai sidecar — a worker failure must never kill the HTTP response", () => {
-  it("wraps the composer click so an intercepted click is survivable", () => {
+  it("focuses the composer with fill, never with a click the overlay can swallow", () => {
     expect(sendCode.trim()).not.toBe("");
-    // must not be a bare, unguarded click
-    expect(sendCode).not.toMatch(/^\s*box\.click\(\)\s*$/m);
-    expect(sendCode).toMatch(/try:\s*\n\s*box\.click\(/);
-    expect(sendCode).toMatch(/except Exception:\s*\n\s*pass/);
+    // a click on the composer is the 6s-of-every-turn bug: gone, not bounded
+    expect(sendCode).not.toMatch(/box\.click\(/);
+    expect(sendCode).toMatch(/box\.fill\(full_prompt\)/);
   });
 
-  it("bounds the click timeout well below the request timeout", () => {
-    const m = sendCode.match(/box\.click\(timeout=(\d+)\)/);
-    expect(m).not.toBeNull();
-    expect(Number(m[1])).toBeLessThanOrEqual(5000);
+  it("keeps a failed fill survivable instead of aborting the turn", () => {
+    // fill() can still raise while the overlay re-mounts; that must fall through
+    // to the next pass, not kill the request.
+    expect(sendCode).toMatch(/try:\s*\n\s*box\.fill\(full_prompt\)\s*\n\s*except Exception:\s*\n\s*continue/);
   });
 
   it("wraps do_chat and answers 502 instead of dying silently", () => {

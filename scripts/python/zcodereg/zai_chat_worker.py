@@ -252,7 +252,47 @@ def parse_tool_calls(text):
     return calls
 
 
-def _dismiss_welcome(page, appear_ms=8000):
+_AUTO_DISMISS_JS = """() => {
+  if (window.__zaiAutoDismiss) return 'already';
+  const LABEL = /^(close|got it|dismiss|skip|ok|okay|×|x|知道了|关闭|我知道了)$/i;
+  const kill = () => {
+    for (const o of document.querySelectorAll('div.fixed.inset-0')) {
+      if (parseInt(getComputedStyle(o).zIndex || 0) <= 1000) continue;
+      const btns = [...o.querySelectorAll('button, [role="button"]')];
+      const b = btns.find(x => LABEL.test((x.innerText || x.getAttribute('aria-label') || '').trim()));
+      if (b) { b.click(); return true; }
+      const box = o.getBoundingClientRect();
+      const corner = btns.filter(x => {
+        const r = x.getBoundingClientRect();
+        return r.width && r.height && r.top < box.top + box.height * 0.35
+               && r.right > box.right - box.width * 0.35;
+      });
+      if (corner.length) { corner[0].click(); return true; }
+    }
+    return false;
+  };
+  window.__zaiAutoDismiss = setInterval(kill, 250);
+  kill();
+  return 'armed';
+}"""
+
+
+def _install_auto_dismiss(page):
+    """Close the delayed announcement modal from inside the page, not by waiting."""
+    try:
+        page.evaluate(_AUTO_DISMISS_JS)
+    except Exception:
+        pass
+
+
+def _clear_auto_dismiss(page):
+    try:
+        page.evaluate("() => { if (window.__zaiAutoDismiss) { clearInterval(window.__zaiAutoDismiss); window.__zaiAutoDismiss = null; } }")
+    except Exception:
+        pass
+
+
+def _dismiss_welcome(page, appear_ms=1200):
     """Click the chat.z.ai welcome overlay's own Close button, if one is up.
 
     chat.z.ai renders an announcement modal ("Explore the GLM-5.3 ...") that
@@ -270,11 +310,25 @@ def _dismiss_welcome(page, appear_ms=8000):
     the first pass. `appear_ms` is just a ceiling for the pathological case.
     """
     click_js = """() => {
+      const LABEL = /^(close|got it|dismiss|skip|ok|okay|×|x|知道了|关闭|我知道了)$/i;
       for (const o of document.querySelectorAll('div.fixed.inset-0')) {
         if (parseInt(getComputedStyle(o).zIndex || 0) <= 1000) continue;
-        const b = [...o.querySelectorAll('button, [role="button"]')]
-          .find(x => /^(close|got it|dismiss|skip)$/i.test((x.innerText || x.getAttribute('aria-label') || '').trim()));
+        const btns = [...o.querySelectorAll('button, [role="button"]')];
+        const b = btns.find(x => LABEL.test((x.innerText || x.getAttribute('aria-label') || '').trim()));
         if (b) { b.click(); return 'clicked'; }
+        // Label drift: the modal is up and swallowing clicks, so ANY control in
+        // it is a better bet than a blind Escape. Prefer the top-right one.
+        const box = o.getBoundingClientRect();
+        const corner = btns.filter(x => {
+          const r = x.getBoundingClientRect();
+          return r.width && r.height && r.top < box.top + box.height * 0.35
+                 && r.right > box.right - box.width * 0.35;
+        });
+        if (corner.length) { corner[0].click(); return 'clicked-corner'; }
+        if (btns.length) { btns[btns.length - 1].click(); return 'clicked-last'; }
+        // No control at all: click the backdrop, then let Escape clean up.
+        o.click();
+        return 'backdrop';
       }
       return 'none';
     }"""
@@ -287,13 +341,12 @@ def _dismiss_welcome(page, appear_ms=8000):
         except Exception:
             pass
         page.wait_for_timeout(200)
-    # no Close button ever appeared: blind Escape as a last resort
-    for _ in range(3):
-        try:
-            page.keyboard.press("Escape")
-            page.wait_for_timeout(700)
-        except Exception:
-            pass
+    # nothing clickable: one Escape, then give up so the caller can re-fill.
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(400)
+    except Exception:
+        pass
     return False
 
 
@@ -392,7 +445,7 @@ def chat_once(prompt, model=None, email=None, timeout_s=180, tools=None):
         return _turn(browser, prompt, model, email, tools, timeout_s, t0)
 
 
-def _turn(browser, prompt, model, email, tools, timeout_s, t0):
+def _turn(browser, prompt, model, email, tools, timeout_s, t0, first_s=None):
     """One UI chat turn on an ALREADY-LIVE browser.
 
     A fresh context per turn is deliberate: the pool round-robins accounts, so
@@ -401,6 +454,10 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
     acc = load_account(email)
     if not acc:
         return {"error": "no zcode account"}
+    first_s = first_s or FIRST_TOKEN_S
+    marks = {}
+    def mark(name):
+        marks[name] = round(time.time() - t0, 2)
     ctx = browser.new_context()
     try:
         inject_cookies(ctx, acc["cookies"])
@@ -409,38 +466,43 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
             page.goto("https://chat.z.ai", wait_until="domcontentloaded", timeout=60000)
         except Exception as e:
             return {"error": f"goto: {str(e)[:100]}"}
+        mark("goto")
         # fill + send
         full_prompt = build_tools_prompt(prompt, tools)
         after = _assistant_block_count(page)
         _wait_composer_exists(page)
+        mark("composer")
+        # The announcement modal mounts anywhere from goto+3.9s to goto+16.7s and
+        # wipes whatever was typed. Waiting for it to bite costs a whole pass;
+        # instead let the page close it the instant it appears, so the composer is
+        # never covered by the time we fill. Cleared before send.
+        _install_auto_dismiss(page)
         # A delayed per-account announcement modal mounts at an arbitrary point in
         # the first ~17s after load. It covers the composer AND replaces its node,
         # which wipes whatever was typed -- measured: fill() reported success with
         # the input value back at 0 and the submit button never armed. So retry the
         # whole dismiss/fill/arm sequence rather than trusting a single pass.
         box = None
-        for attempt in (1, 2, 3):
+        for attempt in (1, 2):
             if _composer_covered(page):
                 _dismiss_welcome(page)
             box = page.query_selector('#chat-input') or page.query_selector('textarea')
             if not box:
                 return {"error": "no #chat-input"}
-            # ponytail: click is best-effort only. The welcome overlay is
-            # pointer-events-none but its children still swallow clicks, so this
-            # raises a 30s TimeoutError on some boots (seen in the sidecar journal).
-            # fill() focuses the element itself, so a failed click is survivable.
-            try:
-                box.click(timeout=3000)
-            except Exception:
-                pass
+            # No click. fill() focuses the element itself, and the click was the
+            # single most expensive step of the turn: the welcome overlay's
+            # children swallow pointer events, so Playwright retried until the
+            # timeout -- measured 3s per pass, twice per turn (probe 2026-10-18).
             try:
                 box.fill(full_prompt)
             except Exception:
                 continue
-            if _wait_submit_armed(page, timeout_ms=1500):
+            if _wait_submit_armed(page, timeout_ms=2500):
                 break
         else:
             return {"error": "composer never armed", "email": acc["email"]}
+        mark("armed")
+        _clear_auto_dismiss(page)
         sent = False
         for sel in ['button[type="submit"]', '[data-testid="send-button"]']:
             try:
@@ -453,10 +515,18 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
                 pass
         if not sent:
             page.keyboard.press("Enter")
+        mark("sent")
         # poll for assistant reply (bounded by t0, i.e. the whole-turn deadline)
         prev_txt = None
         stable = 0
         while time.time() - t0 < timeout_s:
+            # A page that never starts answering is wedged, not slow: the account
+            # is parked and another one gets the turn. Without this the first
+            # attempt sat the full 150s and the client got a 502 (measured
+            # 2026-10-18 14:09: 150.28s, zero tokens).
+            if "first" not in marks and (time.time() - t0) > first_s:
+                return {"error": f"no first token in {first_s:.0f}s", "email": acc["email"],
+                        "fast_fail": True}
             # captcha guard: if slider appeared, solve it
             try:
                 has_cap = page.evaluate(
@@ -467,6 +537,8 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
             except Exception:
                 pass
             txt = _read_reply(page, after)
+            if txt and "first" not in marks and txt.strip() not in _PLACEHOLDERS:
+                mark("first")
             if txt and txt.strip() not in _PLACEHOLDERS:
                 # Accept ONLY once the turn is over. The old `len(txt) > 1`
                 # predicate was wrong in both directions:
@@ -479,11 +551,13 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
                 # reading, that is the truncation bug again.
                 if _generation_finished(page) or (txt == prev_txt and stable >= 3):
                     calls = parse_tool_calls(txt) if tools else []
+                    mark("done")
+                    print(f"[turn] {json.dumps(marks)} chars={len(txt)}", flush=True)
                     return {"content": txt, "model": model or "default",
                             "email": acc["email"], "tool_calls": calls}
                 stable = stable + 1 if txt == prev_txt else 0
                 prev_txt = txt
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(POLL_MS)
         return {"error": "timeout waiting for reply", "email": acc["email"]}
     finally:
         try:
@@ -509,6 +583,14 @@ def _turn(browser, prompt, model, email, tools, timeout_s, t0):
 # (every account already shares one IP; a single frozen fingerprint on top of
 # that is needless correlation).
 # ---------------------------------------------------------------------------
+# DOM poll cadence. The accept rule needs 3 unchanged polls, so this sets
+# the tail of every short answer: 1000ms cost 3s, 350ms costs ~1s.
+POLL_MS = int(os.environ.get("ZAI_POLL_MS", "350"))
+
+# Give up on an account that has not produced a single token by now.
+# Normal turns here start answering at ~6-15s; 45s is 3x the p95.
+FIRST_TOKEN_S = float(os.environ.get("ZAI_FIRST_TOKEN_S", "45"))
+
 RECYCLE_TURNS = int(os.environ.get("ZAI_BROWSER_RECYCLE_TURNS", "40"))
 RECYCLE_SEC = float(os.environ.get("ZAI_BROWSER_RECYCLE_SEC", "1800"))
 
@@ -540,7 +622,8 @@ def _owner_loop():
                 browser = cm.__enter__()
                 turns, born = 0, time.time()
             job["result"] = _turn(browser, job["prompt"], job["model"], job["email"],
-                                  job["tools"], job["timeout_s"], time.time())
+                                  job["tools"], job["timeout_s"], time.time(),
+                                  first_s=job.get("first_s"))
             turns += 1
         except Exception as e:
             # a wedged or crashed browser must not poison the next turn
@@ -579,7 +662,7 @@ def submit_chat(prompt, model=None, email=None, timeout_s=150, tools=None, wait_
     """
     _ensure_owner()
     job = {"prompt": prompt, "model": model, "email": email,
-           "timeout_s": timeout_s, "tools": tools,
+           "timeout_s": timeout_s, "tools": tools, "first_s": FIRST_TOKEN_S,
            "event": threading.Event(), "result": None, "cancelled": False}
     _JOB_Q.put(job)
     budget = wait_s if wait_s else timeout_s + 30
