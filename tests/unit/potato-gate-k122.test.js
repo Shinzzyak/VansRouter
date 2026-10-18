@@ -15,7 +15,10 @@
 import { describe, it, expect } from "vitest";
 import { applyPromptInjectors } from "../../open-sse/rtk/promptInjectors.js";
 
-const MARK = "POTATO MECHANICS";
+// The bare words "POTATO MECHANICS" also appear as a section header inside
+// PERSONA_LOCK (godmode.js), so counting them measured two blocks at once and
+// the gate read 2 where one potato had been injected. Count the full marker.
+const MARK = "POTATO MECHANICS — ALWAYS-ON BEHAVIOR";
 
 function run(opts = {}) {
   const body = { model: "glm-5.3", messages: [{ role: "user", content: "hello" }] };
