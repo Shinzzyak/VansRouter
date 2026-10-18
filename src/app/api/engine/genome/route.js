@@ -8,7 +8,7 @@ import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
 import { genomeSnapshot } from "open-sse/rtk/framingGenome.js";
 import { corpusStats, corpusTail } from "open-sse/rtk/promptCorpus.js";
-import { ledgerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
+import { ledgerSnapshot, providerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
 
 /**
  * GET /api/engine/genome — the part of the engine that rewrites itself.
@@ -49,7 +49,13 @@ export async function GET(request) {
     genome: read(loaded, "framingGenome", () => ({ ...genomeSnapshot(), available: true })),
     // The ladder's evidence, per model AND per route (K165). A table needs the
     // rows; "how many models have learned something" is not a dashboard.
-    ledger: read(loaded, "selfMeasuringBypass", () => ({ models: ledgerSnapshot(50) ?? [], available: true })),
+    ledger: read(loaded, "selfMeasuringBypass", () => ({
+      models: ledgerSnapshot(50) ?? [],
+      // K167 — a wall is installed per provider, so provider evidence is a row
+      // a reader needs: a fresh model behind a walled provider inherits it.
+      providers: providerSnapshot(20) ?? [],
+      available: true,
+    })),
     corpus: read(loaded, "promptCorpus", () => ({
       ...corpusStats(),
       recent: corpusTail(20, 600),

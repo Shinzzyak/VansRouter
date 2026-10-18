@@ -110,6 +110,7 @@ export default function EngineGenome() {
   );
 
   const rungs = genome.rungs || [];
+  const providers = ledger.providers || [];
   const providerRows = Object.entries(corpus.byProvider || {})
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
@@ -350,6 +351,32 @@ export default function EngineGenome() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="Provider walls"
+        subtitle="A preamble is installed per provider, so a model seen for the first time behind one starts from the provider's evidence, not a blind guess (K167)."
+      >
+        {!providers.length ? (
+          <p className="text-xs text-text-muted">
+            {ledger.available
+              ? "No provider evidence yet."
+              : "Ledger unavailable — engine bundle not loaded."}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {providers.map((p) => (
+              <div key={p.provider} className="flex items-center gap-2 text-[11px]">
+                <span className="w-32 shrink-0 truncate font-mono" title={p.provider}>
+                  {p.provider}
+                </span>
+                <Bar value={p.tries ? p.wins / p.tries : 0} label={`${fmt(p.wins)}/${fmt(p.tries)}`} />
+                <span className="w-16 shrink-0 text-right text-text-muted">{fmt(p.n)} calls</span>
+                <span className="w-10 shrink-0 text-right">{p.best || "—"}</span>
+              </div>
+            ))}
           </div>
         )}
       </Section>

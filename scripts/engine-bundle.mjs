@@ -316,6 +316,8 @@ const FALLBACKS = {
     preferredLevel: "(() => null)",
     firstLevel: "(() => 'T2')",
     ledgerSnapshot: "(() => ({}))",
+    // K167 — tanpa bundle tidak ada bukti provider; daftar kosong, bukan tebakan.
+    providerSnapshot: "(() => [])",
     resetLedger: "(() => {})",
     DEFAULT_LEVEL: "'T2'",
     FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3'])",

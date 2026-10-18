@@ -42,6 +42,10 @@ describe("/api/engine/genome", () => {
     expect(src, "ledger rows + routes").toMatch(/ledgerSnapshot\(/);
     expect(src, "corpus stats").toMatch(/corpusStats\(/);
     expect(src, "corpus samples").toMatch(/corpusTail\(/);
+    // K167 — provider evidence is a separate book; the route must expose it or
+    // the dashboard has no way to show which provider installs the wall.
+    expect(src, "provider evidence").toMatch(/providerSnapshot\(/);
+    expect(src, "providers array").toMatch(/providers:\s*providerSnapshot\(/);
   });
 
   it("separates a missing engine from an empty one", () => {
