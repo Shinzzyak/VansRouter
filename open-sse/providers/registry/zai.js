@@ -22,6 +22,11 @@ export default {
   transport: {
     baseUrl: "http://127.0.0.1:8879/v1/chat/completions",
     format: "openai",
+    // Sidecar turns are 20-40s and a queued turn waits up to 35s at the browser
+    // gate, so the shared 60s connect timeout aborted healthy requests and sent
+    // the router into a 3x retry ladder (measured 2026-10-18: 180s+ per call,
+    // then a fallback to another provider). 150s covers queue + turn with room.
+    timeoutMs: 150000,
     headers: { "Content-Type": "application/json" },
     auth: {
       combined: true,
