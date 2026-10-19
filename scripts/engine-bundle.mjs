@@ -296,8 +296,6 @@ const FALLBACKS = {
   instructionReceipts: {
     createReceipt: "(() => ({}))",
     recordInjectorResult: "(() => {})",
-    // K178 — tanpa bundle tidak ada ledger, jadi tidak ada yang dicatat.
-    recordCompliant: "(() => {})",
     summarizeReceipt: "(() => ({}))",
   },
   // Fail-SAFE, bukan fail-open: tanpa bundle, engine tidak boleh mengulang
@@ -318,6 +316,9 @@ const FALLBACKS = {
     // poros yang bisa diklaim: fail-CLOSED ke "jangan menjelajah" supaya
     // perilaku plain-proxy persis seperti sebelum fitur ini ada.
     explorationDue: "(() => false)",
+    // K178 — penulis satuan jalur sehat. Tanpa bundle tidak ada ledger, jadi
+    // tidak ada yang dicatat: no-op, bukan menebak PATUH.
+    recordCompliant: "(() => {})",
     nextUnseenLevel: "(() => null)",
     markExplored: "(() => false)",
     recordOutcome: "(() => {})",
