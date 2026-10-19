@@ -12,8 +12,6 @@ const __E = loadEngine("selfMeasuringBypass") ?? {};
 
 export const DEFAULT_LEVEL = __E.DEFAULT_LEVEL ?? 'T2';
 export const EXPLORE_EVERY = __E.EXPLORE_EVERY ?? 8;
-// K175 — the healthy-path unit. A shim that omits it makes the route import
-// undefined and the panel prints "undefined per 32" instead of the real number.
 export const EXPLORE_EVERY_PATUH = __E.EXPLORE_EVERY_PATUH ?? 32;
 export const FRAMING_LEVELS = __E.FRAMING_LEVELS ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
 export const classifyOutcome = __E.classifyOutcome ?? (() => 'PATUH');
