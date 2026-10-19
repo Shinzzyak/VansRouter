@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
@@ -17,7 +18,7 @@ import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 // an error — the Zero Break Guarantee. Do not convert these back to a dynamic
 // import or a path table.
 import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
-import { stateStatus } from "open-sse/rtk/engineState.js";
+import { stateStatus, stateFilePath } from "open-sse/rtk/engineState.js";
 import { ledgerSnapshot } from "open-sse/rtk/selfMeasuringBypass.js";
 import { routeSnapshot } from "open-sse/rtk/routeGuardMemory.js";
 import { getAllDrift, getAllDeliveredDrift } from "open-sse/rtk/refusalDrift.js";
@@ -60,6 +61,53 @@ function read(engineLoaded, name, fn) {
   }
 }
 
+/**
+ * The in-memory ledger is not the only ledger.
+ *
+ * This process loads the engine bundle more than once (the chat path and this
+ * route resolve the shim through different chunks), so each load owns its own
+ * registry and its own in-memory state. Traffic lands in the chat path's copy;
+ * this route's copy sits at whatever it hydrated at boot. Measured 2026-10-19:
+ * 34 live requests moved the persisted file by 151 records and this route's
+ * `total_n` by zero.
+ *
+ * The persisted file is the union — every instance merges into it on the way
+ * out. So the file is the honest answer to "what does the engine know", and the
+ * in-memory snapshot stays as the per-instance view. Both are returned, labelled,
+ * because silently swapping one for the other would hide the split instead of
+ * reporting it.
+ */
+function readPersisted() {
+  try {
+    const file = stateFilePath();
+    if (!file || !fs.existsSync(file)) return { available: false, error: "state file absent" };
+    const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+    const smb = Array.isArray(raw.selfMeasuringBypass) ? raw.selfMeasuringBypass : [];
+    const rows = smb.map(([model, e]) => ({
+      model,
+      n: e?.n || 0,
+      esc: e?.esc ?? 0,
+      pat: e?.pat ?? 0,
+      lastExplore: e?.lastExplore ?? 0,
+      lastExplorePat: e?.lastExplorePat ?? 0,
+      levels: Object.fromEntries(Object.entries(e?.tries || {}).map(([k, v]) => [k, { tries: v }])),
+    }));
+    rows.sort((a, b) => b.n - a.n);
+    return {
+      available: true,
+      path: file,
+      savedAt: raw.savedAt ? new Date(raw.savedAt).toISOString() : null,
+      total_n: rows.reduce((s, r) => s + r.n, 0),
+      esc_total: rows.reduce((s, r) => s + r.esc, 0),
+      pat_total: rows.reduce((s, r) => s + r.pat, 0),
+      rows: rows.length,
+      ledger: rows.slice(0, 50),
+    };
+  } catch (e) {
+    return { available: false, error: e?.message || String(e) };
+  }
+}
+
 export async function GET(request) {
   if (!(await requireDashboardAuth(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -71,6 +119,9 @@ export async function GET(request) {
     ok: true,
     capturedAt: new Date().toISOString(),
     engineLoaded: loaded,
+    // See readPersisted(): the file is the union of every engine instance in this
+    // process; `modules` below is this route's own copy.
+    persisted: readPersisted(),
     modules: {
       engineState: read(loaded, "engineState", () => ({ status: stateStatus() })),
       selfMeasuringBypass: read(loaded, "selfMeasuringBypass", () => ({

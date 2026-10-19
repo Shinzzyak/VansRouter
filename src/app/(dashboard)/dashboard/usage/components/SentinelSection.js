@@ -84,7 +84,13 @@ export default function SentinelSection() {
 
   const loaded = state !== null;
   const modules = state?.modules || null;
-  const rows = sentinelRows(modules);
+  // The persisted file is the union of every engine instance in this process;
+  // the in-memory ledger only sees traffic that landed in this chunk (measured
+  // 2026-10-19: 34 live requests moved the file by 151 and this snapshot by 0).
+  // Prefer the file, and print which one the table is showing.
+  const persisted = state?.persisted || null;
+  const ledger = persisted?.available ? persisted : modules?.selfMeasuringBypass || null;
+  const rows = sentinelRows({ ...(modules || {}), selfMeasuringBypass: { ledger: ledger?.ledger || [] } });
   const totals = sentinelTotals(rows);
   const drifted = rows.filter((r) => r.status === "DRIFT");
   const filterOpen = rows.filter((r) => r.filterTone === "open").length;
@@ -232,6 +238,12 @@ export default function SentinelSection() {
             ))}
           </div>
         )}
+        <p className="mt-1 text-[11px] text-text-muted">
+          Ledger source:{" "}
+          <span className="text-text-main">{persisted?.available ? "state file (union)" : "this process only"}</span>
+          {persisted?.available && persisted.savedAt ? ` · saved ${persisted.savedAt.slice(11, 19)}Z` : ""}
+          {persisted?.available ? ` · ${persisted.rows} routes, ${persisted.total_n} outcomes` : ""}
+        </p>
         <p className="mt-1 text-[11px] text-text-muted">
           Verdicts are the engine&apos;s own (<span className="text-text-main">classifyResponse</span>), not a
           second opinion. DRIFT = a model crossed the threshold inside its own 50-sample window on{" "}
