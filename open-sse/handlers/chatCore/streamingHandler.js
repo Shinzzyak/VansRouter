@@ -132,7 +132,7 @@ function buildTransformStream({ provider, sourceFormat, targetFormat, userAgent,
  * return STREAM_EARLY_EOF so the caller can retry once on the same connection.
  */
 export async function handleStreamingResponse({
-  providerResponse, provider, model, sourceFormat, targetFormat, userAgent,
+  providerResponse, provider, model, ledgerKey, sourceFormat, targetFormat, userAgent,
   body, stream, translatedBody, finalBody, requestStartTime, connectionId,
   apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess,
   reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe,
@@ -365,8 +365,10 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       // no verdict to teach: it is neither a win nor a loss.
       const kelas = outcomeClassFromIntegrity(integrity.status);
       if (kelas && !(kelas === "SENYAP" && toolCallOnly)) {
-        recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`);
-        console.warn(`[STREAM-INTEGRITY] ${provider}/${model} | recorded ${kelas} at ${firstLevel(model)}`);
+        // K173: kunci jalur datang dari pemanggil (`<prefix>/<model>`), bukan dari
+        // id koneksi — dua ejaan untuk satu jalur memecah anggaran eksplorasi.
+        recordOutcome(model, firstLevel(model), kelas, ledgerKey);
+        console.warn(`[STREAM-INTEGRITY] ${ledgerKey} | recorded ${kelas} at ${firstLevel(model)}`);
       }
     } catch (e) {
       console.warn("[STREAM-INTEGRITY] classify error (fail-open):", e?.message || e);

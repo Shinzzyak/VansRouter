@@ -62,8 +62,16 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // K163: argumen keempat = model, supaya buku catatan per model dipakai.
     // Bentuk tiga-argumen tetap sah secara perilaku (identik dengan tangga lama),
     // tapi tidak lagi cukup untuk mengadaptasi — jadi bentuknya dipaku.
-    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d, model, (?:retryText|retryRaw), `\$\{provider\}\/\$\{model\}`\)/g) || [];
+    // K173: argumen keenam bukan lagi `${provider}/${model}` mentah, tapi
+    // `ledgerKey` — kunci stabil `<prefix>/<model>` yang juga dipakai combo.
+    // Id koneksi (`openai-compatible-chat-<uuid>`) memecah satu jalur jadi dua
+    // baris ledger dan membuat anggaran eksplorasi tidak pernah mencapai 8.
+    const bentuk = chatCore.match(/nextFraming\(cls\d, lvl\d, triedL\d, model, (?:retryText|retryRaw), ledgerKey\)/g) || [];
     expect(bentuk.length).toBe(3);
+    // dan tidak boleh ada satu pun panggilan buku catatan yang masih memakai
+    // id koneksi sebagai kunci jalur
+    const mentah = chatCore.match(/(?:recordOutcome|nextFraming|explorationDue|nextUnseenLevel|markExplored)\([^;]*`\$\{provider\}\/\$\{model\}`/g) || [];
+    expect(mentah.length).toBe(0);
   });
 
   it('tidak ada level yang terlewat: ketiga jalur menyimpan percobaan sebelum memakainya', () => {
