@@ -449,6 +449,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
         // K178 — jalur non-streaming punya lubang yang sama: OK tidak pernah
         // mencatat apa pun, jadi `pat` tetap 0 di produksi.
         recordCompliant(model, firstLevel(model), ledgerKey);
+        console.warn(`[STREAM-INTEGRITY] ${ledgerKey} | recorded PATUH at ${firstLevel(model)}`);
       }
     } catch (_) { /* ledger tidak boleh menjatuhkan permintaan */ }
 

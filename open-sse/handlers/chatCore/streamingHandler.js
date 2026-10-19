@@ -375,6 +375,7 @@ export function buildOnStreamComplete({ provider, model, ledgerKey, connectionId
         // bersih menambah `pat` saja; pemilihan tingkat tetap hanya belajar
         // dari kegagalan.
         recordCompliant(model, firstLevel(model), ledgerKey);
+        console.warn(`[STREAM-INTEGRITY] ${ledgerKey} | recorded PATUH at ${firstLevel(model)}`);
       }
     } catch (e) {
       console.warn("[STREAM-INTEGRITY] classify error (fail-open):", e?.message || e);
