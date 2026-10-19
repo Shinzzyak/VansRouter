@@ -15,6 +15,7 @@ export const hydrate = __E.hydrate ?? (() => false);
 export const installFlushHooks = __E.installFlushHooks ?? (() => {});
 export const markDirty = __E.markDirty ?? (() => {});
 export const persist = __E.persist ?? (() => false);
+export const persistSlot = __E.persistSlot ?? (() => false);
 export const registerState = __E.registerState ?? (() => {});
 export const stateFilePath = __E.stateFilePath ?? (() => null);
 export const stateStatus = __E.stateStatus ?? (() => ({ file: null, slots: [], enabled: false, dirty: false, debounceMs: 0 }));

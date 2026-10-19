@@ -124,6 +124,7 @@ const FALLBACKS = {
     registerState: "(() => {})",
     markDirty: "(() => {})",
     persist: "(() => false)",
+    persistSlot: "(() => false)",
     hydrate: "(() => false)",
     installFlushHooks: "(() => {})",
     stateStatus: "(() => ({ file: null, slots: [], enabled: false, dirty: false, debounceMs: 0 }))",
