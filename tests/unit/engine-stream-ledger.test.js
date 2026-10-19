@@ -81,9 +81,17 @@ describe("integrity verdict -> ledger class (the real mapping)", () => {
     expect(outcomeClassFromIntegrity("output_filtered")).toBe("FILTER_UPSTREAM");
   });
 
-  it("losing a brand, seal or enclosure is a substitution", () => {
-    expect(outcomeClassFromIntegrity("missing_brand")).toBe("SUBSTITUSI");
-    expect(outcomeClassFromIntegrity("missing_seal")).toBe("SUBSTITUSI");
+  // K179 — brand and seal are OUR cap, re-applied by enforceChatBrand AFTER this
+  // classification runs. Grading them here made every un-capped upstream answer a
+  // "failure": production 2026-10-19 logged `missing_brand | chars=70` then
+  // `recorded SUBSTITUSI at T2` for replies the caller received fully branded, and
+  // `pat` stayed 0 across 12.080 recorded results. Enclosure is still content.
+  it("losing a brand or seal is not a substitution — the router repairs it", () => {
+    expect(outcomeClassFromIntegrity("missing_brand")).toBe(null);
+    expect(outcomeClassFromIntegrity("missing_seal")).toBe(null);
+  });
+
+  it("losing the enclosure contract is a substitution", () => {
     expect(outcomeClassFromIntegrity("missing_enclosure")).toBe("SUBSTITUSI");
   });
 
