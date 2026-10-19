@@ -14,6 +14,7 @@ import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER, STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
+import { ledgerKeyFor } from "../rtk/ledgerKey.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { getExecutor } from "../executors/index.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
@@ -253,6 +254,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
+
+  // K173 — kunci ledger = `<prefix>/<model>`, bukan `<id koneksi>/<model>`.
+  // Provider kustom berbentuk `openai-compatible-chat-<uuid>`, sedangkan combo,
+  // dashboard, dan klien menulis jalur yang sama sebagai `skg/...`. Dua ejaan
+  // untuk satu jalur = dua baris ledger = anggaran eksplorasi terpecah dan
+  // tidak pernah mencapai 8. Prefix diambil dari providerNodes (sumber yang
+  // sama dengan combo), dengan id koneksi hanya sebagai jaring terakhir.
+  const ledgerKey = await ledgerKeyFor(provider, model, credentials);
   // OpenAI spec: `stream` defaults to false. An ABSENT key must not become SSE —
   // it used to (`undefined !== false` === true), which broke every SDK client that
   // omits the field. SSE survives only when the client actually asks for it:
@@ -842,8 +851,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       // terjauh untuk percobaan PERTAMA. Tanpa ini poros T4 hanya bisa dicoba
       // kalau percobaan pertama gagal, dan percobaan pertama hampir selalu menang.
       let exploreFar1 = false;
-      if (explorationDue(model, `${provider}/${model}`)) {
-        const far1 = nextUnseenLevel(model, `${provider}/${model}`);
+      if (explorationDue(model, ledgerKey)) {
+        const far1 = nextUnseenLevel(model, ledgerKey);
         if (far1 && far1 !== lvl1) {
           lvl1 = far1;
           exploreFar1 = true;
@@ -860,7 +869,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           break;
         }
         if (exploreFar1 && escAttempt === 0) {
-          markExplored(model, `${provider}/${model}`);
+          markExplored(model, ledgerKey);
           log?.info?.("BYPASS", `${provider}/${model} | exploration ${lvl1} sent (budget burned, stream gate)`);
         }
         try {
@@ -881,7 +890,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             } catch { /* plain text or body consumed */ }
             if (retryText && !retryFiltered && !detectOwnRefusal(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
-              recordOutcome(model, lvl1, classifyOutcome(retryText, true), `${provider}/${model}`);
+              recordOutcome(model, lvl1, classifyOutcome(retryText, true), ledgerKey);
               streamController.handleComplete();
               return nr;
             }
@@ -891,15 +900,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             // content-safety escalation also threw away a valid agent turn.
             if (retryText && !detectOwnRefusal(retryText) && carriesToolCalls(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} delivered a tool call`);
-              recordOutcome(model, lvl1, 'PATUH', `${provider}/${model}`);
+              recordOutcome(model, lvl1, 'PATUH', ledgerKey);
               streamController.handleComplete();
               return nr;
             }
             const cls1 = classifyOutcome(retryText, true);
-            recordOutcome(model, lvl1, cls1, `${provider}/${model}`);
+            recordOutcome(model, lvl1, cls1, ledgerKey);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < 2) {
-              lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText, `${provider}/${model}`)?.level ?? lvl1;
+              lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText, ledgerKey)?.level ?? lvl1;
             }
           }
         } catch (bypassErr) {
@@ -996,7 +1005,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       // answer. Attribution keeps the gate on refusals the model PERFORMS.
       const refusalDetected = detectOwnRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
-      recordOutcome(model, firstLevel(model), outcome, `${provider}/${model}`);
+      recordOutcome(model, firstLevel(model), outcome, ledgerKey);
       if (refusalDetected || outputFiltered) {
         recordRefusalMetric("detected", { provider, model, outcome, outputFiltered });
       }
@@ -1030,7 +1039,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // Kalau anggaran penuh, poros terjauh dipakai untuk percobaan pertama
         // dan anggaran ditandai terpakai hanya setelah body-nya benar-benar
         // dikirim — bukan saat direncanakan.
-        const routeKey = `${provider}/${model}`;
+        const routeKey = ledgerKey;
         let exploreFar = false;
         if (explorationDue(model, routeKey)) {
           const far = nextUnseenLevel(model, routeKey);
@@ -1080,7 +1089,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 } catch { /* plain text */ }
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
-              recordOutcome(model, lvl2, cls2, `${provider}/${model}`);
+              recordOutcome(model, lvl2, cls2, ledgerKey);
               // K25 sibling (2026-09-30): a tool-call turn has no visible text, so
               // `classifyOutcome` reads it as AMBIGU and `needsAnotherTry` keeps the
               // ladder burning attempts on a turn that already succeeded.
@@ -1093,7 +1102,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
               if (escAttempt < 2) {
-                lvl2 = nextFraming(cls2, lvl2, triedL2, model, retryText, `${provider}/${model}`)?.level ?? lvl2;
+                lvl2 = nextFraming(cls2, lvl2, triedL2, model, retryText, ledgerKey)?.level ?? lvl2;
               }
             }
           } catch (bypassErr) {
@@ -1199,7 +1208,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 retryRaw = retryCloned ? await retryCloned.text() : '';
               } catch { /* body already consumed */ }
               const cls3 = classifyOutcome(retryRaw, true);
-              recordOutcome(model, lvl3, cls3, `${provider}/${model}`);
+              recordOutcome(model, lvl3, cls3, ledgerKey);
               // A tool call counts as delivered (K25): content is empty on purpose.
               const retryDelivered = Boolean(retryRaw)
                 && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsAnotherTry(cls3)));
@@ -1210,7 +1219,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
               if (escAttempt < 2) {
-                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw, `${provider}/${model}`)?.level ?? lvl3;
+                lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw, ledgerKey)?.level ?? lvl3;
               }
             }
           } catch (bypassErr) {
