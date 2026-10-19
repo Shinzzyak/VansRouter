@@ -229,7 +229,7 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 /**
  * Handle non-streaming response from provider.
  */
-export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, trackDone, appendLog, pxpipe, comboName }) {
+export async function handleNonStreamingResponse({ providerResponse, provider, model, ledgerKey, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, trackDone, appendLog, pxpipe, comboName }) {
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
   let responseBody;
@@ -443,7 +443,8 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
         && finalResponse.choices[0].message.tool_calls.length > 0;
       const kelas = outcomeClassFromIntegrity(integrity.status);
       if (kelas && !(kelas === "SENYAP" && (sawToolCalls || respFinish === "tool_calls"))) {
-        recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`);
+        // K173: kunci jalur = `<prefix>/<model>` dari pemanggil, bukan id koneksi.
+        recordOutcome(model, firstLevel(model), kelas, ledgerKey);
       }
     } catch (_) { /* ledger tidak boleh menjatuhkan permintaan */ }
 

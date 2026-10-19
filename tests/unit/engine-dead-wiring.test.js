@@ -145,7 +145,10 @@ describe("non-streaming answers teach the framing ledger too", () => {
 
   it("records an outcome, not only integrity drift", () => {
     expect(src).toMatch(/import\s*\{[^}]*\brecordOutcome\b[^}]*\}\s*from\s*["']\.\.\/\.\.\/rtk\/selfMeasuringBypass\.js["']/);
-    expect(src).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*kelas,\s*`\$\{provider\}\/\$\{model\}`\)/);
+    // K173: argumen keempat = ledgerKey (`<prefix>/<model>`) dari pemanggil.
+    // Id koneksi mentah memecah satu jalur jadi dua baris ledger.
+    expect(src).toMatch(/recordOutcome\(model,\s*firstLevel\(model\),\s*kelas,\s*ledgerKey\)/);
+    expect(src).not.toMatch(/recordOutcome\([^)]*`\$\{provider\}\/\$\{model\}`/);
   });
 
   it("reuses the verdict it already computed instead of classifying twice", () => {
@@ -249,12 +252,16 @@ describe("route learning gets the key it actually needs", () => {
   it("every production call site passes a routeId", () => {
     // Source-level: the argument is easy to drop in a refactor and the symptom
     // is silence, not an error.
-    for (const [file, expectRe] of [
-      ["open-sse/handlers/chatCore.js", /recordOutcome\([^;]*`\$\{provider\}\/\$\{model\}`\)/],
-      ["open-sse/handlers/chatCore/streamingHandler.js", /recordOutcome\([^;]*`\$\{provider\}\/\$\{model\}`\)/],
-      ["open-sse/handlers/chatCore/nonStreamingHandler.js", /recordOutcome\([^;]*`\$\{provider\}\/\$\{model\}`\)/],
+    // K173: yang wajib dikirim bukan lagi template `${provider}/${model}` —
+    // itu id koneksi mentah untuk provider kustom, dan dua ejaan untuk satu
+    // jalur memecah ledger. Kontraknya sekarang: argumen keempat = ledgerKey,
+    // yang sudah berbentuk `<prefix>/<model>`.
+    for (const file of [
+      "open-sse/handlers/chatCore.js",
+      "open-sse/handlers/chatCore/streamingHandler.js",
+      "open-sse/handlers/chatCore/nonStreamingHandler.js",
     ]) {
-      expect(readCode(file), `${file} must pass provider/model`).toMatch(expectRe);
+      expect(readCode(file), `${file} must pass ledgerKey`).toMatch(/recordOutcome\([^;]*,\s*ledgerKey\)/);
     }
   });
 });

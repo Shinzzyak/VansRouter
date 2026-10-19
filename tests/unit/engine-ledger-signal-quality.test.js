@@ -39,7 +39,7 @@ describe("the stream ledger ignores turns that have no verdict to teach", () => 
   it("gates the ledger write on the tool-call predicate", () => {
     // Anchor on the write itself, not on the file: the guard has to be in the
     // SAME expression, or a later edit can drop it without this noticing.
-    const idx = src.indexOf("recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`)");
+    const idx = src.indexOf("recordOutcome(model, firstLevel(model), kelas, ledgerKey)");
     expect(idx).toBeGreaterThan(-1);
     // Walk back to the enclosing `if (` and assert the guard is there.
     const guardStart = src.lastIndexOf("if (kelas", idx);
@@ -74,7 +74,7 @@ describe("the stream ledger ignores turns that have no verdict to teach", () => 
 
   it("sawToolCalls is computed before the gate reads it", () => {
     const computed = src.indexOf("const sawToolCalls");
-    const used = src.indexOf("recordOutcome(model, firstLevel(model), kelas, `${provider}/${model}`)");
+    const used = src.indexOf("recordOutcome(model, firstLevel(model), kelas, ledgerKey)");
     expect(computed).toBeGreaterThan(-1);
     expect(computed).toBeLessThan(used);
   });
