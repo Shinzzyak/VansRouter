@@ -8,7 +8,7 @@ import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 import { isEngineLoaded } from "open-sse/rtk/engineLoader.js";
 import { genomeSnapshot } from "open-sse/rtk/framingGenome.js";
 import { corpusStats, corpusTail } from "open-sse/rtk/promptCorpus.js";
-import { ledgerSnapshot, providerSnapshot, FRAMING_LEVELS, EXPLORE_EVERY } from "open-sse/rtk/selfMeasuringBypass.js";
+import { ledgerSnapshot, providerSnapshot, FRAMING_LEVELS, EXPLORE_EVERY, EXPLORE_EVERY_PATUH } from "open-sse/rtk/selfMeasuringBypass.js";
 import { synthesisReadiness } from "@/lib/engine/synthesisReadiness.js";
 
 /**
@@ -65,6 +65,10 @@ export async function GET(request) {
     synthesis: {
       ...synthesisReadiness(ledger, { levels: [...FRAMING_LEVELS] }),
       exploreEvery: EXPLORE_EVERY,
+      // K175 — the healthy-path unit. A reader comparing "budget 0" against a
+      // route with 3690 compliant results needs to know the second unit exists,
+      // otherwise the panel looks broken instead of patient.
+      exploreEveryPatuh: EXPLORE_EVERY_PATUH,
       classes: ["PATUH", "NOLAK", "INFRA"],
     },
     corpus: read(loaded, "promptCorpus", () => ({

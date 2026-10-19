@@ -331,6 +331,9 @@ const FALLBACKS = {
     // and the readiness panel would invent a trigger that does not exist.
     FRAMING_LEVELS: "Object.freeze(['T2', 'T1', 'T3', 'T4'])",
     EXPLORE_EVERY: "8",
+    // K175 — fail-closed as a NUMBER, not as `false`: the value is a threshold
+    // the dashboard prints, and `undefined` would render as a hole.
+    EXPLORE_EVERY_PATUH: "32",
   },
   // K164 — read side only. Without the bundle there is no genome, and inventing
   // an empty-looking one would be a lie the dashboard could not distinguish from
