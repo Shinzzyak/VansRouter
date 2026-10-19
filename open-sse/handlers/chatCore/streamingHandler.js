@@ -132,7 +132,7 @@ function buildTransformStream({ provider, sourceFormat, targetFormat, userAgent,
  * return STREAM_EARLY_EOF so the caller can retry once on the same connection.
  */
 export async function handleStreamingResponse({
-  providerResponse, provider, model, ledgerKey, sourceFormat, targetFormat, userAgent,
+  providerResponse, provider, model, sourceFormat, targetFormat, userAgent,
   body, stream, translatedBody, finalBody, requestStartTime, connectionId,
   apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess,
   reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe,
@@ -260,7 +260,7 @@ export async function handleStreamingResponse({
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, apiKeyInfo, apiKeyName, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe }) {
+export function buildOnStreamComplete({ provider, model, ledgerKey, connectionId, apiKey, apiKeyInfo, apiKeyName, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   // Recomputed here rather than read from handleStreamingResponse's scope: this
   // is a separate exported factory, so the const at line 195 is not visible
