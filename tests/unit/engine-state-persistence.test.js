@@ -147,28 +147,31 @@ describe.skipIf(!available)("engine state persistence", () => {
     expect(ledger.ledgerSnapshot(50).map((e) => e.model)).not.toContain("probe/bad-row");
   });
 
-  it("markDirty is a no-op until persistence is armed", () => {
-    // A one-shot script or a probe must not write a state file just by importing
-    // a module and recording an outcome. `enabled` is process-wide and sticky by
-    // design (hydrate() arms it for the whole process), so the guard is exercised
-    // directly on the shared state rather than by trying to un-arm the process.
+  it("markDirty arms persistence instead of refusing it", () => {
+    // K181 — this test used to pin the opposite: an unarmed process kept the record
+    // in memory and never wrote it. In production that produced a frozen ledger with
+    // a fresh mtime, because the process that served traffic never called hydrate().
+    // A request to save is itself proof that saving is wanted, so markDirty arms the
+    // writer. What stays true: nothing writes merely by importing a module.
     const S = globalThis[Symbol.for("vansrouter.engineState")];
     expect(S, "shared state object must exist on globalThis").toBeTruthy();
     const wasEnabled = S.enabled;
     const wasDirty = S.dirty;
+    const wasTimer = S.timer;
     try {
       S.enabled = false;
       S.dirty = false;
       S.timer = null;
       engineState.markDirty();
-      expect(S.dirty, "unarmed markDirty must not set the dirty flag").toBe(false);
-      expect(S.timer, "unarmed markDirty must not schedule a write").toBe(null);
+      expect(S.enabled, "markDirty must arm persistence").toBe(true);
+      expect(S.dirty, "markDirty must flag the write").toBe(true);
+      expect(S.timer, "markDirty must schedule the write").toBeTruthy();
     } finally {
+      if (S.timer && typeof S.timer.unref !== "function") clearTimeout(S.timer);
       S.enabled = wasEnabled;
       S.dirty = wasDirty;
+      S.timer = wasTimer;
     }
-    // persist() itself still works when called explicitly — that is what the
-    // route and the shutdown hook use.
     expect(engineState.persist()).toBe(true);
   });
 
