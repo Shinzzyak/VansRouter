@@ -27,4 +27,6 @@ export const nextUnseenLevel = __E.nextUnseenLevel ?? (() => null);
 export const preferredLevel = __E.preferredLevel ?? (() => null);
 export const providerSnapshot = __E.providerSnapshot ?? (() => []);
 export const recordOutcome = __E.recordOutcome ?? (() => {});
+// K178 — satuan jalur sehat. Tanpa bundle: diam (fail-closed, bukan menebak).
+export const recordCompliant = __E.recordCompliant ?? (() => {});
 export const resetLedger = __E.resetLedger ?? (() => {});

@@ -19,7 +19,7 @@ import { enforceChatBrand } from "./brandRepair.js";
 import { emptyReasonFor, emptyReasonHeaders, isReplayableReply } from "./emptyReason.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
-import { firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
+import { firstLevel, recordOutcome, recordCompliant } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 import { matchesFormatEnclosure } from "../../rtk/thinkingGate.js";
 import { storeCachedResponse } from "@/lib/semanticcache/chatHook.js";
@@ -445,6 +445,10 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       if (kelas && !(kelas === "SENYAP" && (sawToolCalls || respFinish === "tool_calls"))) {
         // K173: kunci jalur = `<prefix>/<model>` dari pemanggil, bukan id koneksi.
         recordOutcome(model, firstLevel(model), kelas, ledgerKey);
+      } else if (!kelas) {
+        // K178 — jalur non-streaming punya lubang yang sama: OK tidak pernah
+        // mencatat apa pun, jadi `pat` tetap 0 di produksi.
+        recordCompliant(model, firstLevel(model), ledgerKey);
       }
     } catch (_) { /* ledger tidak boleh menjatuhkan permintaan */ }
 

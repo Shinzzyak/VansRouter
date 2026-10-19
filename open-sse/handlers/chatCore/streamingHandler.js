@@ -18,7 +18,7 @@ import { INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { recordRefusalMetric } from "../../rtk/refusalMetrics.js";
 import { recordIntegrity, recordDeliveredIntegrity } from "../../rtk/refusalDrift.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
-import { classifyOutcome, firstLevel, recordOutcome } from "../../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, firstLevel, recordOutcome, recordCompliant } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
 // Re-exported so callers (and the ledger tests) keep importing it from here.
 export { outcomeClassFromIntegrity };
@@ -369,6 +369,12 @@ export function buildOnStreamComplete({ provider, model, ledgerKey, connectionId
         // id koneksi — dua ejaan untuk satu jalur memecah anggaran eksplorasi.
         recordOutcome(model, firstLevel(model), kelas, ledgerKey);
         console.warn(`[STREAM-INTEGRITY] ${ledgerKey} | recorded ${kelas} at ${firstLevel(model)}`);
+      } else if (!kelas) {
+        // K178 — OK tidak punya kelas, jadi dulu tidak dicatat sama sekali dan
+        // `pat` (satuan jalur sehat K175) tidak pernah naik. Sekarang hasil
+        // bersih menambah `pat` saja; pemilihan tingkat tetap hanya belajar
+        // dari kegagalan.
+        recordCompliant(model, firstLevel(model), ledgerKey);
       }
     } catch (e) {
       console.warn("[STREAM-INTEGRITY] classify error (fail-open):", e?.message || e);

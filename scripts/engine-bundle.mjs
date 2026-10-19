@@ -296,6 +296,8 @@ const FALLBACKS = {
   instructionReceipts: {
     createReceipt: "(() => ({}))",
     recordInjectorResult: "(() => {})",
+    // K178 — tanpa bundle tidak ada ledger, jadi tidak ada yang dicatat.
+    recordCompliant: "(() => {})",
     summarizeReceipt: "(() => ({}))",
   },
   // Fail-SAFE, bukan fail-open: tanpa bundle, engine tidak boleh mengulang
