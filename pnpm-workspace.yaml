@@ -29,6 +29,14 @@ dangerouslyAllowAllBuilds: true
 pnpm:
   requiredScripts:
     - build
+
+# browserslist <=4.28.6 carries an advisory and only arrives transitively
+# (next -> styled-jsx -> @babel/core), so an override is the only lever.
+# Duplicated on purpose: the deploy workflow pins pnpm 11 (reads this file),
+# the build matrix pins pnpm 9 (reads package.json `pnpm.overrides`). Same value
+# in both keeps --frozen-lockfile happy on either version.
+overrides:
+  browserslist: ">=4.28.7"
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - react-redux
