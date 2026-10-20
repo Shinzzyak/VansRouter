@@ -191,7 +191,20 @@ def solve_login(page, email, password):
         pwd.wait_for(state="visible", timeout=20000)
     except Exception:
         body = page.evaluate("document.body ? document.body.innerText : ''")
-        if "Couldn't find your Google Account" in body or "tidak dapat menemukan" in body.lower():
+        # Bukti untuk diagnosa: URL + potongan body + screenshot. Tanpa ini
+        # TIMEOUT_SELECTOR_PASSWORD tidak bisa dibedakan dari CAPTCHA/SSO/passkey.
+        try:
+            dbg = Path("/tmp/ag_debug")
+            dbg.mkdir(parents=True, exist_ok=True)
+            tag = re.sub(r"[^a-z0-9]+", "_", email.lower())[:40]
+            (dbg / f"{tag}.url").write_text(page.url)
+            (dbg / f"{tag}.body").write_text(body[:4000])
+            page.screenshot(path=str(dbg / f"{tag}.png"), full_page=False)
+            log(f"  debug: {page.url} -> /tmp/ag_debug/{tag}.*")
+        except Exception as e:  # noqa: BLE001 - diagnosa tidak boleh menggagalkan alur
+            log(f"  debug dump failed: {type(e).__name__}")
+        if any(s in body for s in ("Couldn't find your Google Account", "tidak dapat menemukan",
+                                   "找不到此账号", "找不到您的 Google 账号", "找不到該帳號")):
             return "ACCOUNT_NOT_FOUND"
         return "TIMEOUT_SELECTOR_PASSWORD"
 
