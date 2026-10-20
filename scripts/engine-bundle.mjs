@@ -215,6 +215,14 @@ const FALLBACKS = {
     classifyResponse:
       "(({ parsed } = {}) => ({ status: 'ok', text: typeof parsed === 'string' ? parsed : '', brandOk: null, refusal: false }))",
     repairBrandContract: "((text) => ({ text, repaired: false }))",
+    // K201 — contract folding. Without the bundle there is no contract to
+    // enforce, so both predicates answer `false`: "this line is not the
+    // contract". `true` would be the dangerous direction — streamEnforce reads a
+    // true seal as "drop this line", which would silently eat the caller's last
+    // line on a router running without the engine. Fail-open, like the rest.
+    foldContractLine: "((line) => String(line ?? '').trim().toLowerCase())",
+    isBrandLine: "(() => false)",
+    isSealLine: "(() => false)",
     // Null = "this verdict teaches nothing", which is exactly what the
     // no-bundle path must do. Not `false`, not a guess.
     outcomeClassFromIntegrity: "(() => null)",

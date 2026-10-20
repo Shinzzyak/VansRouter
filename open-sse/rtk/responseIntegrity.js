@@ -13,5 +13,8 @@ const __E = loadEngine("responseIntegrity") ?? {};
 export const INTEGRITY = __E.INTEGRITY ?? Object.freeze({ OK: 'ok', REFUSAL: 'refusal_text', OUTPUT_FILTERED: 'output_filtered', EMPTY: 'empty', MISSING_BRAND: 'missing_brand', MISSING_SEAL: 'missing_seal', MISSING_ENCLOSURE: 'missing_enclosure', INSTRUCTION_LEAK: 'instruction_leak' });
 export const classifyResponse = __E.classifyResponse ?? (({ parsed } = {}) => ({ status: 'ok', text: typeof parsed === 'string' ? parsed : '', brandOk: null, refusal: false }));
 export const extractVisibleText = __E.extractVisibleText ?? ((parsed) => (typeof parsed === 'string' ? parsed : ''));
+export const foldContractLine = __E.foldContractLine ?? ((line) => String(line ?? '').trim().toLowerCase());
+export const isBrandLine = __E.isBrandLine ?? (() => false);
+export const isSealLine = __E.isSealLine ?? (() => false);
 export const outcomeClassFromIntegrity = __E.outcomeClassFromIntegrity ?? (() => null);
 export const repairBrandContract = __E.repairBrandContract ?? ((text) => ({ text, repaired: false }));
