@@ -10,13 +10,13 @@ describe("Antigravity Gemini 3.7 catalog", () => {
       "gemini-3.7-flash-medium",
       "gemini-3.7-flash-low",
     ]));
-    // The plain alias stays registered for backward compatibility, but it must
-    // not be what the explicit tiers resolve to — those carry their own
-    // upstreamModelId, so a tier never degrades to the untiered alias.
+    // The plain alias stays registered for backward compatibility. Upstream
+    // retired 3.7 (404 on the daily host, 429 on production), so every 3.7 SKU
+    // now aliases the live 3.8 tiered model instead of hanging for a minute.
     const byId = new Map(antigravity.models.map((m) => [m.id, m]));
-    expect(byId.get("gemini-3.7-flash").upstreamModelId).toBeUndefined();
+    expect(byId.get("gemini-3.7-flash").upstreamModelId).toBe("gemini-3.8-flash-tiered");
     for (const tier of ["high", "medium", "low"]) {
-      expect(byId.get(`gemini-3.7-flash-${tier}`).upstreamModelId).toBe(`gemini-3.7-flash-tiered(${tier})`);
+      expect(byId.get(`gemini-3.7-flash-${tier}`).upstreamModelId).toBe(`gemini-3.8-flash-tiered(${tier})`);
     }
   });
 
@@ -33,7 +33,7 @@ describe("Antigravity Gemini 3.7 catalog", () => {
     });
   });
 
-  it.each(["low", "medium", "high"])("maps %s to the tiered upstream model", (tier) => {
-    expect(resolveAntigravityUpstreamModel(`gemini-3.7-flash-${tier}`)).toBe("gemini-3.7-flash-tiered");
+  it.each(["low", "medium", "high"])("maps %s to the live tiered upstream model", (tier) => {
+    expect(resolveAntigravityUpstreamModel(`gemini-3.7-flash-${tier}`)).toBe("gemini-3.8-flash-tiered");
   });
 });
