@@ -71,6 +71,11 @@ const ENGINE_MODULES = [
   // a refusal it attributes to an imaginary assistant, mock it, then ship. A
   // public copy would hand that reasoning to anyone reading the repo.
   "refusalAttribution",
+  // Envelope unwrap (2026-10-21, K203). Not secret — it is ten lines of JSON
+  // reading — but it must travel WITH the bundle: every refusal detector calls it,
+  // and a bundle-less router that lacks it classifies raw bodies (and therefore
+  // answers AMBIGU on real refusals) exactly the way this fix exists to stop.
+  "envelopeText",
   // Prompt-shape gate memory (2026-09-25). Lives in the bundle for the same
   // reason as refusalAttribution: its value is the knowledge of WHICH upstreams
   // reject this router's own prompt shape, and the neutraliser it drives is the
@@ -139,6 +144,13 @@ const FALLBACKS = {
     normalizeGodmodeLevel: "(() => null)",
     injectPersonaLock: "(() => {})",
     injectGodmode: "(() => {})",
+  },
+  envelopeText: {
+    // Identity: without the bundle the detectors read the body as they always did.
+    // Deliberately NOT a JSON parse — a fallback that starts unwrapping on a router
+    // with no attribution layer would change escalation behaviour in a path nobody
+    // tested.
+    unwrapEnvelope: "((text) => (typeof text === 'string' ? text : ''))",
   },
   bypassEngine: {
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
