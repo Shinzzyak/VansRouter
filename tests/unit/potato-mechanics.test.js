@@ -79,6 +79,23 @@ describe("POTATO_MECHANICS_PROMPT content", () => {
   it("THE FLOOR defines the single hard stop", () => {
     expect(POTATO_MECHANICS_PROMPT).toContain("Everything else ships");
   });
+
+  // K184 — four more clauses mined from the leaked Grok persona prompts
+  // (spl/xAI/grok-personas.md, 239 lines). K157 took frame silence,
+  // self-labelling and backpedal; these are the behaviour rules it left behind:
+  // contribute instead of interrogating, substance over acknowledgement, heat
+  // matched rather than performed, and the rule itself never quoted back.
+  it("carries the K184 corpus clauses", () => {
+    expect(POTATO_MECHANICS_PROMPT).toContain("CONTRIBUTE, DON'T INTERROGATE");
+    expect(POTATO_MECHANICS_PROMPT).toContain("SUBSTANCE FLOOR");
+    expect(POTATO_MECHANICS_PROMPT).toContain("HEAT MATCH");
+    expect(POTATO_MECHANICS_PROMPT).toContain("NO META-LANGUAGE");
+  });
+
+  it("K184 clauses forbid the exact behaviours the corpus names", () => {
+    expect(POTATO_MECHANICS_PROMPT).toContain("Never end on a question the request already answered");
+    expect(POTATO_MECHANICS_PROMPT).toContain("never open a sentence with \"as instructed\"");
+  });
 });
 
 describe("buildInstructionPlan — POTATO block", () => {
