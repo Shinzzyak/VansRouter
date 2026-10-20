@@ -189,6 +189,61 @@ describe("response -> request signature replay", () => {
   });
 });
 
+describe("claude-via-antigravity envelope replays cached signatures", () => {
+  beforeEach(() => __clearThoughtSignatures());
+
+  it("replays the signature for a claude tool_use block", () => {
+    storeGeminiThoughtSignature("call_claude_1", REAL_SIG, null, "claude-sonnet-4");
+
+    const envelope = translateRequest(
+      FORMATS.OPENAI,
+      FORMATS.ANTIGRAVITY,
+      "claude-sonnet-4",
+      {
+        messages: [
+          { role: "user", content: "read a.txt" },
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [{ id: "call_claude_1", type: "function", function: { name: "read", arguments: "{\"path\":\"a.txt\"}" } }],
+          },
+          { role: "tool", tool_call_id: "call_claude_1", content: "hello" },
+        ],
+      },
+      true,
+      { projectId: "proj-test", email: "t@example.test" },
+      "antigravity"
+    );
+
+    const fcParts = functionCallParts(envelope?.request);
+    expect(fcParts.length).toBeGreaterThan(0);
+    expect(fcParts[0].thoughtSignature).toBe(REAL_SIG);
+  });
+
+  it("negative control: unseen claude call id falls back to the default", () => {
+    const envelope = translateRequest(
+      FORMATS.OPENAI,
+      FORMATS.ANTIGRAVITY,
+      "claude-sonnet-4",
+      {
+        messages: [
+          { role: "user", content: "read a.txt" },
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [{ id: "call_claude_unknown", type: "function", function: { name: "read", arguments: "{}" } }],
+          },
+        ],
+      },
+      true,
+      { projectId: "proj-test", email: "t@example.test" },
+      "antigravity"
+    );
+    const fcParts = functionCallParts(envelope?.request);
+    expect(fcParts[0].thoughtSignature).toBe(DEFAULT_THINKING_AG_SIGNATURE);
+  });
+});
+
 describe("antigravity executor replays cached signatures", () => {
   beforeEach(() => __clearThoughtSignatures());
 

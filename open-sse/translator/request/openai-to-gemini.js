@@ -324,7 +324,6 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
   if (claudeRequest.messages && Array.isArray(claudeRequest.messages)) {
     for (const msg of claudeRequest.messages) {
       if (Array.isArray(msg.content)) {
-        let firstToolUseSeen = false;
         for (const block of msg.content) {
           if (block.type === CLAUDE_BLOCK.TOOL_USE && block.id && block.name) {
             toolUseIdToName[block.id] = block.name;
@@ -340,6 +339,7 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
       const parts = [];
 
       if (Array.isArray(msg.content)) {
+        let firstToolUseSeen = false;
         for (const block of msg.content) {
           if (block.type === CLAUDE_BLOCK.TEXT) {
             parts.push({ text: block.text });
