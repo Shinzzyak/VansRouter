@@ -14,6 +14,7 @@ export const DEFAULT_LEVEL = __E.DEFAULT_LEVEL ?? 'T2';
 export const EXPLORE_EVERY = __E.EXPLORE_EVERY ?? 8;
 export const EXPLORE_EVERY_PATUH = __E.EXPLORE_EVERY_PATUH ?? 32;
 export const FRAMING_LEVELS = __E.FRAMING_LEVELS ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
+export const acceptedClass = __E.acceptedClass ?? ((level, kelas) => kelas);
 export const classifyOutcome = __E.classifyOutcome ?? (() => 'PATUH');
 export const evidenceLevel = __E.evidenceLevel ?? (() => null);
 export const explorationDue = __E.explorationDue ?? (() => false);

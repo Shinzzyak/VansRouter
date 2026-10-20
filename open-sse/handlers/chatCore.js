@@ -38,7 +38,7 @@ import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
-import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, explorationDue, nextUnseenLevel, markExplored } from "../rtk/selfMeasuringBypass.js";
+import { classifyOutcome, needsAnotherTry, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, explorationDue, nextUnseenLevel, markExplored, acceptedClass } from "../rtk/selfMeasuringBypass.js";
 // K165 — sample the system prompts we receive so the next framing can be written
 // against a measured shape instead of a guess. Off unless VR_PROMPT_CORPUS=1.
 import { sampleSystemPrompts } from "../rtk/promptCorpus.js";
@@ -1089,12 +1089,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 } catch { /* plain text */ }
               } catch { /* body already consumed */ }
               const cls2 = classifyOutcome(retryText, true);
-              recordOutcome(model, lvl2, cls2, ledgerKey);
               // K25 sibling (2026-09-30): a tool-call turn has no visible text, so
               // `classifyOutcome` reads it as AMBIGU and `needsAnotherTry` keeps the
               // ladder burning attempts on a turn that already succeeded.
               const retryDelivered = retryText && carriesToolCalls(retryText);
               const retryStillRefusal = !retryDelivered && (detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsAnotherTry(cls2));
+              // K206 — record AFTER the verdict. A rung that produced an accepted
+              // answer earned a win; recording `cls2` here is what kept every
+              // synthesized rung at `wins={}` forever (see `acceptedClass`).
+              recordOutcome(model, lvl2, acceptedClass(lvl2, cls2, !retryStillRefusal), ledgerKey);
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 escalationWon = true;
@@ -1208,10 +1211,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 retryRaw = retryCloned ? await retryCloned.text() : '';
               } catch { /* body already consumed */ }
               const cls3 = classifyOutcome(retryRaw, true);
-              recordOutcome(model, lvl3, cls3, ledgerKey);
               // A tool call counts as delivered (K25): content is empty on purpose.
               const retryDelivered = Boolean(retryRaw)
                 && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsAnotherTry(cls3)));
+              // K206 — same rule as the non-streaming ladder: acceptance is the win.
+              recordOutcome(model, lvl3, acceptedClass(lvl3, cls3, retryDelivered), ledgerKey);
               if (retryDelivered) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();

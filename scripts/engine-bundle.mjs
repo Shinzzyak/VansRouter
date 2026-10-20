@@ -358,6 +358,9 @@ const FALLBACKS = {
     // K175 — fail-closed as a NUMBER, not as `false`: the value is a threshold
     // the dashboard prints, and `undefined` would render as a hole.
     EXPLORE_EVERY_PATUH: "32",
+    // K206 — without the bundle nothing is credited: the identity fallback keeps
+    // the class exactly as classified, which is the pre-K206 behaviour.
+    acceptedClass: "((level, kelas) => kelas)",
   },
   // K164 — read side only. Without the bundle there is no genome, and inventing
   // an empty-looking one would be a lie the dashboard could not distinguish from
