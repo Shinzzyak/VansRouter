@@ -5,6 +5,7 @@ import { buildChunk } from "../concerns/chunk.js";
 import { toOpenAIUsage } from "../concerns/usage.js";
 import { reasoningDelta } from "../concerns/reasoning.js";
 import { encodeDataUri } from "../concerns/image.js";
+import { storeGeminiThoughtSignature } from "../../services/thoughtSignatureStore.js";
 import { toOpenAIFinish } from "../concerns/finishReason.js";
 
 // Build chunk meta for current gemini state
@@ -13,14 +14,22 @@ function chunkMeta(state) {
 }
 
 // Build a tool_call chunk from a gemini functionCall part (shared by sig/non-sig branches)
-function emitFunctionCall(functionCall, state) {
+function emitFunctionCall(functionCall, state, signature = null) {
   const rawName = functionCall.name;
   // Restore original tool name from mapping (AG cloaking)
   const fcName = state.toolNameMap?.get(rawName) || rawName;
   const fcArgs = functionCall.args || {};
   const toolCallIndex = state.functionIndex++;
+  // Reuse the upstream call id when it exists: the store is keyed by it, and the
+  // client echoes that id back on the next turn, which is what makes the cached
+  // signature findable. A generated id would work only if we also persisted the
+  // mapping, which the store already does by key — so keep one id, not two.
+  const callId = functionCall.id || `${fcName}-${Date.now()}-${toolCallIndex}`;
+  if (signature) {
+    storeGeminiThoughtSignature(callId, signature, state.sessionId, state.model);
+  }
   const toolCall = {
-    id: `${fcName}-${Date.now()}-${toolCallIndex}`,
+    id: callId,
     index: toolCallIndex,
     type: OPENAI_BLOCK.FUNCTION,
     function: { name: fcName, arguments: JSON.stringify(fcArgs) },
@@ -47,7 +56,7 @@ export function geminiToOpenAIResponse(chunk, state) {
   // Initialize state
   if (!state.messageId) {
     state.messageId = response.responseId || `msg_${Date.now()}`;
-    state.model = response.modelVersion || "gemini";
+    state.model = response.modelVersion || state.model || "gemini";
     state.functionIndex = 0;
     state.geminiToolCallCount = 0;
     results.push(buildChunk(chunkMeta(state), { role: ROLE.ASSISTANT }, null));
@@ -58,12 +67,23 @@ export function geminiToOpenAIResponse(chunk, state) {
     for (const part of content.parts) {
       const hasThoughtSig = part.thoughtSignature || part.thought_signature;
       const isThought = part.thought === true;
-      
+
+      // A signature can arrive on its own part, ahead of the functionCall it belongs
+      // to. Hold it until that call shows up instead of dropping it.
+      if (hasThoughtSig && typeof hasThoughtSig === "string") {
+        state.pendingThoughtSignature = hasThoughtSig;
+      }
+
       // Handle thought signature (thinking mode)
       if (hasThoughtSig) {
         const hasTextContent = part.text !== undefined && part.text !== "";
         const hasFunctionCall = !!part.functionCall;
-        
+
+        // Standalone signature part: nothing to emit, keep it pending.
+        if (!hasTextContent && !hasFunctionCall) {
+          continue;
+        }
+
         if (hasTextContent) {
           results.push(buildChunk(
             chunkMeta(state),
@@ -74,7 +94,8 @@ export function geminiToOpenAIResponse(chunk, state) {
         }
         
         if (hasFunctionCall) {
-          results.push(emitFunctionCall(part.functionCall, state));
+          results.push(emitFunctionCall(part.functionCall, state, hasThoughtSig));
+          state.pendingThoughtSignature = null;
         }
         continue;
       }
@@ -94,7 +115,9 @@ export function geminiToOpenAIResponse(chunk, state) {
 
       // Function call
       if (part.functionCall) {
-        results.push(emitFunctionCall(part.functionCall, state));
+        const sig = state.pendingThoughtSignature || null;
+        results.push(emitFunctionCall(part.functionCall, state, sig));
+        state.pendingThoughtSignature = null;
       }
 
       // Inline data (images)

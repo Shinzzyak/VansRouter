@@ -8,6 +8,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { scrubProxyAndFingerprintHeaders } from "../services/antigravityHeaderScrub.js";
 import { cleanJSONSchemaForAntigravity } from "../translator/formats/gemini.js";
 import { DEFAULT_THINKING_AG_SIGNATURE } from "../config/defaultThinkingSignature.js";
+import { getGeminiThoughtSignatureSync } from "../services/thoughtSignatureStore.js";
 import { resolveAntigravityUpstreamModel } from "../config/providerModels.js";
 
 // Sanitize function name: Gemini requires [a-zA-Z_][a-zA-Z0-9_.:\-]{0,63}
@@ -156,6 +157,15 @@ export class AntigravityExecutor extends BaseExecutor {
       || this.generateProjectId();
     const upstreamModel = resolveAntigravityUpstreamModel(model);
 
+    // One session id for the whole request: the response translator stores thought
+    // signatures per call id, and this is the namespace the replay below looks them up in.
+    const sessionId = resolveSessionId({
+      headers: credentials?.rawHeaders,
+      body,
+      connectionId: credentials?.email || credentials?.connectionId,
+      scope: "antigravity",
+    });
+
     // OpenAI clients may include stream_options even for non-streaming calls.
     // Google generateContent rejects that combination before processing the request.
     if (stream !== true) delete body.stream_options;
@@ -175,13 +185,6 @@ export class AntigravityExecutor extends BaseExecutor {
           contents.push({ role: c.role || "user", parts: textParts });
         }
       }
-
-      const sessionId = resolveSessionId({
-        headers: credentials?.rawHeaders,
-        body,
-        connectionId: credentials?.email || credentials?.connectionId,
-        scope: "antigravity",
-      });
 
       this._lastSessionId = sessionId;
       const request = {
@@ -221,19 +224,26 @@ export class AntigravityExecutor extends BaseExecutor {
         if (p.thoughtSignature && !p.functionCall && !p.text) return false;
         return true;
       });
-      // Gemini 3+ rejects functionCall parts without thoughtSignature. Clients (Claude Code, IDE)
-      // don't persist thoughtSignature in their history, so backfill the default signature on any
-      // functionCall part that arrives without one.
-      const needsBackfill = parts?.some(p => p.functionCall && !p.thoughtSignature) ?? false;
-      if (role !== c.role || parts?.length !== c.parts?.length || needsBackfill) {
-        return {
-          ...c, role,
-          parts: needsBackfill
-            ? parts.map(p => (p.functionCall && !p.thoughtSignature)
-                ? { ...p, thoughtSignature: DEFAULT_THINKING_AG_SIGNATURE }
-                : p)
-            : parts,
-        };
+      // Gemini 3+ rejects functionCall parts without thoughtSignature. Clients ([CC], IDE)
+      // don't persist thoughtSignature in their history, so replay the signature this session
+      // actually received for that call id; fall back to the default only for the first call.
+      // In parallel function calls, only the first call needs a signature; siblings stay unsigned.
+      let firstFunctionCallSeen = false;
+      const modifiedParts = parts?.map(p => {
+        if (!p.functionCall) return p;
+        const callId = p.functionCall.id;
+        const cachedSig = callId ? getGeminiThoughtSignatureSync(callId, sessionId, body.model || model) : null;
+        const callSig = p.thoughtSignature || cachedSig || (!firstFunctionCallSeen ? DEFAULT_THINKING_AG_SIGNATURE : undefined);
+        firstFunctionCallSeen = true;
+        if (callSig) {
+          return { ...p, thoughtSignature: callSig };
+        }
+        return p;
+      });
+
+      const partsChanged = parts?.length !== c.parts?.length || modifiedParts?.some((p, idx) => p !== parts[idx]);
+      if (role !== c.role || partsChanged) {
+        return { ...c, role, parts: modifiedParts || parts };
       }
       return c;
     }).filter(c => Array.isArray(c.parts) && c.parts.length > 0); // ponytail: v1internal rejects empty parts[] (issue #6)

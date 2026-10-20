@@ -1,6 +1,7 @@
 import { register } from "../registry.js";
 import { FORMATS } from "../formats.js";
 import { DEFAULT_THINKING_AG_SIGNATURE, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE } from "../../config/defaultThinkingSignature.js";
+import { getGeminiThoughtSignatureSync } from "../../services/thoughtSignatureStore.js";
 import { openaiToClaudeRequestForAntigravity } from "./openai-to-claude.js";
 function generateUUID() {
   return crypto.randomUUID();
@@ -36,7 +37,7 @@ function sanitizeGeminiFunctionName(name) {
 }
 
 // Core: Convert OpenAI request to Gemini format (base for all variants)
-function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG_SIGNATURE) {
+function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG_SIGNATURE, sessionId = null) {
   const result = {
     model: model,
     contents: [],
@@ -143,18 +144,25 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
         }
 
         if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+          let firstFunctionCallSeen = false;
           for (const tc of msg.tool_calls) {
             if (tc.type !== OPENAI_BLOCK.FUNCTION) continue;
 
             const args = tryParseJSON(tc.function?.arguments || "{}");
-            parts.push({
-              thoughtSignature: signature,
+            // Replay the signature this call actually produced; a default is only a
+            // last resort for the first call in the turn (siblings stay unsigned).
+            const cachedSig = tc.id ? getGeminiThoughtSignatureSync(tc.id, sessionId, model) : null;
+            const callSig = cachedSig || (!firstFunctionCallSeen ? signature : undefined);
+            firstFunctionCallSeen = true;
+            const part = {
               functionCall: {
                 id: tc.id,
                 name: sanitizeGeminiFunctionName(tc.function.name),
                 args: args
               }
-            });
+            };
+            if (callSig) part.thoughtSignature = callSig;
+            parts.push(part);
           }
         }
 
@@ -228,13 +236,13 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
 }
 
 // OpenAI -> Gemini (standard API)
-export function openaiToGeminiRequest(model, body, stream) {
-  return openaiToGeminiBase(model, body, stream);
+export function openaiToGeminiRequest(model, body, stream, credentials = null) {
+  return openaiToGeminiBase(model, body, stream, DEFAULT_THINKING_AG_SIGNATURE, credentials?._clientSessionId);
 }
 
 // OpenAI -> Gemini CLI (Cloud Code Assist)
-export function openaiToGeminiCLIRequest(model, body, stream) {
-  const gemini = openaiToGeminiBase(model, body, stream, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE);
+export function openaiToGeminiCLIRequest(model, body, stream, credentials = null) {
+  const gemini = openaiToGeminiBase(model, body, stream, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE, credentials?._clientSessionId);
   // Thinking is normalized centrally by applyThinking (thinkingUnified.js) after translation.
 
   // Clean schema for tools
@@ -316,6 +324,7 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
   if (claudeRequest.messages && Array.isArray(claudeRequest.messages)) {
     for (const msg of claudeRequest.messages) {
       if (Array.isArray(msg.content)) {
+        let firstToolUseSeen = false;
         for (const block of msg.content) {
           if (block.type === CLAUDE_BLOCK.TOOL_USE && block.id && block.name) {
             toolUseIdToName[block.id] = block.name;
@@ -360,14 +369,18 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
               });
             }
           } else if (block.type === CLAUDE_BLOCK.TOOL_USE) {
-            parts.push({
-              thoughtSignature: signature,
+            const cachedSig = block.id ? getGeminiThoughtSignatureSync(block.id, credentials?._clientSessionId, model) : null;
+            const callSig = cachedSig || (!firstToolUseSeen ? signature : undefined);
+            firstToolUseSeen = true;
+            const part = {
               functionCall: {
                 id: block.id,
                 name: sanitizeGeminiFunctionName(block.name),
                 args: block.input || {}
               }
-            });
+            };
+            if (callSig) part.thoughtSignature = callSig;
+            parts.push(part);
           } else if (block.type === CLAUDE_BLOCK.TOOL_RESULT) {
             let content = block.content;
             if (Array.isArray(content)) {
@@ -453,7 +466,7 @@ export function openaiToAntigravityRequest(model, body, stream, credentials = nu
     return wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials);
   }
 
-  const geminiCLI = openaiToGeminiCLIRequest(model, body, stream);
+  const geminiCLI = openaiToGeminiCLIRequest(model, body, stream, credentials);
   return wrapInCloudCodeEnvelope(model, geminiCLI, credentials, true);
 }
 
