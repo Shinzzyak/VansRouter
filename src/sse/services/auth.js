@@ -29,6 +29,12 @@ export function filterConnectionsForModel(providerId, connections, model, settin
   });
 }
 
+function isExpiredCredential(connection) {
+  if (!connection?.expiresAt) return false;
+  const ms = new Date(connection.expiresAt).getTime();
+  return Number.isFinite(ms) && ms < Date.now();
+}
+
 function getProviderMutex(provider) {
   if (!_providerMutexes.has(provider)) {
     _providerMutexes.set(provider, Promise.resolve());
@@ -145,6 +151,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const availableConnections = connections.filter(c => {
       if (excludeSet.has(c.id)) return false;
       if (isModelLockActive(c, model)) return false;
+      // A connection whose access token is already expired and that carries no
+      // refresh token can never authenticate. Sending it upstream returns a
+      // fake 401 that counts toward MAX_CONSECUTIVE_AUTH_FAILURES and aborts the
+      // pool walk before a healthy account is reached (seen with 106 such
+      // antigravity rows). Skip structurally unusable credentials entirely.
+      if (!c.refreshToken && !c.apiKey && isExpiredCredential(c)) return false;
       // Antigravity: skip if live quota exhausted for this model
       if (isAntigravity && model && antigravityQuotaCache) {
         const quota = antigravityQuotaCache.get(c.id)?.[model];
