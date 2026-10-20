@@ -71,5 +71,10 @@
     "postcss": "^8.5.30",
     "tailwindcss": "^4",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "browserslist": ">=4.28.7"
+    }
   }
 }
