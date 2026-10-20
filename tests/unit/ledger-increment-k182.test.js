@@ -20,7 +20,11 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const BUNDLE = "data/engine/engine.cjs";
+const BUNDLE = existsSync("data/engine/engine.cjs")
+  ? "data/engine/engine.cjs"
+  // The deploy pipeline DELETES the root bundle; the server loads the copy under
+  // .next/standalone. Test whichever is present so the gate survives a deploy.
+  : ".next/standalone/data/engine/engine.cjs";
 
 let E = null;
 let dataDir = null;

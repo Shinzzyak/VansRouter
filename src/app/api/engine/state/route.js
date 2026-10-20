@@ -101,7 +101,14 @@ function readPersisted() {
       esc_total: rows.reduce((s, r) => s + r.esc, 0),
       pat_total: rows.reduce((s, r) => s + r.pat, 0),
       rows: rows.length,
-      ledger: rows.slice(0, 50),
+      // K183 — the whole file, not the top 50 by `n`. A row with `pat > 0` is a
+      // route that just proved itself healthy, and those are exactly the rows
+      // with a SMALL `n` — so a top-50-by-`n` window cut every one of them out
+      // and the dashboard showed `pat 0` on a file holding `pat 4`. Measured
+      // 2026-10-20: 111 rows on disk, 50 shipped, zero of the healthy ones
+      // visible. The file is bounded by MAX_LEDGER (500), so sending all of it
+      // is a few tens of KB, not an unbounded response.
+      ledger: rows,
     };
   } catch (e) {
     return { available: false, error: e?.message || String(e) };
@@ -128,7 +135,9 @@ export async function GET(request) {
         // The ledger is what firstLevel() reads back. Empty while requests are
         // flowing means the ledger is not being written — check the sawToolCalls
         // gate in streamingHandler.js.
-        ledger: ledgerSnapshot(50) ?? [],
+        // K183 — same window bug as readPersisted(): 50 rows by `n` hides every
+        // healthy route. Send the instance's whole ledger (bounded by MAX_LEDGER).
+        ledger: ledgerSnapshot(500) ?? [],
       })),
       routeGuardMemory: read(loaded, "routeGuardMemory", () => ({ routes: routeSnapshot() ?? null })),
       refusalDrift: read(loaded, "refusalDrift", () => ({ drift: getAllDrift() ?? {} })),
