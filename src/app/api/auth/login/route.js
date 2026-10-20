@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { setDashboardAuthCookie } from "@/lib/auth/dashboardSession";
 import { isOidcConfigured } from "@/lib/auth/oidc";
 import { checkLock, recordFail, recordSuccess, getClientIp } from "@/lib/auth/loginLimiter";
+import { getInitialPassword } from "@/lib/auth/passwordPolicy";
 import { isLocalRequest } from "@/dashboardGuard";
 
 const RESET_HINT = "Forgot password? Reset to default via 9Router CLI → Settings → Reset Password to Default.";
@@ -44,11 +45,17 @@ export async function POST(request) {
     }
 
     let isValid = false;
+    let initialPasswordRefused = false;
     if (storedHash) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
-      // Use env var or default
-      const initialPassword = process.env.INITIAL_PASSWORD || "123456";
+      // getInitialPassword() returns null in production when INITIAL_PASSWORD is a
+      // placeholder or shorter than 12 chars. Setting the variable to "123456" used
+      // to skip the forced change below and accept that password from the internet;
+      // a refused value now falls back to the default, which remote clients cannot use.
+      const configured = getInitialPassword();
+      initialPasswordRefused = configured === null;
+      const initialPassword = configured || "123456";
       isValid = password === initialPassword;
     }
 
@@ -56,7 +63,9 @@ export async function POST(request) {
       // Default password still in use on a remote client → force a password
       // change before the dashboard is exposed remotely (keeps local UX intact).
       const mustChangePassword =
-        !storedHash && !process.env.INITIAL_PASSWORD && !isLocalRequest(request);
+        !storedHash &&
+        (initialPasswordRefused || !process.env.INITIAL_PASSWORD) &&
+        !isLocalRequest(request);
 
       if (mustChangePassword) {
         return NextResponse.json(
