@@ -241,8 +241,32 @@ describe("semanticcache/cache — estimateTokens", () => {
     expect(estimateTokens(JSON.stringify({ usage: { total_tokens: 777 } }))).toBe(777);
   });
 
+  it("estimates the reply text, not the JSON syntax around it", () => {
+    const body = JSON.stringify({
+      id: "chatcmpl-x",
+      object: "chat.completion",
+      choices: [{ index: 0, message: { role: "assistant", content: "x".repeat(400) } }],
+    });
+    // 400 word chars at the default family's 0.21 tokens/char. chars/4 of the
+    // whole body would be ~160 — the syntax must not be billed to the reply.
+    expect(estimateTokens(body)).toBe(84);
+    expect(estimateTokens(body)).toBeLessThan(Math.floor(body.length / 4));
+  });
+
+  it("uses the family of the model when one is given", () => {
+    // Same 400 characters, two tokenizers: claude 0.26 vs gemini 0.1616.
+    expect(estimateTokens("x".repeat(400), "claude-sonnet-4")).toBe(104);
+    expect(estimateTokens("x".repeat(400), "ag/gemini-3.8-flash-low")).toBe(65);
+  });
+
   it("falls back to a length estimate for a body without usage", () => {
-    expect(estimateTokens("x".repeat(400))).toBe(100);
+    expect(estimateTokens("x".repeat(400))).toBe(84);
+  });
+
+  it("never returns the flat chars/4 answer for non-ASCII text", () => {
+    const emoji = "\u{1F600}".repeat(100); // 100 code points, 400 UTF-16 units
+    // chars/4 of the string would be 100; the emoji class bills at 1.30.
+    expect(estimateTokens(emoji)).toBe(130);
   });
 
   it("returns 0 for an empty body", () => {

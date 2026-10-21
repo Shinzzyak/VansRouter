@@ -2,11 +2,13 @@
 // library API (transformAnthropicMessages). Fail-open like every token saver:
 // any error/timeout returns { body: null, summary } and leaves the request untouched.
 import { FORMATS } from "../translator/formats.js";
+import { estimateTokens as profileTokens, familyOf } from "./tokenProfile.js";
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_MIN_CHARS = 25000;
-// pxpipe's own profitability gate assumes ~4 chars/token; reuse it for the
-// estimated before/after numbers surfaced in stats (marked "estimated" in UI).
+// pxpipe's own profitability gate assumes ~4 chars/token. That is only the
+// last-resort divisor: the real one is derived per request from the tokenizer
+// family, because a single ratio is off by -75% on emoji and +52% on CJK.
 const EST_CHARS_PER_TOKEN = 4;
 
 function bodyChars(body) {
@@ -17,8 +19,23 @@ function bodyChars(body) {
   }
 }
 
-function estTokens(chars) {
-  return Math.round(chars / EST_CHARS_PER_TOKEN);
+/**
+ * Chars per token for this body's family. Measured on the body itself, so a
+ * CJK-heavy or emoji-heavy request does not get the Latin divisor.
+ */
+function charsPerToken(body, chars, model) {
+  let tokens = 0;
+  try {
+    tokens = profileTokens(JSON.stringify(body), familyOf(model));
+  } catch {
+    tokens = 0;
+  }
+  if (!Number.isFinite(tokens) || tokens <= 0) return EST_CHARS_PER_TOKEN;
+  const ratio = chars / tokens;
+  // Guard the same way the prompt estimator does: a ratio outside this band is
+  // not a tokenizer ratio, it is a broken measurement.
+  if (!Number.isFinite(ratio) || ratio < 0.5 || ratio > 12) return EST_CHARS_PER_TOKEN;
+  return ratio;
 }
 
 function skipped(reason, extra = {}) {
@@ -74,6 +91,10 @@ export async function compressWithPxpipe(body, { enabled, format, model, minChar
     // new body. Provider-billed usage recorded per request stays the ground truth.
     const imageTokensEst = info.imageTokens
       || (info.imagePixels ? Math.round(info.imagePixels / 750) : (info.imageCount || 0) * 4761);
+    // One divisor for both sides, derived from this request's tokenizer family so
+    // the before/after numbers move on the same scale.
+    const cpt = charsPerToken(body, originalChars, model);
+    const estFromChars = (chars) => Math.round(Math.max(0, chars) / cpt);
     const summary = {
       applied: true,
       reason: "applied",
@@ -82,8 +103,8 @@ export async function compressWithPxpipe(body, { enabled, format, model, minChar
       imagedChars,
       imageCount: info.imageCount || 0,
       imageBytes: info.imageBytes || 0,
-      tokensBeforeEst: info.baselineTokens || estTokens(originalChars),
-      tokensAfterEst: estTokens(Math.max(0, originalChars - imagedChars)) + imageTokensEst,
+      tokensBeforeEst: info.baselineTokens || estFromChars(originalChars),
+      tokensAfterEst: estFromChars(originalChars - imagedChars) + imageTokensEst,
       durationMs: Date.now() - startedAt,
       cacheOwnsControl: result.cache?.ownsCacheControl === true,
     };

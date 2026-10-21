@@ -60,6 +60,25 @@ describe("compressWithPxpipe gates", () => {
     expect(formatPxpipeLog(summary)).toContain("2 image(s)");
   });
 
+  it("derives the divisor from the tokenizer family, not a flat 4", async () => {
+    const compressed = { model: "", messages: [{ role: "user", content: "imaged" }] };
+    const run = async (model) => {
+      const body = { model, max_tokens: 100, messages: [{ role: "user", content: bigText }] };
+      const { summary } = await compressWithPxpipe(body, {
+        enabled: true, format: "claude", model, minChars: 1000,
+        transform: appliedTransform(compressed),
+      });
+      return summary;
+    };
+    const claude = await run("claude-sonnet-5");
+    const gemini = await run("ag/gemini-3.8-flash-low");
+    // Same characters, different tokenizers: the before-estimates must diverge.
+    expect(claude.tokensBeforeEst).not.toBe(gemini.tokensBeforeEst);
+    // And neither may be the old flat chars/4 answer.
+    expect(claude.tokensBeforeEst).not.toBe(Math.round(claude.originalChars / 4));
+    expect(gemini.tokensBeforeEst).not.toBe(Math.round(gemini.originalChars / 4));
+  });
+
   it("passes through when the transform declines (not_profitable)", async () => {
     const transform = async () => ({ applied: false, reason: "not_profitable", body: new Uint8Array(), info: {} });
     const { body, summary } = await compressWithPxpipe(claudeBody(), {

@@ -13,25 +13,55 @@
 
 import { LruStore } from "./store.js";
 import { buildCacheKey, extractPromptText } from "./key.js";
+import { estimateTokens as profileTokens, familyOf } from "../../../open-sse/rtk/tokenProfile.js";
 
 const DEFAULT_MAX_ENTRIES = 1000;
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Approximates the tokens a replayed body saved. The upstream `usage` block is
- * authoritative when present; otherwise the usual 4-characters-per-token rule is
- * a floor that keeps the counter moving instead of reporting a flat zero.
+ * The assistant text a replayed body carries, so the fallback estimate counts
+ * the reply rather than JSON syntax around it.
  */
-export function estimateTokens(body) {
+function replyText(parsed) {
+  const content = parsed?.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (typeof part === "string" ? part : part?.text || ""))
+      .join("");
+  }
+  if (typeof parsed?.content === "string") return parsed.content;
+  return "";
+}
+
+/**
+ * Approximates the tokens a replayed body saved. The upstream `usage` block is
+ * authoritative when present. Without it, the text is estimated per tokenizer
+ * family instead of a flat 4-characters-per-token rule: measured on 2026-10-21,
+ * a single ratio is off by -75% on emoji and +57% on Indonesian prose.
+ *
+ * This number feeds the `tokensSaved` counter only. It never touches the cache
+ * key, so changing it cannot change which replies hit.
+ *
+ * @param {string} body the stored response body
+ * @param {string} [model] used to pick the tokenizer family
+ */
+export function estimateTokens(body, model) {
   if (!body) return 0;
+  let parsed = null;
   try {
-    const parsed = JSON.parse(body);
+    parsed = JSON.parse(body);
+  } catch {
+    // A body that is not JSON still has characters; fall through to the estimate.
+  }
+  if (parsed) {
     const total = parsed?.usage?.total_tokens;
     if (Number.isFinite(total) && total > 0) return total;
-  } catch {
-    // A body that is not JSON still has a length; fall through to the estimate.
+    const text = replyText(parsed);
+    if (text) return profileTokens(text, familyOf(model));
   }
-  return Math.max(1, Math.floor(body.length / 4));
+  // Last resort: estimate over the raw body. Still per-family, never a flat /4.
+  return profileTokens(body, familyOf(model));
 }
 
 export class SemanticCache {
@@ -94,7 +124,7 @@ export class SemanticCache {
       return { hit: false };
     }
 
-    const saved = estimateTokens(entry.body);
+    const saved = estimateTokens(entry.body, entry.model || request.model);
     this.hits += 1;
     this.tokensSaved += saved;
     this.store.recordHit(key, saved);

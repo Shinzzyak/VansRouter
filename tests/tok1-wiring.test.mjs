@@ -91,3 +91,41 @@ test("TOK1/W6 — the table is exposed for reading, with the rejection count", (
   assert.match(src, /tokenProfile: read\(loaded,\s*"tokenProfile"/);
   assert.match(src, /calibrationTable\(\)/);
 });
+
+test("TOK1/W7 — no consumer still divides characters by four", () => {
+  // The module can be perfect and the number on the dashboard can still be
+  // wrong if a consumer keeps the old rule. These two were the last holdouts:
+  // the cache's tokensSaved counter and pxpipe's before/after estimate.
+  //
+  // Comments are stripped first: both files *talk about* /4 in prose, and a
+  // scan that cannot tell prose from code would either miss a real regression
+  // or fail on a correct file.
+  const code = (rel) =>
+    read(rel)
+      .split("\n")
+      .map((line) => line.replace(/\/\/.*$/, ""))
+      .join("\n");
+
+  for (const file of ["src/lib/semanticcache/cache.js", "open-sse/rtk/pxpipe.js"]) {
+    const src = code(file);
+    assert.match(src, /tokenProfile\.js/, `${file}: must import tokenProfile`);
+    assert.match(src, /familyOf/, `${file}: must pick a family`);
+    assert.doesNotMatch(src, /\/\s*4\b/, `${file}: a value is still divided by the literal four`);
+  }
+
+  // pxpipe must divide by a derived divisor, not a constant.
+  const px = code("open-sse/rtk/pxpipe.js");
+  assert.match(px, /const cpt = charsPerToken\(/, "pxpipe: divisor must be derived per request");
+  assert.match(px, /\/\s*cpt\b/, "pxpipe: the conversion must divide by the derived divisor");
+
+  // The cache must keep preferring the authoritative usage block over any
+  // estimate — an estimate never overrides what the provider actually billed.
+  const cache = code("src/lib/semanticcache/cache.js");
+  assert.ok(
+    cache.indexOf("usage?.total_tokens") < cache.indexOf("profileTokens("),
+    "cache: usage.total_tokens must be checked before the estimate"
+  );
+  // And the estimate must be handed the model, or every reply bills at the
+  // default family's rate regardless of who answered.
+  assert.match(cache, /estimateTokens\(entry\.body,\s*entry\.model\s*\|\|\s*request\.model\)/);
+});
