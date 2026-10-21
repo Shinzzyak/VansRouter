@@ -37,7 +37,7 @@ env:
   # To ship a new engine: bump this SHA to the engine commit you verified, in the same push.
   # Trade-off accepted: an engine push alone no longer redeploys — that is the point, and
   # the cost is one extra line here per engine release.
-  ENGINE_REF: d17efd531e6665d7368406008be8016d53c6aea6
+  ENGINE_REF: 5dd511fea7d8517a23904f5da89818c4f20dfc9c
 
 jobs:
   build:
@@ -267,6 +267,9 @@ jobs:
           # TOK1 wiring is source-level (it reads the call sites), so it needs
           # its own runner for the same reason: vitest only collects .test.js.
           node --test tests/tok1-wiring.test.mjs
+          # K218 — same reason: this one reads chatCore to prove the escalation
+          # loop is graded by the evidence rule, not by `needsAnotherTry`.
+          node --test tests/k218-escalation-wiring.test.mjs
 
       - name: Build
         run: pnpm run build

@@ -347,6 +347,12 @@ const FALLBACKS = {
     // hasil tidak bisa dinilai, jadi jawabannya "jangan eskalasi" — persis
     // perilaku plain-proxy. Peta verdict->kelas hidup di responseIntegrity.
     needsFirstPassEscalation: "(() => false)",
+    // K218 — dua ekspor baru untuk loop eskalasi. Tanpa bundle keduanya jatuh ke
+    // perilaku plain-proxy: jangan mencoba lagi, dan jangan mengkredit apa pun.
+    // `escalationClass` mengembalikan kelas aslinya, jadi `wins` tidak bisa naik
+    // dari jalur yang tidak punya ledger.
+    needsMoreEscalation: "(() => false)",
+    escalationClass: "((level, kelas) => kelas)",
     // Tanpa bundle tidak ada bukti apa pun — null, bukan tingkat tebakan. `max`
     // menerjemahkan null ini jadi T3 di godmode.js, jadi perilaku tanpa bundle
     // persis seperti sebelum fitur ini ada.
