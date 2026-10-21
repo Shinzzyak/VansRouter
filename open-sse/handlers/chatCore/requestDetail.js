@@ -118,6 +118,9 @@ export function saveUsageStats({ provider, model, tokens, requestBody, connectio
   try {
     if (requestBody) {
       const rawEstimate = estimatePromptTokens(requestBody, model, { calibrate: false });
+      if (process.env.TOK1_DEBUG === "1" && rawEstimate === 0) {
+        console.error("[TOK1-DEBUG]", typeof requestBody, JSON.stringify(Object.keys(requestBody || {}).slice(0, 12)));
+      }
       observePrompt(model, rawEstimate, inTokens);
     }
   } catch {}
