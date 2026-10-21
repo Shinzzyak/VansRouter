@@ -24,6 +24,7 @@ import { routeSnapshot } from "open-sse/rtk/routeGuardMemory.js";
 import { getAllDrift, getAllDeliveredDrift } from "open-sse/rtk/refusalDrift.js";
 import { cadenceSnapshot } from "open-sse/rtk/voiceCadence.js";
 import { immunitySnapshot } from "open-sse/rtk/modelImmunityHints.js";
+import { calibrationTable, familyOf, estimateTokens } from "open-sse/rtk/tokenProfile.js";
 
 /**
  * GET /api/engine/state — what the capability layer has learned.
@@ -148,6 +149,12 @@ export async function GET(request) {
       refusalDriftDelivered: read(loaded, "refusalDriftDelivered", () => ({ drift: getAllDeliveredDrift() ?? {} })),
       voiceCadence: read(loaded, "voiceCadence", () => ({ cadence: cadenceSnapshot() ?? [] })),
       modelImmunityHints: read(loaded, "modelImmunityHints", () => ({ hints: immunitySnapshot() ?? [] })),
-    },
+      // TOK1 — what the router believes a token costs, per tokenizer family.
+      // `measured` distinguishes a coefficient fitted against live
+      // `usage.prompt_tokens` from one seeded out of the family's published
+      // behaviour; `factor` is the EWMA correction learned from traffic. Both
+      // are needed to read the table honestly: a factor of 1.4 on a seeded
+      // family means the seed was 40% optimistic, not that the model changed.
+      tokenProfile: read(loaded, "tokenProfile", () => ({ calibration: calibrationTable() ?? [] })),
   });
 }

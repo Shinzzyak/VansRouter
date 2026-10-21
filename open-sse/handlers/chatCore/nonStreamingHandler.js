@@ -297,7 +297,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   const usage = extractUsageFromResponse(responseBody);
   appendLog({ tokens: usage, status: "200 OK" });
   const usageLatency = Date.now() - requestStartTime;
-  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
+  saveUsageStats({ provider, model, tokens: usage, requestBody: finalBody || translatedBody || body, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
 
   const translatedResponse = needsTranslation(targetFormat, sourceFormat)
     ? translateNonStreamingResponse(responseBody, targetFormat, sourceFormat)
@@ -409,7 +409,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   // brand line INTO the buyer's reply — the leak the flag exists to stop.
   const personaExempt = apiKeyInfo?.personaInject === false;
   try {
-    const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: body, enforceBrand: !personaExempt });
+    const integrity = classifyResponse({ parsed: finalResponse, rawText: respContent, requestBody: finalBody || translatedBody || body, enforceBrand: !personaExempt });
     recordIntegrity(provider, model, integrity.status);
     recordRefusalMetric("drift", { provider, model, anchor: integrity.brandOk === true, path: "non-stream" });
 
@@ -467,7 +467,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     // Enforce repair-in-place for the chat surface. Shared with the forced-SSE→JSON
     // exit so the two non-streaming paths cannot drift apart (brandRepair.js).
     const repairedText = enforceChatBrand(finalResponse, respContent, {
-      requestBody: body, personaExempt, clientRawRequest,
+      requestBody: finalBody || translatedBody || body, personaExempt, clientRawRequest,
     });
     if (repairedText) { repairedByRouter = true; respContent = repairedText; }
   } catch (e) {
@@ -525,7 +525,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   // tool-call turn is a complete answer and is stored.
   if (isReplayableReply(emptyReason)) {
     storeCachedResponse({
-      requestBody: body,
+      requestBody: finalBody || translatedBody || body,
       finalResponse,
       sessionId: apiKeyInfo?.id ?? apiKey ?? "",
     });

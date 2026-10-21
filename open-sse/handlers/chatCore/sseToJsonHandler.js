@@ -219,7 +219,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       const normalizedUsage = responsesUsageToOpenAI(usage);
       appendLog({ tokens: normalizedUsage, status: "200 OK" });
       const usageLatency = Date.now() - requestStartTime;
-      saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
+      saveUsageStats({ provider, model, tokens: normalizedUsage, requestBody: finalBody || translatedBody || body, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency }, comboName });
 
       const totalLatency = Date.now() - requestStartTime;
 
@@ -374,7 +374,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
     const usage = parsed.usage || {};
     appendLog({ tokens: usage, status: "200 OK" });
     const usageLatency = Date.now() - requestStartTime;
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency } });
+    saveUsageStats({ provider, model, tokens: usage, requestBody: finalBody || translatedBody || body, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency: { ttft: usageLatency, total: usageLatency } });
 
     const totalLatency = Date.now() - requestStartTime;
     saveRequestDetail(buildRequestDetail({

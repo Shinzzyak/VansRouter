@@ -49,6 +49,13 @@ const ENGINE_MODULES = [
   "streamIntegrity",
   "streamEnforce",
   "voiceCadence",
+  // Tokenizer profile (2026-10-21, TOK1). Not a secret: the coefficients are
+  // measurable by anyone with a key. It travels with the bundle because the
+  // router's own estimate and the calibration it learns must move together —
+  // a bundle-less router falls back to a flat chars/4 estimate that is 75% off
+  // on emoji and 52% off on CJK, which is exactly the reading this module exists
+  // to replace.
+  "tokenProfile",
   "thinkingGate",
   "instructionReceipts",
   "selfMeasuringBypass",
@@ -288,6 +295,18 @@ const FALLBACKS = {
     // already called from inside scrubSelfDescriptionLab, so this standalone entry
     // only exists for callers that import it directly (tests, probes).
     stripPromptDump: "((text) => ({ text: String(text ?? ''), changed: false, hits: [] }))",
+  },
+  tokenProfile: {
+    // Identity of the old behaviour: no family, no calibration, chars/4.
+    TOKEN_FAMILIES: "({ default: { measured: false, word: 0.21, punct: 0.65, cjk: 0.58, emoji: 1.30 } })",
+    factorFor: "(() => 1)",
+    familyOf: "(() => 'default')",
+    classifyText: "((text) => ({ chars: String(text ?? '').length, word: 0, punct: 0, cjk: 0, emoji: 0 }))",
+    estimateTokens: "((text) => Math.max(1, Math.floor(String(text ?? '').length / 4)))",
+    estimatePromptTokens: "((body) => 0)",
+    observePrompt: "((model) => ({ family: 'default', factor: 1, ratio: 0, learned: false }))",
+    calibrationTable: "(() => [])",
+    resetCalibration: "(() => {})",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",

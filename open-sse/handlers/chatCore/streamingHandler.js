@@ -398,7 +398,7 @@ export function buildOnStreamComplete({ provider, model, ledgerKey, connectionId
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
 
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency, label: "STREAM USAGE" });
+    saveUsageStats({ provider, model, tokens: usage, requestBody: finalBody || translatedBody || body, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, latency, label: "STREAM USAGE" });
   };
 
   return { onStreamComplete, streamDetailId };

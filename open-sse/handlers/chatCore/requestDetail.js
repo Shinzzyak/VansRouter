@@ -3,6 +3,7 @@ import { recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import { recordUsage } from "@/lib/observ/metrics.js";
 import { COLORS } from "../../utils/stream.js";
 import { canonicalizeUsage } from "../../utils/usageTracking.js";
+import { estimatePromptTokens, observePrompt } from "open-sse/rtk/tokenProfile.js";
 
 const OPTIONAL_PARAMS = [
   "temperature", "top_p", "top_k",
@@ -99,13 +100,27 @@ export function buildRequestDetail(base, overrides = {}) {
   };
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, apiKeyInfo, endpoint, latency, status = 200, label = "USAGE" }) {
+export function saveUsageStats({ provider, model, tokens, requestBody, connectionId, apiKey, apiKeyInfo, endpoint, latency, status = 200, label = "USAGE" }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
   const outTokens = tokens.output_tokens ?? tokens.completion_tokens ?? 0;
 
   if (inTokens === 0 && outTokens === 0) return;
+
+  // TOK1 — teach the tokenizer table from real traffic. The comparison body must
+  // be the one that reached the provider (finalBody), because the router injects
+  // a multi-thousand-token system prompt: comparing the provider's prompt_tokens
+  // against the client's own body would read as a 36x calibration error and
+  // teach the table a lie. observePrompt rejects anything outside [1/3, 3] and
+  // counts the rejection rather than clamping it. Fail-open: an estimate bug must
+  // never break a request that already succeeded upstream.
+  try {
+    if (requestBody) {
+      const rawEstimate = estimatePromptTokens(requestBody, model, { calibrate: false });
+      observePrompt(model, rawEstimate, inTokens);
+    }
+  } catch {}
 
   const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const accountSuffix = connectionId ? ` | account=${connectionId.slice(0, 8)}...` : "";
