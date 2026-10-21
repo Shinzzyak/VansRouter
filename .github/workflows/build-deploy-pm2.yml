@@ -249,6 +249,8 @@ jobs:
           tests/unit/kiro-injection-container.test.js
           tests/unit/kiro-persona-no-topprompt.test.js
           tests/unit/persona-breach-wiring.test.js
+          tests/unit/semanticcache.test.js
+          tests/unit/pxpipe.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
@@ -259,7 +261,11 @@ jobs:
       # reaching production silently. It self-reports: "RINGKAS: N LULUS, M MERAH"
       # and exits non-zero on any red.
       - name: Stream enforce gate
-        run: node tests/engine/streamEnforce.test.mjs
+        run: |
+          node tests/engine/streamEnforce.test.mjs
+          # TOK1 wiring is source-level (it reads the call sites), so it needs
+          # its own runner for the same reason: vitest only collects .test.js.
+          node --test tests/tok1-wiring.test.mjs
 
       - name: Build
         run: pnpm run build
