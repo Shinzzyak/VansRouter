@@ -156,5 +156,6 @@ export async function GET(request) {
       // are needed to read the table honestly: a factor of 1.4 on a seeded
       // family means the seed was 40% optimistic, not that the model changed.
       tokenProfile: read(loaded, "tokenProfile", () => ({ calibration: calibrationTable() ?? [] })),
+    },
   });
 }
