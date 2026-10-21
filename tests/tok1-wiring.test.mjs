@@ -13,6 +13,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const read = (rel) => readFileSync(join(root, rel), "utf8");
 
+// Comments are stripped before any source scan: these files *talk about* /4 in
+// prose, so a scan that cannot tell prose from code would either miss a real
+// regression or fail on a correct file. Block comments go too — a JSDoc line
+// beginning with `*` still contains the literal.
+const code = (rel) =>
+  read(rel)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, ""))
+    .join("\n");
+
 const CALL_SITES = [
   ["open-sse/handlers/chatCore/nonStreamingHandler.js", 1],
   ["open-sse/handlers/chatCore/sseToJsonHandler.js", 2],
@@ -101,12 +112,6 @@ test("TOK1/W7 — no consumer still divides characters by four", () => {
   // scan that cannot tell prose from code would either miss a real regression
   // or fail on a correct file. Block comments have to go too — a JSDoc line
   // beginning with `*` still contains the literal.
-  const code = (rel) =>
-    read(rel)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .split("\n")
-      .map((line) => line.replace(/\/\/.*$/, ""))
-      .join("\n");
 
   for (const file of [
     "src/lib/semanticcache/cache.js",
@@ -157,5 +162,20 @@ test("TOK1/W8 — every estimateUsage call names the model that answered", () =>
   for (const args of patches) {
     const parts = args.split(",").map((s) => s.trim()).filter(Boolean);
     assert.ok(parts.length >= 3, `stream.js: fixZeroCompletionUsage(${args}) must pass the divisor`);
+  }
+
+  // Executors that synthesize usage because their upstream reports none: the
+  // same class of bug, one layer down. They must measure, not divide by four.
+  const executors = ["grok-web", "chatgpt-web", "devin-cli"];
+  for (const name of executors) {
+    const src = code(`open-sse/executors/${name}.js`);
+    assert.ok(
+      !/\.length\s*\/\s*4\b/.test(src),
+      `open-sse/executors/${name}.js still bills characters at a flat four`
+    );
+    assert.ok(
+      /textCharsPerToken|requestCharsPerToken/.test(src),
+      `open-sse/executors/${name}.js must measure its rate from the text it has`
+    );
   }
 });

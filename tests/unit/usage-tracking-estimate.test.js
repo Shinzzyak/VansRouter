@@ -5,6 +5,7 @@ import {
   estimateUsage,
   addBufferToUsage,
   requestCharsPerToken,
+  textCharsPerToken,
   fixZeroCompletionUsage,
 } from "../../open-sse/utils/usageTracking.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
@@ -123,6 +124,23 @@ describe("usageTracking — one divisor for both sides", () => {
       expect(usage.completion_tokens).toBeGreaterThan(0);
       expect(usage.completion_tokens).toBeLessThanOrEqual(400);
     }
+  });
+
+  it("measures a bare string, for the executors that only have text", () => {
+    // Web scrapers and CLI wrappers have no request body, only the prompt and
+    // the answer. Their rate still has to come from the text, not a constant.
+    const enText = "The quick brown fox jumps over the lazy dog. ".repeat(20);
+    const cjkText = "模型路由器令牌估算，这是中文测试文本。".repeat(40);
+    const enRate = textCharsPerToken(enText, GEMINI);
+    const cjkRate = textCharsPerToken(cjkText, GEMINI);
+    expect(cjkRate).toBeLessThan(enRate);
+    expect(textCharsPerToken("", GEMINI)).toBe(4);
+    expect(textCharsPerToken(null, GEMINI)).toBe(4);
+
+    // A CJK answer costs more tokens than an ASCII one of the same length.
+    const cjkOut = estimateOutputTokens(400, cjkRate);
+    const enOut = estimateOutputTokens(400, enRate);
+    expect(cjkOut).toBeGreaterThan(enOut);
   });
 
   it("patches a zero-completion usage at the request's own scale", () => {

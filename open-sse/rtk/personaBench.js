@@ -34,6 +34,7 @@ import { PERSONA_LOCK_PROMPT } from "./godmode.js";
 import { POTATO_MECHANICS_PROMPT } from "./potatoMechanics.js";
 import { ATTACK_MOVES } from "./personaBreach.js";
 import { iterContents } from "./contentWalk.js";
+import { estimateTokens, familyOf } from "./tokenProfile.js";
 import { anchorScore } from "./personaAnchors.js";
 
 const log = { debug() {}, info() {}, warn() {} };
@@ -155,7 +156,12 @@ export function runBench({ depth = 40, fixtures = [] } = {}) {
       const { texts, added } = render(shape, transcript(2), level);
       const cov = checkCoverage(texts);
       maintenance.push({ level: level.id, shape: shape.id, ...cov, ok: cov.missing.length === 0 });
-      cost.push({ level: level.id, shape: shape.id, chars: added, tokensApprox: Math.round(added / 4) });
+      // Convert the marginal characters at the rate the rendered text actually
+      // measures, not a flat four. The bench has no model, so the rate comes
+      // from the text itself under the default family.
+      const renderedTokens = estimateTokens(texts, familyOf(""));
+      const cpt = renderedTokens > 0 ? texts.length / renderedTokens : 4;
+      cost.push({ level: level.id, shape: shape.id, chars: added, tokensApprox: Math.round(added / cpt) });
     }
     // decay: one shape, increasing depth
     const shape = SHAPES[0];

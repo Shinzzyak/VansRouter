@@ -24,6 +24,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { BaseExecutor } from "./base.js";
+import { estimateOutputTokens, textCharsPerToken } from "../utils/usageTracking.js";
 
 // ─── Binary discovery ────────────────────────────────────────────────────────
 
@@ -555,6 +556,10 @@ export class DevinCliExecutor extends BaseExecutor {
               `data: ${JSON.stringify({ error: { message: error, type: "devin_cli_error" } })}\n\n`
             );
           } else {
+            // Prompt and answer measured separately — the CLI reports no usage,
+            // and a single flat four billed both sides at the wrong rate.
+            const estPromptTokens = estimateOutputTokens(promptText.length, textCharsPerToken(promptText, model));
+            const estCompletionTokens = estimateOutputTokens(totalText.length, textCharsPerToken(totalText, model));
             // Emit finish chunk
             emit(
               `data: ${JSON.stringify({
@@ -564,9 +569,9 @@ export class DevinCliExecutor extends BaseExecutor {
                 model,
                 choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
                 usage: {
-                  prompt_tokens: Math.ceil(promptText.length / 4),
-                  completion_tokens: Math.ceil(totalText.length / 4),
-                  total_tokens: Math.ceil((promptText.length + totalText.length) / 4),
+                  prompt_tokens: estPromptTokens,
+                  completion_tokens: estCompletionTokens,
+                  total_tokens: estPromptTokens + estCompletionTokens,
                   estimated: true,
                 },
               })}\n\n`

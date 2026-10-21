@@ -459,6 +459,17 @@ export function requestCharsPerToken(body, model) {
 }
 
 /**
+ * The divisor for a bare string. Executors that only have the prompt and the
+ * answer as text (web scrapers, CLI wrappers) have no request body to measure,
+ * so they measure the text they actually have.
+ */
+export function textCharsPerToken(text, model) {
+  if (!text) return EST_CHARS_PER_TOKEN;
+  const s = String(text);
+  return charsPerToken(s, estimateChars(s, model));
+}
+
+/**
  * Estimate output tokens from content length
  * @param {number} contentLength streamed characters
  * @param {number} [cpt] chars-per-token for this request (see estimateUsage)

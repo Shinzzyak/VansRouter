@@ -3,6 +3,7 @@ import { PROVIDERS } from "../config/providers.js";
 import { SSE_DONE, SSE_HEADERS_NO_BUFFER } from "../utils/sseConstants.js";
 import { sseChunk } from "../utils/sse.js";
 import { cleanCookie } from "../utils/cookie.js";
+import { estimateOutputTokens, textCharsPerToken } from "../utils/usageTracking.js";
 import crypto from "node:crypto";
 
 const CHATGPT_WEB_API = "https://chatgpt.com/backend-api/conversation";
@@ -247,6 +248,9 @@ export class ChatgptWebExecutor extends BaseExecutor {
       }
     }
 
+    // Two texts, two rates: the prompt and the answer are not the same corpus.
+    const promptTokens = estimateOutputTokens(promptText.length, textCharsPerToken(promptText, model));
+    const completionTokens = estimateOutputTokens(accumulatedText.length, textCharsPerToken(accumulatedText, model));
     const nonStreamResp = {
       id: `chatcmpl-${messageId}`,
       object: "chat.completion",
@@ -260,9 +264,9 @@ export class ChatgptWebExecutor extends BaseExecutor {
         },
       ],
       usage: {
-        prompt_tokens: promptText.length / 4,
-        completion_tokens: accumulatedText.length / 4,
-        total_tokens: (promptText.length + accumulatedText.length) / 4,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: promptTokens + completionTokens,
       },
     };
 

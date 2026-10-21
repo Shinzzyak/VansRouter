@@ -3,6 +3,7 @@ import { PROVIDERS } from "../config/providers.js";
 import { SSE_DONE, SSE_HEADERS_NO_BUFFER } from "../utils/sseConstants.js";
 import { sseChunk } from "../utils/sse.js";
 import { cleanCookie } from "../utils/cookie.js";
+import { estimateOutputTokens, requestCharsPerToken, textCharsPerToken } from "../utils/usageTracking.js";
 
 const GROK_CHAT_API = PROVIDERS["grok-web"].baseUrl;
 const GROK_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
@@ -188,7 +189,7 @@ function buildStreamingResponse(eventStream, model, cid, created, isThinkingMode
   });
 }
 
-async function buildNonStreamingResponse(eventStream, model, cid, created, isThinkingModel, signal) {
+async function buildNonStreamingResponse(eventStream, model, cid, created, isThinkingModel, signal, promptPayload) {
   let fullContent = "";
   let fingerprint = "";
   const thinkingParts = [];
@@ -209,8 +210,13 @@ async function buildNonStreamingResponse(eventStream, model, cid, created, isThi
   const msg = { role: "assistant", content: fullContent };
   if (thinkingParts.length > 0) msg.reasoning_content = thinkingParts.join("\n");
 
-  const promptTokens = Math.ceil(fullContent.length / 4);
-  const completionTokens = Math.ceil(fullContent.length / 4);
+  // Prompt and answer are different texts; billing both off the answer made
+  // every Grok request look like a symmetric echo.
+  const promptTokens = estimateOutputTokens(
+    JSON.stringify(promptPayload ?? {}).length,
+    requestCharsPerToken(promptPayload ?? {}, model)
+  );
+  const completionTokens = estimateOutputTokens(fullContent.length, textCharsPerToken(fullContent, model));
 
   return new Response(JSON.stringify({
     id: cid, object: "chat.completion", created, model, system_fingerprint: fingerprint || null,
@@ -334,7 +340,7 @@ export class GrokWebExecutor extends BaseExecutor {
         headers: { ...SSE_HEADERS_NO_BUFFER },
       });
     } else {
-      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, isThinking, signal);
+      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, isThinking, signal, grokPayload);
     }
     return { response: finalResponse, url: GROK_CHAT_API, headers, transformedBody: grokPayload };
   }
