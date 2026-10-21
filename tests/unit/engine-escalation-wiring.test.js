@@ -117,17 +117,20 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
 
   it('badan kosong / substitusi / penolakan sama-sama memicu percobaan berikutnya', () => {
     // Ketiga jalur eskalasi harus punya predikat kegagalan. Jumlahnya tetap 3,
-    // tapi predikatnya DUA macam sejak 2026-09-23:
+    // tapi predikatnya TIGA macam sejak K218:
     //
     //   percobaan PERTAMA  -> needsFirstPassEscalation()  (AMBIGU tidak memicu)
-    //   di DALAM loop      -> needsAnotherTry()           (percobaan sebelumnya
-    //                                                      sudah dievaluasi gagal)
+    //   di DALAM loop      -> needsMoreEscalation()       (aturan bukti yang sama,
+    //                                                      nama sesuai pertanyaannya)
+    //   (needsAnotherTry masih diekspor dan dipakai di tempat lain)
     //
     // Dihitung bersama karena yang dijaga tes ini adalah "tiap jalur punya
-    // gerbang", bukan nama fungsinya. Bentuk persisnya dijaga tes berikutnya.
+    // gerbang", bukan nama fungsinya. Bentuk persisnya dijaga tes berikutnya
+    // dan oleh tests/k218-escalation-wiring.test.mjs.
     const panggil = [
       ...(chatCore.match(/needsAnotherTry\(/g) || []),
       ...(chatCore.match(/needsFirstPassEscalation\(/g) || []),
+      ...(chatCore.match(/needsMoreEscalation\(/g) || []),
     ];
     expect(panggil.length).toBeGreaterThanOrEqual(3);
   });
