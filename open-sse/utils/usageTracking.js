@@ -266,10 +266,12 @@ export function hasZeroCompletionWithContent(usage, totalContentLength = 0) {
  *
  * @param {object} usage - Usage object with completion_tokens/output_tokens === 0
  * @param {number} totalContentLength - Total length of streamed response content
+ * @param {number} [cpt] - chars-per-token for this request; without it the
+ *   output side falls back to a flat four, which halves CJK output
  * @returns {object} New usage object with corrected completion/total tokens
  */
-export function fixZeroCompletionUsage(usage, totalContentLength) {
-  const estimatedOut = estimateOutputTokens(totalContentLength);
+export function fixZeroCompletionUsage(usage, totalContentLength, cpt) {
+  const estimatedOut = estimateOutputTokens(totalContentLength, cpt);
   const fixed = { ...usage, estimated: true };
 
   if (fixed.completion_tokens !== undefined) {
@@ -443,6 +445,20 @@ function charsPerToken(text, tokens) {
 }
 
 /**
+ * The divisor for one request, measured from the request body itself.
+ * Exported so the streaming path can patch a provider's zero-completion usage
+ * with the same scale it would have used to estimate the whole thing.
+ */
+export function requestCharsPerToken(body, model) {
+  try {
+    const bodyStr = JSON.stringify(body);
+    return charsPerToken(bodyStr, estimateChars(bodyStr, model));
+  } catch {
+    return EST_CHARS_PER_TOKEN;
+  }
+}
+
+/**
  * Estimate output tokens from content length
  * @param {number} contentLength streamed characters
  * @param {number} [cpt] chars-per-token for this request (see estimateUsage)
@@ -490,15 +506,8 @@ export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI
   // the completion at 4, the difference between them is not a measurement, it
   // is an artefact of two scales. The prompt body is the only text we have on
   // this path, so it is what the rate is measured from.
-  let inputTokens = 0;
-  let cpt = EST_CHARS_PER_TOKEN;
-  try {
-    const bodyStr = JSON.stringify(body);
-    inputTokens = estimateChars(bodyStr, model);
-    cpt = charsPerToken(bodyStr, inputTokens);
-  } catch {
-    inputTokens = estimateInputTokens(body, model);
-  }
+  const inputTokens = estimateInputTokens(body, model);
+  const cpt = requestCharsPerToken(body, model);
   return formatUsage(
     inputTokens,
     estimateOutputTokens(contentLength, cpt),

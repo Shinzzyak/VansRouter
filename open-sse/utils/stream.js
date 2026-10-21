@@ -1,7 +1,7 @@
 import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
-import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, hasZeroCompletionWithContent, fixZeroCompletionUsage, COLORS } from "./usageTracking.js";
+import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, hasZeroCompletionWithContent, fixZeroCompletionUsage, requestCharsPerToken, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
@@ -146,7 +146,7 @@ export function createSSEStream(options = {}) {
       if (isPassthrough) usage = finalUsage; else state.usage = finalUsage;
     } else if (hasZeroCompletionWithContent(finalUsage, totalContentLength)) {
       // Provider reported completion_tokens: 0 despite real streamed content.
-      finalUsage = fixZeroCompletionUsage(finalUsage, totalContentLength);
+      finalUsage = fixZeroCompletionUsage(finalUsage, totalContentLength, requestCharsPerToken(body, model));
       if (isPassthrough) usage = finalUsage; else state.usage = finalUsage;
     }
 
@@ -339,7 +339,7 @@ export function createSSEStream(options = {}) {
                 // Provider reported completion_tokens: 0 (e.g. Shiteru "estimated"
                 // finish chunk on a large prompt) despite real streamed content.
                 // Keep the provider's prompt_tokens, patch only the output side.
-                const fixed = fixZeroCompletionUsage(parsed.usage, totalContentLength);
+                const fixed = fixZeroCompletionUsage(parsed.usage, totalContentLength, requestCharsPerToken(body, model));
                 parsed.usage = filterUsageForFormat(fixed, FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 usage = fixed;
@@ -561,7 +561,7 @@ export function createSSEStream(options = {}) {
               // Provider reported zero completion tokens despite real streamed
               // content (e.g. Shiteru-style "estimated" usage on large prompts).
               // Patch just the output side, keep the provider's prompt_tokens.
-              const fixed = fixZeroCompletionUsage(item.usage, totalContentLength);
+              const fixed = fixZeroCompletionUsage(item.usage, totalContentLength, requestCharsPerToken(body, model));
               item.usage = filterUsageForFormat(fixed, sourceFormat);
               state.usage = fixed;
             } else if (state.finishReason && isFinishChunk && state.usage) {

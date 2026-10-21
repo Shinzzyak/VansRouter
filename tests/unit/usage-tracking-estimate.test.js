@@ -4,6 +4,8 @@ import {
   estimateOutputTokens,
   estimateUsage,
   addBufferToUsage,
+  requestCharsPerToken,
+  fixZeroCompletionUsage,
 } from "../../open-sse/utils/usageTracking.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 
@@ -121,6 +123,26 @@ describe("usageTracking — one divisor for both sides", () => {
       expect(usage.completion_tokens).toBeGreaterThan(0);
       expect(usage.completion_tokens).toBeLessThanOrEqual(400);
     }
+  });
+
+  it("patches a zero-completion usage at the request's own scale", () => {
+    // The provider said prompt_tokens: 900, completion_tokens: 0 despite real
+    // content. The patch must keep the prompt and bill the output at the same
+    // rate the request was measured at — not at a flat four.
+    const cpt = requestCharsPerToken(CJK, GEMINI);
+    const patched = fixZeroCompletionUsage(
+      { prompt_tokens: 900, completion_tokens: 0, total_tokens: 900 },
+      400,
+      cpt
+    );
+    expect(patched.prompt_tokens).toBe(900);
+    expect(patched.estimated).toBe(true);
+    expect(patched.completion_tokens).toBeGreaterThan(150);
+    expect(patched.total_tokens).toBe(900 + patched.completion_tokens);
+
+    // Without a divisor it still works, just at the rough rate.
+    const flat = fixZeroCompletionUsage({ prompt_tokens: 900, completion_tokens: 0 }, 400);
+    expect(flat.completion_tokens).toBe(100);
   });
 
   it("leaves the buffer helper alone", () => {

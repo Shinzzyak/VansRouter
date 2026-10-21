@@ -149,4 +149,13 @@ test("TOK1/W8 — every estimateUsage call names the model that answered", () =>
       assert.ok(parts.length >= 4, `${file}: estimateUsage(${args}) must pass the model as the 4th argument`);
     }
   }
+  // The zero-completion patch bills only the output side, so it needs the
+  // divisor explicitly — the usage object it receives carries no body.
+  const stream = read("open-sse/utils/stream.js");
+  const patches = [...stream.matchAll(/fixZeroCompletionUsage\(([^)]*)\)/g)].map((m) => m[1]);
+  assert.ok(patches.length > 0, "stream.js: expected fixZeroCompletionUsage calls");
+  for (const args of patches) {
+    const parts = args.split(",").map((s) => s.trim()).filter(Boolean);
+    assert.ok(parts.length >= 3, `stream.js: fixZeroCompletionUsage(${args}) must pass the divisor`);
+  }
 });
