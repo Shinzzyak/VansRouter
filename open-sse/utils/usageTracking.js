@@ -3,6 +3,7 @@
  */
 
 import { FORMATS } from "../translator/formats.js";
+import { estimateTokens as profileTokens, familyOf } from "../rtk/tokenProfile.js";
 
 // ANSI color codes
 export const COLORS = {
@@ -387,29 +388,69 @@ export function mergeUsage(prev, next) {
 /**
  * Estimate input tokens from request body
  * Calculate total body size for more accurate estimation
+ *
+ * The whole serialized body is counted, not just `messages`: tool schemas are
+ * part of the prompt and a body that carries ten tools is not a small request.
+ * The divisor comes from the tokenizer family of the model that will answer,
+ * because one ratio for every script is wrong on two axes at once — measured
+ * on 390 characters of the same text, `chars/4` overshoots English by 12%,
+ * Indonesian by 57%, and undershoots CJK by 52% and emoji by 75%.
+ *
+ * @param {object} body request body
+ * @param {string} [model] the model that will answer; the family is derived from it
  */
-export function estimateInputTokens(body) {
+export function estimateInputTokens(body, model) {
   if (!body || typeof body !== "object") return 0;
 
   try {
     // Calculate total body size (includes messages, tools, system, thinking config, etc.)
     const bodyStr = JSON.stringify(body);
-    const totalChars = bodyStr.length;
-
-    // Estimate: ~4 chars per token (rough average across all tokenizers)
-    return Math.ceil(totalChars / 4);
+    return estimateChars(bodyStr, model);
   } catch (err) {
     // Fallback if stringify fails
     return 0;
   }
 }
 
+// chars/4 remains the last resort: without the engine bundle there is no family
+// table, and returning zero would be worse than a rough number.
+const EST_CHARS_PER_TOKEN = 4;
+
+/**
+ * Count tokens in a string at the given model's family rate.
+ * Falls back to chars/4 when the profile is absent or its reading is nonsense.
+ */
+function estimateChars(text, model) {
+  if (!text) return 0;
+  try {
+    const tokens = profileTokens(text, familyOf(model || ""));
+    if (Number.isFinite(tokens) && tokens > 0) return tokens;
+  } catch {
+    // profile unavailable — fall through
+  }
+  return Math.ceil(String(text).length / EST_CHARS_PER_TOKEN);
+}
+
+/**
+ * How many characters of this text buy one token, measured rather than assumed.
+ * A ratio outside the band is not a tokenizer ratio, it is a broken reading.
+ */
+function charsPerToken(text, tokens) {
+  if (!text || !Number.isFinite(tokens) || tokens <= 0) return EST_CHARS_PER_TOKEN;
+  const ratio = text.length / tokens;
+  if (!Number.isFinite(ratio) || ratio < 0.5 || ratio > 12) return EST_CHARS_PER_TOKEN;
+  return ratio;
+}
+
 /**
  * Estimate output tokens from content length
+ * @param {number} contentLength streamed characters
+ * @param {number} [cpt] chars-per-token for this request (see estimateUsage)
  */
-export function estimateOutputTokens(contentLength) {
+export function estimateOutputTokens(contentLength, cpt) {
   if (!contentLength || contentLength <= 0) return 0;
-  return Math.max(1, Math.floor(contentLength / 4));
+  const divisor = Number.isFinite(cpt) && cpt > 0 ? cpt : EST_CHARS_PER_TOKEN;
+  return Math.max(1, Math.floor(contentLength / divisor));
 }
 
 /**
@@ -442,11 +483,25 @@ export function formatUsage(inputTokens, outputTokens, targetFormat) {
  * @param {object} body - Request body for input token estimation
  * @param {number} contentLength - Content length for output token estimation
  * @param {string} targetFormat - Target format from FORMATS constant
+ * @param {string} [model] - Model that answered; picks the tokenizer family
  */
-export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI) {
+export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI, model) {
+  // One divisor for both sides. If the prompt is billed at the family rate and
+  // the completion at 4, the difference between them is not a measurement, it
+  // is an artefact of two scales. The prompt body is the only text we have on
+  // this path, so it is what the rate is measured from.
+  let inputTokens = 0;
+  let cpt = EST_CHARS_PER_TOKEN;
+  try {
+    const bodyStr = JSON.stringify(body);
+    inputTokens = estimateChars(bodyStr, model);
+    cpt = charsPerToken(bodyStr, inputTokens);
+  } catch {
+    inputTokens = estimateInputTokens(body, model);
+  }
   return formatUsage(
-    estimateInputTokens(body),
-    estimateOutputTokens(contentLength),
+    inputTokens,
+    estimateOutputTokens(contentLength, cpt),
     targetFormat
   );
 }

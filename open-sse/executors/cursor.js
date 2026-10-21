@@ -623,7 +623,7 @@ export class CursorExecutor extends BaseExecutor {
           created,
           model,
           choices: [{ index: 0, message: { role: "assistant", content: content || null, ...(reasoning ? { reasoning_content: reasoning } : {}) }, finish_reason: "stop" }],
-          usage: estimateUsage(body, content.length, FORMATS.OPENAI),
+          usage: estimateUsage(body, content.length, FORMATS.OPENAI, model),
         }), { headers: { "Content-Type": "application/json" } }),
         url,
         headers,
@@ -858,7 +858,7 @@ export class CursorExecutor extends BaseExecutor {
       message.tool_calls = toolCalls;
     }
 
-    const usage = estimateUsage(body, finalContent.length, FORMATS.OPENAI);
+    const usage = estimateUsage(body, finalContent.length, FORMATS.OPENAI, model);
 
     const completion = {
       id: responseId,
@@ -1081,7 +1081,7 @@ export class CursorExecutor extends BaseExecutor {
       chunks.push(chatChunkSse({ id: responseId, created, model, delta: { role: "assistant", content: "" } }));
     }
 
-    const usage = estimateUsage(body, totalContent.length, FORMATS.OPENAI);
+    const usage = estimateUsage(body, totalContent.length, FORMATS.OPENAI, model);
 
     chunks.push(
       `data: ${JSON.stringify({

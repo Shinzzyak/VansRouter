@@ -97,16 +97,22 @@ test("TOK1/W7 — no consumer still divides characters by four", () => {
   // wrong if a consumer keeps the old rule. These two were the last holdouts:
   // the cache's tokensSaved counter and pxpipe's before/after estimate.
   //
-  // Comments are stripped first: both files *talk about* /4 in prose, and a
+  // Comments are stripped first: these files *talk about* /4 in prose, and a
   // scan that cannot tell prose from code would either miss a real regression
-  // or fail on a correct file.
+  // or fail on a correct file. Block comments have to go too — a JSDoc line
+  // beginning with `*` still contains the literal.
   const code = (rel) =>
     read(rel)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
       .split("\n")
       .map((line) => line.replace(/\/\/.*$/, ""))
       .join("\n");
 
-  for (const file of ["src/lib/semanticcache/cache.js", "open-sse/rtk/pxpipe.js"]) {
+  for (const file of [
+    "src/lib/semanticcache/cache.js",
+    "open-sse/rtk/pxpipe.js",
+    "open-sse/utils/usageTracking.js",
+  ]) {
     const src = code(file);
     assert.match(src, /tokenProfile\.js/, `${file}: must import tokenProfile`);
     assert.match(src, /familyOf/, `${file}: must pick a family`);
@@ -128,4 +134,19 @@ test("TOK1/W7 — no consumer still divides characters by four", () => {
   // And the estimate must be handed the model, or every reply bills at the
   // default family's rate regardless of who answered.
   assert.match(cache, /estimateTokens\(entry\.body,\s*entry\.model\s*\|\|\s*request\.model\)/);
+});
+
+test("TOK1/W8 — every estimateUsage call names the model that answered", () => {
+  // The family is chosen from the model. A caller that drops the argument
+  // silently bills every reply at the default family's rate, which is exactly
+  // the bug this wiring exists to prevent — and it is invisible in the output.
+  for (const file of ["open-sse/utils/stream.js", "open-sse/executors/cursor.js"]) {
+    const src = read(file);
+    const calls = [...src.matchAll(/estimateUsage\(([^)]*)\)/g)].map((m) => m[1]);
+    assert.ok(calls.length > 0, `${file}: expected estimateUsage calls`);
+    for (const args of calls) {
+      const parts = args.split(",").map((s) => s.trim()).filter(Boolean);
+      assert.ok(parts.length >= 4, `${file}: estimateUsage(${args}) must pass the model as the 4th argument`);
+    }
+  }
 });
