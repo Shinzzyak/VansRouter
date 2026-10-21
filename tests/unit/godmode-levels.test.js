@@ -179,7 +179,8 @@ describe.skipIf(!isEngineLoaded())("`max` uses the framing the ledger measured",
 
   it("a measured level wins — the ledger is the strongest source", () => {
     resetLedger();
-    recordOutcome("cbcn/glm-5.3", "T1", "PATUH");
+    // K219 — the starting level needs a sample floor; one outcome is a guess.
+    for (let i = 0; i < 3; i++) recordOutcome("cbcn/glm-5.3", "T1", "PATUH");
     const prompt = runMax("cbcn/glm-5.3");
     expect(prompt).toContain(getEscalationPromptForLevel("T1"));
     expect(prompt).not.toContain(getEscalationPromptForLevel("T3"));

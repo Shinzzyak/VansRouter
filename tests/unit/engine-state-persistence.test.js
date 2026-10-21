@@ -72,6 +72,10 @@ describe.skipIf(!available)("engine state persistence", () => {
 
   it("a ledger entry survives a save/clear/restore round trip", () => {
     const model = "probe/round-trip";
+    // Three outcomes, not one: K219 put a sample floor in front of
+    // `preferredLevel()` so a single ladder artifact cannot become a starting
+    // level. The subject here is the round trip, not the floor.
+    ledger.recordOutcome(model, "T1", "PATUH");
     ledger.recordOutcome(model, "T1", "PATUH");
     ledger.recordOutcome(model, "T1", "PATUH");
     engineState.persist();
@@ -111,7 +115,7 @@ describe.skipIf(!available)("engine state persistence", () => {
     expect(() => engineState.hydrate()).not.toThrow();
     expect(engineState.hydrate()).toBe(false);
     // State stays usable after a bad read.
-    ledger.recordOutcome("probe/after-corrupt", "T2", "PATUH");
+    for (let i = 0; i < 3; i++) ledger.recordOutcome("probe/after-corrupt", "T2", "PATUH");
     expect(ledger.preferredLevel("probe/after-corrupt")).toBe("T2");
   });
 
@@ -129,7 +133,7 @@ describe.skipIf(!available)("engine state persistence", () => {
 
   it("one malformed ledger row does not discard the good ones", () => {
     const model = "probe/good-row";
-    ledger.recordOutcome(model, "T3", "PATUH");
+    for (let i = 0; i < 3; i++) ledger.recordOutcome(model, "T3", "PATUH");
     engineState.persist();
     const saved = readStateFile();
     saved.selfMeasuringBypass.push(["probe/bad-row", "bukan objek"]);
@@ -216,7 +220,7 @@ describe.skipIf(!available)("state is shared across bundle copies", () => {
   it("the framing ledger is one Map, not one per copy", async () => {
     ledger.resetLedger();
     const other = await bust("selfMeasuringBypass");
-    ledger.recordOutcome("probe/shared-ledger", "T1", "PATUH");
+    for (let i = 0; i < 3; i++) ledger.recordOutcome("probe/shared-ledger", "T1", "PATUH");
     // The SECOND copy must see the write the first one made.
     expect(other.preferredLevel("probe/shared-ledger")).toBe("T1");
   });

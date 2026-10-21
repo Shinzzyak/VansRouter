@@ -109,7 +109,10 @@ describe.skipIf(!isEngineLoaded())("modelImmunityHints actually influences first
     resetLedger();
     const model = "gcli/grok-hint-priority";
     // The hint says T1 for xai. The ledger says T3 is what actually worked.
-    recordOutcome(model, "T3", "PATUH");
+    // Three samples: K219's floor means one win is not yet a measurement — a
+    // rung reached only as a ladder's last resort used to win 1/1 and hijack
+    // the starting level.
+    for (let i = 0; i < 3; i++) recordOutcome(model, "T3", "PATUH");
     expect(firstLevel(model)).toBe("T3");
   });
 
