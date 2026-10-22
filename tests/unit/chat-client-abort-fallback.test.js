@@ -42,7 +42,13 @@ const mocks = vi.hoisted(() => ({
   recordProviderFailure: vi.fn(),
   clearProviderFailure: vi.fn(),
   isProviderInCooldown: vi.fn(() => false),
-  isKimchiQuotaExhausted: vi.fn(() => false),
+  isCyclicalQuotaExhausted: vi.fn(() => false),
+  buildCyclicalQuotaExhaustedUpdate: vi.fn(() => ({
+    isActive: false,
+    testStatus: "quota_exhausted",
+    rateLimitedUntil: "2026-11-01T00:00:00.000Z",
+  })),
+  updateProviderConnection: vi.fn(async () => ({})),
   detectDailyQuotaExhaustion: vi.fn(() => null),
   isAutoclawInsufficientBalance: vi.fn(() => false),
   // New export consumed by chat.js's 402 branch. `false` reproduces the exact
@@ -85,12 +91,14 @@ vi.mock("../../src/sse/services/allowedModels.js", () => ({ isModelAllowed: mock
 vi.mock("@/lib/localDb", () => ({
   getSettings: mocks.getSettings,
   getProviderConnections: vi.fn(() => []),
+  updateProviderConnection: mocks.updateProviderConnection,
   validateApiKey: vi.fn(),
   getProviderNodeById: vi.fn(),
 }));
 vi.mock("../../src/lib/localDb.js", () => ({
   getSettings: mocks.getSettings,
   getProviderConnections: vi.fn(() => []),
+  updateProviderConnection: mocks.updateProviderConnection,
   validateApiKey: vi.fn(),
   getProviderNodeById: vi.fn(),
 }));
@@ -133,7 +141,8 @@ vi.mock("open-sse/services/accountFallback.js", () => ({
   recordProviderFailure: mocks.recordProviderFailure,
   clearProviderFailure: mocks.clearProviderFailure,
   isProviderInCooldown: mocks.isProviderInCooldown,
-  isKimchiQuotaExhausted: mocks.isKimchiQuotaExhausted,
+  isCyclicalQuotaExhausted: mocks.isCyclicalQuotaExhausted,
+  buildCyclicalQuotaExhaustedUpdate: mocks.buildCyclicalQuotaExhaustedUpdate,
   detectDailyQuotaExhaustion: mocks.detectDailyQuotaExhaustion,
   isAutoclawInsufficientBalance: mocks.isAutoclawInsufficientBalance,
   // Must mirror every named export chat.js imports from this module: a strict
@@ -243,7 +252,8 @@ describe("handleSingleModelChat client-abort fallback loop", () => {
     mocks.getModelInfo.mockResolvedValue({ provider: "openai", model: "gpt-4o" });
     mocks.isProviderFullyBlocked.mockReturnValue(false);
     mocks.isProviderInCooldown.mockReturnValue(false);
-    mocks.isKimchiQuotaExhausted.mockReturnValue(false);
+    mocks.isCyclicalQuotaExhausted.mockReturnValue(false);
+    mocks.updateProviderConnection.mockClear();
     mocks.detectDailyQuotaExhaustion.mockReturnValue(null);
     mocks.markAccountUnavailable.mockResolvedValue({ shouldFallback: true });
     mocks.resolveAccountSemaphoreKey.mockReturnValue(null);
@@ -346,7 +356,8 @@ describe("handleSingleModelChat consecutive-auth-failure cap", () => {
     mocks.getModelInfo.mockResolvedValue({ provider: "kiro", model: "gpt-5.6-luna" });
     mocks.isProviderFullyBlocked.mockReturnValue(false);
     mocks.isProviderInCooldown.mockReturnValue(false);
-    mocks.isKimchiQuotaExhausted.mockReturnValue(false);
+    mocks.isCyclicalQuotaExhausted.mockReturnValue(false);
+    mocks.updateProviderConnection.mockClear();
     mocks.detectDailyQuotaExhaustion.mockReturnValue(null);
     mocks.markAccountUnavailable.mockResolvedValue({ shouldFallback: true });
     mocks.resolveAccountSemaphoreKey.mockReturnValue(null);
@@ -402,5 +413,31 @@ describe("handleSingleModelChat consecutive-auth-failure cap", () => {
     await POST(makeRequest(new AbortController().signal));
 
     expect(mocks.handleChatCore).toHaveBeenCalledTimes(12);
+  });
+  it("parks a monthly-refill account instead of retiring it when the pack is spent", async () => {
+    // CodeBuddy answers 429 with a credits-exhausted body once the monthly pack
+    // is used up. The account is NOT broken: billing shows the pack refilling on
+    // the 1st. Parking it (testStatus quota_exhausted + a cycle-boundary cooldown)
+    // lets the reactivation sweep bring it back for free; deactivating it forever
+    // throws that capacity away.
+    mocks.getModelInfo.mockResolvedValue({ provider: "codebuddy-intl", model: "deepseek-v4.1-flash-1017" });
+    mocks.getProviderCredentials.mockResolvedValueOnce(makeAccount("conn-cb", "cb-1"));
+    mocks.isCyclicalQuotaExhausted.mockReturnValue(true);
+    mocks.handleChatCore.mockResolvedValueOnce({
+      success: false,
+      status: 429,
+      error: "Credits exhausted. Please visit the link below to purchase add-on packs",
+    });
+
+    await POST(makeRequest(new AbortController().signal));
+
+    // The provider id is forwarded on the FIRST call (the parking write), not just
+    // the re-assertion: the builder picks the reset date from it, and a re-assert
+    // that silently lost the argument would still park on the Kimchi next-day reset.
+    expect(mocks.buildCyclicalQuotaExhaustedUpdate.mock.calls[0]).toEqual(["codebuddy-intl"]);
+    expect(mocks.updateProviderConnection).toHaveBeenCalledWith(
+      "conn-cb",
+      expect.objectContaining({ testStatus: "quota_exhausted", isActive: false })
+    );
   });
 });

@@ -117,12 +117,12 @@ export function formatRetryAfter(rateLimitedUntil) {
 }
 
 /**
- * Patterns that indicate the Kimchi provider has exhausted its credits.
- * Specific enough to avoid matching transient errors like "exhausted all retries".
- * Matches: "exhausted its credits", "quota exhausted", "no remaining credits",
- * "insufficient credits", "payment required".
+ * Patterns that indicate a MONTHLY-REFILL provider has exhausted the credits
+ * for the current cycle. Kimchi and CodeBuddy both answer this way: the pack
+ * refills on its own at the cycle boundary, so the account must be PARKED, not
+ * retired. Specific enough to avoid matching "exhausted all retries".
  */
-const KIMCHI_QUOTA_EXHAUSTED_PATTERNS = [
+const CYCLICAL_QUOTA_PATTERNS = [
   /credits?.{0,20}exhausted/i,
   /quota.{0,20}exhausted/i,
   /no remaining credits/i,
@@ -132,18 +132,32 @@ const KIMCHI_QUOTA_EXHAUSTED_PATTERNS = [
 ];
 
 /**
- * Detect whether an error body / message indicates Kimchi quota exhaustion.
- * Pure check — provider name passed in so this can be reused for other providers.
- * @param {string} provider - provider id (e.g. "kimchi")
+ * Providers whose quota is a MONTHLY REFILL rather than a prepaid wallet.
+ *
+ * The distinction is the whole point: a wallet that hits zero stays empty until
+ * a human pays, so deactivating it forever is correct. A refill pack comes back
+ * by itself on the cycle boundary, so retiring the account throws away capacity
+ * that was going to return for free. Measured 2026-10-22 on CodeBuddy Intl:
+ * `{"error":{"data":{"code":14018,"msg":"Credits exhausted…"}}}`, billing
+ * showing CycleCapacityUsed 100/100 with CycleEndTime 2026-10-31 — i.e. the pack
+ * refills in nine days, yet the connection had been marked dead permanently and
+ * the stored reason read "Invalid API key", which is what sent us looking for a
+ * broken token that was in fact valid (billing answered 200 with the same key).
+ */
+export const CYCLICAL_QUOTA_PROVIDERS = new Set(["kimchi", "codebuddy-cn", "codebuddy-intl"]);
+
+/**
+ * Detect whether an error body / message indicates cyclical quota exhaustion.
+ * @param {string} provider - provider id
  * @param {string|object} errorText - raw error body or message
  * @returns {boolean}
  */
-export function isKimchiQuotaExhausted(provider, errorText) {
-  if (!errorText || provider !== "kimchi") return false;
+export function isCyclicalQuotaExhausted(provider, errorText) {
+  if (!errorText || !CYCLICAL_QUOTA_PROVIDERS.has(provider)) return false;
   const text = typeof errorText === "string"
     ? errorText
     : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();
-  return KIMCHI_QUOTA_EXHAUSTED_PATTERNS.some(p => p.test(text));
+  return CYCLICAL_QUOTA_PATTERNS.some(p => p.test(text));
 }
 
 /**
@@ -243,21 +257,44 @@ export function getNextDayReset(now = new Date()) {
 }
 
 /**
- * Build update payload that deactivates a Kimchi account due to quota exhaustion.
- * Sets testStatus="quota_exhausted" (distinguishable from manual deactivation)
- * and rateLimitedUntil to next-day reset, so the existing cooldown filters
- * skip it until then. Auto-reactivation runs on startup / periodically.
- * @param {Date} [now]
- * @returns {{ isActive: boolean, rateLimitedUntil: string, testStatus: string, lastErrorType: string, errorCode: number, quotaExhaustedAt: string }}
+ * Compute the next month boundary (00:00 UTC on the 1st).
+ * @param {Date} [now=new Date()]
+ * @returns {Date}
  */
-export function buildKimchiQuotaExhaustedUpdate(now = new Date()) {
-  const reset = getNextDayReset(now);
+export function getNextMonthReset(now = new Date()) {
+  const d = new Date(now.getTime());
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0));
+}
+
+/**
+ * Build the update payload that PARKS an account whose monthly pack is spent.
+ *
+ * testStatus="quota_exhausted" is what the hourly reactivation sweep looks for,
+ * so it must survive `markAccountUnavailable` clobbering the row to "unavailable"
+ * — chat.js re-asserts this payload after that call for exactly that reason.
+ *
+ * Reset differs by provider on purpose. CodeBuddy's pack is calendar-monthly
+ * (CycleStartTime 1st, CycleEndTime last day), so the reset is the 1st of next
+ * month. Kimchi keeps its historical next-day reset: it self-heals either way,
+ * and widening this to a month would silently delay a provider that currently
+ * recovers within a day.
+ *
+ * @param {string} provider - provider id
+ * @param {Date} [now]
+ * @returns {object}
+ */
+export function buildCyclicalQuotaExhaustedUpdate(provider, now = new Date()) {
+  const reset = provider === "kimchi" ? getNextDayReset(now) : getNextMonthReset(now);
   return {
     isActive: false,
     rateLimitedUntil: reset.toISOString(),
     testStatus: "quota_exhausted",
     lastErrorType: "quota_exhausted",
-    errorCode: 402,
+    errorCode: 429,
+    // Overwrite the human-readable reason too. The dashboard test path writes
+    // "Invalid API key" for anything it cannot verify, which reads as a broken
+    // credential and hides a condition that fixes itself.
+    lastError: `Credits exhausted for the current cycle; resets ${reset.toISOString()}`,
     quotaExhaustedAt: now.toISOString(),
     quotaResetsAt: reset.toISOString(),
   };
@@ -268,7 +305,7 @@ export function buildKimchiQuotaExhaustedUpdate(now = new Date()) {
  * rateLimitedUntil has passed (start of new month).
  * @returns {{ isActive: boolean, rateLimitedUntil: null, testStatus: string }}
  */
-export function buildKimchiQuotaReactivatedUpdate() {
+export function buildCyclicalQuotaReactivatedUpdate() {
   return {
     isActive: true,
     rateLimitedUntil: null,
@@ -283,7 +320,7 @@ export function buildKimchiQuotaReactivatedUpdate() {
  * ("today's quota", "daily quota exhausted", "reset tomorrow", etc.).
  *
  * This generalizes beyond Kimchi's monthly quota (which keeps its own
- * isKimchiQuotaExhausted / next-month deactivation logic untouched). When a
+ * isCyclicalQuotaExhausted / cycle-boundary parking logic untouched). When a
  * daily quota is detected, the SPECIFIC model on that connection is locked
  * until tomorrow 00:00 UTC via buildDailyQuotaLockUpdate().
  *
@@ -295,7 +332,7 @@ export function buildKimchiQuotaReactivatedUpdate() {
  * @returns {{ kind: "daily_quota", cooldownMs: number } | null}
  */
 export function detectDailyQuotaExhaustion(provider, errorText) {
-  if (!errorText || provider === "kimchi") return null;
+  if (!errorText || CYCLICAL_QUOTA_PROVIDERS.has(provider)) return null;
   const text = typeof errorText === "string"
     ? errorText
     : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();

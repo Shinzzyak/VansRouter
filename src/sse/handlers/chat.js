@@ -18,8 +18,8 @@ import { apiKeyRefusal } from "../services/apiKeyRefusal.js";
 import { checkApiKeyLimits, recordApiKeyUsage, acquireApiKeyLease, releaseApiKeyLease } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import { handleAntigravityQuotaError } from "../services/antigravityQuota.js";
 import {
-  isKimchiQuotaExhausted,
-  buildKimchiQuotaExhaustedUpdate,
+  isCyclicalQuotaExhausted,
+  buildCyclicalQuotaExhaustedUpdate,
   isAutoclawInsufficientBalance,
   buildAutoclawBalanceExhaustedUpdate,
   isPermanentBalanceExhausted,
@@ -871,14 +871,16 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       });
     }
 
-    // Kimchi quota exhausted: deactivate the account until the 1st of next month.
-    if (isKimchiQuotaExhausted(provider, errorText)) {
+    // Monthly-refill quota exhausted (Kimchi, CodeBuddy): PARK the account until
+    // the cycle boundary. A refill pack heals itself; retiring it permanently
+    // throws away capacity that was coming back for free.
+    if (isCyclicalQuotaExhausted(provider, errorText)) {
       try {
-        const update = buildKimchiQuotaExhaustedUpdate();
+        const update = buildCyclicalQuotaExhaustedUpdate(provider);
         await updateProviderConnection(credentials.connectionId, update);
-        log.warn("AUTH", `Kimchi quota exhausted: deactivated ${credentials.connectionName || credentials.connectionId} until ${update.rateLimitedUntil}`);
+        log.warn("AUTH", `Cyclical quota exhausted: parked ${credentials.connectionName || credentials.connectionId} until ${update.rateLimitedUntil}`);
       } catch (e) {
-        log.error("AUTH", `Failed to deactivate Kimchi account on quota exhausted: ${e.message}`);
+        log.error("AUTH", `Failed to park account on cyclical quota exhaustion: ${e.message}`);
       }
       // Fall through to fallback behavior — the next account or provider will be tried.
     }
@@ -939,24 +941,25 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       ? { shouldFallback: true }
       : await markAccountUnavailable(credentials.connectionId, result.status, errorText, provider, model, resetsAtMs);
 
-    // Kimchi quota-exhausted re-assertion: markAccountUnavailable overwrites testStatus
+    // Quota-exhausted re-assertion: markAccountUnavailable overwrites testStatus
     // to "unavailable", clobbering the "quota_exhausted" state written earlier in this
-    // loop. The hourly reactivation sweep only processes testStatus === "quota_exhausted",
-    // so without this re-apply the account would NEVER be auto-reactivated at month rollover.
-    if (isKimchiQuotaExhausted(provider, errorText)) {
+    // loop. The reactivation sweep only processes testStatus === "quota_exhausted",
+    // so without this re-apply the account would NEVER be auto-reactivated at the
+    // cycle boundary. Applies to every monthly-refill provider, not just Kimchi.
+    if (isCyclicalQuotaExhausted(provider, errorText)) {
       try {
-        const update = buildKimchiQuotaExhaustedUpdate();
+        const update = buildCyclicalQuotaExhaustedUpdate(provider);
         await updateProviderConnection(credentials.connectionId, update);
-        log.warn("AUTH", `Kimchi quota exhausted: re-asserted state for ${credentials.connectionName || credentials.connectionId} until ${update.rateLimitedUntil}`);
+        log.warn("AUTH", `Quota exhausted: re-asserted state for ${credentials.connectionName || credentials.connectionId} until ${update.rateLimitedUntil}`);
       } catch (e) {
-        log.error("AUTH", `Failed to re-assert Kimchi quota-exhausted state: ${e.message}`);
+        log.error("AUTH", `Failed to re-assert quota-exhausted state: ${e.message}`);
       }
     }
 
     // Record provider-level failure for circuit breaker — skip if it's a known
-    // Kimchi quota-exhaustion (not a provider-wide outage). Proxy-aware: failure
+    // quota exhaustion (not a provider-wide outage). Proxy-aware: failure
     // is attributed to the specific proxy bucket.
-    if (!isKimchiQuotaExhausted(provider, errorText)) {
+    if (!isCyclicalQuotaExhausted(provider, errorText)) {
       recordProviderFailure(provider, result.status, errorText, log, credentials.connectionId, proxyHash);
     }
 

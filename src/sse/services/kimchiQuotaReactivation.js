@@ -17,13 +17,23 @@ function buildKimchiQuotaReactivatedUpdate() {
 }
 
 /**
- * Reactivate Kimchi provider connections whose monthly quota was exhausted and
- * whose `rateLimitedUntil` has now passed (i.e. a new month has started).
+ * Providers whose quota refills on its own at a cycle boundary. MUST match
+ * CYCLICAL_QUOTA_PROVIDERS in open-sse/services/accountFallback.js — that module
+ * cannot be imported here (it drags circuitBreaker/classify429 into the Next
+ * instrumentation compilation, and this path deliberately stays dependency-free),
+ * so the list is duplicated and `tests/unit/cyclical-quota-park.test.js` fails if
+ * the two ever diverge.
+ */
+export const CYCLICAL_PROVIDERS = ["kimchi", "codebuddy-cn", "codebuddy-intl"];
+
+/**
+ * Reactivate monthly-refill connections whose quota was exhausted and whose
+ * `rateLimitedUntil` has now passed (i.e. a new cycle has started).
  *
- * Queries all deactivated ("quota_exhausted") kimchi connections and, for each
- * whose cooldown timestamp is in the past, restores it to an active state.
- * Errors per-account are caught and logged so a single failure does not abort
- * the whole sweep.
+ * Queries deactivated ("quota_exhausted") connections for every cyclical
+ * provider and, for each whose cooldown timestamp is in the past, restores it to
+ * an active state. Errors per-account are caught and logged so a single failure
+ * does not abort the whole sweep.
  *
  * @returns {Promise<number>} count of accounts reactivated this run
  */
@@ -36,15 +46,17 @@ export async function reactivateExpiredKimchiAccounts() {
     "../../lib/localDb.js"
   );
 
-  let connections;
-  try {
-    connections = await getProviderConnections({ provider: "kimchi", isActive: false });
-  } catch (e) {
-    log.warn("AUTH", `Kimchi quota reactivation: failed to query connections: ${e.message}`);
-    return 0;
+  let connections = [];
+  for (const provider of CYCLICAL_PROVIDERS) {
+    try {
+      const rows = await getProviderConnections({ provider, isActive: false });
+      if (rows?.length) connections.push(...rows);
+    } catch (e) {
+      log.warn("AUTH", `Quota reactivation: failed to query connections for ${provider}: ${e.message}`);
+    }
   }
 
-  if (!connections || connections.length === 0) return 0;
+  if (connections.length === 0) return 0;
 
   const now = Date.now();
   let reactivated = 0;
@@ -63,14 +75,14 @@ export async function reactivateExpiredKimchiAccounts() {
     try {
       await updateProviderConnection(conn.id, buildKimchiQuotaReactivatedUpdate());
       reactivated++;
-      log.info("AUTH", `Kimchi quota reactivated: ${conn.name || conn.id} (cooldown expired ${conn.rateLimitedUntil})`);
+      log.info("AUTH", `Quota reactivated: ${conn.provider || "?"} ${conn.name || conn.id} (cooldown expired ${conn.rateLimitedUntil})`);
     } catch (e) {
-      log.warn("AUTH", `Kimchi quota reactivation failed for ${conn.name || conn.id}: ${e.message}`);
+      log.warn("AUTH", `Quota reactivation failed for ${conn.name || conn.id}: ${e.message}`);
     }
   }
 
   if (reactivated > 0) {
-    log.info("AUTH", `Kimchi quota reactivation: ${reactivated} account(s) reactivated`);
+    log.info("AUTH", `Quota reactivation: ${reactivated} account(s) reactivated`);
   }
   return reactivated;
 }
