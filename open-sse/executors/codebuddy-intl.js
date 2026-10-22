@@ -1,4 +1,5 @@
 import { DefaultExecutor } from "./default.js";
+import { randomBytes } from "node:crypto";
 import {
   neutralizeCodeBuddyChannelIdentity,
   compactOversizedTools,
@@ -7,6 +8,27 @@ import {
 } from "./codebuddyShared.js";
 
 const REQUIRED_SYSTEM_PROMPT = "You are CodeBuddy Code.";
+
+// The intl gateway started rejecting calls on 2026-10-18 with 400 code 11128
+// ("channel verification ... not sent from an official client"). Probes isolated
+// the fingerprint the gate actually reads: it is NOT the prompt and NOT the UA
+// (IDE, CLI and WorkBuddy all pass) — it is per-conversation attribution
+// headers. Without them: 11128. With them: the gate passes and the request is
+// evaluated on its merits (11140 = account restricted, 200 = served).
+// `msg` on 11128 tells you which check failed; "first message is not system
+// prompt" is handled by the system-prompt injection below.
+function conversationHeaders() {
+  const hex = () => randomBytes(16).toString("hex");
+  return {
+    "X-Agent-Intent": "craft",
+    "X-Agent-Purpose": "conversation",
+    "X-Agent-Type": "main",
+    "X-Conversation-ID": hex(),
+    "X-Conversation-Message-ID": hex(),
+    "X-Conversation-Request-ID": hex(),
+    "X-Request-ID": hex(),
+  };
+}
 
 /**
  * CodeBuddyIntlExecutor — talks to https://www.codebuddy.ai/v2/chat/completions
@@ -26,6 +48,10 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
     const resp = result instanceof Response ? result : result?.response;
     captureRotatedToken(resp, input.credentials);
     return result;
+  }
+
+  buildHeaders(credentials, stream = true) {
+    return { ...super.buildHeaders(credentials, stream), ...conversationHeaders() };
   }
 
   parseError(response, bodyText) {
