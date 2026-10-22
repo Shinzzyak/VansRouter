@@ -17,7 +17,11 @@ const REQUIRED_SYSTEM_PROMPT = "You are CodeBuddy Code.";
 // evaluated on its merits (11140 = account restricted, 200 = served).
 // `msg` on 11128 tells you which check failed; "first message is not system
 // prompt" is handled by the system-prompt injection below.
-function conversationHeaders() {
+//
+// Exported so the connection-test path can send the SAME attribution set: a bare
+// `/models` probe is answered by the channel gate with 403, which the generic
+// validator reads as "Invalid API key" and takes a working key out of the pool.
+export function conversationHeaders() {
   const hex = () => randomBytes(16).toString("hex");
   return {
     "X-Agent-Intent": "craft",

@@ -20,6 +20,7 @@ import {
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
 import { validateAgentRouterConnection } from "open-sse/executors/agentrouter.js";
+import { conversationHeaders } from "open-sse/executors/codebuddy-intl.js";
 import { getKimchiUserAgent } from "open-sse/utils/kimchiUserAgent.js";
 import { assertValidKiroRegion } from "open-sse/config/awsRegion.js";
 import { deriveValidateUrl } from "open-sse/providers/schema.js";
@@ -873,6 +874,52 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
           (url, options) => fetchWithConnectionProxy(url, options, effectiveProxy)
         );
         return { valid, error: valid ? null : "Invalid API key" };
+      }
+      case "codebuddy-intl":
+      case "codebuddy-cn": {
+        // The channel gate answers a bare `/models` probe with 403, so the generic
+        // path below reports "Invalid API key" for a key that serves fine — that
+        // verdict is what pulls a working key out of the pool. Probe the real chat
+        // route with the same attribution headers the executor sends, then read
+        // the business code out of the body instead of trusting the status alone.
+        const cfg = PROVIDERS[connection.provider];
+        const model = getDefaultModel(connection.provider) || "deepseek-v4.1-flash";
+        const res = await fetchWithConnectionProxy(cfg.baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+            ...(cfg.headers || {}),
+            Authorization: `Bearer ${connection.apiKey}`,
+            ...conversationHeaders(),
+          },
+          body: JSON.stringify({
+            model,
+            stream: true,
+            max_tokens: 16,
+            messages: [
+              { role: "system", content: "You are CodeBuddy Code." },
+              { role: "user", content: [{ type: "text", text: "hi" }] },
+            ],
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (res.ok) return { valid: true, error: null };
+        const bodyText = await res.text().catch(() => "");
+        let code = null;
+        try { code = JSON.parse(bodyText)?.code ?? null; } catch { /* SSE or html */ }
+        if (code === 11128) {
+          // Key accepted; only the request shape tripped the channel gate.
+          return { valid: true, error: null, warning: "Channel gate (11128) — credential accepted" };
+        }
+        if (code === 11140) {
+          return {
+            valid: false,
+            error: "Account restricted (11140) — credential accepted, account flagged; appeal via POST /v2/feedback",
+          };
+        }
+        if (res.status === 401) return { valid: false, error: "Token invalid or revoked" };
+        return { valid: false, error: `API returned ${res.status}` };
       }
       default: {
         // Generic probe using validateUrl or baseUrl from registry
