@@ -86,6 +86,9 @@ const REFRESH_GRANTS = Object.fromEntries(
 const TRANSIENT_BODY_PATTERNS = [/Hosted_vllmException/i, /Server disconnected/i, /exhausted/i];
 const TRANSIENT_BODY_MAX_ATTEMPTS = 5;
 const TRANSIENT_BODY_DELAY_MS = 1500;
+// Below this, a reasoning model spends the entire budget thinking and returns nothing.
+// Measured 2026-10-25: 700 -> empty; 3000 -> full answer.
+const STARVE_FLOOR_TOKENS = 2048;
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -215,29 +218,59 @@ export class DefaultExecutor extends BaseExecutor {
     return this.ensureThinkingBudget(withReasoning, model);
   }
 
-  // ClinePass / OpenRouter-style thinking models burn all of max_tokens on reasoning
-  // when the budget is too small, leaving content empty (finish_reason: "length").
-  // Bump max_tokens to a safe minimum only when reasoning is enabled and budget undersized.
+  // Thinking models burn the whole max_tokens budget on hidden reasoning and return
+  // content: "" with finish_reason "length". Measured on a live reasoning seat
+  // 2026-10-25: max_tokens=700 -> completion_tokens=700, empty content, 51 of 96
+  // probes (53%) blank; the same prompts at max_tokens=3000 answered ~3000 chars.
+  //
+  // Two different diseases, two different cures:
+  //  - thinking can be turned off (the client just didn't): respect the caller's cap
+  //    and turn thinking off. A 700-token answer is what they asked for; an empty
+  //    answer is not.
+  //  - thinking is mandatory for this model: the cap cannot be honored without
+  //    starving the answer, so raise the ceiling. max_tokens is a ceiling, not a
+  //    spend — the model still stops when it is done.
   ensureThinkingBudget(body, model) {
-    if (!body || this.provider !== "clinepass") return body;
+    if (!body) return body;
     const caps = getCapabilitiesForModel(this.provider, model);
     if (!caps?.reasoning) return body;
 
-    const reasoningEnabled = body.extra_body?.thinking?.type === "enabled"
+    const disabledByClient = body.thinking?.type === "disabled"
+      || body.extra_body?.thinking?.type === "disabled"
+      || body.reasoning_effort === "none" || body.reasoning_effort === "off";
+    if (disabledByClient) return body;
+
+    const bit = body.max_tokens ?? body.max_completion_tokens;
+    const floorTokens = STARVE_FLOOR_TOKENS;
+    const undersized = typeof bit === "number" && bit > 0 && bit < floorTokens;
+
+    const explicitlyEnabled = body.thinking?.type === "enabled"
+      || body.extra_body?.thinking?.type === "enabled"
       || (typeof body.reasoning_effort === "string" && body.reasoning_effort !== "none" && body.reasoning_effort !== "off")
       || body.reasoning_effort === true;
-    if (!reasoningEnabled) return body;
 
-    const MIN_TOKENS = 4096;
-    const cap = typeof caps.maxOutput === "number" && caps.maxOutput > 0 ? caps.maxOutput : MIN_TOKENS;
-    const target = Math.min(MIN_TOKENS, cap);
-    const current = body.max_tokens ?? body.max_completion_tokens;
-
-    if (typeof current !== "number" || current <= 0) {
-      body.max_tokens = target;
-    } else if (current < MIN_TOKENS && current < cap) {
-      body.max_tokens = MIN_TOKENS;
+    if (undersized && caps.thinkingCanDisable === true && !explicitlyEnabled) {
+      body.thinking = { ...(body.thinking || {}), type: "disabled" };
+      body.extra_body = { ...(body.extra_body || {}), thinking: { ...(body.extra_body?.thinking || {}), type: "disabled" } };
+      if (body.reasoning_effort !== undefined) delete body.reasoning_effort;
+      return body;
     }
+
+    if (undersized && caps.thinkingCanDisable === false) {
+      const cap = typeof caps.maxOutput === "number" && caps.maxOutput > 0 ? caps.maxOutput : floorTokens;
+      const target = Math.min(floorTokens, cap);
+      if (body.max_tokens !== undefined || body.max_completion_tokens === undefined) body.max_tokens = target;
+      else body.max_completion_tokens = target;
+      return body;
+    }
+
+    // ClinePass / OpenRouter-style: thinking stays on and an absent budget would let
+    // upstream pick its own (sometimes tiny) default. Only fill when nothing was set.
+    if (this.provider !== "clinepass") return body;
+    const current = body.max_tokens ?? body.max_completion_tokens;
+    if (typeof current === "number" && current > 0) return body;
+    const cap = typeof caps.maxOutput === "number" && caps.maxOutput > 0 ? caps.maxOutput : 4096;
+    body.max_tokens = Math.min(4096, cap);
     return body;
   }
 
