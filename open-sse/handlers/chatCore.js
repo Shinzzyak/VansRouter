@@ -22,6 +22,7 @@ import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDeta
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { emptyReplyKind } from "./chatCore/emptyReason.js";
+import { applyPrefillFlags } from "../rtk/prefill.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { buildCoercedSSEResponse } from "./chatCore/coercedSseHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
@@ -380,6 +381,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // reject the unknown field with a literal 400 (Codex sessions via
   // OpenAI-compatible nodes).
   stripContinuityFields(translatedBody);
+
+  // K225 — a trailing assistant turn is a prefill; DeepSeek/DashScope drop it
+  // unless the body says so. Set the flag before anything else touches the body.
+  if (applyPrefillFlags(translatedBody, { provider, model: upstreamModel })) {
+    log?.debug?.("PREFILL", `${provider}/${upstreamModel} | flag=${Object.keys(translatedBody).find((k) => translatedBody[k] === true && (k === "prefix" || k === "partial"))}`);
+  }
 
   // NVIDIA NIM-hosted Kimi-k2.6/k2.7: ensure upstream body also has stream:false
   if (shouldCoerceStream) {
@@ -969,8 +976,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // 200 with content:"" and finish_reason null. The client cannot tell either
     // from a refusal. Retry once with a larger cap, then classify what is left.
     let emptyRetries = 0;
-    const isEmptyReply = async (res) => {
-      try { return emptyReplyKind(JSON.parse(await res.clone().text())); } catch { return null; }
+    const isEmptyReply = async (response) => {
+      try { return emptyReplyKind(JSON.parse(await response.clone().text())); } catch { return null; }
     };
     let result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone, appendLog });
 
