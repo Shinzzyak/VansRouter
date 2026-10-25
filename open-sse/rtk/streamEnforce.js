@@ -8,11 +8,17 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("streamEnforce") ?? {};
+const __M = "streamEnforce";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const assembleVisibleText = __E.assembleVisibleText ?? ((t = '') => ({ visible: String(t), reasoning: '', structured: false }));
-export const brandStreamEnforceEnabled = __E.brandStreamEnforceEnabled ?? (() => false);
-export const collectReasoningFrames = __E.collectReasoningFrames ?? (() => []);
-export const createBrandEnforceGate = __E.createBrandEnforceGate ?? (() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } }));
-export const rebuildStreamWithText = __E.rebuildStreamWithText ?? (() => null);
-export const splitSseFrames = __E.splitSseFrames ?? ((t = '') => [String(t)]);
+export const assembleVisibleText = __g("assembleVisibleText", ((t = '') => ({ visible: String(t), reasoning: '', structured: false })));
+export const brandStreamEnforceEnabled = __g("brandStreamEnforceEnabled", (() => false));
+export const collectReasoningFrames = __g("collectReasoningFrames", (() => []));
+export const createBrandEnforceGate = __g("createBrandEnforceGate", (() => new TransformStream({ transform(chunk, controller) { controller.enqueue(chunk); } })));
+export const rebuildStreamWithText = __g("rebuildStreamWithText", (() => null));
+export const splitSseFrames = __g("splitSseFrames", ((t = '') => [String(t)]));

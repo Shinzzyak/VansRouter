@@ -630,7 +630,13 @@ async function writeShims(bundle) {
       "// runs as a plain [OI]-compatible proxy (Zero Break Guarantee).",
       'import { loadEngine } from "./engineLoader.js";',
       "",
-      `const __E = loadEngine("${m}") ?? {};`,
+      `const __M = ${JSON.stringify(m)};`,
+      "// K228: resolve at CALL time. A const captured at import pinned whatever the",
+      "// loader saw first, so an import during a miss window got the no-ops forever.",
+      "const __g = (n, fb) => (...a) => {",
+      "  const f = loadEngine(__M)?.[n];",
+      "  return typeof f === \"function\" ? f(...a) : typeof fb === \"function\" ? fb(...a) : fb;",
+      "};",
       "",
     ];
     for (const n of names) {
@@ -639,7 +645,11 @@ async function writeShims(bundle) {
         console.error(`no fallback declared for ${m}.${n}`);
         process.exit(1);
       }
-      out.push(`export const ${n} = __E.${n} ?? ${fb};`);
+      out.push(
+        typeof ns[n] === "function"
+          ? `export const ${n} = __g(${JSON.stringify(n)}, ${fb});`
+          : `export const ${n} = (loadEngine(__M) ?? {})[${JSON.stringify(n)}] ?? ${fb};`
+      );
     }
     out.push("");
     writeFileSync(resolve(RTK, `${m}.js`), out.join("\n"), "utf8");

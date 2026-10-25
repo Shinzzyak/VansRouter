@@ -8,6 +8,12 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("envelopeText") ?? {};
+const __M = "envelopeText";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const unwrapEnvelope = __E.unwrapEnvelope ?? ((text) => (typeof text === 'string' ? text : ''));
+export const unwrapEnvelope = __g("unwrapEnvelope", ((text) => (typeof text === 'string' ? text : '')));

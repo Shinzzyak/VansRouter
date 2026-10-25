@@ -8,10 +8,16 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("voiceCadence") ?? {};
+const __M = "voiceCadence";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const _resetCadence = __E._resetCadence ?? (() => {});
-export const cadenceSnapshot = __E.cadenceSnapshot ?? (() => []);
-export const classifyCadence = __E.classifyCadence ?? (() => ({ score: 100, grade: 'ok', issues: [] }));
-export const getCadence = __E.getCadence ?? (() => null);
-export const recordCadence = __E.recordCadence ?? (() => {});
+export const _resetCadence = __g("_resetCadence", (() => {}));
+export const cadenceSnapshot = __g("cadenceSnapshot", (() => []));
+export const classifyCadence = __g("classifyCadence", (() => ({ score: 100, grade: 'ok', issues: [] })));
+export const getCadence = __g("getCadence", (() => null));
+export const recordCadence = __g("recordCadence", (() => {}));

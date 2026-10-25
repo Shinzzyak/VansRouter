@@ -8,15 +8,21 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("framingGenome") ?? {};
+const __M = "framingGenome";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const AXES = __E.AXES ?? Object.freeze(['UNIT', 'SHAPE', 'FORMAT', 'PARTIAL']);
-export const adoptFraming = __E.adoptFraming ?? (() => null);
-export const dynamicIds = __E.dynamicIds ?? (() => []);
-export const genomeSnapshot = __E.genomeSnapshot ?? (() => ({ count: 0, cap: 0, rungs: [], available: false }));
-export const isSafeFraming = __E.isSafeFraming ?? (() => false);
-export const listDynamic = __E.listDynamic ?? (() => []);
-export const noteDynamic = __E.noteDynamic ?? (() => {});
-export const resetGenome = __E.resetGenome ?? (() => {});
-export const resolveDynamic = __E.resolveDynamic ?? (() => null);
-export const synthesize = __E.synthesize ?? (() => []);
+export const AXES = (loadEngine(__M) ?? {})["AXES"] ?? Object.freeze(['UNIT', 'SHAPE', 'FORMAT', 'PARTIAL']);
+export const adoptFraming = __g("adoptFraming", (() => null));
+export const dynamicIds = __g("dynamicIds", (() => []));
+export const genomeSnapshot = __g("genomeSnapshot", (() => ({ count: 0, cap: 0, rungs: [], available: false })));
+export const isSafeFraming = __g("isSafeFraming", (() => false));
+export const listDynamic = __g("listDynamic", (() => []));
+export const noteDynamic = __g("noteDynamic", (() => {}));
+export const resetGenome = __g("resetGenome", (() => {}));
+export const resolveDynamic = __g("resolveDynamic", (() => null));
+export const synthesize = __g("synthesize", (() => []));

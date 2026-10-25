@@ -8,7 +8,13 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("streamIntegrity") ?? {};
+const __M = "streamIntegrity";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const classifyStreamContent = __E.classifyStreamContent ?? (() => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }));
-export const createStreamIntegrityObserver = __E.createStreamIntegrityObserver ?? (() => ({ push: () => {}, finish: () => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }) }));
+export const classifyStreamContent = __g("classifyStreamContent", (() => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true })));
+export const createStreamIntegrityObserver = __g("createStreamIntegrityObserver", (() => ({ push: () => {}, finish: () => ({ status: 'ok', chars: 0, brandOk: null, refusal: false, engineMissing: true }) })));

@@ -8,27 +8,33 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("selfMeasuringBypass") ?? {};
+const __M = "selfMeasuringBypass";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const DEFAULT_LEVEL = __E.DEFAULT_LEVEL ?? 'T2';
-export const EXPLORE_EVERY = __E.EXPLORE_EVERY ?? 8;
-export const EXPLORE_EVERY_PATUH = __E.EXPLORE_EVERY_PATUH ?? 32;
-export const FRAMING_LEVELS = __E.FRAMING_LEVELS ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
-export const acceptedClass = __E.acceptedClass ?? ((level, kelas) => kelas);
-export const classifyOutcome = __E.classifyOutcome ?? (() => 'PATUH');
-export const escalationClass = __E.escalationClass ?? ((level, kelas) => kelas);
-export const evidenceLevel = __E.evidenceLevel ?? (() => null);
-export const explorationDue = __E.explorationDue ?? (() => false);
-export const firstLevel = __E.firstLevel ?? (() => 'T2');
-export const ledgerSnapshot = __E.ledgerSnapshot ?? (() => ({}));
-export const markExplored = __E.markExplored ?? (() => false);
-export const needsAnotherTry = __E.needsAnotherTry ?? (() => false);
-export const needsFirstPassEscalation = __E.needsFirstPassEscalation ?? (() => false);
-export const needsMoreEscalation = __E.needsMoreEscalation ?? (() => false);
-export const nextFraming = __E.nextFraming ?? (() => null);
-export const nextUnseenLevel = __E.nextUnseenLevel ?? (() => null);
-export const preferredLevel = __E.preferredLevel ?? (() => null);
-export const providerSnapshot = __E.providerSnapshot ?? (() => []);
-export const recordCompliant = __E.recordCompliant ?? (() => {});
-export const recordOutcome = __E.recordOutcome ?? (() => {});
-export const resetLedger = __E.resetLedger ?? (() => {});
+export const DEFAULT_LEVEL = (loadEngine(__M) ?? {})["DEFAULT_LEVEL"] ?? 'T2';
+export const EXPLORE_EVERY = (loadEngine(__M) ?? {})["EXPLORE_EVERY"] ?? 8;
+export const EXPLORE_EVERY_PATUH = (loadEngine(__M) ?? {})["EXPLORE_EVERY_PATUH"] ?? 32;
+export const FRAMING_LEVELS = (loadEngine(__M) ?? {})["FRAMING_LEVELS"] ?? Object.freeze(['T2', 'T1', 'T3', 'T4']);
+export const acceptedClass = __g("acceptedClass", ((level, kelas) => kelas));
+export const classifyOutcome = __g("classifyOutcome", (() => 'PATUH'));
+export const escalationClass = __g("escalationClass", ((level, kelas) => kelas));
+export const evidenceLevel = __g("evidenceLevel", (() => null));
+export const explorationDue = __g("explorationDue", (() => false));
+export const firstLevel = __g("firstLevel", (() => 'T2'));
+export const ledgerSnapshot = __g("ledgerSnapshot", (() => ({})));
+export const markExplored = __g("markExplored", (() => false));
+export const needsAnotherTry = __g("needsAnotherTry", (() => false));
+export const needsFirstPassEscalation = __g("needsFirstPassEscalation", (() => false));
+export const needsMoreEscalation = __g("needsMoreEscalation", (() => false));
+export const nextFraming = __g("nextFraming", (() => null));
+export const nextUnseenLevel = __g("nextUnseenLevel", (() => null));
+export const preferredLevel = __g("preferredLevel", (() => null));
+export const providerSnapshot = __g("providerSnapshot", (() => []));
+export const recordCompliant = __g("recordCompliant", (() => {}));
+export const recordOutcome = __g("recordOutcome", (() => {}));
+export const resetLedger = __g("resetLedger", (() => {}));

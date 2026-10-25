@@ -8,9 +8,15 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("potatoMechanics") ?? {};
+const __M = "potatoMechanics";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const POTATO_MECHANICS_MARKER = __E.POTATO_MECHANICS_MARKER ?? "";
-export const POTATO_MECHANICS_PROMPT = __E.POTATO_MECHANICS_PROMPT ?? "";
-export const hasPotatoMechanics = __E.hasPotatoMechanics ?? (() => false);
-export const injectPotatoMechanics = __E.injectPotatoMechanics ?? (() => {});
+export const POTATO_MECHANICS_MARKER = (loadEngine(__M) ?? {})["POTATO_MECHANICS_MARKER"] ?? "";
+export const POTATO_MECHANICS_PROMPT = (loadEngine(__M) ?? {})["POTATO_MECHANICS_PROMPT"] ?? "";
+export const hasPotatoMechanics = __g("hasPotatoMechanics", (() => false));
+export const injectPotatoMechanics = __g("injectPotatoMechanics", (() => {}));

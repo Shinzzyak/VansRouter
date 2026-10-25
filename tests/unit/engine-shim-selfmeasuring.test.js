@@ -46,10 +46,11 @@ describe('shim: selfMeasuringBypass', () => {
       // K163: T4 (poros UNIT) adalah tingkat keempat. Tiga tingkat lama berdiri di
       // poros TUJUAN yang sudah ditutup spesifikasi refusal vendor.
       expect([...mod.FRAMING_LEVELS]).toEqual(['T2', 'T1', 'T3', 'T4']);
-      // Tangga adaptif harus benar-benar ADA di bundel yang dijalankan; kalau
-      // tidak, bundel lama lolos tes ini dan fiturnya cuma hiasan. `length` tidak
-      // bisa dipakai: parameter ber-default membuatnya tetap 1.
-      expect(String(mod.nextFraming)).toMatch(/adaptif/);
+      // Tangga adaptif harus benar-benar ADA di bundel yang dijalankan: fallback
+      // shim mengembalikan null, jadi nilai nyata dari panggilan ini hanya bisa
+      // datang dari implementasi di bundle (K228 — shim resolve saat dipanggil,
+      // jadi memeriksa String(fn) tidak lagi mengukur apa pun).
+      expect(mod.nextFraming('NOLAK', 'T2', ['T2'])).toBeTruthy();
     } else {
       expect(mod.classifyOutcome('apapun')).toBe('PATUH');
       expect(mod.needsAnotherTry('apapun')).toBe(false);

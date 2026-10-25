@@ -8,8 +8,14 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("modelCapabilities") ?? {};
+const __M = "modelCapabilities";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const classifyResponseFailure = __E.classifyResponseFailure ?? (() => 'unknown');
-export const detectCapabilityFamily = __E.detectCapabilityFamily ?? (() => 'unknown');
-export const getModelCapabilityProfile = __E.getModelCapabilityProfile ?? (() => ({ family: 'unknown', requestStrategy: 'persona', personaStrategy: 'use', reasoningNullContent: true }));
+export const classifyResponseFailure = __g("classifyResponseFailure", (() => 'unknown'));
+export const detectCapabilityFamily = __g("detectCapabilityFamily", (() => 'unknown'));
+export const getModelCapabilityProfile = __g("getModelCapabilityProfile", (() => ({ family: 'unknown', requestStrategy: 'persona', personaStrategy: 'use', reasoningNullContent: true })));

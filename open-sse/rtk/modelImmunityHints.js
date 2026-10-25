@@ -8,9 +8,15 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("modelImmunityHints") ?? {};
+const __M = "modelImmunityHints";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const IMMUNITY_HINTS = __E.IMMUNITY_HINTS ?? Object.freeze({});
-export const immunityHint = __E.immunityHint ?? (() => null);
-export const immunitySnapshot = __E.immunitySnapshot ?? (() => []);
-export const suggestedFirstLevel = __E.suggestedFirstLevel ?? (() => null);
+export const IMMUNITY_HINTS = (loadEngine(__M) ?? {})["IMMUNITY_HINTS"] ?? Object.freeze({});
+export const immunityHint = __g("immunityHint", (() => null));
+export const immunitySnapshot = __g("immunitySnapshot", (() => []));
+export const suggestedFirstLevel = __g("suggestedFirstLevel", (() => null));

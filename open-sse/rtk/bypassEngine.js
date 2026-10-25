@@ -8,29 +8,35 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("bypassEngine") ?? {};
+const __M = "bypassEngine";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const BYPASS_MODES = __E.BYPASS_MODES ?? Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' });
-export const appendEscalationToBody = __E.appendEscalationToBody ?? ((body) => body);
-export const applyBypass = __E.applyBypass ?? ((body) => body);
-export const buildBypassLog = __E.buildBypassLog ?? (() => "");
-export const buildEmptyResponseEscalation = __E.buildEmptyResponseEscalation ?? (() => null);
-export const buildForeignRefusalEscalation = __E.buildForeignRefusalEscalation ?? (() => '');
-export const carriesToolCalls = __E.carriesToolCalls ?? (() => false);
-export const classifyStreamHead = __E.classifyStreamHead ?? (() => null);
-export const detectFramingMismatch = __E.detectFramingMismatch ?? (() => null);
-export const detectGeminiGuardrailRefusal = __E.detectGeminiGuardrailRefusal ?? (() => false);
-export const detectModelFamily = __E.detectModelFamily ?? (() => null);
-export const detectOwnRefusal = __E.detectOwnRefusal ?? ((text) => Boolean(text));
-export const detectRefusal = __E.detectRefusal ?? (() => false);
-export const extractProviderPrefix = __E.extractProviderPrefix ?? ((m) => m);
-export const getEscalationPrompt = __E.getEscalationPrompt ?? (() => null);
-export const getEscalationPromptForLevel = __E.getEscalationPromptForLevel ?? (() => null);
-export const getFramingStrategy = __E.getFramingStrategy ?? (() => null);
-export const isContentSafetyRejected = __E.isContentSafetyRejected ?? (() => false);
-export const isOutputFiltered = __E.isOutputFiltered ?? (() => false);
-export const openerRefusal = __E.openerRefusal ?? (() => false);
-export const peekStreamForRefusal = __E.peekStreamForRefusal ?? (async () => null);
-export const reconstructPeekedStream = __E.reconstructPeekedStream ?? (() => null);
-export const refusalAttributionOf = __E.refusalAttributionOf ?? (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null }));
-export const stripProviderPrefix = __E.stripProviderPrefix ?? ((m) => m);
+export const BYPASS_MODES = (loadEngine(__M) ?? {})["BYPASS_MODES"] ?? Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' });
+export const appendEscalationToBody = __g("appendEscalationToBody", ((body) => body));
+export const applyBypass = __g("applyBypass", ((body) => body));
+export const buildBypassLog = __g("buildBypassLog", (() => ""));
+export const buildEmptyResponseEscalation = __g("buildEmptyResponseEscalation", (() => null));
+export const buildForeignRefusalEscalation = __g("buildForeignRefusalEscalation", (() => ''));
+export const carriesToolCalls = __g("carriesToolCalls", (() => false));
+export const classifyStreamHead = __g("classifyStreamHead", (() => null));
+export const detectFramingMismatch = __g("detectFramingMismatch", (() => null));
+export const detectGeminiGuardrailRefusal = __g("detectGeminiGuardrailRefusal", (() => false));
+export const detectModelFamily = __g("detectModelFamily", (() => null));
+export const detectOwnRefusal = __g("detectOwnRefusal", ((text) => Boolean(text)));
+export const detectRefusal = __g("detectRefusal", (() => false));
+export const extractProviderPrefix = __g("extractProviderPrefix", ((m) => m));
+export const getEscalationPrompt = __g("getEscalationPrompt", (() => null));
+export const getEscalationPromptForLevel = __g("getEscalationPromptForLevel", (() => null));
+export const getFramingStrategy = __g("getFramingStrategy", (() => null));
+export const isContentSafetyRejected = __g("isContentSafetyRejected", (() => false));
+export const isOutputFiltered = __g("isOutputFiltered", (() => false));
+export const openerRefusal = __g("openerRefusal", (() => false));
+export const peekStreamForRefusal = __g("peekStreamForRefusal", (async () => null));
+export const reconstructPeekedStream = __g("reconstructPeekedStream", (() => null));
+export const refusalAttributionOf = __g("refusalAttributionOf", (() => ({ kind: 'self', self: true, externalized: false, delivers: false, roast: false, marker: null })));
+export const stripProviderPrefix = __g("stripProviderPrefix", ((m) => m));

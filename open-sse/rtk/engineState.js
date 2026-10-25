@@ -8,14 +8,20 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("engineState") ?? {};
+const __M = "engineState";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const _resetStatePath = __E._resetStatePath ?? (() => {});
-export const hydrate = __E.hydrate ?? (() => false);
-export const installFlushHooks = __E.installFlushHooks ?? (() => {});
-export const markDirty = __E.markDirty ?? (() => {});
-export const persist = __E.persist ?? (() => false);
-export const persistSlot = __E.persistSlot ?? (() => false);
-export const registerState = __E.registerState ?? (() => {});
-export const stateFilePath = __E.stateFilePath ?? (() => null);
-export const stateStatus = __E.stateStatus ?? (() => ({ file: null, slots: [], enabled: false, dirty: false, debounceMs: 0 }));
+export const _resetStatePath = __g("_resetStatePath", (() => {}));
+export const hydrate = __g("hydrate", (() => false));
+export const installFlushHooks = __g("installFlushHooks", (() => {}));
+export const markDirty = __g("markDirty", (() => {}));
+export const persist = __g("persist", (() => false));
+export const persistSlot = __g("persistSlot", (() => false));
+export const registerState = __g("registerState", (() => {}));
+export const stateFilePath = __g("stateFilePath", (() => null));
+export const stateStatus = __g("stateStatus", (() => ({ file: null, slots: [], enabled: false, dirty: false, debounceMs: 0 })));

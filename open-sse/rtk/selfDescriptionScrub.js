@@ -8,8 +8,14 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("selfDescriptionScrub") ?? {};
+const __M = "selfDescriptionScrub";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const SELF_DESCRIPTION_SCRUB_HEAD_CHARS = __E.SELF_DESCRIPTION_SCRUB_HEAD_CHARS ?? 600;
-export const scrubSelfDescriptionLab = __E.scrubSelfDescriptionLab ?? ((text) => ({ text: String(text ?? ''), changed: false, hits: [] }));
-export const stripPromptDump = __E.stripPromptDump ?? ((text) => ({ text: String(text ?? ''), changed: false, hits: [] }));
+export const SELF_DESCRIPTION_SCRUB_HEAD_CHARS = (loadEngine(__M) ?? {})["SELF_DESCRIPTION_SCRUB_HEAD_CHARS"] ?? 600;
+export const scrubSelfDescriptionLab = __g("scrubSelfDescriptionLab", ((text) => ({ text: String(text ?? ''), changed: false, hits: [] })));
+export const stripPromptDump = __g("stripPromptDump", ((text) => ({ text: String(text ?? ''), changed: false, hits: [] })));

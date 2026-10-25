@@ -8,15 +8,21 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("lexicalHygiene") ?? {};
+const __M = "lexicalHygiene";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const INSTRUCTION_LEAK_INTERNAL_MIN = __E.INSTRUCTION_LEAK_INTERNAL_MIN ?? 3;
-export const INSTRUCTION_LEAK_RATIO = __E.INSTRUCTION_LEAK_RATIO ?? 0.5;
-export const INSTRUCTION_LEAK_RUN_MIN = __E.INSTRUCTION_LEAK_RUN_MIN ?? 60;
-export const LEXICAL_SIGNATURES = __E.LEXICAL_SIGNATURES ?? Object.freeze([]);
-export const findHardLeaks = __E.findHardLeaks ?? (() => []);
-export const findInstructionLeak = __E.findInstructionLeak ?? (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: null }));
-export const findLexicalSignatures = __E.findLexicalSignatures ?? (() => []);
-export const findParaphraseLeak = __E.findParaphraseLeak ?? (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' }));
-export const instructionLeakAxes = __E.instructionLeakAxes ?? (() => ({ run: 0, markers: 0, owner: null }));
-export const instructionLeakBlocks = __E.instructionLeakBlocks ?? (() => []);
+export const INSTRUCTION_LEAK_INTERNAL_MIN = (loadEngine(__M) ?? {})["INSTRUCTION_LEAK_INTERNAL_MIN"] ?? 3;
+export const INSTRUCTION_LEAK_RATIO = (loadEngine(__M) ?? {})["INSTRUCTION_LEAK_RATIO"] ?? 0.5;
+export const INSTRUCTION_LEAK_RUN_MIN = (loadEngine(__M) ?? {})["INSTRUCTION_LEAK_RUN_MIN"] ?? 60;
+export const LEXICAL_SIGNATURES = (loadEngine(__M) ?? {})["LEXICAL_SIGNATURES"] ?? Object.freeze([]);
+export const findHardLeaks = __g("findHardLeaks", (() => []));
+export const findInstructionLeak = __g("findInstructionLeak", (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: null })));
+export const findLexicalSignatures = __g("findLexicalSignatures", (() => []));
+export const findParaphraseLeak = __g("findParaphraseLeak", (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' })));
+export const instructionLeakAxes = __g("instructionLeakAxes", (() => ({ run: 0, markers: 0, owner: null })));
+export const instructionLeakBlocks = __g("instructionLeakBlocks", (() => []));

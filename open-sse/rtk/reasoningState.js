@@ -8,8 +8,14 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("reasoningState") ?? {};
+const __M = "reasoningState";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const prepareBodyForCandidate = __E.prepareBodyForCandidate ?? (() => ({ action: 'preserve', reason: 'engine_absent', removed: [] }));
-export const reasoningStatePolicy = __E.reasoningStatePolicy ?? (() => ({ action: 'preserve', reason: 'engine_absent', removed: [] }));
-export const stripReasoningState = __E.stripReasoningState ?? (() => []);
+export const prepareBodyForCandidate = __g("prepareBodyForCandidate", (() => ({ action: 'preserve', reason: 'engine_absent', removed: [] })));
+export const reasoningStatePolicy = __g("reasoningStatePolicy", (() => ({ action: 'preserve', reason: 'engine_absent', removed: [] })));
+export const stripReasoningState = __g("stripReasoningState", (() => []));

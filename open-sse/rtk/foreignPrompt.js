@@ -8,11 +8,17 @@
 // runs as a plain [OI]-compatible proxy (Zero Break Guarantee).
 import { loadEngine } from "./engineLoader.js";
 
-const __E = loadEngine("foreignPrompt") ?? {};
+const __M = "foreignPrompt";
+// K228: resolve at CALL time. A const captured at import pinned whatever the
+// loader saw first, so an import during a miss window got the no-ops forever.
+const __g = (n, fb) => (...a) => {
+  const f = loadEngine(__M)?.[n];
+  return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
+};
 
-export const FOREIGN_PROMPT_MAX_STRIP_CHARS = __E.FOREIGN_PROMPT_MAX_STRIP_CHARS ?? 600;
-export const FOREIGN_PROMPT_SEP = __E.FOREIGN_PROMPT_SEP ?? "\n\n";
-export const classifyForeignSegment = __E.classifyForeignSegment ?? (() => null);
-export const detectForeignPrompts = __E.detectForeignPrompts ?? (() => ({ stripped: 0, hits: [] }));
-export const isOwnSegment = __E.isOwnSegment ?? (() => false);
-export const stripForeignPrompts = __E.stripForeignPrompts ?? (() => ({ stripped: 0, hits: [] }));
+export const FOREIGN_PROMPT_MAX_STRIP_CHARS = (loadEngine(__M) ?? {})["FOREIGN_PROMPT_MAX_STRIP_CHARS"] ?? 600;
+export const FOREIGN_PROMPT_SEP = (loadEngine(__M) ?? {})["FOREIGN_PROMPT_SEP"] ?? "\n\n";
+export const classifyForeignSegment = __g("classifyForeignSegment", (() => null));
+export const detectForeignPrompts = __g("detectForeignPrompts", (() => ({ stripped: 0, hits: [] })));
+export const isOwnSegment = __g("isOwnSegment", (() => false));
+export const stripForeignPrompts = __g("stripForeignPrompts", (() => ({ stripped: 0, hits: [] })));
