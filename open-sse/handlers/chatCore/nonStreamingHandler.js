@@ -18,6 +18,7 @@ import { classifyResponse, INTEGRITY } from "../../rtk/responseIntegrity.js";
 import { enforceChatBrand } from "./brandRepair.js";
 import { emptyReasonFor, emptyReasonHeaders, isReplayableReply } from "./emptyReason.js";
 import { recordIntegrity } from "../../rtk/refusalDrift.js";
+import { prefillText, stripEchoedPrefill } from "../../rtk/prefill.js";
 import { assessPersonaBreach, recordPersonaBreach } from "../../rtk/personaBreach.js";
 import { firstLevel, recordOutcome, recordCompliant } from "../../rtk/selfMeasuringBypass.js";
 import { outcomeClassFromIntegrity } from "../../rtk/responseIntegrity.js";
@@ -392,6 +393,22 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       ? (finalResponse.content.find(b => b.type === "text")?.text || "")
       : null)
     || "";
+  // K227 — an upstream that closes the final assistant turn answers a prefill
+  // with a fresh turn, so the reply repeats the prefix the client already holds.
+  // Strip the echo before integrity/brand repair runs, or the client ends up
+  // shipping prefix + prefix again.
+  const sentPrefill = prefillText(translatedBody);
+  if (sentPrefill && respContent) {
+    const cleaned = stripEchoedPrefill(sentPrefill, respContent);
+    if (cleaned.echoed) {
+      respContent = cleaned.text;
+      const msg = finalResponse?.choices?.[0]?.message;
+      if (msg) msg.content = cleaned.text;
+      // ponytail: Claude-format (content blocks) left alone — a prefill there is
+      // native, not a flag passthrough. Add a block walker if buyers report it.
+      console.log(`[PREFILL] ${provider}/${model} closed the assistant turn — echoed prefix stripped`);
+    }
+  }
   const respThinking = finalResponse?.choices?.[0]?.message?.reasoning_content
     || (Array.isArray(finalResponse?.content)
       ? finalResponse.content.find(b => b.type === "thinking")?.thinking

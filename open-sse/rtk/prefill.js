@@ -26,6 +26,42 @@ export function prefillFlag(provider, model) {
   return null;
 }
 
+/** The trailing assistant text the upstream was asked to continue, or null. */
+export function prefillText(body) {
+  const messages = body?.messages;
+  if (!Array.isArray(messages) || messages.length === 0) return null;
+  const last = messages[messages.length - 1];
+  if (last?.role !== "assistant" || typeof last.content !== "string") return null;
+  return last.content.trim() ? last.content : null;
+}
+
+const squash = (s) => String(s || "").replace(/\s+/g, " ").trim();
+
+/**
+ * K227 — many gateways close the final assistant turn: the "continuation"
+ * comes back as a fresh answer that repeats the prefix (vLLM #62830, litellm
+ * #28580). The client concatenates prefix + reply, so an echo duplicates it.
+ * Returns { echoed, text } with the repeated prefix removed; text is the reply
+ * unchanged when nothing was echoed.
+ */
+export function stripEchoedPrefill(sent, reply) {
+  const out = { echoed: false, text: reply };
+  if (typeof reply !== "string" || !reply) return out;
+  const needle = squash(sent).replace(/\s+/g, "");
+  if (!needle) return out;
+  let i = 0, j = 0;
+  while (i < reply.length && j < needle.length) {
+    const ch = reply[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch !== needle[j]) return out;
+    i++; j++;
+  }
+  if (j < needle.length) return out;
+  const rest = reply.slice(i).replace(/^\s+/, "");
+  if (!rest) return out;
+  return { echoed: true, text: rest };
+}
+
 /**
  * Set the prefill flag in place when the conversation ends on an assistant turn.
  * Returns true when a flag was applied — the caller only uses that for logging.
