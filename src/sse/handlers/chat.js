@@ -719,7 +719,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       const inbound = scanInbound(guardrailEngine, { ...body, model: `${provider}/${model}` });
       auditFiring(inbound, guardrailTarget, guardrailScope, "inbound");
       if (inbound.action === GUARDRAIL_ACTIONS.block) {
-        return errorResponse(HTTP_STATUS.FORBIDDEN, inbound.message);
+        return errorResponse(HTTP_STATUS.FORBIDDEN, inbound.message, "guardrail_blocked");
       }
       coreBody = inbound.payload;
     }

@@ -65,13 +65,15 @@ test("K218/W4 — a bundle-less router degrades instead of crashing", () => {
   // Every engine export is re-exported through the shim with a no-op fallback.
   // A missing fallback is a `undefined` at the call site, which is a TypeError
   // in the request path — the Zero Break Guarantee broken by a feature flag.
+  //
+  // The binding shape is not the invariant (K228 moved functions to a lazy
+  // __g(name, fallback) wrapper so a miss window cannot pin the no-ops), so
+  // accept any shape that still carries an explicit fallback expression.
   const shim = code(SHIM);
-  assert.ok(
-    /export const needsMoreEscalation = __E\.needsMoreEscalation \?\?/.test(shim),
-    "needsMoreEscalation has no fallback in the shim",
-  );
-  assert.ok(
-    /export const escalationClass = __E\.escalationClass \?\?/.test(shim),
-    "escalationClass has no fallback in the shim",
-  );
+  const hasFallback = (name) =>
+    new RegExp(`export const ${name} = __g\\("${name}",\\s*\\S`).test(shim) ||
+    new RegExp(`export const ${name} = \\(loadEngine\\(__M\\) \\?\\? \\{\\}\\)\\["${name}"\\] \\?\\? \\S`).test(shim) ||
+    new RegExp(`export const ${name} = __E\\.${name} \\?\\? \\S`).test(shim);
+  assert.ok(hasFallback("needsMoreEscalation"), "needsMoreEscalation has no fallback in the shim");
+  assert.ok(hasFallback("escalationClass"), "escalationClass has no fallback in the shim");
 });
