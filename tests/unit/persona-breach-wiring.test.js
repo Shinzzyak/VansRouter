@@ -89,8 +89,14 @@ describe("the shim degrades to 'no opinion', not to 'attack'", () => {
     const src = read("open-sse/rtk/personaBreach.js");
     expect(src).toContain("GENERATED SHIM");
     // A fail-CLOSED fallback here would mean a bundle-less router reports every
-    // request as an attack.
-    expect(src).toMatch(/assessPersonaBreach\s*=\s*__E\.assessPersonaBreach\s*\?\?\s*\(\(\)\s*=>\s*\(\{[^}]*breached:\s*false/);
-    expect(src).toMatch(/classifyPersonaAttack\s*=\s*__E\.classifyPersonaAttack\s*\?\?\s*\(\(\)\s*=>\s*\(\{[^}]*attempt:\s*false/);
+    // request as an attack. Assert the literal defaults, not how the export is
+    // bound — the binding changed in K228 (lazy __g wrapper) and a shape regex
+    // made this test fail for a non-reason.
+    expect(src).toMatch(/breached:\s*false/);
+    expect(src).not.toMatch(/breached:\s*true/);
+    expect(src).toMatch(/attempt:\s*false/);
+    expect(src).not.toMatch(/attempt:\s*true/);
+    // K228: no namespace captured at import time.
+    expect(src).not.toMatch(/__E\s*=\s*loadEngine/);
   });
 });
