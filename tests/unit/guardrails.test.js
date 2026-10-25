@@ -492,6 +492,32 @@ describe("outbound SSE tap", () => {
     expect(pipeGuardrailStream(stream, inert)).toBe(stream);
   });
 
+  it("tells the client why a blocked stream stopped", async () => {
+    // A blocked stream that just goes quiet reads as an empty answer. The
+    // buffered path answers with {"error":...}; the stream must say the same.
+    const engine = new GuardrailEngine(["pii"], ACTION.block);
+    const source = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(openaiFrame("card 4242 4242 4242 4242 here")));
+        controller.close();
+      },
+    });
+    const piped = pipeGuardrailStream(source, engine, FMT.openai);
+    const reader = piped.getReader();
+    const decoder = new TextDecoder();
+    let text = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    expect(text).toContain("guardrail_blocked");
+    expect(text).toContain("Response blocked by a configured guardrail policy");
+    expect(text).not.toContain("4242");
+    expect(text).toContain("[DONE]");
+  });
+
   it("survives a multi-byte character split across two chunks", async () => {
     const engine = new GuardrailEngine(["pii"], ACTION.mask);
     const encoder = new TextEncoder();

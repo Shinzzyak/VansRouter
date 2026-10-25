@@ -37,6 +37,21 @@ const TERMINAL_FRAMES = {
   [STREAM_FORMAT.openai]: 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
 };
 
+// What the client is told when a policy cuts the stream mid-flight. Without it
+// the stream simply stops carrying content and the reader sees an empty answer
+// with no reason — the buffered path answers with the same shape, so the two
+// paths agree instead of one of them failing silently.
+const BLOCKED_FRAMES = {
+  [STREAM_FORMAT.claude]:
+    'event: error\ndata: {"type":"error","error":{"type":"guardrail_blocked","message":"' +
+    BLOCKED_RESPONSE_MESSAGE +
+    '"}}\n\n',
+  // response.failed already carries code + message; a second frame would be noise.
+  [STREAM_FORMAT.responses]: "",
+  [STREAM_FORMAT.openai]:
+    'data: {"error":{"message":"' + BLOCKED_RESPONSE_MESSAGE + '","type":"guardrail_blocked"}}\n\n',
+};
+
 /** Splits the first complete SSE event off an accumulated buffer. */
 export function nextSseEvent(buffer) {
   const normalized = buffer.replace(/\r\n/g, "\n");
@@ -343,13 +358,13 @@ export class OutboundFilter {
     this.isBlocked = true;
     this.held = [];
     this.buffer = "";
-    return this.#terminal();
+    return this.#terminal(BLOCKED_FRAMES[this.format]);
   }
 
-  #terminal() {
+  #terminal(reason = "") {
     if (this.terminated) return "";
     this.terminated = true;
-    return TERMINAL_FRAMES[this.format];
+    return reason + TERMINAL_FRAMES[this.format];
   }
 }
 
