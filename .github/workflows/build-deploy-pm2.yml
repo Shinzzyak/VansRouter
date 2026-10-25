@@ -112,6 +112,7 @@ jobs:
           tests/unit/engine-fail-open.test.js
           tests/unit/executor-const-guard.test.js
           tests/unit/opencode-muse-spark-thinking.test.js
+          tests/unit/thinking-budget-starve.test.js
         env:
           NODE_ENV: test
 
@@ -204,6 +205,7 @@ jobs:
           tests/unit/post-merge-verification.test.js
           tests/unit/engine-not-in-repo.test.js
           tests/unit/engine-fail-open.test.js
+          tests/unit/thinking-budget-starve.test.js
           tests/unit/model-capabilities.test.js
           tests/unit/gemini-guardrail-recovery.test.js
           tests/unit/reasoning-state.test.js
