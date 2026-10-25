@@ -41,6 +41,12 @@ const ENGINE_MODULES = [
   // file to delete. Every entry is fail-open, so a bundle-less router keeps the
   // pre-rev55 behaviour exactly (unlimited).
   "licenseGate",
+  // rev55 watermark + heartbeat (2026-10-25): side-channel only. The watermark
+  // names the licence on every response; the heartbeat names the install on a
+  // schedule. Neither touches a completion byte, which is why they can live in
+  // the engine and still be safe for every request path.
+  "watermark",
+  "heartbeat",
   "godmode",
   "bypassEngine",
   "promptInjectors",
@@ -172,6 +178,23 @@ const FALLBACKS = {
     clampLevelForLicense: "((level) => level)",
     mayAdoptFraming: "(() => true)",
     allowedLevels: "((levels) => levels)",
+  },
+  watermark: {
+    // No bundle, no mark: a legacy install keeps emitting exactly the headers it
+    // emitted before rev55. Never invent a watermark for a build that has none.
+    WATERMARK:
+      "Object.freeze({ VERSION: 'vrw1', LICENCE_HEADER: 'x-vans-router-licence', PROOF_HEADER: 'x-vans-router-watermark' })",
+    maskLicenceId: "(() => null)",
+    licenceProof: "(() => null)",
+    watermarkHeaders: "(() => ({}))",
+    verifyWatermark: "(() => false)",
+  },
+  heartbeat: {
+    HEARTBEAT: "Object.freeze({ DEFAULT_INTERVAL_MS: 0, DEFAULT_TIMEOUT_MS: 0 })",
+    heartbeatPayload: "(() => null)",
+    sendHeartbeat: "async () => ({ ok: false, skipped: 'engine absent' })",
+    startHeartbeat:
+      "(() => ({ beatOnce: async () => ({ ok: false, skipped: 'engine absent' }), stop() {}, running: false }))",
   },
   envelopeText: {
     // Identity: without the bundle the detectors read the body as they always did.

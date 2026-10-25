@@ -35,3 +35,52 @@ http.createServer = (...args) => {
 };
 
 require("./server.js");
+
+// ── rev55 watermark + heartbeat ────────────────────────────────────────────────
+// Loaded from the engine bundle, never from a shim: a server without the bundle
+// keeps the pre-rev55 behaviour exactly (no headers, no timer). Everything here
+// is fail-open — a watermark is never worth taking a request path down for.
+function engineBundle() {
+  try {
+    return require("./data/engine/engine.cjs");
+  } catch (_) {
+    return null;
+  }
+}
+
+const ENGINE = engineBundle();
+const LICENCE = ENGINE && ENGINE.licenseGate;
+const WATERMARK = ENGINE && ENGINE.watermark;
+const HEARTBEAT = ENGINE && ENGINE.heartbeat;
+
+if (LICENCE && WATERMARK && typeof WATERMARK.watermarkHeaders === "function") {
+  const origWriteHead = http.ServerResponse.prototype.writeHead;
+  http.ServerResponse.prototype.writeHead = function patchedWriteHead(...args) {
+    try {
+      const status = LICENCE.licenseStatusCached();
+      const marks = WATERMARK.watermarkHeaders(status);
+      for (const key of Object.keys(marks)) {
+        if (!this.hasHeader(key)) this.setHeader(key, marks[key]);
+      }
+    } catch (_) { /* never break a response for a cosmetic mark */ }
+    return origWriteHead.apply(this, args);
+  };
+}
+
+if (LICENCE && HEARTBEAT && typeof HEARTBEAT.startHeartbeat === "function") {
+  try {
+    const VERSION = require("./package.json").version;
+    const beats = HEARTBEAT.startHeartbeat({
+      url: process.env.VANSROUTER_HEARTBEAT_URL || "",
+      version: VERSION,
+      readStatus: () => LICENCE.licenseStatusCached(),
+    });
+    // First beat only after the server has had a minute to settle: startup
+    // traffic must never compete with a licence ping.
+    if (beats.running) {
+      const firstMs = Number(process.env.VANSROUTER_HEARTBEAT_FIRST_MS || 60_000);
+      const first = setTimeout(() => { beats.beatOnce().catch(() => {}); }, Number.isFinite(firstMs) ? Math.max(0, firstMs) : 60_000);
+      if (typeof first.unref === "function") first.unref();
+    }
+  } catch (_) { /* a heartbeat is a nicety, not a dependency */ }
+}
