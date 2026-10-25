@@ -211,6 +211,10 @@ const FALLBACKS = {
   },
   bypassEngine: {
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
+    // K235: the ladder resolves a recipe through the registered resolver. Without
+    // the bundle there are no recipes, so this returns '' and framing falls back to
+    // its builtin text — which is the pre-K235 behaviour, not a silent empty frame.
+    builtinFrameText: "(() => '')",
     detectModelFamily: "(() => null)",
     detectFramingMismatch: "(() => null)",
     detectGeminiGuardrailRefusal: "(() => false)",
@@ -446,6 +450,9 @@ const FALLBACKS = {
     dynamicIds: "(() => [])",
     resolveDynamic: "(() => null)",
     adoptFraming: "(() => null)",
+    // K235 chain lane: a chain is ordered user turns; the text of one part is the
+    // part. Empty string is the honest fallback — the ladder must never join turns.
+    variantText: "(() => '')",
     isSafeFraming: "(() => false)",
     synthesize: "(() => [])",
     noteDynamic: "(() => {})",
