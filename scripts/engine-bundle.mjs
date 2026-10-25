@@ -75,6 +75,12 @@ const ENGINE_MODULES = [
   // the dashboard now, so both need a shim (a module in the bundle without a
   // shim is invisible to the router).
   "framingGenome",
+  // K235 — the recipe genome owns compositions (rung references joined into one
+  // block) and chains (ordered user turns). Bundled because the ladder resolves
+  // recipes during a request and the engine state file keeps the pool; without the
+  // shim the ladder silently degrades to single rungs, which is the exact behaviour
+  // the measurements showed is NOT enough.
+  "recipeGenome",
   "promptCorpus",
   "routeGuardMemory",
   "modelImmunityHints",
@@ -445,6 +451,28 @@ const FALLBACKS = {
     noteDynamic: "(() => {})",
     resetGenome: "(() => {})",
     AXES: "Object.freeze(['UNIT', 'SHAPE', 'FORMAT', 'PARTIAL'])",
+  },
+  // K235 — recipe genome. Every entry is fail-open: with no bundle the ladder
+  // keeps its pre-K235 behaviour (single rungs) instead of crashing or, worse,
+  // offering a level the injector cannot resolve. resolveRecipe/resolveChain must
+  // return null (not "") because the ladder tests the value for truthiness before
+  // injecting; an empty string would be a silent no-op frame.
+  recipeGenome: {
+    seedRecipes: "(() => [])",
+    rankedRecipes: "(() => [])",
+    rankedChains: "(() => [])",
+    resolveRecipe: "(() => null)",
+    resolveChain: "(() => null)",
+    recipeMode: "(() => null)",
+    recipePermitted: "(() => false)",
+    recipeSnapshot: "(() => ({ count: 0, cap: 0, recipes: [], available: false }))",
+    noteRecipe: "(() => {})",
+    adoptRecipe: "(() => null)",
+    registerFrameResolver: "(() => {})",
+    isSafeRecipePart: "(() => false)",
+    familyOf: "(() => 'unknown')",
+    resetRecipes: "(() => {})",
+    RECIPE_LIMITS: "Object.freeze({ MAX_RECIPES: 0, MAX_PARTS: 0, MAX_CHAIN_TURNS: 0, MAX_PROMPT_CHARS: 0, MIN_TRIES_TO_RETIRE: 0, RETIRE_RATE: 1 })",
   },
   // K165 — corpus is a measurement sidecar; without the bundle nothing is
   // sampled and nothing is written to disk. Fail-silent is correct here: a
