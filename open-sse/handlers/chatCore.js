@@ -21,6 +21,7 @@ import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
+import { emptyReplyKind } from "./chatCore/emptyReason.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { buildCoercedSSEResponse } from "./chatCore/coercedSseHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
@@ -962,6 +963,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // True non-streaming response
   if (!stream) {
+    // K224 — empty reply is a failed generation, not an answer. A reasoning
+    // model that spends the whole cap on hidden reasoning returns 200 with
+    // content:"" and finish_reason "length"; a hidden upstream failure returns
+    // 200 with content:"" and finish_reason null. The client cannot tell either
+    // from a refusal. Retry once with a larger cap, then classify what is left.
+    let emptyRetries = 0;
+    const isEmptyReply = async (res) => {
+      try { return emptyReplyKind(JSON.parse(await res.clone().text())); } catch { return null; }
+    };
     let result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone, appendLog });
 
     // ClinePass sometimes returns {success:false, error:"empty response content"} transiently
@@ -976,6 +986,30 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         }
       } catch (retryErr) {
         log?.warn?.("RETRY", `clinepass retry failed: ${retryErr.message}`);
+      }
+    }
+
+    // K224 — see isEmptyReply above: one retry with a bigger cap, then classify.
+    if (result?.success) {
+      const kind = await isEmptyReply(result.response);
+      if (kind && emptyRetries === 0) {
+        emptyRetries++;
+        const requested = Number(finalBody?.max_tokens || translatedBody?.max_tokens || body?.max_tokens) || 1024;
+        const bigger = Math.min(Math.max(requested * 4, 2048), 32768);
+        log?.warn?.("RETRY", `${provider}/${model} | empty reply (finish_reason=${kind}) — retrying once with max_tokens=${bigger}`);
+        recordRefusalMetric("retried", { provider, model, reason: `empty:${kind}` });
+        try {
+          const retry = await executor.execute({ model, body: { ...translatedBody, max_tokens: bigger, stream: false }, stream: false, credentials, signal: streamController.signal, log, proxyOptions });
+          if (retry?.response?.ok) {
+            providerResponse = retry.response;
+            result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone, appendLog });
+            const again = result?.success ? await isEmptyReply(result.response) : null;
+            if (again === "null") {
+              log?.warn?.("RETRY", `${provider}/${model} | still empty without finish_reason after retry — surfacing upstream failure`);
+              return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Upstream returned an empty completion for ${provider}/${model} (no finish_reason) after two attempts.`);
+            }
+          }
+        } catch (e) { log?.warn?.("RETRY", `empty retry failed: ${e?.message || e}`); }
       }
     }
 

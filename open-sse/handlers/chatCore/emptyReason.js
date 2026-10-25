@@ -71,3 +71,27 @@ export function emptyReasonHeadersFor({ content, toolCalls = 0, finishReason = n
 export function isReplayableReply(reason) {
   return !reason || reason === "tool_calls";
 }
+
+/**
+ * Classify an assembled completion body that carries no visible answer.
+ *
+ * K224: the wire shape matters because the two causes need different fixes.
+ * `length` = the cap was eaten by hidden reasoning -> retry with a bigger cap.
+ * `null`   = the upstream returned 200 with no finish reason at all -> that is a
+ *            hidden failure, never an answer, and must surface as an error.
+ * A tool-call turn is complete (payload in `tool_calls`) and returns null.
+ *
+ * @param {any} json — parsed OpenAI-shaped completion
+ * @returns {"length"|"null"|null}
+ */
+export function emptyReplyKind(json) {
+  const ch = json?.choices?.[0];
+  const c = ch?.message?.content;
+  const hasText = typeof c === "string" ? c.trim().length > 0 : Array.isArray(c) && c.length > 0;
+  const hasTools = Array.isArray(ch?.message?.tool_calls) && ch.message.tool_calls.length > 0;
+  if (hasText || hasTools) return null;
+  const fr = ch?.finish_reason ?? null;
+  if (fr === "length") return "length";
+  if (fr === null) return "null";
+  return null;
+}
