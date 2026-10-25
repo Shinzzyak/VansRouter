@@ -11,13 +11,21 @@ const SRC = readFileSync("open-sse/handlers/chatCore.js", "utf8");
 
 describe("K129 — foreign-refusal framing di percobaan pertama", () => {
   it("kedua loop eskalasi memakai framing itu saat escAttempt === 0", () => {
-    const hits = SRC.match(/escAttempt === 0\s*\n?\s*\?\s*buildForeignRefusalEscalation\(\)/g) || [];
+    // K231: both sites now quote the refusal they react to. The L2 site is an
+    // if/else (it also handles exploreFar), the L3 site a ternary, so matching
+    // one source SHAPE made this test go red while the behaviour was correct —
+    // measured on HEAD before K231: 1 ternary hit, not 2. Match the call and
+    // its evidence instead of the punctuation around it.
+    const hits = SRC.match(/buildForeignRefusalEscalation\((responseText|gate\.headText)\)/g) || [];
     expect(hits.length).toBe(2);
+    expect(SRC).toMatch(/if \(escAttempt === 0\) \{/);
+    expect(SRC).toMatch(/escAttempt === 0\s*\n\s*\? buildForeignRefusalEscalation/);
   });
 
   it("ladder lama tetap dipakai setelah percobaan pertama", () => {
-    const hits = SRC.match(/:\s*getEscalationPromptForLevel\(lvl[23], \{ identityFree: personaExempt \}\)/g) || [];
-    expect(hits.length).toBe(2);
+    for (const lvl of ["lvl2", "lvl3"]) {
+      expect(SRC).toContain(`getEscalationPromptForLevel(${lvl}, { identityFree: personaExempt })`);
+    }
   });
 
   it("fungsinya benar-benar diimpor dari bypassEngine", () => {

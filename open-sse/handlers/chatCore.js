@@ -1098,7 +1098,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           let esc;
           if (escAttempt === 0) {
             const farPrompt = exploreFar ? getEscalationPromptForLevel(lvl2, { identityFree: personaExempt }) : null;
-            esc = farPrompt || buildForeignRefusalEscalation();
+            // K231 — pass the refusal ITSELF. Without the snippet the model is
+            // asked to disown a text it cannot see, so the flip is generic; with
+            // it, the exact sentence comes back labelled as the other model's
+            // garbage. `responseText` is the raw body this ladder was opened for.
+            esc = farPrompt || buildForeignRefusalEscalation(responseText);
           } else {
             esc = getEscalationPromptForLevel(lvl2, { identityFree: personaExempt });
           }
@@ -1224,8 +1228,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           // K129: attempt 0 does not argue about permission — it hands the
           // refusal back to a fictional foreign agent so continuing is the
           // consistent move. Attempts 1..2 keep the proven authorization ladder.
+          // K231: quote the offending stream head so the flip has evidence.
           const esc = escAttempt === 0
-            ? buildForeignRefusalEscalation()
+            ? buildForeignRefusalEscalation(gate.headText)
             : getEscalationPromptForLevel(lvl3, { identityFree: personaExempt });
           const m = [...(translatedBody.messages || [])];
           for (let i = m.length - 1; i >= 0; i--) {

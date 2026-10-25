@@ -36,6 +36,11 @@ const ENGINE_MODULES = [
   // the four stateful modules import it, and the public repo has to be able to
   // arm persistence on startup WITHOUT the bundle (via the generated shim).
   "engineState",
+  // License gate (rev55). Travels with the bundle because its verdict is what
+  // narrows a revoked copy: a public copy of it would only tell a pirate which
+  // file to delete. Every entry is fail-open, so a bundle-less router keeps the
+  // pre-rev55 behaviour exactly (unlimited).
+  "licenseGate",
   "godmode",
   "bypassEngine",
   "promptInjectors",
@@ -151,6 +156,22 @@ const FALLBACKS = {
     normalizeGodmodeLevel: "(() => null)",
     injectPersonaLock: "(() => {})",
     injectGodmode: "(() => {})",
+  },
+  licenseGate: {
+    // Fail-OPEN everywhere: no bundle = no gate = the product as it was sold.
+    LICENSE_STATE:
+      "Object.freeze({ OK: 'ok', MISSING: 'missing', REVOKED: 'revoked', EXPIRED: 'expired', INVALID: 'invalid' })",
+    LIMITED_LEVELS: "Object.freeze(['T1', 'T2'])",
+    LIMITED_BASE_LEVEL: "'T2'",
+    licensePath: "(() => '')",
+    parseLicense: "(() => null)",
+    licenseStatus: "(() => ({ state: 'missing', limited: false, id: null, fingerprint: null, reason: 'engine_absent', expiresAt: null }))",
+    readLicense: "(() => ({ state: 'missing', limited: false, id: null, fingerprint: null, reason: 'engine_absent', expiresAt: null }))",
+    licenseStatusCached: "(() => ({ state: 'missing', limited: false, id: null, fingerprint: null, reason: 'engine_absent', expiresAt: null }))",
+    _resetLicenseCache: "(() => {})",
+    clampLevelForLicense: "((level) => level)",
+    mayAdoptFraming: "(() => true)",
+    allowedLevels: "((levels) => levels)",
   },
   envelopeText: {
     // Identity: without the bundle the detectors read the body as they always did.
