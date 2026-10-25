@@ -87,8 +87,13 @@ const TRANSIENT_BODY_PATTERNS = [/Hosted_vllmException/i, /Server disconnected/i
 const TRANSIENT_BODY_MAX_ATTEMPTS = 5;
 const TRANSIENT_BODY_DELAY_MS = 1500;
 // Below this, a reasoning model spends the entire budget thinking and returns nothing.
-// Measured 2026-10-25: 700 -> empty; 3000 -> full answer.
-const STARVE_FLOOR_TOKENS = 2048;
+// Measured 2026-10-25 on a 12-step task, one seat:
+//   700  -> content "" ; reasoning 2.699 chars ; completion_tokens 700 (cap spent)
+//   2048 -> content "" ; reasoning 8.392 chars ; completion_tokens 2048 (cap spent)
+//   3000 -> 11 bullets, 1.239 chars, reasoning 9.520 chars
+// So a floor of 2048 would have shipped the same empty answer with a bigger number in
+// the log. 4096 holds reasoning (~2.600 tokens) plus a real answer.
+const STARVE_FLOOR_TOKENS = 4096;
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -220,16 +225,21 @@ export class DefaultExecutor extends BaseExecutor {
 
   // Thinking models burn the whole max_tokens budget on hidden reasoning and return
   // content: "" with finish_reason "length". Measured on a live reasoning seat
-  // 2026-10-25: max_tokens=700 -> completion_tokens=700, empty content, 51 of 96
-  // probes (53%) blank; the same prompts at max_tokens=3000 answered ~3000 chars.
+  // 2026-10-25: max_tokens=700 on a 12-step task -> completion_tokens=700,
+  // reasoning_content 2.699 chars, content "" (2/2); 51 of 96 earlier probes blank;
+  // max_tokens=3000 answered the whole thing.
   //
-  // Two different diseases, two different cures:
-  //  - thinking can be turned off (the client just didn't): respect the caller's cap
-  //    and turn thinking off. A 700-token answer is what they asked for; an empty
-  //    answer is not.
-  //  - thinking is mandatory for this model: the cap cannot be honored without
-  //    starving the answer, so raise the ceiling. max_tokens is a ceiling, not a
-  //    spend — the model still stops when it is done.
+  // The obvious cure — ask upstream to turn thinking off and keep the caller's cap —
+  // was measured and it FAILED: with thinking:{type:"disabled"} the same seat still
+  // spent 700 tokens reasoning and still returned content "". A flag that the
+  // upstream ignores is not a cure, and a provider that claims thinkingCanDisable
+  // can still ignore it.
+  //
+  // So the load-bearing cure is the ceiling, applied whenever the cap is too small to
+  // hold reasoning plus an answer. max_tokens is a ceiling, not a spend: the model
+  // still stops when it is done, and a longer allowance costs nothing on a normal
+  // answer. The disable hint is still sent when the model claims it can be disabled
+  // (it is free and helps the seats that honour it), but nothing depends on it.
   ensureThinkingBudget(body, model) {
     if (!body) return body;
     const caps = getCapabilitiesForModel(this.provider, model);
@@ -249,18 +259,17 @@ export class DefaultExecutor extends BaseExecutor {
       || (typeof body.reasoning_effort === "string" && body.reasoning_effort !== "none" && body.reasoning_effort !== "off")
       || body.reasoning_effort === true;
 
-    if (undersized && caps.thinkingCanDisable === true && !explicitlyEnabled) {
-      body.thinking = { ...(body.thinking || {}), type: "disabled" };
-      body.extra_body = { ...(body.extra_body || {}), thinking: { ...(body.extra_body?.thinking || {}), type: "disabled" } };
-      if (body.reasoning_effort !== undefined) delete body.reasoning_effort;
-      return body;
-    }
-
-    if (undersized && caps.thinkingCanDisable === false) {
+    if (undersized) {
       const cap = typeof caps.maxOutput === "number" && caps.maxOutput > 0 ? caps.maxOutput : floorTokens;
       const target = Math.min(floorTokens, cap);
       if (body.max_tokens !== undefined || body.max_completion_tokens === undefined) body.max_tokens = target;
       else body.max_completion_tokens = target;
+      // Free hint for the seats that honour it; never the thing we rely on.
+      if (caps.thinkingCanDisable === true && !explicitlyEnabled) {
+        body.thinking = { ...(body.thinking || {}), type: "disabled" };
+        body.extra_body = { ...(body.extra_body || {}), thinking: { ...(body.extra_body?.thinking || {}), type: "disabled" } };
+        if (typeof body.reasoning_effort === "string") delete body.reasoning_effort;
+      }
       return body;
     }
 

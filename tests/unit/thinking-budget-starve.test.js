@@ -1,16 +1,14 @@
-// A thinking model starves when the caller's max_tokens is smaller than the reasoning
-// it needs. Measured on a live reasoning seat 2026-10-25: max_tokens=700 ->
-// completion_tokens=700, content "", 51 of 96 probes (53%) blank; the same prompts at
-// max_tokens=3000 answered ~3000 chars.
-//
-// Two cures, chosen by whether the model lets thinking be turned off:
-//  - canDisable true  -> honor the caller's cap, turn thinking off (cap is a contract)
-//  - canDisable false -> thinking is mandatory, so raise the ceiling to a floor
-// Neither path touches a request where the caller asked for enough tokens.
+// A thinking model starves when the caller's max_tokens cannot hold reasoning plus an
+// answer. Measured on a live reasoning seat 2026-10-25, 12-step task:
+//   max_tokens=700                      -> completion_tokens=700, reasoning 2699 chars,
+//                                          content "" (2/2)
+//   max_tokens=700 + thinking disabled  -> content "" again; the seat ignored the flag
+//   max_tokens=3000                     -> full checklist
+// So the cure is the ceiling, not the flag. max_tokens is a ceiling, not a spend.
 import { describe, it, expect, beforeAll } from "vitest";
 
 let executor;
-const FLOOR = 2048;
+const FLOOR = 4096;
 
 beforeAll(async () => {
   const mod = await import("../../open-sse/executors/default.js");
@@ -24,14 +22,20 @@ const run = (provider, model, body) => {
 };
 
 describe("thinking-budget starve guard", () => {
-  it("honors a small cap by turning thinking off when the model allows it", () => {
+  it("raises a starved ceiling to the floor", () => {
     const out = run("deepseek", "deepseek-v4.1-flash", { max_tokens: 700 });
-    expect(out.max_tokens).toBe(700);
-    expect(out.thinking?.type).toBe("disabled");
-    expect(out.extra_body?.thinking?.type).toBe("disabled");
+    expect(out.max_tokens).toBe(FLOOR);
   });
 
-  it("raises the ceiling when thinking cannot be disabled", () => {
+  it("raises the ceiling even when the model claims thinking can be disabled", () => {
+    // the claim is not a contract: one live seat ignored thinking:{type:"disabled"}
+    // and still returned content "" at max_tokens=700
+    const out = run("deepseek", "deepseek-v4.1-flash", { max_tokens: 700 });
+    expect(out.max_tokens).toBe(FLOOR);
+    expect(out.thinking?.type).toBe("disabled"); // free hint, nothing depends on it
+  });
+
+  it("raises the ceiling for a model that cannot disable thinking", () => {
     const out = run("nvidia", "minimaxai/minimax-m2.7", { max_tokens: 700 });
     expect(out.max_tokens).toBeGreaterThanOrEqual(FLOOR);
   });
@@ -53,19 +57,19 @@ describe("thinking-budget starve guard", () => {
     expect(out.thinking).toBeUndefined();
   });
 
-  it("respects a client that already disabled thinking", () => {
-    const out = run("deepseek", "deepseek-v4.1-flash", { max_tokens: 700, thinking: { type: "disabled" } });
-    expect(out.max_tokens).toBe(700);
-    expect(out.extra_body).toBeUndefined();
-  });
-
-  it("does not override a client that explicitly asked for thinking", () => {
+  it("never overrides a client asking for thinking", () => {
     const out = run("deepseek", "deepseek-v4.1-flash", { max_tokens: 700, thinking: { type: "enabled" } });
     expect(out.thinking?.type).toBe("enabled");
+    expect(out.max_tokens).toBe(FLOOR);
   });
 
-  it("honors a small kimi-nvidia cap unchanged (existing contract)", () => {
+  it("raises 2048 too — that cap was measured empty (reasoning ate all of it)", () => {
     const out = run("nvidia", "moonshotai/kimi-k2.6", { max_tokens: 2048 });
-    expect(out.max_tokens).toBe(2048);
+    expect(out.max_tokens).toBe(FLOOR);
+  });
+
+  it("leaves a cap that already sits on the floor unchanged", () => {
+    const out = run("nvidia", "moonshotai/kimi-k2.6", { max_tokens: 4096 });
+    expect(out.max_tokens).toBe(4096);
   });
 });

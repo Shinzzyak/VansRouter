@@ -21,8 +21,12 @@ describe("Kimi NVIDIA max_tokens clamp", () => {
     expect(await transformedMaxTokens("moonshotai/kimi-k2.6", { max_tokens: 64000 })).toBe(16384);
   });
 
-  it("honors a small max_tokens (2048) for k2.6 unchanged", async () => {
-    expect(await transformedMaxTokens("moonshotai/kimi-k2.6", { max_tokens: 2048 })).toBe(2048);
+  // k2.6 is a reasoning model, so the starve guard owns small caps now: 2048 was
+  // measured returning content "" (reasoning spent the whole cap). The clamp's own
+  // contract — never inject when omitted, ceiling at the published limit — is asserted
+  // by the cases around this one.
+  it("lets the starve floor raise a small k2.6 cap to 4096", async () => {
+    expect(await transformedMaxTokens("moonshotai/kimi-k2.6", { max_tokens: 2048 })).toBe(4096);
   });
 
   it("does NOT inject max_tokens when client omits it", async () => {
