@@ -254,6 +254,7 @@ jobs:
           tests/unit/semanticcache.test.js
           tests/unit/pxpipe.test.js
           tests/unit/usage-tracking-estimate.test.js
+          tests/unit/token-calibration-trust.test.js
         env:
           NODE_ENV: test
           VR_ENGINE_BUNDLE: ${{ github.workspace }}/data/engine/engine.cjs
