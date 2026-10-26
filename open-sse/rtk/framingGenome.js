@@ -26,3 +26,4 @@ export const noteDynamic = __g("noteDynamic", (() => {}));
 export const resetGenome = __g("resetGenome", (() => {}));
 export const resolveDynamic = __g("resolveDynamic", (() => null));
 export const synthesize = __g("synthesize", (() => []));
+export const variantText = __g("variantText", (() => ''));

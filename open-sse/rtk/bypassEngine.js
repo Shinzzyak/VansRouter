@@ -22,6 +22,7 @@ export const applyBypass = __g("applyBypass", ((body) => body));
 export const buildBypassLog = __g("buildBypassLog", (() => ""));
 export const buildEmptyResponseEscalation = __g("buildEmptyResponseEscalation", (() => null));
 export const buildForeignRefusalEscalation = __g("buildForeignRefusalEscalation", (() => ''));
+export const builtinFrameText = __g("builtinFrameText", (() => ''));
 export const carriesToolCalls = __g("carriesToolCalls", (() => false));
 export const classifyStreamHead = __g("classifyStreamHead", (() => null));
 export const detectFramingMismatch = __g("detectFramingMismatch", (() => null));
