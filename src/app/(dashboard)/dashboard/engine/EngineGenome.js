@@ -90,10 +90,13 @@ export default function EngineGenome() {
 
   useEffect(() => {
     const ac = new AbortController();
-    load(ac.signal);
+    // Deferred one tick: calling load() synchronously inside the effect body is
+    // a react-hooks/set-state-in-effect error (it setState's on completion).
+    const first = setTimeout(() => load(ac.signal), 0);
     const timer = setInterval(() => load(), 30000);
     return () => {
       ac.abort();
+      clearTimeout(first);
       clearInterval(timer);
     };
   }, [load]);
