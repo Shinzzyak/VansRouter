@@ -21,6 +21,10 @@ export function responsesUsageToOpenAI(usage = {}) {
     prompt_tokens: usage.input_tokens ?? usage.prompt_tokens ?? 0,
     completion_tokens: usage.output_tokens ?? usage.completion_tokens ?? 0,
     total_tokens: usage.total_tokens ?? ((usage.input_tokens ?? usage.prompt_tokens ?? 0) + (usage.output_tokens ?? usage.completion_tokens ?? 0)),
+    // K238: carry the provenance flags through the format conversion, or a
+    // synthesized prompt count would look provider-reported to calibration.
+    ...(usage.estimated === true ? { estimated: true } : {}),
+    ...(usage.prompt_estimated === true ? { prompt_estimated: true } : {}),
   };
 }
 

@@ -2,7 +2,7 @@ import { saveRequestUsage, appendRequestLog, saveRequestDetail } from "@/lib/usa
 import { recordApiKeyUsage } from "@/lib/db/repos/apiKeyUsageRepo.js";
 import { recordUsage } from "@/lib/observ/metrics.js";
 import { COLORS } from "../../utils/stream.js";
-import { canonicalizeUsage } from "../../utils/usageTracking.js";
+import { canonicalizeUsage, isPromptUsageAuthoritative } from "../../utils/usageTracking.js";
 import { estimatePromptTokens, observePrompt } from "open-sse/rtk/tokenProfile.js";
 
 const OPTIONAL_PARAMS = [
@@ -115,8 +115,13 @@ export function saveUsageStats({ provider, model, tokens, requestBody, connectio
   // teach the table a lie. observePrompt rejects anything outside [1/3, 3] and
   // counts the rejection rather than clamping it. Fail-open: an estimate bug must
   // never break a request that already succeeded upstream.
+  //
+  // K238 — and the numerator must be the PROVIDER'S number. When the upstream
+  // sent no usage we synthesize it ourselves (prompt_estimated); feeding that
+  // back divides our estimate by our estimate, so a client who picks the corpus
+  // (emoji-heavy text reads ~28% low) could steer the factor to its 0.5 floor.
   try {
-    if (requestBody) {
+    if (requestBody && isPromptUsageAuthoritative(tokens)) {
       const rawEstimate = estimatePromptTokens(requestBody, model, { calibrate: false });
       if (process.env.TOK1_DEBUG === "1" && rawEstimate === 0) {
         console.error("[TOK1-DEBUG]", typeof requestBody, JSON.stringify(Object.keys(requestBody || {}).slice(0, 12)));

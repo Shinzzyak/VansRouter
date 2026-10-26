@@ -573,6 +573,7 @@ export class DevinCliExecutor extends BaseExecutor {
                   completion_tokens: estCompletionTokens,
                   total_tokens: estPromptTokens + estCompletionTokens,
                   estimated: true,
+                  prompt_estimated: true,
                 },
               })}\n\n`
             );

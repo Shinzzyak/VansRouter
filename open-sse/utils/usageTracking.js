@@ -287,7 +287,26 @@ export function fixZeroCompletionUsage(usage, totalContentLength, cpt) {
 }
 
 /**
- * Extract usage from any format (Claude, OpenAI, Gemini, Responses API)
+ * K238 — is the INPUT side of this usage object the provider's own number?
+ *
+ * The calibration loop divides upstream prompt_tokens by our raw estimate. If
+ * the numerator is itself one of our estimates (provider sent no usage), the
+ * table learns its own output back and a client who shapes the corpus shapes
+ * the factor. Only provider-reported input tokens may teach.
+ *
+ * `estimated: true` alone is NOT enough to reject: fixZeroCompletionUsage sets
+ * it while patching only the OUTPUT side, leaving a genuine prompt count.
+ * Full synthesis marks `prompt_estimated: true` instead.
+ */
+export function isPromptUsageAuthoritative(tokens) {
+  if (!tokens || typeof tokens !== "object") return false;
+  if (tokens.prompt_estimated === true) return false;
+  const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
+  return Number.isFinite(inTokens) && inTokens > 0;
+}
+
+/**
+ * Extract usage from any format (Claude, [OI], Gemini, Responses API)
  */
 export function extractUsage(chunk) {
   if (!chunk || typeof chunk !== "object") return null;
@@ -491,8 +510,9 @@ export function formatUsage(inputTokens, outputTokens, targetFormat) {
   if (targetFormat === FORMATS.CLAUDE) {
     return addBufferToUsage({ 
       input_tokens: inputTokens, 
-      output_tokens: outputTokens, 
-      estimated: true 
+      output_tokens: outputTokens,
+      estimated: true,
+      prompt_estimated: true
     });
   }
 
@@ -501,7 +521,8 @@ export function formatUsage(inputTokens, outputTokens, targetFormat) {
     prompt_tokens: inputTokens,
     completion_tokens: outputTokens,
     total_tokens: inputTokens + outputTokens,
-    estimated: true
+    estimated: true,
+    prompt_estimated: true
   });
 }
 
