@@ -55,9 +55,9 @@ const DEFAULT_SETTINGS = {
   cavemanLevel: "full",
   ponytailEnabled: false,
   ponytailLevel: "full",
-  godmodeEnabled: false,
-  godmodeLevel: "lite",
-  bypassMode: "off",
+  godmodeEnabled: true,
+  godmodeLevel: "max",
+  bypassMode: "aggressive",
   // Global kill-switch for the guardrail taps. Default true: a policy row is an
   // explicit operator decision, so it must not be silently ignored because this
   // setting was never written. Both taps read it per request.
