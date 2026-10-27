@@ -76,10 +76,21 @@ const PATTERN_THINKING = [
 const OPENAI_MAX_EFFORT_MODEL = /(?:^|\/)gpt-(?:5\.6|6)(?:[.-]|$)/i;
 const isOpenAICompatibleNode = (provider) => String(provider || "").startsWith("openai-compatible-");
 
+// True when an OpenAI Compatible node serves a GPT-5.6/GPT-6 id. Those nodes often
+// have no registry entry (caps.reasoning false, thinkingFormat null) yet the id
+// itself proves the reasoning ladder — the caller must not strip the effort.
+export function isOpenAIMaxEffortModel(provider, model) {
+  return isOpenAICompatibleNode(provider)
+    && OPENAI_MAX_EFFORT_MODEL.test(String(model || "").replace(/\([^()]+\)\s*$/, ""));
+}
+
 // Returns valid thinking levels for a model, or null when the model has no reasoning.
 export function getThinkingLevels(provider, model) {
   if (provider === "kiro" && resolveKiroEffortPath(model) === null) return null;
   const caps = getCapabilitiesForModel(provider, model);
+  // An OpenAI Compatible node serving a GPT-5.6/GPT-6 id may have no registry
+  // entry, so `caps.reasoning` is false; the id itself proves the ladder.
+  if (isOpenAIMaxEffortModel(provider, model)) return CODEX_GPT_5_6_LEVELS;
   if (!caps.reasoning) return null;
   // A registry entry that pins `thinkingLevels` wins over the glob: the Codex
   // responses-lite ids share a prefix with the full-ladder GPT-6 models but expose
