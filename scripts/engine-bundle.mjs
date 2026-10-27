@@ -391,6 +391,12 @@ const FALLBACKS = {
     createReceipt: "(() => ({}))",
     recordInjectorResult: "(() => {})",
     summarizeReceipt: "(() => ({}))",
+    // U1 — verifikasi blok di wire. Tanpa bundle: tidak ada bukti (false), bukan
+    // "lulus". Gerbang yang gagal-terbuka bukan gerbang.
+    sealReceipt: "(() => '')",
+    verifyApplied: "(() => ({ checked: 0, verified: 0, missing: [], dropped: [] }))",
+    recordInjectorTexts: "(() => {})",
+    payloadHasText: "(() => false)",
   },
   // Fail-SAFE, bukan fail-open: tanpa bundle, engine tidak boleh mengulang
   // percobaan (sebuah 200 OK dianggap selesai) dan tidak boleh memblokir jalur.
