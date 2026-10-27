@@ -26,3 +26,4 @@ export const findLexicalSignatures = __g("findLexicalSignatures", (() => []));
 export const findParaphraseLeak = __g("findParaphraseLeak", (() => ({ leaked: false, id: null, hits: 0, total: 0, ratio: 0, quote: '', reason: 'paraphrase' })));
 export const instructionLeakAxes = __g("instructionLeakAxes", (() => ({ run: 0, markers: 0, owner: null })));
 export const instructionLeakBlocks = __g("instructionLeakBlocks", (() => []));
+export const stripInvisibleCarriers = __g("stripInvisibleCarriers", ((t) => ({ text: t ?? '', removed: 0 })));
