@@ -124,6 +124,12 @@ const ENGINE_MODULES = [
   // to write around. The module rewrites only system/developer segments that declare
   // a foreign identity, and never touches user/assistant/tool content.
   "foreignPrompt",
+  // Carrier codec (2026-10-27, K248). Lives in the bundle because the value is
+  // the codec contract itself: which invisible ranges are read as BYTES, how a
+  // run is validated, and the printable/letteriness thresholds that keep random
+  // variation selectors from being "decoded" into garbage. A public copy hands
+  // an upstream operator the exact channel shape this router normalises away.
+  "carrierCodec",
 ];
 
 // Copied into the private src dir so the engine's relative imports resolve,
@@ -614,6 +620,16 @@ const FALLBACKS = {
     isOwnSegment: "(() => false)",
     FOREIGN_PROMPT_MAX_STRIP_CHARS: "600",
     FOREIGN_PROMPT_SEP: '"\\n\\n"',
+  },
+
+  carrierCodec: {
+    // Fail-OPEN, teks apa adanya. Tanpa bundle tidak ada codec, jadi tidak ada
+    // yang didekode — persis perilaku sebelum K248. Arah sebaliknya (mengosongkan
+    // teks karena "tidak bisa memastikan") akan menghapus pertanyaan Avres di
+    // router yang cuma kehilangan engine-nya.
+    decodeCarrierText: "((t) => ({ text: t ?? '', decoded: 0 }))",
+    normalizeInboundCarriers: "(() => ({ decoded: 0 }))",
+    hasDecodableCarrier: "(() => false)",
   },
 };
 
