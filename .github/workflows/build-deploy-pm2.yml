@@ -147,7 +147,7 @@ jobs:
           # between, real source would reach the build and ship in the artifact.
           # The module list is read from the bundler so it can never drift from
           # the list that was actually bundled.
-          mods=$(node -e 'const s=require("fs").readFileSync("scripts/engine-bundle.mjs","utf8");const m=s.match(/const ENGINE_MODULES = \[([\s\S]*?)\];/)[1];console.log([...m.matchAll(/"([^"]+)"/g)].map(x=>x[1]).join(" "))')
+          mods=$(node -e 'const s=require("fs").readFileSync("scripts/engine-bundle.mjs","utf8");const m=s.match(/const ENGINE_MODULES = \[([\s\S]*?)\];/)[1].replace(/\/\/.*$/gm,"");console.log([...m.matchAll(/"([^"]+)"/g)].map(x=>x[1]).join(" "))')
           echo "engine modules: $mods"
           for m in $mods; do
             grep -q "GENERATED SHIM" "open-sse/rtk/${m}.js" \
