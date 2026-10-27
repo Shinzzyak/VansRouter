@@ -17,9 +17,5 @@ const __g = (n, fb) => (...a) => {
 };
 
 export const createReceipt = __g("createReceipt", (() => ({})));
-export const payloadHasText = __g("payloadHasText", (() => false));
 export const recordInjectorResult = __g("recordInjectorResult", (() => {}));
-export const recordInjectorTexts = __g("recordInjectorTexts", (() => {}));
-export const sealReceipt = __g("sealReceipt", (() => ''));
 export const summarizeReceipt = __g("summarizeReceipt", (() => ({})));
-export const verifyApplied = __g("verifyApplied", (() => ({ checked: 0, verified: 0, missing: [], dropped: [] })));
