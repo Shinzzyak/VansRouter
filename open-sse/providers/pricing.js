@@ -351,9 +351,22 @@ export const PATTERN_PRICING = [
  * Match a model ID against a glob pattern (* = wildcard). Case-insensitive:
  * registry ids mix casing (e.g. "MiniMax-M2.5" vs "minimax-m2.5").
  */
+// Compiled once per pattern. getPricingForModel walks PATTERN_PRICING (~100
+// entries) on EVERY request, so building the RegExp inside the loop meant ~100
+// compilations per request for a table that never changes at runtime.
+const PATTERN_CACHE = new Map();
+
+function patternRegex(pattern) {
+  let re = PATTERN_CACHE.get(pattern);
+  if (!re) {
+    re = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
+    PATTERN_CACHE.set(pattern, re);
+  }
+  return re;
+}
+
 export function matchPattern(pattern, model) {
-  const regex = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
-  return regex.test(model);
+  return patternRegex(pattern).test(model);
 }
 
 /**
