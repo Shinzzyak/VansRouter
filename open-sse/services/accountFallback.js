@@ -14,6 +14,10 @@ import { getProviderResilienceProfile } from "../config/providerProfiles.js";
  * @param {number} backoffLevel - Current backoff level
  * @returns {number} Cooldown in milliseconds
  */
+// Statuses that point at the credential, not the request. They are handled by the
+// status rules above; listed here so the request-scoped branch never swallows them.
+const ACCOUNT_SCOPED_STATUS = new Set([401, 402, 403, 407, 429]);
+
 export function getQuotaCooldown(backoffLevel = 0) {
   const level = Math.max(0, backoffLevel - 1);
   const cooldown = BACKOFF_CONFIG.base * Math.pow(2, level);
@@ -26,9 +30,13 @@ export function getQuotaCooldown(backoffLevel = 0) {
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level for exponential backoff
- * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number }}
+ * @param {string|null} provider - provider id, for provider-specific profiles
+ * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number, requestScoped?: boolean }}
+ *
+ * `shouldFallback` = "is the credential at fault?" (account rotation).
+ * `requestScoped` = "did this member reject the request itself?" (combo rotation).
  */
-export function checkFallbackError(status, errorText, backoffLevel = 0) {
+export function checkFallbackError(status, errorText, backoffLevel = 0, provider = null) {
   const lowerError = errorText
     ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
     : "";
@@ -57,6 +65,17 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
       }
       return { shouldFallback: true, cooldownMs: rule.cooldownMs };
     }
+  }
+
+  // Request-scoped 4xx: the CREDENTIAL is healthy, the REQUEST itself was rejected
+  // (validation, unsupported parameter, context overflow). Two different questions
+  // share this function: account rotation ("is this credential bad?") and combo
+  // rotation ("can this member serve this request?"). For a 4xx the answer is
+  // no-account-fault + yes-try-the-next-member. Falling through to the transient
+  // default below would both cooldown a healthy account for 30 s and hide the real
+  // cause behind a fabricated 503.
+  if (status >= 400 && status < 500 && !ACCOUNT_SCOPED_STATUS.has(status)) {
+    return { shouldFallback: false, cooldownMs: 0, requestScoped: true };
   }
 
   // Default: transient cooldown for any unmatched error

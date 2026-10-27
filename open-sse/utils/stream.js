@@ -2,7 +2,7 @@ import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, hasZeroCompletionWithContent, fixZeroCompletionUsage, requestCharsPerToken, COLORS } from "./usageTracking.js";
-import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
+import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE, ensureStreamToolCallIds } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
 import { extractToolNames, fuzzyMatchToolName } from "../translator/concerns/toolCall.js";
@@ -130,6 +130,10 @@ export function createSSEStream(options = {}) {
   let openAIResponsesTerminalSeen = false;
   let openAIResponsesDoneSent = false;
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
+  // Streamed tool-call fragments that arrive without an id abort strict clients
+  // ("Expected 'id' to be a string"); this remembers id per index and mints one
+  // for a new index. One map per stream so ids stay stable across fragments.
+  const streamToolCallIds = new Map();
   let finalized = false;
 
   // Usage/logging tail, callable from transform() as well as flush(): a client that
@@ -224,6 +228,7 @@ export function createSSEStream(options = {}) {
               const parsed = JSON.parse(trimmed.slice(5).trim());
 
               const idFixed = fixInvalidId(parsed);
+              const toolIdsFixed = ensureStreamToolCallIds(parsed, streamToolCallIds);
 
               // Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
               let fieldsInjected = false;
@@ -521,6 +526,12 @@ export function createSSEStream(options = {}) {
 
         // Translate: targetFormat -> openai -> sourceFormat
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
+
+        // Fill missing tool-call ids on translated chunks too: an OpenAI-shaped
+        // item (same-format / openai intermediate) carries delta.tool_calls.
+        if (Array.isArray(translated)) {
+          for (const item of translated) ensureStreamToolCallIds(item, streamToolCallIds);
+        }
 
         // Log OpenAI intermediate chunks (if available)
         if (translated?._openaiIntermediate) {

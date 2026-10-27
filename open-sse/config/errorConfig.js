@@ -69,6 +69,11 @@ export const ERROR_RULES = [
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
+  // Credits exhausted: the credential is out, the next model may not be. Without
+  // these the text fell through to the request-scoped 4xx branch (400) and the
+  // combo stopped advancing on an exhausted account instead of trying the next.
+  { text: "insufficient credit",      backoff: true },
+  { text: "credit balance is too low", backoff: true },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
 
