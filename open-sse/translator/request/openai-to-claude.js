@@ -7,6 +7,7 @@ import { parseDataUri } from "../concerns/image.js";
 import { extractTextContent } from "../formats/gemini.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
+import { normalizeStopSequences } from "../concerns/stop.js";
 
 // Empty prefix matches real Claude Code behavior (no tool name prefix).
 // Previously "proxy_" was used but this is a detectable fingerprint difference.
@@ -183,6 +184,13 @@ Respond ONLY with the JSON object, no other text.`);
   }
 
   // Tool choice
+  // OpenAI `stop` → Claude `stop_sequences`. Dropped before: a client asking for
+  // a stop string got a runaway reply whenever the request landed on Claude.
+  const stopSequences = normalizeStopSequences(body.stop);
+  if (stopSequences.length > 0) {
+    result.stop_sequences = stopSequences;
+  }
+
   if (body.tool_choice) {
     result.tool_choice = convertOpenAIToolChoice(body.tool_choice);
   }
