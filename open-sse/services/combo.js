@@ -617,9 +617,21 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
 
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 
+    // The per-candidate timeout used to be the FULL budget on every candidate,
+    // while the rotation deadline was only checked between candidates. N
+    // candidates could therefore spend N×timeout before anything noticed the
+    // deadline had passed: measured live 2026-10-27, a combo/smart-fallback
+    // request answered 502 after 108 s against a 90 s deadline, and a single
+    // candidate probe ran 150 s. Clamp each attempt to the budget that is LEFT
+    // so the deadline is a wall, not a comment.
+    const remainingMs = comboDeadlineMs - (Date.now() - comboStartedAt);
+    const attemptTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? Math.max(1, Math.min(timeoutMs, remainingMs))
+      : timeoutMs;
+
     try {
       let result;
-      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      if (!Number.isFinite(attemptTimeoutMs) || attemptTimeoutMs <= 0) {
         result = await handleSingleModel(body, modelStr);
       } else {
         const timeoutController = new AbortController();
@@ -634,7 +646,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         const timeoutPromise = new Promise((resolve) => {
           timeoutId = setTimeout(() => {
             timedOut = true;
-            log.warn("COMBO", `Model ${modelStr} exceeded ${timeoutMs}ms timeout — falling back`);
+            log.warn("COMBO", `Model ${modelStr} exceeded ${attemptTimeoutMs}ms timeout — falling back`);
             timeoutController.abort(new Error("combo-per-model-timeout"));
             resolve(
               new Response(
@@ -642,7 +654,7 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
                 { status: 524, headers: { "Content-Type": "application/json" } }
               )
             );
-          }, timeoutMs);
+          }, attemptTimeoutMs);
         });
 
         try {
