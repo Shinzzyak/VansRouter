@@ -29,7 +29,10 @@ const hasBundle = isEngineLoaded();
 
 function engineModules() {
   const src = readFileSync(resolve(ROOT, 'scripts/engine-bundle.mjs'), 'utf8');
-  const m = src.match(/const ENGINE_MODULES = \[([\s\S]*?)\];/)[1];
+  // Komentar di blok itu boleh mengutip kata apa pun ("decoded", "marker").
+  // Tanpa membuang komentar dulu, kata kutipan ikut terbaca sebagai nama modul
+  // dan gate mencari shim yang tidak pernah ada.
+  const m = src.match(/const ENGINE_MODULES = \[([\s\S]*?)\];/)[1].replace(/\/\/.*$/gm, '');
   return [...m.matchAll(/"([^"]+)"/g)].map((x) => x[1]);
 }
 
