@@ -579,6 +579,11 @@ const FALLBACKS = {
     // zeros rather than pretend a body was scored. Shape must match the real
     // return object or a probe reading `.run` / `.markers` crashes.
     instructionLeakAxes: "(() => ({ run: 0, markers: 0, owner: null }))",
+    // K238. The ONE non-read-only export here, and the only one whose degraded
+    // answer must be IDENTITY rather than empty: the strip runs on the reply
+    // path, so returning "" would delete every answer on a router that merely
+    // lost its engine. Pass-through is the fail-open direction that keeps text.
+    stripInvisibleCarriers: "((t) => ({ text: t ?? '', removed: 0 }))",
   },
   personaBreach: {
     // Fail-OPEN, and here the direction matters more than usual. Without the
