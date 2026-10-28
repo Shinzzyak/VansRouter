@@ -259,6 +259,11 @@ const FALLBACKS = {
     // bukan rung permukaan, jadi tidak ada augmentasi yang menyelinap masuk.
     augmentSurfaceText: "((t) => t)",
     isSurfaceFrame: "(() => false)",
+    // K256 — rung urutan kata (FlipAttack FWO). Tanpa bundle: teks identitas dan
+    // tidak ada bingkai yang dianggap rung urutan, jadi router jatuh persis ke
+    // perilaku pre-K256.
+    flipWordOrder: "((t) => t)",
+    isFlipFrame: "(() => false)",
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     openerRefusal: "(() => false)",
