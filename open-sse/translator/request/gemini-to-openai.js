@@ -4,6 +4,7 @@ import { adjustMaxTokens } from "../formats/maxTokens.js";
 import { encodeDataUri } from "../concerns/image.js";
 import { collapseTextParts } from "../concerns/message.js";
 import { ROLE, GEMINI_ROLE, OPENAI_BLOCK } from "../schema/index.js";
+import { normalizeStopSequences } from "../concerns/stop.js";
 
 export function geminiToOpenAIRequest(model, body, stream) {
   const req = body.request || body;
@@ -13,11 +14,14 @@ export function geminiToOpenAIRequest(model, body, stream) {
     stream: false
   };
 
-  // Generation config
-  if (body.generationConfig) {
-    const config = body.generationConfig;
+  // Generation config. Reads from `req`, not `body`: the Gemini CLI envelope is
+  // {request:{contents, generationConfig, tools}} and the old code looked at the
+  // unwrapped keys only, so an envelope-shaped request lost its generation
+  // config, contents and tools. `req` was already computed above and never used.
+  if (req.generationConfig) {
+    const config = req.generationConfig;
     if (config.maxOutputTokens) {
-      const tempBody = { max_tokens: config.maxOutputTokens, tools: body.tools };
+      const tempBody = { max_tokens: config.maxOutputTokens, tools: req.tools };
       result.max_tokens = adjustMaxTokens(tempBody);
     }
     if (config.temperature !== undefined) {
@@ -26,11 +30,18 @@ export function geminiToOpenAIRequest(model, body, stream) {
     if (config.topP !== undefined) {
       result.top_p = config.topP;
     }
+    const stops = normalizeStopSequences(config.stopSequences);
+    if (stops.length > 0) result.stop = stops.length === 1 ? stops[0] : stops;
+    if (typeof config.presencePenalty === "number") result.presence_penalty = config.presencePenalty;
+    if (typeof config.frequencyPenalty === "number") result.frequency_penalty = config.frequencyPenalty;
+    if (typeof config.seed === "number") result.seed = config.seed;
+    // Structured output: Gemini asks natively, OpenAI expects response_format.
+    if (config.responseMimeType === "application/json") result.response_format = { type: "json_object" };
   }
 
   // System instruction
-  if (body.systemInstruction) {
-    const systemText = extractGeminiText(body.systemInstruction);
+  if (req.systemInstruction) {
+    const systemText = extractGeminiText(req.systemInstruction);
     if (systemText) {
       result.messages.push({
         role: ROLE.SYSTEM,
@@ -40,8 +51,8 @@ export function geminiToOpenAIRequest(model, body, stream) {
   }
 
   // Convert contents to messages
-  if (body.contents && Array.isArray(body.contents)) {
-    for (const content of body.contents) {
+  if (req.contents && Array.isArray(req.contents)) {
+    for (const content of req.contents) {
       const converted = convertGeminiContent(content);
       if (converted) {
         result.messages.push(converted);
@@ -50,9 +61,9 @@ export function geminiToOpenAIRequest(model, body, stream) {
   }
 
   // Tools
-  if (body.tools && Array.isArray(body.tools)) {
+  if (req.tools && Array.isArray(req.tools)) {
     result.tools = [];
-    for (const tool of body.tools) {
+    for (const tool of req.tools) {
       if (tool.functionDeclarations) {
         for (const func of tool.functionDeclarations) {
           result.tools.push({

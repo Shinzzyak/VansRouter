@@ -4,6 +4,7 @@ import { adjustMaxTokens } from "../formats/maxTokens.js";
 import { encodeDataUri } from "../concerns/image.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
 import { collapseTextParts } from "../concerns/message.js";
+import { normalizeStopSequences } from "../concerns/stop.js";
 
 function stripAnthropicBillingHeader(text) {
   if (typeof text !== "string") return "";
@@ -26,6 +27,16 @@ export function claudeToOpenAIRequest(model, body, stream) {
   // Temperature
   if (body.temperature !== undefined) {
     result.temperature = body.temperature;
+  }
+  if (body.top_p !== undefined) {
+    result.top_p = body.top_p;
+  }
+  // Claude `stop_sequences` → OpenAI `stop` (string when single, array otherwise).
+  // Missing before: a Claude-format client routing to an OpenAI provider lost its
+  // stop sequences and got extra output.
+  const stopSequences = normalizeStopSequences(body.stop_sequences);
+  if (stopSequences.length > 0) {
+    result.stop = stopSequences.length === 1 ? stopSequences[0] : stopSequences;
   }
 
   // System message

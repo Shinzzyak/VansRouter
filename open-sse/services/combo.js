@@ -578,6 +578,9 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   let lastRefusalOutcome = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
+  // First member that rejected the REQUEST itself (4xx validation/context), not
+  // its credential. Returned as-is when no member could serve the request.
+  let requestScopedResult = null;
   // Track the previously-attempted candidate so the reasoning-state policy can
   // strip stale provider-native state (signatures, previous_response_id) before
   // it leaks into a different provider/family on fallback (400 / drift).
@@ -731,11 +734,26 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       }
 
       // Check if should fallback to next model
-      const { shouldFallback, cooldownMs } = checkFallbackError(result.status, errorText);
+      const { shouldFallback, cooldownMs, requestScoped } = checkFallbackError(result.status, errorText);
 
-      if (!shouldFallback) {
+      if (!shouldFallback && !requestScoped) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
         return result;
+      }
+
+      // Request-scoped 4xx: this member cannot serve THIS request (validation,
+      // unsupported parameter, context overflow) — its credential is fine. Members
+      // sit on different providers with different validation, so the next one may
+      // serve it. Advance without cooldown: there is nothing to wait for, and
+      // evicting a healthy account would be a lie about what failed.
+      if (requestScoped) {
+        log.warn("COMBO", `Model ${modelStr} rejected the request (${result.status}), trying next`, { status: result.status });
+        lastError = errorText || String(result.status);
+        if (!lastStatus) lastStatus = result.status;
+        if (!requestScopedResult) requestScopedResult = result;
+        incFallback(...fallbackLabel(modelStr), fallbackReasonFor(result.status));
+        prevCandidate = nextCandidate;
+        continue;
       }
 
       // For transient errors (503/502/504), wait for cooldown before falling through

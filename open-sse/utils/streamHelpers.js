@@ -1,4 +1,5 @@
 import { FORMATS } from "../translator/formats.js";
+import { fallbackToolCallId } from "../translator/concerns/toolCall.js";
 
 // Parse SSE data line
 export function parseSSELine(line, format = null) {
@@ -74,6 +75,47 @@ export function hasValuableContent(chunk, format) {
 }
 
 // Fix invalid id (generic or too short)
+/**
+ * Ensure every streamed tool_call fragment carries an id.
+ *
+ * OpenAI's streaming contract puts `id` + `function.name` on the FIRST fragment
+ * of a call; later fragments carry only `index` + argument deltas. Some upstreams
+ * open a fresh `index` late and omit the id, and strict OpenAI-compatible clients
+ * (@ai-sdk/openai-compatible) then throw "Expected 'id' to be a string" and abort
+ * the whole turn. Remember the id per index and mint one for a new index; the id
+ * stays stable for the rest of the call.
+ *
+ * @param {object} chunk - parsed SSE chunk
+ * @param {Map<number,string>} seenIds - per-stream index -> id
+ * @returns {boolean} true when the chunk was modified
+ */
+export function ensureStreamToolCallIds(chunk, seenIds) {
+  if (!chunk?.choices?.length) return false;
+  let changed = false;
+
+  for (const choice of chunk.choices) {
+    const calls = choice?.delta?.tool_calls;
+    if (!Array.isArray(calls)) continue;
+
+    for (const tc of calls) {
+      if (!tc || typeof tc !== "object") continue;
+
+      if (typeof tc.id === "string" && tc.id.length > 0) {
+        if (tc.index !== undefined) seenIds.set(tc.index, tc.id);
+        continue;
+      }
+
+      const known = tc.index !== undefined ? seenIds.get(tc.index) : undefined;
+      const id = known || fallbackToolCallId(tc.index);
+      tc.id = id;
+      if (tc.index !== undefined) seenIds.set(tc.index, id);
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 export function fixInvalidId(parsed) {
   if (parsed.id && (parsed.id === "chat" || parsed.id === "completion" || parsed.id.length < 8)) {
     const fallbackId = parsed.extend_fields?.requestId || 

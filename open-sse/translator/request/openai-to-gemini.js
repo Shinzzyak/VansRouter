@@ -3,6 +3,8 @@ import { FORMATS } from "../formats.js";
 import { DEFAULT_THINKING_AG_SIGNATURE, DEFAULT_THINKING_GEMINI_CLI_SIGNATURE } from "../../config/defaultThinkingSignature.js";
 import { getGeminiThoughtSignatureSync } from "../../services/thoughtSignatureStore.js";
 import { openaiToClaudeRequestForAntigravity } from "./openai-to-claude.js";
+import { normalizeStopSequences } from "../concerns/stop.js";
+import { geminiResponseFormat } from "../concerns/responseFormat.js";
 function generateUUID() {
   return crypto.randomUUID();
 }
@@ -58,6 +60,26 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
   if (body.max_tokens !== undefined) {
     result.generationConfig.maxOutputTokens = body.max_tokens;
   }
+  // OpenAI `stop` → generationConfig.stopSequences. Same dropped-field bug as
+  // the Claude translator: Gemini rejects "" so empties are filtered upstream.
+  const stopSequences = normalizeStopSequences(body.stop);
+  if (stopSequences.length > 0) {
+    result.generationConfig.stopSequences = stopSequences;
+  }
+  // Penalty/seed: Gemini accepts all three in generationConfig; without this the
+  // values were dropped and sampling behaved differently than the caller asked.
+  for (const [openaiKey, geminiKey] of [
+    ["presence_penalty", "presencePenalty"],
+    ["frequency_penalty", "frequencyPenalty"],
+    ["seed", "seed"],
+  ]) {
+    const v = body[openaiKey];
+    if (typeof v === "number" && Number.isFinite(v)) result.generationConfig[geminiKey] = v;
+  }
+  // Structured output: dulu hilang total di jalur Gemini (JSON mode jadi prosa).
+  const rf = geminiResponseFormat(body.response_format);
+  if (rf.mimeType) result.generationConfig.responseMimeType = rf.mimeType;
+  if (rf.schema) result.generationConfig.responseSchema = rf.schema;
 
   // Build tool_call_id -> function names, queued per id, plus a flat map used
   // only as a fallback. A tool_call_id is unique only within its own assistant

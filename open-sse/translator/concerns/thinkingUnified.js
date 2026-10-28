@@ -4,7 +4,7 @@
 
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 import { PROVIDERS } from "../../providers/index.js";
-import { getThinkingLevels } from "../../providers/thinkingLevels.js";
+import { getThinkingLevels, isOpenAIMaxEffortModel } from "../../providers/thinkingLevels.js";
 import { LEVEL_TO_BUDGET, budgetToLevel, effortToBudget, effortToThinkingLevel } from "./thinking.js";
 
 // Map a target wire-format to its native thinking format (when capability has none).
@@ -251,7 +251,10 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display) {
       if (none && canDisable) { body.reasoning_effort = "none"; break; }
       const level = toLevel(eff);
       // OpenAI reasoning_effort enum caps at "xhigh" (no "max"); clamp Claude Code's "max".
-      if (level) body.reasoning_effort = level === "max" ? "xhigh" : level;
+      // GPT-5.6/GPT-6 publish "max"; an OpenAI Compatible node serving them keeps
+      // it, everything else on the enum caps at xhigh.
+      const allowsMax = Array.isArray(supportedLevels) && supportedLevels.includes("max");
+      if (level) body.reasoning_effort = level === "max" && !allowsMax ? "xhigh" : level;
       break;
     }
     case "tokenrouter": {
@@ -387,12 +390,15 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
   const cfg = override || intent || extractThinking(body);
   const caps = getCapabilitiesForModel(provider, cleanModel);
 
-  // Model cannot reason → strip any stray thinking fields.
-  if (!caps.reasoning) {
+  // Model cannot reason → strip any stray thinking fields. Exception: an OpenAI
+  // Compatible node serving GPT-5.6/GPT-6 has no registry entry, yet the id
+  // carries the effort ladder; stripping would silently drop the client's ask.
+  const maxEffortNode = isOpenAIMaxEffortModel(provider, cleanModel);
+  if (!caps.reasoning && !maxEffortNode) {
     stripAll(body);
     return body;
   }
-  const fmt = resolveFormat(targetFormat, cleanModel, provider);
+  const fmt = maxEffortNode && !caps.thinkingFormat ? "openai" : resolveFormat(targetFormat, cleanModel, provider);
   // AgentRouter proxies GLM-5.x through a Claude-format transport, but the
   // upstream GLM-5.x defaults thinking ON when no reasoning config is sent.
   // If the client did not explicitly request reasoning, force-disable it so

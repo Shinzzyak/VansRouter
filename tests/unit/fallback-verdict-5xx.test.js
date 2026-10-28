@@ -31,8 +31,11 @@ vi.mock("@/lib/localDb", () => ({
 const { markAccountUnavailable } = await import("../../src/sse/services/auth.js");
 
 describe("checkFallbackError — upstream-transient 5xx verdict", () => {
+  // Status di luar kelas 4xx: sejak K249 setiap 4xx non-kredensial dijawab
+  // requestScoped (request ditolak, kredensial sehat), jadi kasus "status tak
+  // dikenal" harus diuji dengan status non-4xx — 599 tetap jatuh ke default.
   it("keeps the 30s default for genuinely unknown statuses", () => {
-    const result = checkFallbackError(418, "teapot", 0);
+    const result = checkFallbackError(599, "teapot", 0);
     expect(result.shouldFallback).toBe(true);
     expect(result.cooldownMs).toBe(TRANSIENT_COOLDOWN_MS);
     expect(TRANSIENT_COOLDOWN_MS).toBe(30_000);
