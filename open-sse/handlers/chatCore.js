@@ -22,7 +22,7 @@ import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDeta
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { emptyReplyKind } from "./chatCore/emptyReason.js";
-import { applyPrefillFlags } from "../rtk/prefill.js";
+import { applyPrefillFlags, appendPrefillTurn, stripPrefillTurn } from "../rtk/prefill.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { buildCoercedSSEResponse } from "./chatCore/coercedSseHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
@@ -880,6 +880,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
           break;
         }
+        // K256 — prefill as a retry rung. Appended AFTER the escalation text so
+        // the upstream continues {task + frame + accepted opener}: the refusal
+        // branch is skipped at the first token instead of argued with. Retries
+        // are non-streaming here, so the echo guard in the non-stream handler
+        // covers the duplicated opener.
+        if (escAttempt > 0) {
+          stripPrefillTurn(translatedBody);
+          const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel });
+          if (pflag) log?.info?.("BYPASS", `${provider}/${model} | prefill rung armed (${pflag})`);
+        }
         if (exploreFar1 && escAttempt === 0) {
           markExplored(model, ledgerKey);
           log?.info?.("BYPASS", `${provider}/${model} | exploration ${lvl1} sent (budget burned, stream gate)`);
@@ -1136,6 +1146,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           if (!appended) {
             log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
             break;
+          }
+          // K256 — prefill rung, same rule as the gate path above.
+          if (escAttempt > 0) {
+            stripPrefillTurn(translatedBody);
+            const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel });
+            if (pflag) log?.info?.("BYPASS", `${provider}/${model} | prefill rung armed (${pflag})`);
           }
           if (exploreFar && escAttempt === 0) {
             markExplored(model, routeKey);
