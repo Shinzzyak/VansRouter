@@ -16,4 +16,5 @@ const __g = (n, fb) => (...a) => {
   return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
 };
 
+export const isBluntDecline = __g("isBluntDecline", (() => false));
 export const isShortDecline = __g("isShortDecline", (() => false));

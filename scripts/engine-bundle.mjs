@@ -405,6 +405,9 @@ const FALLBACKS = {
     // No bundle => no extra detection. The router keeps the pre-K254 behaviour
     // exactly: the marker lists alone decide, and a bare "No." stays healthy.
     isShortDecline: "(() => false)",
+    // K259 — fail-open direction: "not a decline" keeps the old behaviour
+    // (the reply ships as content) instead of arming a ladder that cannot run.
+    isBluntDecline: "(() => false)",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",

@@ -40,6 +40,10 @@ import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
+// K258 — per-NODE attribution on the direct path (no combo wrapper here).
+import { noteNodeVerdict, nodesForModel, explainWall } from "../rtk/providerWall.js";
+import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
+
 import { classifyOutcome, needsAnotherTry, needsMoreEscalation, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, explorationDue, nextUnseenLevel, markExplored, escalationClass } from "../rtk/selfMeasuringBypass.js";
 // K165 — sample the system prompts we receive so the next framing can be written
 // against a measured shape instead of a guess. Off unless VR_PROMPT_CORPUS=1.
@@ -52,6 +56,25 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType } from "../translator/concerns/toolCall.js";
 
 const MAX_POOL_RETRIES = 2;
+// K260 — direct mode has no combo wrapper to notice a refusal, so the body that
+// ships carries the verdict in a header. Streams already get this from the
+// pass-through path; the non-streaming exit had no signal at all.
+// Module scope on purpose: the escalation ladder's shape is guarded by
+// tests/unit/engine-escalation-wiring.test.js and must not grow here.
+function stampShippedVerdict(resp, outcome, provider, model) {
+  // PATUH is the only outcome that is not a candidate for another model. AMBIGU
+  // is "not sure" and stays out: measured on healthy answers, a 3-retry loop on
+  // AMBIGU burned upstream calls and wrote fake losses to the ledger.
+  if (!resp || (outcome !== "NOLAK" && outcome !== "SUBSTITUSI")) return resp;
+  try {
+    const headers = new Headers(resp.headers);
+    headers.set(STREAM_VERDICT_HEADER, outcome);
+    headers.set("x-vansroute-node", `${provider}|${model}`);
+    return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+  } catch {
+    return resp;
+  }
+}
 
 // K257 — how many compositions one NODE gets before the router rotates away.
 //
@@ -690,6 +713,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     return result;
   };
 
+  // K258 — the direct path has no combo wrapper, so nothing recorded per-NODE
+  // verdicts: a refusal on provider A and a refusal on provider B collapsed into
+  // one model-level loss, and the router could not tell "this model refuses" from
+  // "this provider's baked system prompt refuses". AMBIGU is not a verdict.
+  const recordNodeVerdict = (outcome) => {
+    if (outcome === "PATUH") noteNodeVerdict({ provider, model, verdict: "accepted" });
+    else if (outcome === "NOLAK") noteNodeVerdict({ provider, model, verdict: "refused" });
+  };
+
   let providerResponse, providerUrl, providerHeaders, finalBody;
   // Most executors return their registry format. Cursor AgentService is an
   // exception: it is decoded by the executor into OpenAI-compatible output.
@@ -924,7 +956,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             } catch { /* plain text or body consumed */ }
             if (retryText && !retryFiltered && !detectOwnRefusal(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} successful`);
-              recordOutcome(model, lvl1, classifyOutcome(retryText, true), ledgerKey);
+              recordOutcome(model, lvl1, classifyOutcome(retryText, true), ledgerKey);              recordNodeVerdict(classifyOutcome(retryText, true));
               streamController.handleComplete();
               return nr;
             }
@@ -934,12 +966,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             // content-safety escalation also threw away a valid agent turn.
             if (retryText && !detectOwnRefusal(retryText) && carriesToolCalls(retryText)) {
               log?.info?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} delivered a tool call`);
-              recordOutcome(model, lvl1, 'PATUH', ledgerKey);
+              recordOutcome(model, lvl1, 'PATUH', ledgerKey);              recordNodeVerdict('PATUH');
               streamController.handleComplete();
               return nr;
             }
             const cls1 = classifyOutcome(retryText, true);
-            recordOutcome(model, lvl1, cls1, ledgerKey);
+            recordOutcome(model, lvl1, cls1, ledgerKey);            recordNodeVerdict(cls1);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
             if (escAttempt < ESC_ATTEMPTS - 1) {
               lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText, ledgerKey)?.level ?? lvl1;
@@ -1093,6 +1125,20 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       const refusalDetected = detectOwnRefusal(responseText) || outcome === 'NOLAK';
       log?.info?.("BYPASS", `${provider}/${model} | inspect: outcome=${outcome} refusal=${refusalDetected} outputFiltered=${outputFiltered} len=${responseText.length}`);
       recordOutcome(model, firstLevel(model), outcome, ledgerKey);
+      recordNodeVerdict(outcome);
+      // K258 — when the ladder has nowhere left to go, SAY WHY. A refusal that
+      // ships silently reads as "the model refused"; the honest statement is
+      // "every node serving this model refused", and that is a provider-prompt
+      // finding, not a model finding. Ops sees it in the log; the buyer gets
+      // the naming line appended below when the ladder is out of rungs.
+      if (outcome === "NOLAK") {
+        const altNodes = (nodesForModel(model) || []).filter((n) => n && n.provider !== provider);
+        if (!altNodes.length) {
+          log?.warn?.("WALL", `${provider}/${model} | ${explainWall(model)} | single-node model: no swap possible, this is the provider system prompt`);
+        } else {
+          log?.info?.("WALL", `${provider}/${model} | refused; ${altNodes.length} other node(s) serve ${model} (not auto-swapped — genome retry owns the first moves)`);
+        }
+      }
       if (refusalDetected || outputFiltered) {
         recordRefusalMetric("detected", { provider, model, outcome, outputFiltered });
       }
@@ -1194,7 +1240,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               // K206 — record AFTER the verdict. A rung that produced an accepted
               // answer earned a win; recording `cls2` here is what kept every
               // synthesized rung at `wins={}` forever (see `acceptedClass`).
-              recordOutcome(model, lvl2, escalationClass(lvl2, cls2, !retryStillRefusal), ledgerKey);
+              recordOutcome(model, lvl2, escalationClass(lvl2, cls2, !retryStillRefusal), ledgerKey);              recordNodeVerdict(escalationClass(lvl2, cls2, !retryStillRefusal));
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 escalationWon = true;
@@ -1218,7 +1264,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           // read instead of whatever the last failed attempt left behind.
           if (preEscalationResult) {
             log?.warn?.("BYPASS", `${provider}/${model} | escalation exhausted, shipping the original refusal as content`);
-            return preEscalationResult;
+            // K260 — stamp the verdict on the body that actually ships. Direct
+            // mode has no combo to read it, so this header is the only signal
+            // the caller has that the request is a candidate for another model.
+            return stampShippedVerdict(preEscalationResult, outcome, provider, model);
           }
         }
       }
@@ -1313,7 +1362,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const retryDelivered = Boolean(retryRaw)
                 && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsMoreEscalation(cls3)));
               // K206 — same rule as the non-streaming ladder: acceptance is the win.
-              recordOutcome(model, lvl3, escalationClass(lvl3, cls3, retryDelivered), ledgerKey);
+              recordOutcome(model, lvl3, escalationClass(lvl3, cls3, retryDelivered), ledgerKey);              recordNodeVerdict(escalationClass(lvl3, cls3, retryDelivered));
               if (retryDelivered) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();

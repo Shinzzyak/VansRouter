@@ -156,8 +156,13 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
     // refusal (3 baris, K-refusal-metrics) mendorong gerbangnya lewat tepi —
     // tes merah padahal perilakunya tidak berubah. Yang tidak boleh ada di jendela
     // ini adalah needsAnotherTry(outcome); itu masih diperiksa di bawah.
-    const gate = chatCore.slice(inspectIdx, inspectIdx + 1400);
-    expect(gate).toMatch(/needsFirstPassEscalation\(/);
+    // Jendela 1400 juga tebakan ukuran, dan komentar K257/K258/K260 mendorong
+    // gerbangnya ke 1919 karakter. Yang dijaga bukan jaraknya: gerbang PERTAMA
+    // sesudah baris inspect harus needsFirstPassEscalation, dan tidak boleh ada
+    // needsAnotherTry(outcome) yang menyelinap di antaranya.
+    const gateIdx = chatCore.indexOf('needsFirstPassEscalation(outcome)', inspectIdx);
+    expect(gateIdx).toBeGreaterThan(inspectIdx);
+    const gate = chatCore.slice(inspectIdx, gateIdx);
     expect(gate).not.toMatch(/needsAnotherTry\(outcome\)/);
   });
 });

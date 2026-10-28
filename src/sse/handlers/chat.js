@@ -47,6 +47,9 @@ import { recordModelDeprecation } from "@/lib/db/repos/modelDeprecationsRepo.js"
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
+// K260 — direct mode gets a second model when the ladder is out of rungs.
+import { nextFallbackModel } from "open-sse/services/modelFallback.js";
+import { STREAM_VERDICT_HEADER } from "open-sse/config/runtimeConfig.js";
 import {
   GUARDRAIL_ACTIONS,
   GUARDRAIL_STREAM_FORMAT,
@@ -414,7 +417,52 @@ export async function handleChat(request, clientRawRequest = null) {
       },
     });
   }
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes });
+  // K260 — the direct path ends here. Wrap it: a shipped refusal is a candidate
+  // for the next model in `settings.refusalFallbackChain`, and nothing else is.
+  return handleDirectWithModelFallback(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes }, settings, log);
+}
+
+/**
+ * K260 — direct-mode model fallback.
+ *
+ * The genome ladder resamples the SAME model (new frame, same weights), and
+ * K258 attributes the failure to a node. Only when both are spent does a
+ * different model make sense — that order is what keeps a provider-prompt
+ * finding from being mis-filed as "the model refuses" and pays no quality change
+ * for something a retry fixes.
+ *
+ * Signal: the `x-vansroute-stream-verdict: NOLAK` header chatCore stamps on a
+ * refusal that actually ships (both streaming pass-through and the
+ * non-streaming exit). Nothing else triggers a swap — a PATUH/AMBIGU answer is
+ * a delivered answer even when it is not the one we hoped for.
+ *
+ * Chain: `settings.refusalFallbackChain`, either an array applied to every
+ * model or a per-model map. Unset = feature off, byte-identical behaviour.
+ */
+async function handleDirectWithModelFallback(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, options, settings, log) {
+  // Which verdicts may spend a model swap. NOLAK by default — a substitution is
+  // a delivered answer that someone may still want; the owner opts in with
+  // refusalFallbackOn: ["NOLAK", "SUBSTITUSI"].
+  const triggers = Array.isArray(settings?.refusalFallbackOn) && settings.refusalFallbackOn.length
+    ? settings.refusalFallbackOn.map(String)
+    : ["NOLAK"];
+  const tried = [modelStr];
+  let response = await handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, options);
+  for (;;) {
+    const verdict = response?.headers?.get?.(STREAM_VERDICT_HEADER);
+    if (!verdict || !triggers.includes(verdict)) return response;
+    const next = nextFallbackModel(tried, settings);
+    if (!next) {
+      log?.warn?.("FALLBACK", `${tried.join(" -> ")} | refusal and no configured next model, shipping as-is`);
+      return response;
+    }
+    // The refusal body is about to be dropped; free its stream first or the
+    // connection leaks for the length of the client's read.
+    try { await response.body?.cancel?.(); } catch { /* already consumed */ }
+    log?.warn?.("FALLBACK", `${tried.join(" -> ")} | NOLAK on ${tried[tried.length - 1]}, trying ${next}`);
+    tried.push(next);
+    response = await handleSingleModelChat({ ...body, model: next }, next, clientRawRequest, request, apiKey, apiKeyInfo, options);
+  }
 }
 
 /**
