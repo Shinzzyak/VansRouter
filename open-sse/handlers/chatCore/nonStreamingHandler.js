@@ -7,7 +7,7 @@ import { createErrorResult } from "../../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../../config/runtimeConfig.js";
 import { unwrapClinepassEnvelope } from "../../utils/clinepassEnvelope.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
-import { parseLenientJson } from "../../utils/lenientJson.js";
+import { parseLenientJson, salvageTruncatedJson } from "../../utils/lenientJson.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats } from "./requestDetail.js";
 import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { recordRefusalMetric } from "../../rtk/refusalMetrics.js";
@@ -234,6 +234,10 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
   let responseBody;
+  // Set when the upstream body arrived cut mid-JSON and was recovered below.
+  // The caller (chatCore) reads it back off the response header to decide
+  // whether one forced-SSE retry is worth the tokens.
+  let salvagedKind = null;
 
   if (contentType.includes("text/event-stream")) {
     const sseText = await providerResponse.text();
@@ -259,6 +263,18 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
           // Fallback: provider might have returned SSE format even with
           // content-type application/json or missing header.
           responseBody = parseSSEToOpenAIResponse(text, model, extractToolNames(body?.tools));
+        }
+        if (!responseBody) {
+          // The upstream may have cut the body mid-string (measured: a 200 whose
+          // JSON stops at ~29 KB while finish_reason is already `length`). That
+          // is not a broken answer, it is a truncated delivery — closing the
+          // open delimiters recovers every token that made it across the cut,
+          // which beats handing the client a 502 for text that exists.
+          responseBody = salvageTruncatedJson(text);
+          if (responseBody) {
+            salvagedKind = responseBody._salvaged || "closed";
+            console.warn(`[ChatCore] Salvaged truncated completion from ${provider} (raw len=${text.length}, kind=${salvagedKind})`);
+          }
         }
         if (!responseBody) {
           appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
@@ -548,9 +564,14 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     });
   }
 
+  const wireBody = restoreToolNames(finalResponse, toolNameMap);
+  if (wireBody && typeof wireBody === "object" && !Array.isArray(wireBody)) {
+    delete wireBody._salvaged;
+  }
+
   return {
     success: true,
-    response: new Response(JSON.stringify(restoreToolNames(finalResponse, toolNameMap)), {
+    response: new Response(JSON.stringify(wireBody), {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -558,6 +579,9 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
         // visible text, say why on the wire — `tool_calls` (a normal agent turn) and
         // `no_text:length` (the cap was eaten by reasoning) are different problems.
         ...emptyReasonHeaders(emptyReason),
+        // Told to the caller, not the client: a salvaged body was cut by the
+        // upstream, so one forced-SSE retry can still recover the full text.
+        ...(salvagedKind ? { "x-vansrouter-salvaged": salvagedKind } : {}),
       }
     })
   };
