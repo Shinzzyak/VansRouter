@@ -1020,6 +1020,26 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       }
     }
 
+    // Truncated-body recovery. The upstream cut the envelope mid-JSON and
+    // nonStreamingHandler salvaged what crossed the cut — honest, but partial.
+    // One forced-SSE retry asks the same node to stream the answer: every event
+    // is small, so the byte ceiling that cut the envelope cannot cut the text,
+    // and the assembler hands back one complete completion. Costs a request only
+    // on the rare truncation path; the salvaged text stays as the fallback.
+    if (result?.success && result.response?.headers?.get?.("x-vansrouter-salvaged")) {
+      const cut = result.response.headers.get("x-vansrouter-salvaged");
+      log?.warn?.("RETRY", `${provider}/${model} | body truncated upstream (${cut}) — one forced-SSE attempt for the full text`);
+      recordRefusalMetric("retried", { provider, model, reason: `truncated:${cut}` });
+      try {
+        const retry = await executor.execute({ model, body: { ...translatedBody, stream: true }, stream: true, credentials, signal: streamController.signal, log, proxyOptions });
+        if (retry?.response?.ok) {
+          const full = await handleForcedSSEToJson({ ...sharedCtx, providerResponse: retry.response, sourceFormat, providerResponseFormat, toolNameMap, trackDone: () => { }, appendLog });
+          if (full?.success) result = full;
+          else log?.warn?.("RETRY", "forced-SSE recovery produced no completion — keeping salvaged text");
+        }
+      } catch (e) { log?.warn?.("RETRY", `truncation recovery failed: ${e?.message || e}`); }
+    }
+
     // Bypass engine: aggressive mode — detect refusal/output-filter and retry
     if (bypassMode === BYPASS_MODES.AGGRESSIVE && result?.success) {
       // result.response is a Response object (from nonStreamingHandler) — extract body text

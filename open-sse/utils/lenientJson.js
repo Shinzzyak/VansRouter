@@ -48,6 +48,97 @@ function extractFirstValue(text, from) {
   return null;
 }
 
+// Close every delimiter the writer never got to. Walks the text once, tracking
+// string state, then appends the missing quote and the missing closers in reverse
+// depth order. Pure string surgery — no parse attempted here.
+function closeTruncatedJson(text) {
+  const stack = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") stack.pop();
+  }
+  let out = text;
+  if (inStr) out += '"';
+  // A dangling `"key":` or trailing comma is not valid JSON once closed.
+  out = out.replace(/,\s*$/, "");
+  out = out.replace(/,?\s*"[^"\\]*"\s*:\s*$/, "");
+  out = out.replace(/,\s*$/, "");
+  for (let i = stack.length - 1; i >= 0; i--) out += stack[i] === "{" ? "}" : "]";
+  return out;
+}
+
+// Decode the escaped tail of a JSON string that was cut mid-flight. Uses
+// JSON.parse on the quoted fragment so escapes (\n, \", \uXXXX) resolve exactly
+// as the upstream meant them, not approximately.
+function decodeStringTail(fragment) {
+  try {
+    return JSON.parse(`"${fragment}"`);
+  } catch {
+    try {
+      return JSON.parse(`"${fragment.replace(/\\$/,"")}"`);
+    } catch {
+      return fragment;
+    }
+  }
+}
+
+/**
+ * Recover a chat completion whose body was CUT mid-JSON by the upstream.
+ *
+ * Measured live (2026-10-28, tiprouter.my.id, `tpr/deepseek-v4.1-flash`): the
+ * relay answers 200 with a body it stops writing at ~29 KB while the model is
+ * still emitting — `finish_reason: length`, JSON truncated inside the `content`
+ * string. Strict parse fails, `parseLenientJson` fails (there is no complete
+ * value to find), SSE fallback fails (it is not SSE), and the client got a 502
+ * for an answer that existed in full on the wire up to the cut.
+ *
+ * Two attempts, cheapest first:
+ *   1. close the open string/containers and parse — keeps usage, finish_reason,
+ *      and every field that made it across the cut;
+ *   2. last resort: lift the `content` string tail verbatim into a synthetic
+ *      completion so the visible text still reaches the client.
+ *
+ * Returns the completion object, or null when the body carries no recoverable
+ * assistant text. Never throws.
+ *
+ * @param {string} raw — raw upstream body
+ * @returns {object|null}
+ */
+export function salvageTruncatedJson(raw) {
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/^\uFEFF/, "").trim();
+  if (!text.startsWith("{") || !text.includes('"choices"')) return null;
+
+  const repaired = tryParse(closeTruncatedJson(text));
+  if (repaired.ok && repaired.value && typeof repaired.value === "object") {
+    const ch = repaired.value.choices?.[0];
+    const content = ch?.message?.content;
+    if (ch && (typeof content === "string" ? content.trim() : content)) {
+      repaired.value._salvaged = "closed";
+      return repaired.value;
+    }
+  }
+
+  const tail = text.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)$/);
+  if (!tail) return null;
+  const content = decodeStringTail(tail[1]);
+  if (!content || !content.trim()) return null;
+  return {
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "length" }],
+    _salvaged: "content_tail",
+  };
+}
+
 export function parseLenientJson(raw) {
   if (typeof raw !== "string") return null;
   const text = raw.replace(/^\uFEFF/, "").trim();
