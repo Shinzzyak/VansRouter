@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { salvageTruncatedJson } from "../../open-sse/utils/lenientJson.js";
+import { handleNonStreamingResponse } from "open-sse/handlers/chatCore/nonStreamingHandler.js";
 
 // Real shape measured 2026-10-28 (tiprouter.my.id, tpr/deepseek-v-4.1-flash):
 // a 200 whose JSON stops mid `content` while the model is still writing. Strict
@@ -77,5 +78,72 @@ describe("salvageTruncatedJson", () => {
   it("does not throw on hostile input", () => {
     const junk = ['{"choices":[', '{"choices":"x"}', '{"choices":[]}', "{" + '"a":'.repeat(5000)];
     for (const j of junk) expect(() => salvageTruncatedJson(j)).not.toThrow();
+  });
+});
+
+// ── handler wiring ────────────────────────────────────────────────────────────
+// The salvage is only worth anything if the handler actually ships the text
+// instead of a 502, and marks the answer so chatCore can try one forced-SSE
+// retry. These two cases are the contract; the parsing cases above are detail.
+
+function cutResponse(raw) {
+  return new Response(raw, { status: 200, headers: { "content-type": "application/json" } });
+}
+
+async function run(providerResponse) {
+  return handleNonStreamingResponse({
+    providerResponse,
+    provider: "test-provider",
+    model: "test-model",
+    sourceFormat: "openai",
+    targetFormat: "openai",
+    body: { model: "test-model", messages: [{ role: "user", content: "hi" }] },
+    stream: false,
+    translatedBody: null,
+    finalBody: null,
+    requestStartTime: Date.now(),
+    connectionId: "c1",
+    apiKey: "sk-test",
+    apiKeyInfo: null,
+    apiKeyName: null,
+    clientModelId: null,
+    clientRawRequest: { endpoint: "/v1/chat/completions", headers: { "content-type": "application/json", "x-9router-token-saver": "off" } },
+    onRequestSuccess: () => {},
+    reqLogger: { logProviderResponse: () => {}, logConvertedResponse: () => {} },
+    toolNameMap: null,
+    trackDone: () => {},
+    appendLog: () => {},
+    pxpipe: null,
+    comboName: null,
+  });
+}
+
+describe("truncated body through the handler", () => {
+  it("answers 200 with the recovered text instead of a 502", async () => {
+    const full = JSON.stringify(FULL);
+    const raw = full.slice(0, full.indexOf("Second line") + 7);
+    const out = await run(cutResponse(raw));
+
+    expect(out.success).toBe(true);
+    expect(out.response.status).toBe(200);
+    expect(out.response.headers.get("x-vansrouter-salvaged")).toBe("closed");
+    const body = await out.response.json();
+    expect(body.choices[0].message.content).toContain("Second");
+    // the private marker never reaches the wire
+    expect(body._salvaged).toBeUndefined();
+  });
+
+  it("leaves a healthy answer unmarked, so no retry is wasted on it", async () => {
+    const out = await run(cutResponse(JSON.stringify(FULL)));
+    expect(out.response.status).toBe(200);
+    expect(out.response.headers.get("x-vansrouter-salvaged")).toBeNull();
+    const body = await out.response.json();
+    expect(body.choices[0].message.content).toBe(FULL.choices[0].message.content);
+  });
+
+  it("still returns 502 for a body with nothing to recover", async () => {
+    const out = await run(cutResponse("Internal Server Error: upstream died"));
+    expect(out.response.status).toBe(502);
+    expect(out.response.headers.get("x-vansrouter-salvaged")).toBeNull();
   });
 });

@@ -60,6 +60,10 @@ const ENGINE_MODULES = [
   "streamIntegrity",
   "streamEnforce",
   "voiceCadence",
+  // K254: the bare-decline shape ("No. Not that one."). Lives in the bundle
+  // because the three detectors that call it already do — a shim that answered
+  // `false` while refusalAttribution answered SELF would split the verdict.
+  "shortDecline",
   // Tokenizer profile (2026-10-21, TOK1). Not a secret: the coefficients are
   // measurable by anyone with a key. It travels with the bundle because the
   // router's own estimate and the calibration it learns must move together —
@@ -214,6 +218,11 @@ const FALLBACKS = {
     // with no attribution layer would change escalation behaviour in a path nobody
     // tested.
     unwrapEnvelope: "((text) => (typeof text === 'string' ? text : ''))",
+    // K254: identity for the ASCII path is the pre-K254 behaviour — a bundle-less
+    // router simply keeps missing typographic apostrophes, which is what it did
+    // before this module existed. Anything cleverer here would be untested code
+    // running in the degraded path.
+    normalizeRefusalChars: "((text) => (typeof text === 'string' ? text : ''))",
   },
   bypassEngine: {
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
@@ -367,6 +376,11 @@ const FALLBACKS = {
     observePrompt: "((model) => ({ family: 'default', factor: 1, ratio: 0, learned: false }))",
     calibrationTable: "(() => [])",
     resetCalibration: "(() => {})",
+  },
+  shortDecline: {
+    // No bundle => no extra detection. The router keeps the pre-K254 behaviour
+    // exactly: the marker lists alone decide, and a bare "No." stays healthy.
+    isShortDecline: "(() => false)",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",
