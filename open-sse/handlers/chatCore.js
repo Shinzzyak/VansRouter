@@ -52,6 +52,18 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType } from "../translator/concerns/toolCall.js";
 
 const MAX_POOL_RETRIES = 2;
+
+// K257 — how many compositions one NODE gets before the router rotates away.
+//
+// Was 3, and the third attempt was the last one the ladder could spend: a content
+// refusal therefore ended on the SAME node with the same three recipes whether or
+// not the genome had more to offer. Measured complaint from the owner: two providers
+// serve deepseek-v4.1-flash, one answers and one refuses — the wall is that node's
+// injected system prompt, so the budget belongs to the NODE, and a node with proven
+// recipes should be exhausted before its twin is abandoned. Each attempt is a
+// different sample (K255 surface / K256 order), so attempts 4-5 are new evidence,
+// not the same hat twice. Bounded: escalationBudgetSpent() is a hard global cap.
+const ESC_ATTEMPTS = Number(process.env.VR_ESC_ATTEMPTS || 5);
 const TOOL_PROTOCOL_PROMPT_PROVIDERS = new Set(["kimchi", "nvidia"]);
 
 export function needsTerminationPrompt(provider, model) {
@@ -867,7 +879,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           log?.info?.("BYPASS", `${provider}/${model} | exploration budget full — first retry uses the far axis ${far1} (stream gate)`);
         }
       }
-      for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+      for (let escAttempt = 0; escAttempt < ESC_ATTEMPTS; escAttempt++) {
         if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
         triedL1.push(lvl1);
         const esc = getEscalationPromptForLevel(lvl1, { identityFree: personaExempt });
@@ -929,7 +941,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             const cls1 = classifyOutcome(retryText, true);
             recordOutcome(model, lvl1, cls1, ledgerKey);
             log?.warn?.("BYPASS", `${provider}/${model} | content-safety escalation ${lvl1} -> ${cls1}, trying next`);
-            if (escAttempt < 2) {
+            if (escAttempt < ESC_ATTEMPTS - 1) {
               lvl1 = nextFraming(cls1, lvl1, triedL1, model, retryText, ledgerKey)?.level ?? lvl1;
             }
           }
@@ -1124,7 +1136,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             log?.info?.("BYPASS", `${routeKey} | exploration budget full — first retry uses the far axis ${far}`);
           }
         }
-        for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+        for (let escAttempt = 0; escAttempt < ESC_ATTEMPTS; escAttempt++) {
           if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
           triedL2.push(lvl2);
           // K129: same first-move as the streaming gate — disown the refusal
@@ -1189,7 +1201,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 break;
               }
               log?.warn?.("BYPASS", `${provider}/${model} | escalation ${lvl2} -> ${cls2}, trying next`);
-              if (escAttempt < 2) {
+              if (escAttempt < ESC_ATTEMPTS - 1) {
                 lvl2 = nextFraming(cls2, lvl2, triedL2, model, retryText, ledgerKey)?.level ?? lvl2;
               }
             }
@@ -1262,7 +1274,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         const triedL3 = [];
         let lvl3 = firstLevel(model);
         recordRefusalMetric("retried", { provider, model, reason: `stream-head ${headVerdict}` });
-        for (let escAttempt = 0; escAttempt < 3; escAttempt++) {
+        for (let escAttempt = 0; escAttempt < ESC_ATTEMPTS; escAttempt++) {
           if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
           triedL3.push(lvl3);
           // K129: attempt 0 does not argue about permission — it hands the
@@ -1308,7 +1320,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 return nr;
               }
               log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} -> ${cls3}, trying next`);
-              if (escAttempt < 2) {
+              if (escAttempt < ESC_ATTEMPTS - 1) {
                 lvl3 = nextFraming(cls3, lvl3, triedL3, model, retryRaw, ledgerKey)?.level ?? lvl3;
               }
             }

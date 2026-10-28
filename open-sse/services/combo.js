@@ -12,6 +12,8 @@ import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { carriesToolCalls } from "../rtk/bypassEngine.js";
+// K257 — refusal attribution per provider NODE (same model, different upstream).
+import { noteNodeVerdict, explainWall } from "../rtk/providerWall.js";
 import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 import { incFallback, FALLBACK_UPSTREAM_ERROR } from "@/lib/observ/metrics.js";
 
@@ -683,6 +685,9 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         // 2xx TIDAK otomatis berarti jawaban bagus. Periksa isinya lebih dulu.
         const inspected = await inspectComboContent(result, modelStr);
         if (!inspected.bad) {
+          // K257 — this NODE answers this model. Evidence, not decoration: with
+          // enough of it the router stops blaming the model for a node's prompt.
+          noteNodeVerdict({ provider: nextCandidate.provider, model: nextCandidate.model, verdict: "accepted" });
           log.info("COMBO", `Model ${modelStr} succeeded`);
           return result;
         }
@@ -697,6 +702,16 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         // yang SESAT sebentar; jawaban yang isinya penolakan bukan gangguan
         // sementara, dan menunggu 5 s sebelum mencoba model berikutnya hanya
         // menambah latensi pada klien yang sudah menerima jawaban buruk.
+        // K257 — attribute the refusal to the node that produced it, then try the
+        // same model on another provider BEFORE burning a slot on a different model.
+        noteNodeVerdict({ provider: nextCandidate.provider, model: nextCandidate.model, verdict: "refused" });
+        if (inspected.outcome !== "SENYAP") {
+          const pulled = bubbleSameModelNext(rotatedModels, i);
+          log.warn("COMBO", `${explainWall(nextCandidate.model)}` +
+            (pulled > 0
+              ? ` — same model on another node goes next: ${rotatedModels[pulled]}`
+              : ` — no other node serves ${nextCandidate.model}`));
+        }
         lastRefusalResponse = result;
         lastRefusalOutcome = inspected.outcome;
         result = {
@@ -829,7 +844,30 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // K145: never echo upstream prose. Only our own synthesized labels may travel to
   // the client; provider payloads, URLs and brand names stay in the log, and the
   // caller gets a class line that says how many candidates were actually tried.
-  const OWN_LABEL = /^(?:empty-refusal|all combo|no credentials|combo deadline|rotation deadline|model .*timed out)/i;
+  // K257 — a refusal names a NODE, not a model.
+//
+// Two providers can serve `deepseek-v4.1-flash` and disagree: one answers, the
+// other refuses because ITS OWN system prompt is the wall. Rotating straight to a
+// different MODEL spends the request's remaining budget on a different animal, when
+// the fix was the same model on the other node. So after a content refusal, the
+// next same-model node is pulled forward one slot — the rest of the rotation is
+// untouched, nothing already tried is retried, and if no such node exists this is a
+// no-op.
+function bubbleSameModelNext(models, i) {
+  const cur = parseModel(models[i]);
+  if (!cur?.model) return -1;
+  for (let j = i + 1; j < models.length; j++) {
+    const cand = parseModel(models[j]);
+    if (cand?.model !== cur.model) continue;
+    if ((cand?.provider || "") === (cur.provider || "")) continue;
+    const [picked] = models.splice(j, 1);
+    models.splice(i + 1, 0, picked);
+    return i + 1;
+  }
+  return -1;
+}
+
+const OWN_LABEL = /^(?:empty-refusal|all combo|no credentials|combo deadline|rotation deadline|model .*timed out)/i;
   const safe = lastError && OWN_LABEL.test(lastError) ? lastError : null;
   const msg = safe
     || `All combo models unavailable (${attempted}/${rotatedModels.length} tried, last status ${rawStatus})`;

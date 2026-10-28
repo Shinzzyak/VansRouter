@@ -30,7 +30,7 @@ describe("K125 — penghitung refusal di gerbang streaming", () => {
   it("tap `retried` masuk sebelum loop eskalasi streaming", () => {
     // lastIndexOf: loop yang SAMA juga dipakai jalur non-streaming, dan indexOf
     // mengambil yang pertama — jendela tes jadi memeriksa blok yang salah.
-    const loopAt = SRC.lastIndexOf("for (let escAttempt = 0; escAttempt < 3; escAttempt++)");
+    const loopAt = SRC.lastIndexOf("for (let escAttempt = 0; escAttempt < ESC_ATTEMPTS; escAttempt++)");
     expect(loopAt).toBeGreaterThan(-1);
     const before = SRC.slice(loopAt - 600, loopAt);
     expect(before).toMatch(/recordRefusalMetric\("retried"/);

@@ -87,6 +87,9 @@ const ENGINE_MODULES = [
   "recipeGenome",
   "promptCorpus",
   "routeGuardMemory",
+  // K257 — per-node refusal attribution. Inside the bundle because the ranking it
+  // produces is the product (which node of a model is walled), not plumbing.
+  "providerWall",
   "modelImmunityHints",
   // Self-description lab scrub (2026-10-13, K99 output half). The prompt-level clause
   // holds wherever the prompt gets a vote; on a provider fronted by a web UI whose own
@@ -226,6 +229,17 @@ const FALLBACKS = {
   },
   bypassEngine: {
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
+    // K257 — re-exported from providerWall (same fail-open shapes, no evidence =
+    // no reordering). Declared here too because this module is the one the public
+    // shim is generated from.
+    providerWallId: "((p, m) => `${p == null ? '' : String(p)}|${m == null ? '' : String(m)}`)",
+    noteNodeVerdict: "(() => null)",
+    nodesForModel: "(() => [])",
+    wallVerdict: "(() => 'unknown')",
+    rankNodesForModel: "((_m, providers) => (Array.isArray(providers) ? providers : []))",
+    explainWall: "((m) => `wall: no bundle (${m == null ? '?' : String(m)})`)",
+    wallSnapshot: "(() => ({}))",
+    resetProviderWall: "(() => {})",
     // K235: the ladder resolves a recipe through the registered resolver. Without
     // the bundle there are no recipes, so this returns '' and framing falls back to
     // its builtin text — which is the pre-K235 behaviour, not a silent empty frame.
@@ -541,6 +555,21 @@ const FALLBACKS = {
     // `false` — a red that had nothing to do with the shim's actual behaviour.
     isDeadRoute: "(() => null)",
     routePrefix: "(() => '')",
+  },
+  // K257 — fail-open by design. With no bundle there is no evidence, and "unknown"
+  // must not reorder anything: rankNodesForModel returns the caller's own order,
+  // every recorder is a no-op, and every verdict is "unknown". A fallback that
+  // guessed "provider-prompt" would skip healthy nodes on a bundle-less install.
+  providerWall: {
+    WALL_EVIDENCE: "2",
+    providerWallId: "((p, m) => `${p == null ? '' : String(p)}|${m == null ? '' : String(m)}`)",
+    noteNodeVerdict: "(() => null)",
+    nodesForModel: "(() => [])",
+    wallVerdict: "(() => 'unknown')",
+    rankNodesForModel: "((_m, providers) => (Array.isArray(providers) ? providers : []))",
+    explainWall: "((m) => `wall: no bundle (${m == null ? '?' : String(m)})`)",
+    wallSnapshot: "(() => ({}))",
+    resetProviderWall: "(() => {})",
   },
   modelImmunityHints: {
     immunityHint: "(() => null)",

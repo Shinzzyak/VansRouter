@@ -85,10 +85,10 @@ describe("engine is not in the repository", () => {
       expect(src, `${m}.js must be a generated shim`).toContain("GENERATED SHIM");
       // The bound tracks the export surface, not a fixed byte count: each new
       // export adds its own fallback expression to the shim. An implementation
-      // is tens of kilobytes, so the guard stays meaningful at 3300 (K255 added
+      // is tens of kilobytes, so the guard stays meaningful at 4400 (K255 added
       // two exports: augmentSurfaceText, isSurfaceFrame; K256 two more:
-      // flipWordOrder, isFlipFrame).
-      expect(src.length, `${m}.js should be tiny (a shim, not an implementation)`).toBeLessThan(3300);
+      // flipWordOrder, isFlipFrame; K257 eight more providerWall re-exports).
+      expect(src.length, `${m}.js should be tiny (a shim, not an implementation)`).toBeLessThan(4400);
     }
   });
 
