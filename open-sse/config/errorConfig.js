@@ -61,8 +61,30 @@ const COOLDOWN = {
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
-  { text: "content-blocked",          shouldFallback: false },
-  { text: "content_blocked",          shouldFallback: false },
+  // Moderation refusals. These are POLICY verdicts, not outages: the credential is
+  // healthy and the relay is healthy, the provider simply refused this content.
+  // They must (a) not fall back to another account, (b) not cool the account, and
+  // (c) be recognisable by callers so they skip the circuit breaker and reach the
+  // engine's escalation ladder instead. Before these rules a DeepSeek "Content
+  // Exists Risk" arriving as HTTP 500 inherited the 5xx short cooldown and sat in
+  // the transient path, which both burned a healthy account and hid the refusal.
+  { text: "content exists risk",     shouldFallback: false, isContentFilter: true },
+  { text: "sensitive words detected", shouldFallback: false, isContentFilter: true },
+  { text: "sensitive content",       shouldFallback: false, isContentFilter: true },
+  { text: "content management policy", shouldFallback: false, isContentFilter: true },
+  { text: "content-safety",          shouldFallback: false, isContentFilter: true },
+  { text: "content_safety",          shouldFallback: false, isContentFilter: true },
+  { text: "content safety",          shouldFallback: false, isContentFilter: true },
+  { text: "content-filter",          shouldFallback: false, isContentFilter: true },
+  { text: "content_filter",          shouldFallback: false, isContentFilter: true },
+  { text: "content-blocked",          shouldFallback: false, isContentFilter: true },
+  { text: "content_blocked",          shouldFallback: false, isContentFilter: true },
+  { text: "request illegal",         shouldFallback: false, isContentFilter: true },
+  { text: "did not pass the safety",  shouldFallback: false, isContentFilter: true },
+  { text: "did not pass safety",      shouldFallback: false, isContentFilter: true },
+  { text: "safety review",            shouldFallback: false, isContentFilter: true },
+  { text: "11140",                   shouldFallback: false, isContentFilter: true },
+  { text: "provider rejected this request", shouldFallback: false, isContentFilter: true },
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },

@@ -73,10 +73,14 @@ describe("checkFallbackError — upstream-transient 5xx verdict", () => {
     }
   });
 
-  it("keeps content-blocked non-fallback", () => {
+  it("keeps content-blocked non-fallback, and flags it as a policy verdict", () => {
+    // K253: the verdict now carries isContentFilter + requestScoped, which is what
+    // lets callers skip the breaker and hand the refusal to the escalation ladder.
     expect(checkFallbackError(400, "content-blocked", 0)).toEqual({
       shouldFallback: false,
       cooldownMs: 0,
+      isContentFilter: true,
+      requestScoped: true,
     });
   });
 });

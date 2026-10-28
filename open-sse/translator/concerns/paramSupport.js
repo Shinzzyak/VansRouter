@@ -27,6 +27,14 @@ const STRIP_RULES = [
   // "integer above maximum value, expected <= 32768". Pin an explicit endpoint cap;
   // min() with the model ceiling still applies if a variant's own limit is lower.
   { provider: "volcengine-ark", match: /kimi/i, maxOutputCap: 32768, clampToModelMaxOutput: true },
+  // Groq / Mistral / Cerebras are OpenAI-compatible *without* accepting replayed
+  // reasoning: a client that echoes `reasoning_content` (or DeepSeek's `reasoning`)
+  // back in turn 2+ is refused with HTTP 400 by all three. Drop it on the wire and
+  // keep the visible transcript. Measured against each provider's chat endpoint;
+  // their SDKs never send the field, so nothing legitimate is lost.
+  { provider: "groq",     dropMessageKeys: ["reasoning_content", "reasoning"] },
+  { provider: "mistral",  dropMessageKeys: ["reasoning_content", "reasoning"] },
+  { provider: "cerebras", dropMessageKeys: ["reasoning_content", "reasoning"] },
 ];
 
 // Test a rule's match (regex or predicate) against the model id.
@@ -57,6 +65,15 @@ export function stripUnsupportedParams(provider, model, body) {
           msg.content = msg.content
             .map(b => (b?.type === "text" && typeof b.text === "string") ? b.text : "")
             .join("");
+        }
+      }
+    }
+    // Message-level keys some backends refuse when a client replays them.
+    if (rule.dropMessageKeys && Array.isArray(body.messages)) {
+      for (const msg of body.messages) {
+        if (!msg || typeof msg !== "object") continue;
+        for (const key of rule.dropMessageKeys) {
+          if (msg[key] !== undefined) delete msg[key];
         }
       }
     }
