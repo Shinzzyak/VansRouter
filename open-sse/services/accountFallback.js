@@ -7,6 +7,7 @@ import {
 } from "../utils/circuitBreaker.js";
 import { classify429 } from "../utils/classify429.js";
 import { getProviderResilienceProfile } from "../config/providerProfiles.js";
+import { isContentFilterMessage } from "../utils/refusalSignals.js";
 
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
@@ -41,11 +42,23 @@ export function checkFallbackError(status, errorText, backoffLevel = 0, provider
     ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
     : "";
 
+  // Moderation safety net FIRST: a refusal is a policy verdict regardless of the
+  // status it arrives with (500/502 refusals exist) and regardless of whether the
+  // exact wording made it into ERROR_RULES. Must run before the status rules, or a
+  // 500 refusal would return the transient-cooldown verdict below it.
+  if (isContentFilterMessage(errorText)) {
+    return { shouldFallback: false, cooldownMs: 0, isContentFilter: true, requestScoped: true };
+  }
+
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
     if (rule.text && lowerError && lowerError.includes(rule.text)) {
       if (rule.shouldFallback === false) {
-        return { shouldFallback: false, cooldownMs: 0 };
+        return {
+          shouldFallback: false,
+          cooldownMs: 0,
+          ...(rule.isContentFilter && { isContentFilter: true }),
+        };
       }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
@@ -554,6 +567,11 @@ export function clearProviderFailureDedup() {
 
 export function recordProviderFailure(provider, statusCode, errorText, log, connectionId, proxyHash = "direct") {
   if (!provider) return;
+
+  // A moderation refusal is the provider working correctly. Counting it opens the
+  // breaker for every account on this provider: measured threshold is 5 failures,
+  // and a relay that answers refusals with HTTP 500 reaches that in five prompts.
+  if (isContentFilterMessage(errorText)) return;
 
   // Deduplicate
   if (connectionId) {

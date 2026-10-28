@@ -1,5 +1,6 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
 import { unwrapClinepassEnvelope } from "./clinepassEnvelope.js";
+import { isContentFilterMessage } from "./refusalSignals.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -110,13 +111,19 @@ export async function parseUpstreamError(response, executor = null) {
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs, policyError = false) {
+export function createErrorResult(statusCode, message, resetsAtMs, policyError) {
+  // The policy flag used to be a manual argument that no caller ever passed, so
+  // errorLog.classifyError (which reads `isPolicyError`) could only ever answer
+  // PROVIDER. Derive it from the message when the caller is silent, and emit both
+  // field names so the reader and the writer cannot drift apart again.
+  const isPolicy = policyError ?? isContentFilterMessage(message);
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
-    policyError,
+    policyError: isPolicy,
+    isPolicyError: isPolicy,
     response: errorResponse(statusCode, message)
   };
 }
