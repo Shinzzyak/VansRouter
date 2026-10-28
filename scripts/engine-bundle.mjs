@@ -254,6 +254,11 @@ const FALLBACKS = {
     stripProviderPrefix: "((m) => m)",
     appendEscalationToBody: "((body) => body)",
     buildEmptyResponseEscalation: "(() => null)",
+    // K255 — rung permukaan. Tanpa bundle keduanya harus menjadi pre-K255
+    // persis: teks tautan tidak diacak (identitas) dan bingkai apa pun dianggap
+    // bukan rung permukaan, jadi tidak ada augmentasi yang menyelinap masuk.
+    augmentSurfaceText: "((t) => t)",
+    isSurfaceFrame: "(() => false)",
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     openerRefusal: "(() => false)",

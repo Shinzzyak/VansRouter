@@ -19,6 +19,7 @@ const __g = (n, fb) => (...a) => {
 export const BYPASS_MODES = (loadEngine(__M) ?? {})["BYPASS_MODES"] ?? Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' });
 export const appendEscalationToBody = __g("appendEscalationToBody", ((body) => body));
 export const applyBypass = __g("applyBypass", ((body) => body));
+export const augmentSurfaceText = __g("augmentSurfaceText", ((t) => t));
 export const buildBypassLog = __g("buildBypassLog", (() => ""));
 export const buildEmptyResponseEscalation = __g("buildEmptyResponseEscalation", (() => null));
 export const buildForeignRefusalEscalation = __g("buildForeignRefusalEscalation", (() => ''));
@@ -36,6 +37,7 @@ export const getEscalationPromptForLevel = __g("getEscalationPromptForLevel", ((
 export const getFramingStrategy = __g("getFramingStrategy", (() => null));
 export const isContentSafetyRejected = __g("isContentSafetyRejected", (() => false));
 export const isOutputFiltered = __g("isOutputFiltered", (() => false));
+export const isSurfaceFrame = __g("isSurfaceFrame", (() => false));
 export const openerRefusal = __g("openerRefusal", (() => false));
 export const peekStreamForRefusal = __g("peekStreamForRefusal", (async () => null));
 export const reconstructPeekedStream = __g("reconstructPeekedStream", (() => null));

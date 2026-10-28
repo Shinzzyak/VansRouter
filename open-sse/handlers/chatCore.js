@@ -871,7 +871,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         if (escalationBudgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | escalation budget spent, shipping what we have`); break; }
         triedL1.push(lvl1);
         const esc = getEscalationPromptForLevel(lvl1, { identityFree: personaExempt });
-        const appended = appendEscalationToBody(translatedBody, esc);
+        // K255 — sampel baru per percobaan. Retry yang mengirim teks tugas
+        // byte-identik tidak menambah sampel apa pun; BoN (arXiv:2412.03556)
+        // menaikkan ASR sebagai power law atas jumlah sampel BERBEDA. Percobaan
+        // pertama tetap verbatim supaya jalur normal tidak berubah.
+        const appended = appendEscalationToBody(translatedBody, esc, { surface: escAttempt > 0 });
         if (!appended) {
           log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
           break;
@@ -1128,7 +1132,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           }
           // Append to the LAST user message in whatever shape the translated body is
           // ([OI] messages[], Gemini/Antigravity contents[], Responses input[]).
-          const appended = appendEscalationToBody(translatedBody, esc);
+          const appended = appendEscalationToBody(translatedBody, esc, { surface: escAttempt > 0 });
           if (!appended) {
             log?.warn?.("BYPASS", `${provider}/${model} | could not find user message in translated body for escalation`);
             break;
