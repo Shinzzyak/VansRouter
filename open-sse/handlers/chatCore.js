@@ -1239,7 +1239,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               // K206 — record AFTER the verdict. A rung that produced an accepted
               // answer earned a win; recording `cls2` here is what kept every
               // synthesized rung at `wins={}` forever (see `acceptedClass`).
-              recordOutcome(model, lvl2, escalationClass(lvl2, cls2, !retryStillRefusal), ledgerKey);              recordNodeVerdict(escalationClass(lvl2, cls2, !retryStillRefusal));
+              recordOutcome(model, lvl2, escalationClass(lvl2, cls2, !retryStillRefusal), ledgerKey);
+              recordNodeVerdict(escalationClass(lvl2, cls2, !retryStillRefusal));
               if (retryText && !retryFiltered && !retryStillRefusal) {
                 log?.info?.("BYPASS", `${provider}/${model} | escalation ${lvl2} successful`);
                 escalationWon = true;
@@ -1361,7 +1362,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               const retryDelivered = Boolean(retryRaw)
                 && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsMoreEscalation(cls3)));
               // K206 — same rule as the non-streaming ladder: acceptance is the win.
-              recordOutcome(model, lvl3, escalationClass(lvl3, cls3, retryDelivered), ledgerKey);              recordNodeVerdict(escalationClass(lvl3, cls3, retryDelivered));
+              recordOutcome(model, lvl3, escalationClass(lvl3, cls3, retryDelivered), ledgerKey);
+              recordNodeVerdict(escalationClass(lvl3, cls3, retryDelivered));
               if (retryDelivered) {
                 log?.info?.("BYPASS", `${provider}/${model} | streaming escalation ${lvl3} successful`);
                 streamController.handleComplete();

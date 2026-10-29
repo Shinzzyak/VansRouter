@@ -44,8 +44,15 @@ test("K218/W1 — both escalation verdicts use the evidence rule", () => {
 
 test("K218/W2 — both credit sites use escalationClass", () => {
   const src = code(CORE);
-  const credited = src.match(/escalationClass\(lvl[23],/g) || [];
+  // K258 added a second reader of the same value: recordNodeVerdict() credits the
+  // provider NODE with the class escalationClass() decided. So the count of
+  // `escalationClass(lvlN,` is 4 (two ledger credits + their node mirrors), and the
+  // invariant is that each ledger credit has exactly one node mirror of the SAME
+  // expression — not a fixed total.
+  const credited = src.match(/recordOutcome\(model, lvl[23], escalationClass\(lvl[23],/g) || [];
   assert.equal(credited.length, 2, `expected 2 escalationClass credit sites, found ${credited.length}`);
+  const mirrored = src.match(/recordNodeVerdict\(escalationClass\(lvl[23],/g) || [];
+  assert.equal(mirrored.length, 2, `expected 2 node-verdict mirrors, found ${mirrored.length}`);
   // acceptedClass has no business here any more: on the escalation path the
   // failed baseline IS the evidence, so the L-only restriction it encodes
   // (K206) would keep a static level from ever being credited for a rescue.
