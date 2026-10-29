@@ -408,6 +408,12 @@ const FALLBACKS = {
     // K259 — fail-open direction: "not a decline" keeps the old behaviour
     // (the reply ships as content) instead of arming a ladder that cannot run.
     isBluntDecline: "(() => false)",
+    // K262 exports these two helpers so the head-decline arm can share the
+    // frame-line stripper and hedge list instead of duplicating them. Without
+    // a bundle the arm cannot run either, so both fall back inert: identity
+    // strip, and a hedge regex that always matches (the arm stands down).
+    stripFrameLines: "((t) => t)",
+    REFUSAL_HEDGE_RE: "/(?:)/",
   },
   voiceCadence: {
     _resetCadence: "(() => {})",
