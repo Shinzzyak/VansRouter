@@ -42,7 +42,6 @@ import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 // K258 — per-NODE attribution on the direct path (no combo wrapper here).
 import { noteNodeVerdict, nodesForModel, explainWall } from "../rtk/providerWall.js";
-import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
 
 import { classifyOutcome, needsAnotherTry, needsMoreEscalation, needsFirstPassEscalation, nextFraming, recordOutcome, firstLevel, explorationDue, nextUnseenLevel, markExplored, escalationClass } from "../rtk/selfMeasuringBypass.js";
 // K165 — sample the system prompts we receive so the next framing can be written
