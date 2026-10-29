@@ -396,11 +396,16 @@ export class OpenCodeExecutor extends BaseExecutor {
 
     const session = credentials?.[SESSION_FIELD] || this.prepareRequestCredentials({ credentials })[SESSION_FIELD];
 
+    // Anonymous free lane = `Bearer public` (shared bucket, exhausted every
+    // ~8h). A Console account token (device-flow access token, `oc_sk_` key or
+    // a farmed pool key) is per-account quota: pass it via credentials.
+    const bearer = credentials?.accessToken || credentials?.apiKey || "public";
+
     // Mirrors the v2 CLI. Upstream needs x-opencode-session-id next to
     // x-opencode-session, and rejects any x-opencode-request (v1 only) with 403.
     const headers = {
       "Content-Type": "application/json",
-      "Authorization": "Bearer public",
+      "Authorization": `Bearer ${bearer}`,
       "User-Agent": isOpencodeDownstream ? downstreamUa : OPENCODE_UA,
       "x-opencode-client": lower["x-opencode-client"] || OPENCODE_CLIENT,
       "x-opencode-session": session,
