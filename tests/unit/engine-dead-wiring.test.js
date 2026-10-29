@@ -112,7 +112,15 @@ describe("an ambiguous answer is not a failed one", () => {
     const src = readCode(CORE);
     const inspectIdx = src.indexOf("inspect: outcome=");
     expect(inspectIdx).toBeGreaterThan(-1);
-    const gate = src.slice(inspectIdx, inspectIdx + 900);
+    // Bounded by the branch itself, not by a character count. A fixed window
+    // silently went stale when the provider-WALL log block was inserted between
+    // the inspect line and the gate (measured 2026-10-29: gate landed at +1919
+    // chars, window was 900, so the test failed on a gate that was correct).
+    // The branch opens with needsFirstPassEscalation and logs this string, so
+    // slicing to it keeps the assertion about ORDER without a magic number.
+    const branchEnd = src.indexOf("retrying with escalation", inspectIdx);
+    expect(branchEnd).toBeGreaterThan(inspectIdx);
+    const gate = src.slice(inspectIdx, branchEnd);
     expect(gate).toMatch(/needsFirstPassEscalation\(outcome\)/);
     expect(gate).not.toMatch(/needsAnotherTry\(outcome\)/);
   });
