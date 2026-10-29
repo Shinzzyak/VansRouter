@@ -16,5 +16,7 @@ const __g = (n, fb) => (...a) => {
   return typeof f === "function" ? f(...a) : typeof fb === "function" ? fb(...a) : fb;
 };
 
+export const REFUSAL_HEDGE_RE = (loadEngine(__M) ?? {})["REFUSAL_HEDGE_RE"] ?? /(?:)/;
 export const isBluntDecline = __g("isBluntDecline", (() => false));
 export const isShortDecline = __g("isShortDecline", (() => false));
+export const stripFrameLines = __g("stripFrameLines", ((t) => t));
