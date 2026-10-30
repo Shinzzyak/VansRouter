@@ -1,5 +1,6 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { inboundRequestId, withRequestId } from "@/lib/requestId.js";
 
 let initialized = false;
 
@@ -31,6 +32,6 @@ export async function OPTIONS() {
  */
 export async function POST(request) {
   await ensureInitialized();
-  return await handleChat(request);
+  return withRequestId(await handleChat(request), inboundRequestId(request));
 }
 
