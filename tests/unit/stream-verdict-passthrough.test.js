@@ -18,6 +18,11 @@
 // Arm 1 is behavioural (a fresh Response keeps the header through the real
 // function); arm 2 is a source guard for hop 1, which cannot be exercised without
 // a live upstream + executor.
+//
+// K271 adds a third rule: the header carries ONE vocabulary. The head gate says
+// "refusal", the readers compare "NOLAK", so the stamp maps through verdictClass();
+// the raw word on the wire is what made the model swap skip a live refusal on
+// 2026-10-30.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -58,7 +63,7 @@ describe("K21 arm 2: the deployed path sets and forwards the verdict", () => {
       src.indexOf("Head looks fine — resume piping from the buffered chunk"),
     );
     expect(blok, "pass-through block not found").not.toBe("");
-    expect(blok).toContain("passThroughHeaders.set(STREAM_VERDICT_HEADER, headVerdict)");
+    expect(blok).toContain("passThroughHeaders.set(STREAM_VERDICT_HEADER, verdictClass(headVerdict))");
     // The headers must be the ones actually handed to the Response.
     expect(blok).toMatch(/new Response\(reconstructPeekedStream\(gate\),\s*\{\s*status:\s*providerResponse\.status,\s*headers:\s*passThroughHeaders\s*\}\)/);
   });
