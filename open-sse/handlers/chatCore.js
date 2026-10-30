@@ -55,6 +55,21 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType } from "../translator/concerns/toolCall.js";
 
 const MAX_POOL_RETRIES = 2;
+
+// K271 — one vocabulary on the wire.
+//
+// Two classifiers write this header and they speak different dialects:
+//   · the body gate (engine classifyOutcome) says NOLAK / SUBSTITUSI / PATUH / SENYAP;
+//   · the streaming head gate says refusal / ok / empty.
+// The stream pass-through stamped the RAW head word, and its only reader compares
+// against ["NOLAK"] (chat.js default triggers, combo ledger) — so a refusal head
+// matched nothing, the swap never fired, and the notice shipped as the answer.
+// Translate at the writer, not at each reader: a new reader gets the class vocabulary
+// for free, and a bundle that only exports the raw word still lands on NOLAK.
+const VERDICT_CLASS = { refusal: "NOLAK", ok: "PATUH", empty: "SENYAP" };
+export function verdictClass(v) {
+  return VERDICT_CLASS[v] || v;
+}
 // K260 — direct mode has no combo wrapper to notice a refusal, so the body that
 // ships carries the verdict in a header. Streams already get this from the
 // pass-through path; the non-streaming exit had no signal at all.
@@ -1391,9 +1406,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // would turn every streaming combo into a non-streaming one. So the
         // verdict travels in a header instead of being recomputed.
         log?.warn?.("BYPASS", `${provider}/${model} | streaming escalation exhausted, passing original stream through`);
-        recordRefusalMetric("shipped", { provider, model, outcome: headVerdict, path: "stream-head" });
+        recordRefusalMetric("shipped", { provider, model, outcome: verdictClass(headVerdict), path: "stream-head" });
         const passThroughHeaders = new Headers(providerResponse.headers);
-        passThroughHeaders.set(STREAM_VERDICT_HEADER, headVerdict);
+        passThroughHeaders.set(STREAM_VERDICT_HEADER, verdictClass(headVerdict));
         const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: passThroughHeaders });
         return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
       }
