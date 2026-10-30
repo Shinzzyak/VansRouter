@@ -64,6 +64,12 @@ const ENGINE_MODULES = [
   // because the three detectors that call it already do — a shim that answered
   // `false` while refusalAttribution answered SELF would split the verdict.
   "shortDecline",
+  // K267-K270 — non-English decline shapes. Travels with the bundle for the same
+  // reason as shortDecline: the three detectors that call it (classifyOutcome's
+  // multilingual arm, the attribution gates, and the streaming openerRefusal) all
+  // live in the bundle. A shim answering "not a decline" while the bundled
+  // classifier answered NOLAK would split the verdict on every foreign refusal.
+  "multilingualDecline",
   // Tokenizer profile (2026-10-21, TOK1). Not a secret: the coefficients are
   // measurable by anyone with a key. It travels with the bundle because the
   // router's own estimate and the calibration it learns must move together —
@@ -400,6 +406,13 @@ const FALLBACKS = {
     observePrompt: "((model) => ({ family: 'default', factor: 1, ratio: 0, learned: false }))",
     calibrationTable: "(() => [])",
     resetCalibration: "(() => {})",
+  },
+  multilingualDecline: {
+    // No bundle => no extra detection. Foreign refusals then classify exactly as
+    // they did before K267 (the English marker lists only), which is the old,
+    // documented behaviour rather than a new claim.
+    isMultilingualDecline: "(() => false)",
+    MULTILINGUAL_LANGUAGES: "(() => [])",
   },
   shortDecline: {
     // No bundle => no extra detection. The router keeps the pre-K254 behaviour
