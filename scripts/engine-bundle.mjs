@@ -80,6 +80,7 @@ const ENGINE_MODULES = [
   "thinkingGate",
   "instructionReceipts",
   "selfMeasuringBypass",
+  "providerFilterNotice",
   // K164/K165 — the genome is what the ladder grows into, and the prompt corpus
   // is the evidence the next framing gets written against. Both are read from
   // the dashboard now, so both need a shim (a module in the bundle without a
@@ -413,6 +414,14 @@ const FALLBACKS = {
     // documented behaviour rather than a new claim.
     isMultilingualDecline: "(() => false)",
     MULTILINGUAL_LANGUAGES: "(() => [])",
+  },
+  providerFilterNotice: {
+    // No bundle => no notice detection. Fail-closed direction on purpose: "not a
+    // notice" leaves the old behaviour (the body ships as content) instead of
+    // arming a cut on a phrase list the running bundle does not own.
+    isProviderFilterNotice: "(() => false)",
+    isFilterNoticeHead: "(() => false)",
+    explainFilterNotice: "(() => ({ notice: false, reason: 'no-engine' }))",
   },
   shortDecline: {
     // No bundle => no extra detection. The router keeps the pre-K254 behaviour
