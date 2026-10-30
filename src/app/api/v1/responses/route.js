@@ -1,6 +1,7 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { readBoundedJson } from "@/sse/utils/boundedBody.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { inboundRequestId, withRequestId } from "@/lib/requestId.js";
 
 let initialized = false;
 
@@ -41,8 +42,8 @@ export async function POST(request) {
       headers: request.headers,
       body: JSON.stringify(body),
     });
-    return await handleChat(patched);
+    return withRequestId(await handleChat(patched), inboundRequestId(request));
   } catch {
-    return await handleChat(request);
+    return withRequestId(await handleChat(request), inboundRequestId(request));
   }
 }
