@@ -12,6 +12,8 @@ import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { carriesToolCalls } from "../rtk/bypassEngine.js";
+// K272 — a repetition loop is a delivered-looking 200 with nothing usable in it.
+import { isDegenerateText } from "../rtk/flakyGuard.js";
 // K257 — refusal attribution per provider NODE (same model, different upstream).
 import { noteNodeVerdict, explainWall } from "../rtk/providerWall.js";
 import { STREAM_VERDICT_HEADER } from "../config/runtimeConfig.js";
@@ -494,6 +496,16 @@ async function inspectComboContent(result, model) {
     // would-be-SENYAP case is overridden: if there IS visible text, the
     // classifier keeps its say, refusal included.
     if (!text && carriesToolCalls(raw)) return { outcome: 'PATUH', bad: false, text };
+    // K272 — teks yang isinya cuma satu unit berulang ("OK.OK.OK...", satu kata
+    // diulang sampai memenuhi jawaban) bukan jawaban: status 200, badan penuh,
+    // nol isi. `classifyOutcome` tidak melihatnya — tidak ada kosakata penolakan,
+    // tidak kosong — jadi loop lolos sebagai PATUH dan combo berhenti di situ.
+    // Threshold-nya konservatif (satu unit mendominasi ≥80% teks, atau satu kata
+    // ≥8 kali dan ≥50% kata), jadi kode/tabel/daftar panjang tidak tersentuh.
+    if (isDegenerateText(text)) {
+      try { recordOutcome(model, firstLevel(model), 'SENYAP', model); } catch { /* ledger tidak boleh menjatuhkan permintaan */ }
+      return { outcome: 'SENYAP', bad: true, text };
+    }
     out = classifyOutcome(text, true);
   } catch {
     // Badan tidak terbaca bukan alasan membuang jawaban.
