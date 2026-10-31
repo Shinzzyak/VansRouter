@@ -107,7 +107,10 @@ describe("markAccountUnavailable — 502 lock duration", () => {
     expect(result.cooldownMs).toBe(SHORT_MS);
 
     const update = updateProviderConnection.mock.calls[0][1];
-    expect(update.testStatus).toBe("unavailable");
+    // K273: a 5s lock is a blip, not a dead seat. The lock still applies in
+    // full — but the sticky "unavailable" label outlives the lock, and stamping
+    // it here is what made a healthy pool read as an empty one.
+    expect(update.testStatus).toBeUndefined();
     expect(update.errorCode).toBe(502);
     expect(update["modelLock_deepseek-v4.1-flash"]).toBeDefined();
 
@@ -115,5 +118,18 @@ describe("markAccountUnavailable — 502 lock duration", () => {
     expect(lockMs).toBeGreaterThanOrEqual(SHORT_MS - 1_000);
     expect(lockMs).toBeLessThanOrEqual(SHORT_MS + 1_000);
     expect(lockMs).toBeLessThan(TRANSIENT_COOLDOWN_MS);
+  });
+
+  it("still stamps the unavailable label for a long cooldown (401/402)", async () => {
+    const result = await markAccountUnavailable(
+      "conn-1",
+      401,
+      "invalid api key",
+      "openai-compatible-chat-x",
+      "deepseek-v4.1-flash",
+    );
+    expect(result.shouldFallback).toBe(true);
+    const update = updateProviderConnection.mock.calls[0][1];
+    expect(update.testStatus).toBe("unavailable");
   });
 });
