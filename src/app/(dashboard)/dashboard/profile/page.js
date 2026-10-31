@@ -1155,6 +1155,22 @@ export default function ProfilePage() {
               />
             </div>
 
+            {/* Balanced (K273): clean seats first, then a random pick inside the
+                least-recently-used window — no seat becomes the hot spot */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Balanced</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Healthy accounts first, then spread across the least recently used
+                </p>
+              </div>
+              <Toggle
+                checked={settings.fallbackStrategy === "balanced"}
+                onChange={() => updateFallbackStrategy(settings.fallbackStrategy === "balanced" ? "fill-first" : "balanced")}
+                disabled={loading}
+              />
+            </div>
+
             {/* Sticky Round Robin Limit */}
             {settings.fallbackStrategy === "round-robin" && (
               <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">

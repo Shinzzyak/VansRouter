@@ -697,3 +697,107 @@ export function isProviderExhaustedReason(result) {
   // happen to contain the word "exhausted" (e.g. "exhausted all retries").
   return /credits?.{0,20}exhausted|quota.{0,20}exhausted|no remaining credits|insufficient.{0,20}credits|payment.{0,10}required|quota.{0,20}exceeded|rate.?limit.{0,20}reached/i.test(text);
 }
+
+// ---------------------------------------------------------------------------
+// Balanced account selection (ported from 9Router Pro, K273)
+// ---------------------------------------------------------------------------
+// "balanced" exists because fill-first has one failure mode that hurts a small
+// fleet: the first seat eats every request until it errors, so one dead key
+// looks like a dead provider and the healthy seats behind it never carry load.
+// Balanced = clean accounts first, then a random pick inside the least-recently
+// -used window, so every seat rests and no seat is the deterministic hot spot.
+
+/** Window of least-recently-used candidates a balanced pick chooses from. */
+export const BALANCED_WINDOW_SIZE = 32;
+/** A failed account that has been silent this long counts as clean again. */
+export const SUSPECT_PROBATION_MS = 60 * 60 * 1000;
+/** Only a cooldown this long earns the dashboard "unavailable" label. */
+export const UNAVAILABLE_LABEL_MIN_COOLDOWN_MS = 60 * 1000;
+/** Small-fleet rescue: only tiny fleets wait out a lock instead of failing. */
+export const SMALL_FLEET_RESCUE_MAX_CONNECTIONS = 8;
+/** Small-fleet rescue: never stall a request longer than this. */
+export const SMALL_FLEET_RESCUE_MAX_WAIT_MS = 45 * 1000;
+/** Deferred lastUsedAt write coalescing. */
+export const LAST_USED_FLUSH_DELAY_MS = 2000;
+export const LAST_USED_FLUSH_MAX_BATCH = 200;
+const LAST_USED_OVERLAY_MAX_ENTRIES = 50_000;
+const LAST_USED_OVERLAY_PRUNE_AGE_MS = 24 * 60 * 60 * 1000;
+const LRU_PRIORITY_CAP = 999;
+const LRU_NEVER_USED_BASE = 0;
+
+/**
+ * Health tier for one connection. 0 = clean (serves first), 1 = suspect
+ * (failed recently and has not proven itself since; serves only when no clean
+ * account is left). `backoffLevel > 0` or a stored `lastError` marks a
+ * connection suspect until the probation window has passed.
+ */
+export function connectionHealthTier(connection, now = Date.now(), probationMs = 0) {
+  if (!connection) return 1;
+  const failed = (connection.backoffLevel || 0) > 0 || Boolean(connection.lastError);
+  if (!failed) return 0;
+  if (probationMs > 0 && connection.lastErrorAt) {
+    const failedAt = new Date(connection.lastErrorAt).getTime();
+    if (Number.isFinite(failedAt) && now - failedAt >= probationMs) return 0;
+  }
+  return 1;
+}
+
+/**
+ * In-memory last-used overlay. The DB write is deferred (see
+ * scheduleLastUsedFlush in auth.js), so this map is what concurrent picks read:
+ * a just-picked seat immediately sorts to the back of the window instead of two
+ * requests piling onto the same seat while the write is still in flight.
+ * Pure accelerator: empty after a restart, picks then fall back to DB stamps.
+ */
+export const lastUsedOverlay = new Map();
+
+export function stampLastUsedOverlay(id, nowMs = Date.now()) {
+  if (!id) return;
+  lastUsedOverlay.set(id, nowMs);
+  if (lastUsedOverlay.size > LAST_USED_OVERLAY_MAX_ENTRIES) {
+    const cutoff = nowMs - LAST_USED_OVERLAY_PRUNE_AGE_MS;
+    for (const [key, value] of lastUsedOverlay) {
+      if (value < cutoff) lastUsedOverlay.delete(key);
+    }
+  }
+}
+
+function lruKey(connection, overlay) {
+  if (overlay?.has(connection.id)) return overlay.get(connection.id);
+  const priority = Math.min(connection.priority || LRU_PRIORITY_CAP, LRU_PRIORITY_CAP);
+  if (!connection.lastUsedAt) return LRU_NEVER_USED_BASE + priority;
+  const parsed = Date.parse(connection.lastUsedAt);
+  return Number.isFinite(parsed) ? parsed : LRU_NEVER_USED_BASE + priority;
+}
+
+/**
+ * Pick one connection uniformly at random from the least-recently-used window.
+ * Single O(n) pass, timestamps parsed once (a full sort on an 18k-seat fleet
+ * cost ~200ms per pick). Never-used seats sort first, ordered by priority.
+ */
+export function pickWindowedLru(connections, windowSize = BALANCED_WINDOW_SIZE, rng = Math.random, overlay = null) {
+  if (!connections?.length) return null;
+  const size = Math.max(1, Math.min(windowSize, connections.length));
+  const window = [];
+  for (const connection of connections) {
+    const key = lruKey(connection, overlay);
+    if (window.length < size) {
+      window.push([key, connection]);
+      if (window.length === size) window.sort((a, b) => a[0] - b[0]);
+    } else if (key < window[size - 1][0]) {
+      window[size - 1] = [key, connection];
+      window.sort((a, b) => a[0] - b[0]);
+    }
+  }
+  if (window.length < size) window.sort((a, b) => a[0] - b[0]);
+  return window[Math.floor(rng() * window.length)][1];
+}
+
+/**
+ * Whether a cooldown is long enough to brand the connection "unavailable" on
+ * the dashboard. The lock always applies; only the label is gated, because the
+ * label outlives short locks and a 30-second blip must not read as a dead key.
+ */
+export function shouldStampUnavailable(cooldownMs, minCooldownMs = UNAVAILABLE_LABEL_MIN_COOLDOWN_MS) {
+  return cooldownMs >= minCooldownMs;
+}

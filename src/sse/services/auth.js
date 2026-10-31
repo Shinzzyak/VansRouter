@@ -1,6 +1,6 @@
 import { getProviderConnections, validateApiKey, getApiKeyByValueAny, updateProviderConnection, getSettings, getProviderNodeById, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
-import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
+import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, connectionHealthTier, pickWindowedLru, shouldStampUnavailable, lastUsedOverlay, stampLastUsedOverlay, BALANCED_WINDOW_SIZE, SUSPECT_PROBATION_MS, SMALL_FLEET_RESCUE_MAX_CONNECTIONS, SMALL_FLEET_RESCUE_MAX_WAIT_MS, LAST_USED_FLUSH_DELAY_MS, LAST_USED_FLUSH_MAX_BATCH } from "open-sse/services/accountFallback.js";
 import { classify429 } from "open-sse/utils/classify429.js";
 import { resolveAntigravityProxyConfig } from "open-sse/utils/proxyFetch.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
@@ -16,6 +16,39 @@ export { isTrustedInternalRequest } from "./internalTrust.js";
 // Per-provider mutex — allows parallel credential selection across different providers
 // while preventing races within the same provider's account rotation.
 const _providerMutexes = new Map();
+
+// Deferred lastUsedAt persistence for lock-free balanced picks (K273). The pick
+// stamps the in-memory overlay synchronously — that is what keeps concurrent
+// picks spread across distinct accounts — while the DB write only feeds
+// restarts and the dashboard, so it is coalesced here and flushed in the
+// background instead of blocking a request before it calls upstream. A failed
+// flush is logged and dropped: the overlay still holds the stamp in memory, so
+// rotation stays correct until restart.
+const _lastUsedDirty = new Map();
+let _lastUsedFlushTimer = null;
+
+export function scheduleLastUsedFlush(id, lastUsedAt) {
+  if (!id) return;
+  _lastUsedDirty.set(id, { lastUsedAt, consecutiveUseCount: 1 });
+  if (_lastUsedDirty.size >= LAST_USED_FLUSH_MAX_BATCH) { void flushLastUsed(); return; }
+  if (!_lastUsedFlushTimer) {
+    _lastUsedFlushTimer = setTimeout(() => { _lastUsedFlushTimer = null; void flushLastUsed(); }, LAST_USED_FLUSH_DELAY_MS);
+    if (typeof _lastUsedFlushTimer.unref === "function") _lastUsedFlushTimer.unref();
+  }
+}
+
+export async function flushLastUsed() {
+  if (_lastUsedDirty.size === 0) return;
+  const batch = [..._lastUsedDirty.entries()];
+  _lastUsedDirty.clear();
+  for (const [id, data] of batch) {
+    try {
+      await updateProviderConnection(id, data);
+    } catch (err) {
+      log.warn("AUTH", `lastUsed flush failed for ${String(id).slice(0, 8)}: ${err?.message || err}`);
+    }
+  }
+}
 
 export function filterConnectionsForModel(providerId, connections, model, settings = {}) {
   const override = (settings.providerStrategies || {})[providerId] || {};
@@ -73,16 +106,23 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     ? excludeConnectionIds
     : (excludeConnectionIds ? new Set([excludeConnectionIds]) : new Set());
   const preferredConnectionId = options?.preferredConnectionId || null;
-  // Acquire per-provider mutex to prevent race conditions within same provider
-  const currentMutex = getProviderMutex(provider);
-  let resolveMutex;
-  _providerMutexes.set(provider, new Promise(resolve => { resolveMutex = resolve; }));
+  // Resolve alias + strategy BEFORE taking any lock (K273). Only round-robin
+  // mutates shared sticky state, so only it joins the per-provider chain: a
+  // balanced or fill-first pick is lock-free and never queues behind another
+  // request's selection. Locking every strategy is what made a burst of
+  // requests serialize on a provider whose fleet was already healthy.
+  const providerId = resolveProviderId(provider);
+  const settings = await getSettings();
+  const providerOverride = (settings.providerStrategies || {})[providerId] || {};
+  const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
+  let resolveMutex = null;
+  if (strategy === "round-robin") {
+    const currentMutex = getProviderMutex(provider);
+    _providerMutexes.set(provider, new Promise(resolve => { resolveMutex = resolve; }));
+    await currentMutex;
+  }
 
   try {
-    await currentMutex;
-
-    // Resolve alias to provider ID (e.g., "kc" -> "kilocode")
-    const providerId = resolveProviderId(provider);
 
     // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
     // UNLESS real connections exist in DB (e.g. opencode with a personal paid key) —
@@ -134,7 +174,6 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     let connections = await getProviderConnections({ provider: providerId, isActive: true });
-    const settings = await getSettings();
     connections = filterConnectionsForModel(providerId, connections, model, settings);
     log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
 
@@ -147,8 +186,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const isAntigravity = providerId === "antigravity";
     const antigravityQuotaCache = isAntigravity && model ? getAntigravityQuotaCache() : null;
 
-    // Filter out model-locked, excluded, and Antigravity quota-exhausted connections
-    const availableConnections = connections.filter(c => {
+    // Filter out model-locked, excluded, and Antigravity quota-exhausted connections.
+    // Named so the small-fleet rescue below can re-derive availability after
+    // waiting out a lock, with exactly the same predicate.
+    const isAvailable = (c) => {
       if (excludeSet.has(c.id)) return false;
       if (isModelLockActive(c, model)) return false;
       // A connection whose access token is already expired and that carries no
@@ -167,7 +208,8 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         }
       }
       return true;
-    });
+    };
+    let availableConnections = connections.filter(isAvailable);
 
     log.debug("AUTH", `${provider} | available: ${availableConnections.length}/${connections.length}`);
     connections.forEach(c => {
@@ -189,8 +231,32 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           if (resetAt && new Date(resetAt).getTime() > Date.now()) expiries.push(resetAt);
         });
       }
-      const earliest = expiries.length > 0 ? expiries.reduce((a, b) => a < b ? a : b) : null;
-      if (earliest) {
+      let earliest = expiries.length > 0 ? expiries.reduce((a, b) => a < b ? a : b) : null;
+      // Small-fleet rescue (K273): every seat is locked, but the fleet is tiny
+      // and the earliest lock lifts soon — wait for it instead of failing the
+      // request. A lock is a heuristic (a quota window, a transient error); for
+      // a 1–8 seat provider one window must not read as a total outage.
+      // Retrying at once re-hits the same error immediately, so this waits (a
+      // timer, other requests unaffected) and re-derives availability from the
+      // same snapshot — lock checks are time-based — then proceeds only if
+      // something is actually free. Never rescues Antigravity (its quota cache
+      // is authoritative, not a heuristic) or a seat this request already tried.
+      if (!isAntigravity && earliest && connections.length <= SMALL_FLEET_RESCUE_MAX_CONNECTIONS) {
+        const waitMs = new Date(earliest).getTime() - Date.now();
+        if (waitMs <= SMALL_FLEET_RESCUE_MAX_WAIT_MS) {
+          if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+          availableConnections = connections.filter(isAvailable);
+          if (availableConnections.length > 0) {
+            log.warn("AUTH", `${provider} | small-fleet rescue: waited ${Math.max(0, waitMs)}ms for lock, ${availableConnections.length} account(s) free`);
+          } else {
+            // The wait freed nothing this request can still use. Drop the stale
+            // retryAfter so the fallthrough reports plain unavailability
+            // instead of a lock that has already lifted.
+            earliest = null;
+          }
+        }
+      }
+      if (earliest && availableConnections.length === 0) {
         const earliestConn = lockedConns[0];
         log.warn("AUTH", `${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
         return {
@@ -202,13 +268,14 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           lastErrorCode: earliestConn?.errorCode || null
         };
       }
-      log.warn("AUTH", `${provider} | all ${connections.length} accounts unavailable`);
-      return null;
+      if (availableConnections.length === 0) {
+        log.warn("AUTH", `${provider} | all ${connections.length} accounts unavailable`);
+        return null;
+      }
     }
 
-    // Per-provider strategy overrides global setting
-    const providerOverride = (settings.providerStrategies || {})[providerId] || {};
-    const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
+    // Strategy + provider override were resolved before the lock and are
+    // reused here (no second settings read).
 
     let connection;
     // Pin to preferred connection if specified and available
@@ -259,8 +326,26 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           consecutiveUseCount: 1
         });
       }
+    } else if (strategy === "balanced") {
+      // Balanced, lock-free (K273): clean accounts serve first — a seat that
+      // failed recently and has not proven itself since only serves when no
+      // clean seat is available. Inside the tier the pick is a uniform random
+      // choice over the least-recently-used window, so load spreads evenly and
+      // no seat becomes the deterministic hot spot. The overlay is stamped
+      // synchronously (concurrent picks spread across distinct seats instead
+      // of piling onto one window while a DB write is in flight) and the DB
+      // stamp is deferred + coalesced, so no request waits on a write before
+      // calling upstream.
+      const now = Date.now();
+      const clean = availableConnections.filter(c => connectionHealthTier(c, now, SUSPECT_PROBATION_MS) === 0);
+      const tier = clean.length > 0 ? clean : availableConnections;
+      connection = pickWindowedLru(tier, BALANCED_WINDOW_SIZE, Math.random, lastUsedOverlay);
+      if (connection) {
+        stampLastUsedOverlay(connection.id, now);
+        scheduleLastUsedFlush(connection.id, new Date(now).toISOString());
+      }
     } else {
-      // Default: fill-first (already sorted by priority in getProviderConnections)
+      // fill-first (already sorted by priority in getProviderConnections)
       connection = availableConnections[0];
     }
 
@@ -372,14 +457,20 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   const lockUpdate = buildModelLockUpdate(model, cooldownMs);
 
-  await updateProviderConnection(connectionId, {
+  const update = {
     ...lockUpdate,
-    testStatus: "unavailable",
     lastError: reason,
     errorCode: status,
     lastErrorAt: new Date().toISOString(),
-    backoffLevel: newBackoffLevel ?? backoffLevel
-  });
+    backoffLevel: newBackoffLevel ?? backoffLevel,
+  };
+  // K273: the "unavailable" label outlives the lock itself, so only a
+  // substantial cooldown earns it. A seconds-long transient lock must not brand
+  // a healthy seat as dead on the dashboard — that label is what made a full
+  // pool of live keys look empty. The lock itself always applies.
+  if (shouldStampUnavailable(cooldownMs)) update.testStatus = "unavailable";
+
+  await updateProviderConnection(connectionId, update);
 
   const lockKey = Object.keys(lockUpdate)[0];
   const connName = conn?.displayName || conn?.name || conn?.email || connectionId.slice(0, 8);
