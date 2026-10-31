@@ -144,6 +144,8 @@ const REFRESH_HANDLERS = {
   qwen: (c, log) => refreshQwenToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log, "codebuddy-cn"),
   "codebuddy-intl": (c, log) => refreshCodebuddyToken(c.refreshToken, log, "codebuddy-intl"),
+  // WorkBuddy uses the same plugin refresh endpoint; providerId picks host from PROVIDER_OAUTH.
+  workbuddy: (c, log) => refreshCodebuddyToken(c.refreshToken, log, "workbuddy"),
   cline: (c, log) => refreshClineToken(c.refreshToken, log),
   gitlab: (c, log) => refreshAccessToken("gitlab", c.refreshToken, c, log),
   cline: (c, log) => refreshClineToken(c.refreshToken, log),

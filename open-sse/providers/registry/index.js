@@ -169,6 +169,11 @@ import p168 from "./opencode-zen.js";
 import p169 from "./qoder-cn.js";
 import p170 from "./tinyfish.js";
 import p171 from "./v1m.js";
+import p172 from "./sensenova.js";
+import p173 from "./runcrate.js";
+import p174 from "./river.js";
+import p175 from "./beatapi.js";
+import p176 from "./workbuddy.js";
 
 const PROVIDER_REGISTRY = [
   p0,
@@ -342,6 +347,11 @@ const PROVIDER_REGISTRY = [
   p169,
   p170,
   p171,
+  p172,
+  p173,
+  p174,
+  p175,
+  p176,
 ];
 
 export default PROVIDER_REGISTRY;
