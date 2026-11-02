@@ -15,5 +15,9 @@ export default {
     baseUrl: "http://localhost:11434/api/chat",
     format: "ollama",
   },
-  serviceKinds: ["llm"],
+  serviceKinds: ["llm", "systemone"],
+  models: [
+    { id: "clef", name: "System One clef (local)", kind: "systemone" },
+    { id: "clef-flash", name: "System One clef-flash (local)", kind: "systemone" },
+  ],
 };

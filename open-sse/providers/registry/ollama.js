@@ -28,8 +28,11 @@ export default {
     { id: "glm-4.7-flash", name: "GLM 4.7 Flash" },
     { id: "qwen3.5", name: "Qwen3.5" },
     { id: "minimax-m3", name: "MiniMax M3" },
+    { id: "clef", name: "System One clef", kind: "systemone" },
+    { id: "clef-flash", name: "System One clef-flash", kind: "systemone" },
+    { id: "clef:cloud", name: "System One clef (Cloud)", kind: "systemone" },
   ],
-  serviceKinds: ["llm"],
+  serviceKinds: ["llm", "systemone"],
   features: {
     usage: true,
   },

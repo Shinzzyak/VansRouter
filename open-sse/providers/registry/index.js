@@ -174,6 +174,7 @@ import p173 from "./runcrate.js";
 import p174 from "./river.js";
 import p175 from "./beatapi.js";
 import p176 from "./workbuddy.js";
+import p177 from "./nace.js";
 
 const PROVIDER_REGISTRY = [
   p0,
@@ -352,6 +353,7 @@ const PROVIDER_REGISTRY = [
   p174,
   p175,
   p176,
+  p177,
 ];
 
 export default PROVIDER_REGISTRY;
