@@ -56,6 +56,7 @@ describe("OpenCode Go model catalog", () => {
       "kimi-k2.7-code",
       "kimi-k2.6",
       "kimi-k3",
+      "kimi-k3.1-pro",
       "deepseek-v4-pro",
       "deepseek-v4-flash",
       "deepseek-v4-flash-vision-exp",

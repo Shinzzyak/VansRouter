@@ -32,6 +32,7 @@ export default {
     { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
     { id: "moonshotai/Kimi-K2.6", name: "Kimi K2.6" },
     { id: "moonshotai/Kimi-K2.5", name: "Kimi K2.5" },
+    { id: "moonshotai/Kimi-K3.1-Pro", name: "Kimi K3.1 Pro" },
     { id: "zai-org/GLM-5.1", name: "GLM 5.1" },
     { id: "zai-org/GLM-5", name: "GLM 5" },
     { id: "MiniMaxAI/MiniMax-M2.7", name: "MiniMax M2.7" },
