@@ -25,6 +25,7 @@ import { DevinCliExecutor } from "./devin-cli.js";
 import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 import { FreebuffExecutor } from "./freebuff.js";
 import { ChatgptWebExecutor } from "./chatgpt-web.js";
+import { DeepSeekWebExecutor } from "./deepseek-web.js";
 import ZedExecutor from "./zed.js";
 import TraeExecutor from "./trae.js";
 import WindsurfExecutor from "./windsurf.js";
@@ -70,6 +71,8 @@ const executors = {
   chatgpt: new ChatgptWebExecutor(), // Alias
   c2a: new ChatgptWebExecutor(), // Alias
   chat2api: new ChatgptWebExecutor(), // Alias
+  "deepseek-web": new DeepSeekWebExecutor(),
+  "ds-web": new DeepSeekWebExecutor(), // Alias
   zed: new ZedExecutor(),
   trae: new TraeExecutor(),
   windsurf: new WindsurfExecutor(),
@@ -118,5 +121,6 @@ export { DevinCliExecutor } from "./devin-cli.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 export { FreebuffExecutor } from "./freebuff.js";
 export { ChatgptWebExecutor } from "./chatgpt-web.js";
+export { DeepSeekWebExecutor } from "./deepseek-web.js";
 export { AutoclawExecutor } from "./autoclaw.js";
 export { QwenExecutor } from "./qwen.js";
