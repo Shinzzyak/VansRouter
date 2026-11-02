@@ -46,6 +46,7 @@ import { isModelDeprecation, parseModelDeprecation, DEPRECATION_GONE } from "@/l
 import { recordModelDeprecation } from "@/lib/db/repos/modelDeprecationsRepo.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
+import { getAutoModels } from "open-sse/services/autoRouting.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 // K260 — direct mode gets a second model when the ladder is out of rungs.
 import { nextFallbackModel } from "open-sse/services/modelFallback.js";
@@ -298,11 +299,16 @@ export async function handleChat(request, clientRawRequest = null) {
   // none of the target models have, prepend adapter-pool models that can handle it.
   const requiredCapabilities = detectRequiredCapabilities(body);
 
-  // Check if model is a combo (has multiple models with fallback)
-  const comboModels = await getComboModels(modelStr);
+  // Check if model is a combo (has multiple models with fallback), or an
+  // auto-routing intent (auto:coding|fast|cheap|headroom) which expands into a
+  // ranked candidate list and fails over under the same combo semantics.
+  const explicitCombo = await getComboModels(modelStr);
+  const autoModels = explicitCombo ? null : await getAutoModels(modelStr);
+  const comboModels = explicitCombo || autoModels;
   if (comboModels) {
-    // ACL: check if this combo is allowed for this API key
-    if (!isComboAllowed(apiKeyInfo, modelStr)) {
+    // ACL: named combos are gated here; auto-routes have no named ACL entry,
+    // so skip it (each candidate model is ACL-checked in handleSingleModelChat).
+    if (!autoModels && !isComboAllowed(apiKeyInfo, modelStr)) {
       log.warn("AUTH", `Combo "${modelStr}" not allowed for API key`);
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
     }
@@ -476,9 +482,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     : (request?.signal || externalSignal || null);
   const modelInfo = await getModelInfo(modelStr);
 
-  // If provider is null, this might be a combo name - check and handle
+  // If provider is null, this might be a combo name (or auto-routing intent) - check and handle
   if (!modelInfo.provider) {
-    const comboModels = await getComboModels(modelStr);
+    const comboModels = (await getComboModels(modelStr)) || (await getAutoModels(modelStr));
     if (comboModels) {
       const chatSettings = await getSettings();
       // Check for combo-specific strategy first, fallback to global
