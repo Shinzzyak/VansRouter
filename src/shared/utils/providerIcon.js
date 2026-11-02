@@ -11,6 +11,7 @@ const ICON_ALIASES = {
   "codebuddy-intl": "codebuddy-cn",
   "alims-intl": "alicode-intl",
   "chatgpt-web": "openai",
+  "deepseek-web": "deepseek",
 };
 
 // Runtime only — first 404 remembers id for the whole session
