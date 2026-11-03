@@ -315,22 +315,25 @@ jobs:
           # qoder, cline, godmode injectors, ...). Copy the whole tree into
           # the standalone root so `require("open-sse/...")` resolves from
           # the standalone cwd (same layout as the repo root).
-          cp -r open-sse .next/standalone/open-sse
+          mkdir -p .next/standalone/open-sse
+          cp -r open-sse/. .next/standalone/open-sse/
           # Node bare-specifier resolution only searches node_modules/, so
           # copy open-sse + the @/lib alias into the standalone node_modules.
           # (open-sse internally imports "@/lib/usageDb.js", undici, uuid,
           # node-machine-id — all missing from the standalone trace.)
           # NOTE: real copies, not symlinks — tar does not preserve symlink
           # targets reliably in this artifact.
-          mkdir -p .next/standalone/node_modules/@
-          cp -r open-sse .next/standalone/node_modules/open-sse
+          mkdir -p .next/standalone/node_modules/open-sse
+          cp -r open-sse/. .next/standalone/node_modules/open-sse/
           # @/* = ./src/* (jsconfig) — mirror the whole src tree so @/lib,
           # @/sse, @/models, @/shared etc all resolve at runtime.
+          mkdir -p .next/standalone/node_modules/@
           cp -r src/. .next/standalone/node_modules/@/
           # open-sse/services/tokenRefresh/providers.js imports
           # "../../../src/lib/..." which, from node_modules/open-sse/services/
           # tokenRefresh/, resolves to node_modules/src/lib/... — mirror src.
-          cp -r src .next/standalone/node_modules/src
+          mkdir -p .next/standalone/node_modules/src
+          cp -r src/. .next/standalone/node_modules/src/
           # open-sse/shared/clineAuth.js imports "../../package.json" which,
           # from node_modules/open-sse/shared/, resolves to node_modules/package.json.
           cp package.json .next/standalone/node_modules/package.json
