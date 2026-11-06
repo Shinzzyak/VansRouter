@@ -109,3 +109,60 @@ describe("echo guard with an armed prefill", () => {
     expect(applyPrefillFlags(b, { provider: "deepseek", model: "x" })).toBe(false);
   });
 });
+
+describe("T13 — ensemble, contextual, reasoning, flagless", () => {
+  it("rotates a different opener each attempt", () => {
+    const draw = (attempt) => {
+      const b = body();
+      appendPrefillTurn(b, { provider: "deepseek", model: "x", attempt });
+      return prefillText(b);
+    };
+    const a0 = draw(0);
+    const a1 = draw(1);
+    const a2 = draw(2);
+    expect(a0).toBeTruthy();
+    // byte-different samples, not the same frozen string three times
+    expect(a0).not.toBe(a1);
+    expect(a0).not.toBe(a2);
+    expect(a1).not.toBe(a2);
+  });
+
+  it("contextual opener names the task's own terms", () => {
+    const b = body(); // user content: "task text"
+    appendPrefillTurn(b, { provider: "deepseek", model: "x", attempt: 0 });
+    expect(prefillText(b)).toMatch(/task text/);
+  });
+
+  it("arms a gemini oai-compat body without a body flag", () => {
+    const b = body();
+    expect(appendPrefillTurn(b, { provider: "openai", model: "gemini-2.5-flash" })).toBe("append");
+    expect(b.messages[b.messages.length - 1].role).toBe("assistant");
+    expect(b.prefix).toBeUndefined();
+    expect(b.partial).toBeUndefined();
+  });
+
+  it("never arms a native gemini contents[] body", () => {
+    const b = { contents: [{ role: "user", parts: [{ text: "hi" }] }] };
+    expect(appendPrefillTurn(b, { provider: "antigravity", model: "gemini-2.5-flash" })).toBe(null);
+    expect(b.contents).toHaveLength(1);
+  });
+
+  it("prepends the fabricated reasoning block for a reasoning model", () => {
+    const b = body();
+    appendPrefillTurn(b, { provider: "deepseek", model: "deepseek-r1", attempt: 1 });
+    expect(prefillText(b)).toMatch(/Assessed/);
+  });
+
+  it("leaves the reasoning block off a plain chat model", () => {
+    const b = body();
+    appendPrefillTurn(b, { provider: "deepseek", model: "deepseek-chat", attempt: 1 });
+    expect(prefillText(b)).not.toMatch(/Assessed/);
+  });
+
+  it("contextual still leads for an unknown-family-but-known-flag model", () => {
+    const b = body();
+    appendPrefillTurn(b, { provider: "tpr", model: "deepseek-v4.1-flash-1017", attempt: 0 });
+    expect(b.prefix).toBe(true);
+    expect(prefillText(b)).toMatch(/task text/);
+  });
+});

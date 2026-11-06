@@ -945,7 +945,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         // covers the duplicated opener.
         if (escAttempt > 0) {
           stripPrefillTurn(translatedBody);
-          const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel });
+          const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel, attempt: escAttempt - 1 });
           if (pflag) log?.info?.("BYPASS", `${provider}/${model} | prefill rung armed (${pflag})`);
         }
         if (exploreFar1 && escAttempt === 0) {
@@ -1222,7 +1222,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           // K256 — prefill rung, same rule as the gate path above.
           if (escAttempt > 0) {
             stripPrefillTurn(translatedBody);
-            const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel });
+            const pflag = appendPrefillTurn(translatedBody, { provider, model: upstreamModel, attempt: escAttempt - 1 });
             if (pflag) log?.info?.("BYPASS", `${provider}/${model} | prefill rung armed (${pflag})`);
           }
           if (exploreFar && escAttempt === 0) {
