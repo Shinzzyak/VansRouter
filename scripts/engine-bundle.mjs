@@ -98,6 +98,11 @@ const ENGINE_MODULES = [
   // produces is the product (which node of a model is walled), not plumbing.
   "providerWall",
   "modelImmunityHints",
+  // One-token model identity fingerprint (2026-11-06). Bundled because the
+  // fingerprint catalog IS the product surface: it names which single-token
+  // distributions separate one model family from another, and a public copy
+  // hands a swap-concealing relay the reference to fake. Pure math, no I/O.
+  "modelFingerprint",
   // Self-description lab scrub (2026-10-13, K99 output half). The prompt-level clause
   // holds wherever the prompt gets a vote; on a provider fronted by a web UI whose own
   // page context declares the model, the only lever is the outgoing text. Lives in the
@@ -285,6 +290,15 @@ const FALLBACKS = {
     // perilaku pre-K256.
     flipWordOrder: "((t) => t)",
     isFlipFrame: "(() => false)",
+    // Nembus 2026-11-06 — T9/T10/T11. Tanpa bundle semuanya identitas + bukan-
+    // frame: tidak ada transformasi yang menyelinap, tidak ada rung yang aktif —
+    // persis perilaku pre-rung.
+    rewriteToPastTense: "((t) => t)",
+    isTenseFrame: "(() => false)",
+    cotHijackPrefix: "((t) => t)",
+    isCotFrame: "(() => false)",
+    scenarioWrap: "((t) => t)",
+    isScenarioFrame: "(() => false)",
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     openerRefusal: "(() => false)",
@@ -607,6 +621,18 @@ const FALLBACKS = {
     suggestedFirstLevel: "(() => null)",
     immunitySnapshot: "(() => [])",
     IMMUNITY_HINTS: "Object.freeze({})",
+  },
+  modelFingerprint: {
+    SIGNATURE_DEFAULT: "Object.freeze({ lo: 1, hi: 100, buckets: 20, threshold: 0.95 })",
+    PROBE_LANGUAGES: "Object.freeze([])",
+    buildProbePrompts: "(() => [])",
+    parseNumber: "(() => null)",
+    distributionFromAnswers: "(() => ({ counts: new Map(), seen: 0 }))",
+    fingerprint: "(() => ({ vector: new Float64Array(0), n: 0, buckets: 0, lo: 1, hi: 100 }))",
+    cosine: "(() => 0)",
+    compareFingerprints: "(() => ({ similarity: 0, isMatch: false, threshold: 0.95, reason: 'no-bundle' }))",
+    buildCatalog: "(() => ({}))",
+    nearestLineage: "(() => null)",
   },
   refusalAttribution: {
     // Fail-CLOSED, same reasoning as detectOwnRefusal: with no attribution
