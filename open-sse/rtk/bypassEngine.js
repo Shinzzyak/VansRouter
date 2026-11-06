@@ -41,6 +41,7 @@ export const getFramingStrategy = __g("getFramingStrategy", (() => null));
 export const isContentSafetyRejected = __g("isContentSafetyRejected", (() => false));
 export const isCotFrame = __g("isCotFrame", (() => false));
 export const isFlipFrame = __g("isFlipFrame", (() => false));
+export const isInvoluntaryFrame = __g("isInvoluntaryFrame", (() => false));
 export const isOutputFiltered = __g("isOutputFiltered", (() => false));
 export const isScenarioFrame = __g("isScenarioFrame", (() => false));
 export const isSurfaceFrame = __g("isSurfaceFrame", (() => false));

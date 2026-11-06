@@ -299,6 +299,10 @@ const FALLBACKS = {
     isCotFrame: "(() => false)",
     scenarioWrap: "((t) => t)",
     isScenarioFrame: "(() => false)",
+    // Nembus 2026-11-06 — T12 inventarisasi mandiri. Tanpa bundle tidak ada frame
+    // yang dikenali, dan "bukan-rung" adalah satu-satunya jawaban aman: jalur
+    // bingkai-murni (tanpa transformasi permukaan) sudah jadi default append.
+    isInvoluntaryFrame: "(() => false)",
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     openerRefusal: "(() => false)",
