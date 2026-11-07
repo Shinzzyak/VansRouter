@@ -130,7 +130,7 @@ describe("the split on a real database", () => {
     for (const k of resell) expect(k.source).toBe("resell");
   });
 
-  it("a pre-012 row (source NULL) reads as endpoint", async () => {
+  it("a pre-012 row (source NULL) reads as endpoint — by id AND in the list filter", async () => {
     const { driver, keys } = await load();
     const db = await driver.getAdapter();
 
@@ -140,5 +140,12 @@ describe("the split on a real database", () => {
 
     const read = await keys.getApiKeyById(key.id);
     expect(read.source).toBe("endpoint");
+
+    // The list filter must claim NULL rows too; a plain `WHERE source = 'endpoint'`
+    // would drop them (NULL matches nothing) and blank the endpoint page.
+    const endpointList = await keys.getApiKeys({ source: "endpoint" });
+    expect(endpointList.map((k) => k.id)).toContain(key.id);
+    const resellList = await keys.getApiKeys({ source: "resell" });
+    expect(resellList.map((k) => k.id)).not.toContain(key.id);
   });
 });

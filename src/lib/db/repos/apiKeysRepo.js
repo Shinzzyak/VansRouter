@@ -78,7 +78,12 @@ export async function getApiKeys({ source = null } = {}) {
   const db = await getAdapter();
   const rows =
     source === "resell" || source === "endpoint"
-      ? db.all(`SELECT * FROM apiKeys WHERE source = ? ORDER BY createdAt ASC`, [source])
+      ? // NULL = pre-split row minted through the endpoint path. `=` would drop
+        // it (NULL matches nothing), so endpoint reads must also claim NULL.
+        db.all(
+          `SELECT * FROM apiKeys WHERE source = ? OR (source IS NULL AND ? = 'endpoint') ORDER BY createdAt ASC`,
+          [source, source]
+        )
       : db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
   return rows.map(rowToKey);
 }
