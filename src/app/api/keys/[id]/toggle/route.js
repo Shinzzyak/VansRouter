@@ -4,9 +4,17 @@ import { toggleApiKey } from "@/lib/localDb";
 export const dynamic = "force-dynamic";
 
 // PUT /api/keys/[id]/toggle - Flip isActive, touching nothing else.
-// Dedicated endpoint (9router-go parity) so a UI switch cannot accidentally
-// clear a limit by sending a partial body through the full update path.
+// POST also accepted: the resale UI flips with POST and a 405 there killed the
+// button outright. 9router-go parity keeps PUT; POST is a plain alias.
 export async function PUT(request, { params }) {
+  return handleToggle(request, { params });
+}
+
+export async function POST(request, { params }) {
+  return handleToggle(request, { params });
+}
+
+async function handleToggle(request, { params }) {
   try {
     const { id } = await params;
     const result = await toggleApiKey(id);

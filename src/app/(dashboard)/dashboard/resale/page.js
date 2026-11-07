@@ -165,7 +165,13 @@ export default function ResalePage() {
     run(async () => {
       const body = { quantity: Number(codeForm.quantity) || 1, maxUses: Number(codeForm.maxUses) || 1 };
       if (codeForm.batchName.trim()) body.batchName = codeForm.batchName.trim();
-      if (codeForm.quotaM !== "") body.tokenValue = Math.round(Number(codeForm.quotaM) * 1_000_000);
+      if (codeForm.quotaM !== "") {
+        const quotaNum = Number(codeForm.quotaM);
+        if (!Number.isFinite(quotaNum) || quotaNum <= 0) {
+          throw new Error(`Kuota per kode harus angka. Diterima: "${codeForm.quotaM}"`);
+        }
+        body.tokenValue = Math.round(quotaNum * 1_000_000);
+      }
       if (codeForm.days !== "") body.extendsDays = Number(codeForm.days);
       // The whole policy, not just the token total: a seller selling "2jt token,
       // 60 request per menit" has to be able to say both.
@@ -204,7 +210,15 @@ export default function ResalePage() {
     run(async () => {
       const body = { name: manual.name.trim() };
       if (!body.name) throw new Error("Nama key wajib diisi");
-      if (manual.quotaM !== "") body.tokenBalance = Math.round(Number(manual.quotaM) * 1_000_000);
+      if (manual.quotaM !== "") {
+        const quotaNum = Number(manual.quotaM);
+        if (!Number.isFinite(quotaNum) || quotaNum <= 0) {
+          // "20 juta" / "20.000.000" → NaN → JSON null → key minted unwittingly
+          // unlimited. Loud failure beats a silently wrong key.
+          throw new Error(`Kuota harus angka (contoh: 20 untuk 20 juta). Diterima: "${manual.quotaM}"`);
+        }
+        body.tokenBalance = Math.round(quotaNum * 1_000_000);
+      }
       if (manual.days !== "") body.expiresAt = new Date(Date.now() + Number(manual.days) * 86400000).toISOString();
       const { limits, set } = parseQuota(manual.quota);
       if (set > 0) body.limits = limits;

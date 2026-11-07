@@ -74,6 +74,20 @@ export async function POST(request) {
       }
     }
 
+    // A prepaid balance is the one field that silently degrades: NaN serializes
+    // to JSON null, and null means "unlimited" downstream. Coerce + reject here
+    // so a bad quota can never mint an unbounded key by accident.
+    const rawBalance = pick("tokenBalance");
+    if (rawBalance !== undefined && rawBalance !== null) {
+      const balance = Number(rawBalance);
+      if (!Number.isFinite(balance) || balance <= 0) {
+        return NextResponse.json({ error: "tokenBalance must be a positive number" }, { status: 400 });
+      }
+      // Overwrite both sources: pick() prefers body, the policy spread prefers limits.
+      body.tokenBalance = Math.round(balance);
+      limits.tokenBalance = Math.round(balance);
+    }
+
     const policy = {
       ...limits,
       allowedProviders: pick("allowedProviders"),
