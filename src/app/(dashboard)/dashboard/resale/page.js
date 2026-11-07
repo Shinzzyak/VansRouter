@@ -59,6 +59,23 @@ function fmtQuota(tokens) {
   return `${tokens.toLocaleString("id-ID")} token`;
 }
 
+// One shared brain for the "x juta" fields (code batch + manual mint). Reads raw
+// text, previews the real number live, and screams when it can't be read. Callers
+// use type="text" inputMode="decimal" so "20.000.000" stays visible and rejectable:
+// type="number" sanitizes it to "" -> quotaM "" -> key minted as unlimited (silent).
+function quotaFieldHint(raw, multiplierText = null) {
+  if (raw === "") return { hint: "Kosong = tanpa batas. Contoh: 5 untuk 5 juta.", error: "" };
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { hint: "", error: `Angka tidak terbaca: "${raw}". Contoh benar: 20 untuk 20 juta.` };
+  }
+  const per = n * 1_000_000;
+  const mult = multiplierText !== null && multiplierText !== "" ? Math.max(1, Number(multiplierText) || 0) : null;
+  const total = mult ? per * mult : null;
+  const text = total ? `${fmtQuota(per)} × ${mult} kode = ${fmtQuota(total)} total` : fmtQuota(per);
+  return { hint: `= ${text}`, error: "" };
+}
+
 function remaining(key) {
   if (key.tokenBalance == null) return null;
   return Math.max(0, key.tokenBalance - (key.tokensSpent ?? 0));
@@ -356,13 +373,13 @@ export default function ResalePage() {
           />
           <Input
             label="Kuota per kode (juta token)"
-            type="number"
-            min="0"
-            step="0.5"
+            type="text"
+            inputMode="decimal"
             value={codeForm.quotaM}
             onChange={(e) => setCodeForm({ ...codeForm, quotaM: e.target.value })}
-            placeholder="5"
-            hint="Kosong = tanpa batas token."
+            placeholder="contoh: 5"
+            hint={quotaFieldHint(codeForm.quotaM, codeForm.quantity).hint}
+            error={quotaFieldHint(codeForm.quotaM, codeForm.quantity).error}
           />
           <Input
             label="Masa aktif (hari)"
@@ -581,12 +598,13 @@ export default function ResalePage() {
           />
           <Input
             label="Kuota (juta token)"
-            type="number"
-            min="0"
-            step="0.5"
+            type="text"
+            inputMode="decimal"
             value={manual.quotaM}
             onChange={(e) => setManual({ ...manual, quotaM: e.target.value })}
-            placeholder="kosong = tanpa batas"
+            placeholder="contoh: 20"
+            hint={quotaFieldHint(manual.quotaM).hint}
+            error={quotaFieldHint(manual.quotaM).error}
           />
           <Input
             label="Masa aktif (hari)"

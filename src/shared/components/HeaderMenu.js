@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useTheme } from "@/shared/hooks/useTheme";
-import ChangelogModal from "./ChangelogModal";
+// ChangelogModal drags marked+dompurify (~90KB) into every page's shared chunk;
+// it only ever renders on click, so keep it out of the first-load floor.
+const ChangelogModal = dynamic(() => import("./ChangelogModal"), { ssr: false });
 import { ConfirmModal } from "./Modal";
 
 function MenuItem({ icon, label, onClick, trailing, danger }) {
