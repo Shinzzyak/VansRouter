@@ -27,6 +27,7 @@ export default function APIPageClient() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
+  const [createError, setCreateError] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
@@ -938,12 +939,12 @@ export default function APIPageClient() {
 
   const handleCreateKey = async () => {
     if (!newKeyName.trim()) return;
-
+    setCreateError("");
     try {
       const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName }),
+        body: JSON.stringify({ name: newKeyName.trim() }),
       });
       const data = await res.json();
 
@@ -952,9 +953,14 @@ export default function APIPageClient() {
         await fetchData();
         setNewKeyName("");
         setShowAddModal(false);
+      } else {
+        // A gone-wrong mint used to vanish without a trace: the modal just
+        // closed silently and the user re-clicked, piling up half-forgotten
+        // keys. Surface the router's own error instead.
+        setCreateError(data?.error?.message || data?.error || `HTTP ${res.status}`);
       }
     } catch (error) {
-      console.log("Error creating key:", error);
+      setCreateError(error.message || "Gagal membuat key");
     }
   };
 
@@ -1486,7 +1492,7 @@ export default function APIPageClient() {
             <span className="material-symbols-outlined text-primary">vpn_key</span>
             API Keys
           </h2>
-          <Button icon="add" onClick={() => setShowAddModal(true)}>
+          <Button icon="add" onClick={() => { setCreateError(""); setShowAddModal(true); }}>
             Create Key
           </Button>
         </div>
@@ -1540,7 +1546,7 @@ export default function APIPageClient() {
             </div>
             <p className="text-text-main font-medium mb-1">No API keys yet</p>
             <p className="text-sm text-text-muted mb-4">Create your first API key to get started</p>
-            <Button icon="add" onClick={() => setShowAddModal(true)}>
+            <Button icon="add" onClick={() => { setCreateError(""); setShowAddModal(true); }}>
               Create Key
             </Button>
           </div>
@@ -1673,6 +1679,7 @@ export default function APIPageClient() {
         onClose={() => {
           setShowAddModal(false);
           setNewKeyName("");
+          setCreateError("");
         }}
       >
         <div className="flex flex-col gap-4">
@@ -1682,6 +1689,11 @@ export default function APIPageClient() {
             onChange={(e) => setNewKeyName(e.target.value)}
             placeholder="Production Key"
           />
+          {createError && (
+            <div className="rounded-[10px] border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+              {createError}
+            </div>
+          )}
           <div className="flex gap-2">
             <Button onClick={handleCreateKey} fullWidth disabled={!newKeyName.trim()}>
               Create

@@ -32,10 +32,13 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, limits = {} } = body;
+    const { name = "", limits = {} } = body;
+    const baseName = typeof name === "string" ? name.trim() : "";
 
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    if (!baseName) {
+      // A whitespace-only name slips past `if (!name)` and mints an unsearchable
+      // key, so the string is trimmed and re-checked, not just truthy-checked.
+      return NextResponse.json({ error: "Key name is required" }, { status: 400 });
     }
 
     const pick = (field) => (field in body ? body[field] : limits[field]);
@@ -84,7 +87,7 @@ export async function POST(request) {
 
     const created = [];
     for (let i = 0; i < quantity; i += 1) {
-      const label = quantity > 1 ? `${name} #${i + 1}` : name;
+      const label = quantity > 1 ? `${baseName} #${i + 1}` : baseName;
       created.push(await createApiKey(label, machineId, policy));
     }
 
