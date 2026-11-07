@@ -544,7 +544,7 @@ export default function APIPageClient() {
   const fetchData = async () => {
     try {
       const [keysRes, providersRes, combosRes, nodesRes] = await Promise.all([
-        fetch("/api/keys", { cache: "no-store" }),
+        fetch("/api/keys?source=endpoint", { cache: "no-store" }),
         fetch("/api/providers", { cache: "no-store" }),
         fetch("/api/combos", { cache: "no-store" }),
         fetch("/api/provider-nodes", { cache: "no-store" }),
@@ -564,7 +564,7 @@ export default function APIPageClient() {
               body: JSON.stringify({ name: "Default Key" }),
             });
             if (createRes.ok) {
-              const refreshed = await fetch("/api/keys", { cache: "no-store" });
+              const refreshed = await fetch("/api/keys?source=endpoint", { cache: "no-store" });
               const refreshedData = await refreshed.json();
               if (refreshed.ok) existing = refreshedData.keys || [];
             }

@@ -6,9 +6,12 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 export const dynamic = "force-dynamic";
 
 // GET /api/keys - List API keys
-export async function GET() {
+// ?source=endpoint|resell scopes the list to one dashboard surface. Omitted,
+// it returns every key (the monitoring page wants the full picture).
+export async function GET(request) {
   try {
-    const keys = await getApiKeys();
+    const source = request?.nextUrl?.searchParams?.get("source") || null;
+    const keys = await getApiKeys(source === "resell" || source === "endpoint" ? { source } : {});
     const keysWithUsage = keys.map((k) => ({
       ...k,
       // Masked identifier so a UI can render a row without the secret in hand.
@@ -97,6 +100,12 @@ export async function POST(request) {
       allowedIps: allowedIps === undefined ? null : allowedIps,
       tokenBalance: pick("tokenBalance"),
       personaInject: pick("personaInject"),
+      // Dashboard ownership: the resale manual mint passes source=resell so the
+      // key lands in the Resale page, not the Endpoint page. Any other value
+      // (or none) stays endpoint. No free text: an unknown value silently
+      // falling through to "endpoint" would hide a wrong-row under the wrong
+      // home, so accept only the two known words.
+      source: body.source === "resell" ? "resell" : "endpoint",
     };
 
     const created = [];

@@ -113,6 +113,7 @@ jobs:
           tests/unit/executor-const-guard.test.js
           tests/unit/opencode-muse-spark-thinking.test.js
           tests/unit/thinking-budget-starve.test.js
+          tests/unit/apikey-source-split.test.js
         env:
           NODE_ENV: test
 

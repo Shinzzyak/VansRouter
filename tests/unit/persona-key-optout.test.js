@@ -90,7 +90,9 @@ describe("persona opt-out: kolom DB dan jalur update", () => {
     const cols = colList.split(",").map((s) => s.trim()).filter(Boolean).length;
     const placeholders = ins.split("?").length - 1;
     expect(placeholders).toBe(cols);
-    expect(cols).toBe(28);
+    // 28 → 29 sejak migration 012 menambahkan kolom `source` (resale/endpoint
+    // split). Jumlah ini harus selalu = skema INSERT di apiKeysRepo.
+    expect(cols).toBe(29);
 
     const updStart = src.indexOf("UPDATE apiKeys SET");
     const upd = src.slice(updStart, src.indexOf("`", updStart));

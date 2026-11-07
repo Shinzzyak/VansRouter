@@ -132,7 +132,7 @@ export default function ResalePage() {
 
   const load = useCallback(async () => {
     try {
-      const [k, c, settings] = await Promise.all([api("/api/keys"), api("/api/redeem-codes"), api("/api/settings")]);
+      const [k, c, settings] = await Promise.all([api("/api/keys?source=resell"), api("/api/redeem-codes"), api("/api/settings")]);
       setKeys(k.keys || []);
       setCodes(c.codes || []);
       setPublicBaseUrl(String(settings?.publicBaseUrl || ""));
@@ -225,7 +225,9 @@ export default function ResalePage() {
   // ---- keys --------------------------------------------------------------
   const handleMintManual = () =>
     run(async () => {
-      const body = { name: manual.name.trim() };
+      // Resell-scoped by construction: a manual mint is seller inventory, so it
+      // is tagged resell and never surfaces on the Endpoint page.
+      const body = { name: manual.name.trim(), source: "resell" };
       if (!body.name) throw new Error("Nama key wajib diisi");
       if (manual.quotaM !== "") {
         const quotaNum = Number(manual.quotaM);
@@ -316,42 +318,43 @@ export default function ResalePage() {
 
       {/* Alamat buyer */}
       <Card padding="sm" title="Alamat buat buyer">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-text-muted">Halaman tukar</span>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] text-text-main">
-                {redeemUrl}
-              </code>
-              <Button variant="secondary" size="sm" onClick={() => copy(redeemUrl, "redeem-url")}>
-                {copied === "redeem-url" ? "Tersalin" : "Salin"}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-text-muted">Base URL</span>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] text-text-main">
-                {apiBase}
-              </code>
-              <Button variant="secondary" size="sm" onClick={() => copy(apiBase, "api-base")}>
-                {copied === "api-base" ? "Tersalin" : "Salin"}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-            <Input
-              label="Domain publik"
-              value={publicBaseUrl}
-              onChange={(e) => setPublicBaseUrl(e.target.value)}
-              placeholder="https://router.contoh.com"
-              hint="Kosongkan kalau buyer pakai alamat dashboard ini."
-              className="flex-1"
-            />
-            <Button variant="secondary" className="sm:mt-6" onClick={saveBase} disabled={busy}>
-              Simpan
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] text-text-main">
+              {redeemUrl}
+            </code>
+            <Button variant="secondary" size="sm" onClick={() => copy(redeemUrl, "redeem-url")}>
+              {copied === "redeem-url" ? "Tersalin" : "Salin"}
             </Button>
           </div>
+          <details className="group">
+            <summary className="cursor-pointer select-none text-xs uppercase tracking-wide text-text-muted">
+              Alamat API &amp; domain publik
+            </summary>
+            <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded-[10px] border border-border bg-surface-2 px-3 py-2 font-mono text-[13px] text-text-main">
+                  {apiBase}
+                </code>
+                <Button variant="secondary" size="sm" onClick={() => copy(apiBase, "api-base")}>
+                  {copied === "api-base" ? "Tersalin" : "Salin"}
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                <Input
+                  label="Domain publik"
+                  value={publicBaseUrl}
+                  onChange={(e) => setPublicBaseUrl(e.target.value)}
+                  placeholder="https://router.contoh.com"
+                  hint="Kosongkan kalau buyer pakai alamat dashboard ini."
+                  className="flex-1"
+                />
+                <Button variant="secondary" className="sm:mt-6" onClick={saveBase} disabled={busy}>
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </details>
         </div>
       </Card>
 
@@ -486,11 +489,7 @@ export default function ResalePage() {
       <Card
         padding="sm"
         title={`Key (${liveKeys.length} aktif / ${keys.length} total)`}
-        action={
-          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/dashboard/endpoint"; }}>
-            Atur di Keys
-          </Button>
-        }
+        subtitle="Cuma key dari kode atau bikin manual di halaman ini — key Endpoint gak masuk daftar ini."
       >
         {loading ? (
           <CardSkeleton />

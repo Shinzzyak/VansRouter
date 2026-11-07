@@ -227,6 +227,9 @@ export async function redeemCode(code, { name = null, ip = null } = {}) {
       ? policy.expiresAt ?? null
       : new Date(Date.now() + days * 86400000).toISOString(),
     personaInject: policy.personaInject === false ? false : true,
+    // A buyer-spent code is a resell key: it lives on the Resale page, never
+    // in the Endpoint page's inventory.
+    source: "resell",
     metadata: JSON.stringify({
       redeemCode: normalized,
       batch: preview.batchName,

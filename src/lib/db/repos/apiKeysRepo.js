@@ -68,12 +68,18 @@ function rowToKey(row) {
     allowedIps: parsePermList(row.allowedIps),
     tokenBalance: parseLimitInt(row.tokenBalance),
     tokensSpent: parseLimitInt(row.tokensSpent) ?? 0,
+    // Which dashboard surface owns this key (migration 012). NULL = a row from
+    // before the split: it was minted through the endpoint path, so endpoint.
+    source: row.source === "resell" ? "resell" : "endpoint",
   };
 }
 
-export async function getApiKeys() {
+export async function getApiKeys({ source = null } = {}) {
   const db = await getAdapter();
-  const rows = db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
+  const rows =
+    source === "resell" || source === "endpoint"
+      ? db.all(`SELECT * FROM apiKeys WHERE source = ? ORDER BY createdAt ASC`, [source])
+      : db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
   return rows.map(rowToKey);
 }
 
@@ -119,6 +125,7 @@ export async function buildApiKeyRecord(name, machineId, limits = {}) {
     allowedIps: normalizePerm(limits.allowedIps),
     tokenBalance: parseLimitInt(limits.tokenBalance),
     tokensSpent: parseLimitInt(limits.tokensSpent) ?? 0,
+    source: limits.source === "resell" ? "resell" : "endpoint",
   };
 }
 
@@ -131,8 +138,8 @@ export function insertApiKeyRow(db, apiKey) {
       allowedProviders, allowedCombos, allowedKinds,
       expiresAt, maxTokens, maxTokensDaily, rpm, rph, rpd, tokens5h, tokensWeekly, tokensMonthly, personaInject,
       rateLimitTpm, rateLimitConcurrency, keyDisplay, lastUsedAt, usedCount, metadata,
-      allowedIps, tokenBalance, tokensSpent
-    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      allowedIps, tokenBalance, tokensSpent, source
+    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt,
       serializePermList(apiKey.allowedProviders),
@@ -143,6 +150,7 @@ export function insertApiKeyRow(db, apiKey) {
       apiKey.personaInject ? 1 : 0,
       apiKey.rateLimitTpm, apiKey.rateLimitConcurrency, apiKey.keyDisplay, null, 0, apiKey.metadata,
       serializePermList(apiKey.allowedIps), apiKey.tokenBalance, apiKey.tokensSpent,
+      apiKey.source || "endpoint",
     ]
   );
 }
