@@ -131,26 +131,6 @@ export const TABLES = {
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
-  // Redeem codes — what a buyer actually buys. A seller mints a batch, the
-  // buyer spends one on the public redeem page, and the code's quota and
-  // validity become a brand-new key. Zero rows = the feature is simply unused.
-  redeemCodes: {
-    columns: {
-      id: "TEXT PRIMARY KEY",
-      code: "TEXT UNIQUE NOT NULL",
-      batchName: "TEXT",
-      tokenValue: "INTEGER", // quota granted to the issued key; NULL = unlimited
-      extendsDays: "INTEGER", // validity of the issued key, in days; NULL = no expiry
-      maxUses: "INTEGER DEFAULT 1",
-      usedCount: "INTEGER DEFAULT 0",
-      isActive: "INTEGER DEFAULT 1",
-      createdAt: "TEXT NOT NULL",
-      expiresAt: "TEXT",
-      metadata: "TEXT",
-      limits: "TEXT", // JSON of the key policy this code grants (see shared/utils/keyQuota.js)
-    },
-    indexes: ["CREATE INDEX IF NOT EXISTS idx_redeem_code ON redeemCodes(code)"],
-  },
   // Per-API-key model allowlist (9router-go F-7 parity). One row per
   // (key, model-pattern). Zero rows = no allowlist configured = allow
   // everything, so every key minted before this table existed keeps behaving

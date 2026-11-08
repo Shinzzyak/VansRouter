@@ -13,8 +13,9 @@ import m009 from "./009-add-api-key-model-access.js";
 import m010 from "./010-add-api-key-ip-balance-and-redeem.js";
 import m011 from "./011-add-redeem-code-limits.js";
 import m012 from "./012-add-api-key-source.js";
+import m013 from "./013-drop-redeem-codes.js";
 
-export const MIGRATIONS = [m001, m002, m003, m004, m005, m006, m007, m008, m009, m010, m011, m012].sort((a, b) => a.version - b.version);
+export const MIGRATIONS = [m001, m002, m003, m004, m005, m006, m007, m008, m009, m010, m011, m012, m013].sort((a, b) => a.version - b.version);
 
 export function latestVersion() {
   return MIGRATIONS.length ? MIGRATIONS[MIGRATIONS.length - 1].version : 0;

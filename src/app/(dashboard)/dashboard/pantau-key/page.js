@@ -6,14 +6,14 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Pantau Key — satu layar buat lihat sisa saldo tiap key resale.
 //
-// Resale punya dua jalur terbit: bikin key manual (bawa tokenBalance) dan
-// redeem kode (metadata.redeemCode selalu ditulis saat redeem). Keduanya =
-// key "prepaid" yang saldonya menipis, beda dari key unlimited di endpoint.
-// Halaman ini cuma MEMBACA — key tetap dikelola di Endpoint & Key / Resale.
+// Sebuah key resale = key yang dibuat di halaman Resale: selalu dibawa ke
+// `source = resell` dan biasanya membawa tokenBalance (jatah token). Saldonya
+// menipis, beda dari key unlimited di endpoint. Halaman ini cuma MEMBACA —
+// key tetap dikelola di Endpoint & Key / Resale.
 //
-// ponytail: manual-mint yang cuma bawa masa aktif (tanpa tokenValue) punya
-// tokenBalance null dan tidak ada redeemCode, jadi tak tertangkap filter; itu
-// tak masalah karena memang tak ada saldo token untuk dipantau.
+// ponytail: manual-mint yang cuma bawa masa aktif (tanpa tokenBalance) punya
+// tokenBalance null dan source resell; ditangkap filter via source, tapi tak
+// ada saldo token untuk dipantau.
 
 async function api(path) {
   const res = await fetch(path);
@@ -31,19 +31,10 @@ async function api(path) {
   return data;
 }
 
-function parseMeta(k) {
-  if (!k.metadata) return null;
-  try {
-    return JSON.parse(k.metadata);
-  } catch {
-    return null;
-  }
-}
-
-// Sebuah key tergolong resale kalau dibeli: bawa saldo token (manual) atau
-// diterbitkan dari redeem kode.
+// Sebuah key tergolong resale kalau dibuat di Resale (source resell) atau
+// membawa saldo token.
 function isResale(k) {
-  return k.tokenBalance != null || !!parseMeta(k)?.redeemCode;
+  return k.tokenBalance != null || k.source === "resell";
 }
 
 function remaining(k) {
@@ -222,8 +213,7 @@ export default function PantauKeyPage() {
           <CardSkeleton />
         ) : prepaid.length === 0 ? (
           <p className="text-sm text-text-muted">
-            Belum ada key resale. Key yang kamu buat di Resale (bikin key manual / redeem kode)
-            otomatis tampil di sini.
+            Belum ada key resale. Key yang kamu buat di Resale otomatis tampil di sini.
           </p>
         ) : (
           <>
@@ -239,10 +229,7 @@ export default function PantauKeyPage() {
                 const state = keyState(key);
                 const left = remaining(key);
                 const level = levelOf(key);
-                const meta = parseMeta(key);
-                const source = meta?.redeemCode
-                  ? `kode${meta.batch ? ` · ${meta.batch}` : ""}`
-                  : "manual";
+                const source = key.source === "resell" ? "resale" : "manual";
                 const copyId = `k-${key.id}`;
 
                 return (

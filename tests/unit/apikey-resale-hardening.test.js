@@ -5,8 +5,7 @@
 //   - allowedIps / tokenBalance / tokensSpent survive a write+read round trip
 //   - a prepaid balance actually gates dispatch, and only balanced keys pay for
 //     the accounting write
-//   - a redeem code credits the balance, pushes expiry out, and burns exactly
-//     one of its uses
+//   - a minted key carries its whole quota policy and the limits really bite
 //   - a top-up does NOT resurrect a key the admin switched off
 //
 // Live behaviour still needs the e2e harness (scripts/resale-e2e-live.py); this
@@ -39,22 +38,18 @@ const load = async () => ({
   driver: await import("@/lib/db/driver.js"),
   migrations: await import("@/lib/db/migrations/index.js"),
   keys: await import("@/lib/db/repos/apiKeysRepo.js"),
-  redeem: await import("@/lib/db/repos/redeemCodesRepo.js"),
   usage: await import("@/lib/db/repos/apiKeyUsageRepo.js"),
   details: await import("@/lib/db/repos/requestDetailsRepo.js"),
   mask: await import("@/lib/db/helpers/apiKeyMask.js"),
 });
 
-describe("migration 010 lands the resale columns and the redeem table", () => {
-  it("adds allowedIps/tokenBalance/tokensSpent and creates redeemCodes", async () => {
+describe("migration 010 lands the resale columns", () => {
+  it("adds allowedIps/tokenBalance/tokensSpent", async () => {
     const { driver, migrations } = await load();
     const db = await driver.getAdapter();
 
     const columns = db.all(`PRAGMA table_info(apiKeys)`).map((c) => c.name);
     expect(columns).toEqual(expect.arrayContaining(["allowedIps", "tokenBalance", "tokensSpent"]));
-
-    const tables = db.all(`SELECT name FROM sqlite_master WHERE type='table'`).map((t) => t.name);
-    expect(tables).toContain("redeemCodes");
 
     const stamped = db.get(`SELECT value FROM _meta WHERE key='schemaVersion'`);
     expect(parseInt(stamped.value, 10)).toBe(migrations.latestVersion());
@@ -136,139 +131,6 @@ describe("prepaid balance gates dispatch", () => {
     expect(tooBig.allowed).toBe(false);
     expect(tooBig.reason).toMatch(/too low for this request: 1 of 100 tokens left/);
     expect(usage.checkApiKeyLimits(partialInfo, 1).allowed).toBe(true);
-  });
-});
-
-describe("redeem codes", () => {
-  it("mints unambiguous codes: unique, XXXX-XXXX-XXXX, no 0/O/1/I", async () => {
-    const { redeem } = await load();
-    const codes = await redeem.createRedeemCodes({
-      quantity: 25,
-      batchName: "batch-a",
-      tokenValue: 500,
-      extendsDays: 30,
-    });
-
-    expect(codes).toHaveLength(25);
-    const values = codes.map((c) => c.code);
-    expect(new Set(values).size).toBe(25);
-    for (const value of values) {
-      expect(value).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
-      expect(value).not.toMatch(/[0O1I]/);
-    }
-  });
-
-  it("turns one code into one fresh key carrying the code's quota and validity", async () => {
-    const { keys, redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({
-      quantity: 1,
-      tokenValue: 5_000_000,
-      extendsDays: 30,
-      maxUses: 1,
-    });
-
-    const result = await redeem.redeemCode(code.code, { ip: "203.0.113.9" });
-    expect(result.ok).toBe(true);
-    expect(result.tokens).toBe(5_000_000);
-    expect(result.days).toBe(30);
-    expect(result.usesRemaining).toBe(0);
-
-    // The issued key is a real key: it authenticates, and it carries the quota.
-    expect(result.key.key).toMatch(/^sk-/);
-    expect(await keys.validateApiKey(result.key.key)).not.toBeNull();
-    const stored = await keys.getApiKeyById(result.key.id);
-    expect(stored.tokenBalance).toBe(5_000_000);
-    expect(stored.tokensSpent ?? 0).toBe(0);
-
-    const days = (new Date(result.key.expiresAt).getTime() - Date.now()) / 86400000;
-    expect(days).toBeGreaterThan(29.9);
-    expect(days).toBeLessThan(30.1);
-
-    // Redemption always mints, never reuses a key.
-    const [other] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
-    expect((await redeem.redeemCode(other.code)).key.key).not.toBe(result.key.key);
-  });
-
-  it("accepts a hand-pasted code regardless of case or stray whitespace, and burns it", async () => {
-    const { redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 100, maxUses: 1 });
-
-    const first = await redeem.redeemCode(`  ${code.code.toLowerCase()} `);
-    expect(first.ok).toBe(true);
-
-    const again = await redeem.redeemCode(code.code);
-    expect(again.ok).toBe(false);
-    expect(again.error).toMatch(/already been used/);
-  });
-
-  it("honours maxUses and reports the remaining count", async () => {
-    const { redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10, maxUses: 2 });
-
-    expect((await redeem.redeemCode(code.code)).usesRemaining).toBe(1);
-    expect((await redeem.redeemCode(code.code)).usesRemaining).toBe(0);
-    const third = await redeem.redeemCode(code.code);
-    expect(third.ok).toBe(false);
-    expect(third.error).toMatch(/already been used/);
-  });
-
-  it("refuses unknown, revoked and expired codes", async () => {
-    const { redeem } = await load();
-
-    expect((await redeem.redeemCode("AAAA-BBBB-CCCC")).error).toMatch(/Unknown redeem code/);
-
-    const [revoked] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
-    await redeem.revokeRedeemCode(revoked.id);
-    expect((await redeem.redeemCode(revoked.code)).error).toMatch(/revoked/);
-
-    const [expired] = await redeem.createRedeemCodes({
-      quantity: 1,
-      tokenValue: 10,
-      expiresAt: new Date(Date.now() - 86400000).toISOString(),
-    });
-    expect((await redeem.redeemCode(expired.code)).error).toMatch(/expired/);
-  });
-
-  it("treats an omitted quota or validity as unlimited, not as zero", async () => {
-    const { keys, redeem } = await load();
-
-    const [quotaOnly] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 1_000_000 });
-    const a = await redeem.redeemCode(quotaOnly.code);
-    expect((await keys.getApiKeyById(a.key.id)).tokenBalance).toBe(1_000_000);
-    expect(a.key.expiresAt).toBeNull();
-
-    const [daysOnly] = await redeem.createRedeemCodes({ quantity: 1, extendsDays: 7 });
-    const b = await redeem.redeemCode(daysOnly.code);
-    expect((await keys.getApiKeyById(b.key.id)).tokenBalance).toBeNull();
-    const days = (new Date(b.key.expiresAt).getTime() - Date.now()) / 86400000;
-    expect(days).toBeGreaterThan(6.9);
-    expect(days).toBeLessThan(7.1);
-  });
-
-  it("names the issued key from the buyer, the batch, or a plain default", async () => {
-    const { redeem } = await load();
-
-    const [named] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
-    expect((await redeem.redeemCode(named.code, { name: "budi" })).key.name).toBe("budi");
-
-    const [batched] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10, batchName: "batch-z" });
-    expect((await redeem.redeemCode(batched.code)).key.name).toBe("batch-z");
-
-    const [plain] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 10 });
-    expect((await redeem.redeemCode(plain.code)).key.name).toBe("buyer");
-  });
-
-  it("lists and summarises a batch", async () => {
-    const { redeem } = await load();
-    const batch = await redeem.createRedeemCodes({ quantity: 4, batchName: "batch-b", tokenValue: 50 });
-    await redeem.redeemCode(batch[0].code, { ip: "198.51.100.4" });
-    await redeem.revokeRedeemCode(batch[1].id);
-
-    const listed = await redeem.getRedeemCodes({ batchName: "batch-b" });
-    expect(listed).toHaveLength(4);
-
-    const active = await redeem.getRedeemCodes({ batchName: "batch-b", includeRevoked: false });
-    expect(active.map((c) => c.id)).not.toContain(batch[1].id);
   });
 });
 
@@ -407,62 +269,15 @@ describe("per-key traffic is attributable without storing the key", () => {
   });
 });
 
-// ── The whole quota surface, not just the token total (migration 011) ────────
-// A code is a product. Before this, a code could only say "N tokens, M days";
-// a seller selling "2jt token, 60 request per menit, 3 barengan" had no way to
-// say it, and the buyer's key came out with no rate limits at all.
-describe("a code carries the key's whole policy", () => {
-  it("lands the limits column and stamps the new schema version", async () => {
-    const { driver, migrations } = await load();
-    const db = await driver.getAdapter();
-
-    const columns = db.all(`PRAGMA table_info(redeemCodes)`).map((c) => c.name);
-    expect(columns).toContain("limits");
-
-    const stamped = db.get(`SELECT value FROM _meta WHERE key='schemaVersion'`);
-    expect(parseInt(stamped.value, 10)).toBe(migrations.latestVersion());
-  });
-
-  it("hands the buyer's key every axis the code named", async () => {
-    const { keys, redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({
-      quantity: 1,
-      batchName: "full-quota",
-      tokenValue: 2_000_000,
-      extendsDays: 30,
-      limits: { rpm: 2, rateLimitTpm: 20_000, rateLimitConcurrency: 1, maxTokensDaily: 500_000 },
-    });
-
-    // The blob survives the row round trip, so the seller sees what they sold.
-    const listed = await redeem.getRedeemCodes({ batchName: "full-quota" });
-    expect(listed[0].limits).toMatchObject({
-      rpm: 2,
-      rateLimitTpm: 20_000,
-      rateLimitConcurrency: 1,
-      maxTokensDaily: 500_000,
-    });
-
-    const result = await redeem.redeemCode(code.code);
-    expect(result.ok).toBe(true);
-
-    const info = await keys.validateApiKey(result.key.key);
-    expect(info.tokenBalance).toBe(2_000_000);
-    expect(info.rpm).toBe(2);
-    expect(info.rateLimitTpm).toBe(20_000);
-    expect(info.rateLimitConcurrency).toBe(1);
-    expect(info.maxTokensDaily).toBe(500_000);
-
-    // The buyer-facing slice is quota only — never provider or ACL policy.
-    expect(result.limits).toMatchObject({ rpm: 2, rateLimitTpm: 20_000 });
-    expect(result.limits).not.toHaveProperty("allowedProviders");
-    expect(result.limits).not.toHaveProperty("allowedCombos");
-  });
-
-  it("enforces the axes on the issued key: the rate limit really bites", async () => {
-    const { keys, redeem, usage } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, limits: { rpm: 2 } });
-    const result = await redeem.redeemCode(code.code);
-    const info = await keys.validateApiKey(result.key.key);
+// ── The whole quota surface, not just the token total ────────────────────────
+// Migration 011 let a redeem code carry rate axes; with codes gone, the same
+// claim now pins the direct-mint path: limits written on a resell key persist
+// and the rate limit genuinely bites dispatch.
+describe("a minted resell key carries its whole policy", () => {
+  it("enforces the axes on a minted resell key: the rate limit really bites", async () => {
+    const { keys, usage } = await load();
+    const key = await keys.createApiKey("metered-resell", "machine-1", { source: "resell", rpm: 2 });
+    const info = await keys.validateApiKey(key.key);
 
     expect(usage.checkApiKeyLimits(info, 0).allowed).toBe(true);
     usage.recordApiKeyUsage(info, 0);
@@ -472,53 +287,5 @@ describe("a code carries the key's whole policy", () => {
     const third = usage.checkApiKeyLimits(info, 0);
     expect(third.allowed).toBe(false);
     expect(third.reason).toMatch(/requests per minute/);
-  });
-
-  it("lets tokenValue win over a conflicting limits.tokenBalance", async () => {
-    const { keys, redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({
-      quantity: 1,
-      tokenValue: 1000,
-      limits: { tokenBalance: 999_999, rpm: 5 },
-    });
-    const result = await redeem.redeemCode(code.code);
-    const info = await keys.validateApiKey(result.key.key);
-
-    expect(info.tokenBalance).toBe(1000);
-    expect(info.rpm).toBe(5);
-  });
-
-  it("reads an axis the seller left blank as unlimited, not as zero", async () => {
-    const { keys, redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 500, limits: { rpm: 10 } });
-    const result = await redeem.redeemCode(code.code);
-    const info = await keys.validateApiKey(result.key.key);
-
-    expect(info.rateLimitTpm).toBeNull();
-    expect(info.tokens5h).toBeNull();
-    expect(info.rateLimitConcurrency).toBeNull();
-  });
-
-  it("refuses a code that would carry nothing at all", async () => {
-    const { redeem } = await load();
-    await expect(redeem.createRedeemCodes({ quantity: 1 })).rejects.toThrow(/tokenValue, extendsDays, or limits/);
-  });
-
-  it("keeps a pre-011 code working: tokenValue alone, no policy blob", async () => {
-    const { keys, redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 700, extendsDays: 7 });
-    expect(code.limits).toBeNull();
-
-    const result = await redeem.redeemCode(code.code);
-    const info = await keys.validateApiKey(result.key.key);
-    expect(info.tokenBalance).toBe(700);
-    expect(info.rpm).toBeNull();
-  });
-
-  it("drops unknown axes rather than writing a column that does not exist", async () => {
-    const { redeem } = await load();
-    const [code] = await redeem.createRedeemCodes({ quantity: 1, tokenValue: 100, limits: { rpm: 10, nonsense: 5 } });
-    expect(code.limits.rpm).toBe(10);
-    expect(Object.keys(code.limits)).not.toContain("nonsense");
   });
 });

@@ -95,8 +95,8 @@ export async function getApiKeyById(id) {
 }
 
 // The row-building half of a mint, split out so a caller that must create the
-// key inside its own transaction (a redeem code: burn the code and issue the
-// key atomically) can reuse it instead of re-deriving every default.
+// key inside its own transaction can reuse it instead of re-deriving every
+// default.
 export async function buildApiKeyRecord(name, machineId, limits = {}) {
   if (!machineId) throw new Error("machineId is required");
   const { generateApiKeyWithMachine } = await import("@/shared/utils/apiKey");

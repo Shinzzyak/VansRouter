@@ -237,13 +237,8 @@ export default function MasukClient({ initialAuth }) {
           </div>
         </Card>
 
-        {/* Buyers land on the domain root, which is this page. Give them the
-            one door that is theirs instead of a login they cannot use. */}
         <p className="mt-4 text-center text-xs text-text-muted">
-          Punya kode pembelian?{" "}
-          <a href="/tukar" className="font-medium text-brand-500 underline underline-offset-2">
-            Tukar kode di sini
-          </a>
+          Dapat key dari penjual? Langsung pakai di endpoint.
         </p>
       </div>
     </main>
