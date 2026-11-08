@@ -529,10 +529,31 @@ jobs:
               echo "=== No DB dir at ${DATA_DIR_VAL} yet (first run) ==="
             fi
 
+            # --- PROMPT CACHE BOOST (this instance only) ---------------------
+            # Additive prompt-cache breakpoints for THIS router (cache fix
+            # f59bcd79). Gate read at runtime as settings.enablePromptCacheBoost
+            # OR env CACHE_BOOST=1; sold bundles are untouched (default OFF).
+            # Idempotent: once present it stays across deploys (.env preserved).
+            if ! grep -q '^CACHE_BOOST=' "${DEPLOY}/.env" 2>/dev/null; then
+              printf '\n# prompt cache boost for this instance (see open-sse/utils/cacheBoost.js)\nCACHE_BOOST=1\n' >> "${DEPLOY}/.env"
+              echo "=== CACHE_BOOST=1 appended to ${DEPLOY}/.env (additive cache boost ON) ==="
+            else
+              echo "=== CACHE_BOOST already in .env — leaving as-is ==="
+            fi
+
             echo "=== Restarting PM2 process: ${PM2_NAME} ==="
             export PORT="${PORT:-20128}"
             pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || pm2 start "${DEPLOY}/server.js" --name "${PM2_NAME}" --env production
             pm2 save --force || echo "[warn] pm2 save failed (dump permission) — non-fatal"
+
+            # Runtime env proof — the launcher loads .env at boot, so the live
+            # process must actually carry the flag, not just the file.
+            PM2_ENV_OUT="$(pm2 env "${PM2_NAME}" 2>/dev/null | grep '^CACHE_BOOST=' || true)"
+            if [ -n "${PM2_ENV_OUT}" ]; then
+              echo "✅ Runtime env confirmed: ${PM2_ENV_OUT}"
+            else
+              echo "⚠️ CACHE_BOOST not visible in pm2 env — check launcher's .env loader"
+            fi
 
             echo "=== Health check (PORT=${PORT}) ==="
             sleep 3
