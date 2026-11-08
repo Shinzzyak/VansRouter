@@ -555,7 +555,7 @@ jobs:
 
             # Runtime env proof — after --update-env the exported var must appear
             # in PM2's stored env for the live process.
-            PM2_ENV_OUT="$(pm2 env "${PM2_NAME}" 2>/dev/null | grep '^CACHE_BOOST=' || true)"
+            PM2_ENV_OUT="$(pm2 env "${PM2_NAME}" 2>/dev/null | grep -E '^CACHE_BOOST[:=]' || true)"
             if [ -n "${PM2_ENV_OUT}" ]; then
               echo "✅ Runtime env confirmed: ${PM2_ENV_OUT}"
             else
