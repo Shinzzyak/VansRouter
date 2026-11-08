@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
   tunnelProvider: "cloudflare",
   tailscaleEnabled: false,
   tailscaleUrl: "",
+  wireguardEnabled: false,
+  wireguardProfileName: "",
   // Additive prompt-cache boost for Claude-format requests. Default OFF so sold
   // routers keep byte-identical request bodies until an operator flips it.
   enablePromptCacheBoost: false,

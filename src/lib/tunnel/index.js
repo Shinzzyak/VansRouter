@@ -25,6 +25,16 @@ export {
   isTailscaleReconnecting,
   getTailscaleService,
 } from "./tailscale/manager.js";
+// WireGuard service (global egress)
+export {
+  startWireguard,
+  stopWireguard,
+  getWireguardStatus,
+  readConf,
+  listProfiles,
+  getWireguardService,
+  isWireguardReconnecting,
+} from "./wireguard/manager.js";
 export {
   isTailscaleInstalled,
   isTailscaleRunning,
