@@ -6,7 +6,9 @@ import { getSettings, updateSettings } from "@/lib/localDb";
 
 const execFileP = promisify(execFile);
 const WG_DIR = "/etc/wireguard";
-const SAFE_NAME = /^[a-zA-Z0-9._-]{1,32}$/;
+// Linux interface names are capped at 15 bytes (IFNAMSIZ-1); wg-quick enforces
+// it even for `strip`, so the profile name IS the interface name ceiling.
+const SAFE_NAME = /^[a-zA-Z0-9._-]{1,15}$/;
 
 const svc = {
   cancelToken: { cancelled: false },
@@ -64,6 +66,60 @@ export async function readConf(name) {
   const privateKey = /^PrivateKey\s*=\s*([^\n]+)/im.exec(text)?.[1] || "";
   const peerCount = (text.match(/^\[Peer\]/gm) || []).length;
   return { name, endpoint, address, peerCount, hasPrivateKey: !!privateKey };
+}
+
+export async function importProfile(name, confText) {
+  if (!SAFE_NAME.test(name)) throw new Error("Invalid profile name (a-z A-Z 0-9 . _ - up to 15 chars, Linux interface limit).");
+  if (typeof confText !== "string" || confText.length === 0)
+    throw new Error("Missing config body.");
+  if (confText.length > 64 * 1024)
+    throw new Error("Config too large (max 64KB).");
+
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 15);
+  const finalPath = path.join(WG_DIR, `${safe}.conf`);
+  // Short tmp basename: wg-quick strip parses the basename as an interface name.
+  const tmpPath = `/tmp/wgrt${Date.now() % 100000000}.conf`;
+
+  // Never pass conf content through the shell: write the temp file as the
+  // router uid, validate with wg-quick strip (ground-truth parser via sudo),
+  // and only then copy into the root-only dir. Refuse overwriting anything —
+  // a live tunnel config must never be clobbered by a dashboard import.
+  let alreadyExists = false;
+  try {
+    await run("ls", [finalPath]);
+    alreadyExists = true;
+  } catch { /* not present yet */ }
+  if (alreadyExists)
+    throw new Error(`Profile ${safe} already exists — delete ${safe}.conf first to re-import.`);
+
+  try {
+    fs.writeFileSync(tmpPath, confText, { mode: 0o600 });
+  } catch (e) {
+    throw new Error(`Temp write failed: ${e.message}`);
+  }
+
+  try {
+    const strip = await run("wg-quick", ["strip", tmpPath]);
+    const stripped = strip.stdout;
+    if (!/^\s*\[Interface\]\s*$/m.test(stripped))
+      throw new Error("Not a WireGuard config: missing [Interface].");
+    if (!/^\s*\[Peer\]\s*$/m.test(stripped))
+      throw new Error("Not a WireGuard config: missing [Peer].");
+    if (!/^\s*PrivateKey\s*=/m.test(stripped))
+      throw new Error("Config has no PrivateKey — refusing to import a peerless interface.");
+    await run("cp", [tmpPath, finalPath]);
+    await run("chmod", ["600", finalPath]);
+  } catch (e) {
+    // surface the semantic errors; fall back to raw sudo error text
+    throw new Error(e.message.startsWith("Not a WireGuard") || e.message.startsWith("Config has no") ? e.message : `Import rejected: ${e.stderr || e.message}`);
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch { /* temp already gone */ }
+  }
+
+  console.log(`[WireGuard] imported profile ${safe}`);
+  return readConf(safe);
 }
 
 export async function startWireguard(profileName) {

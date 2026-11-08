@@ -32,6 +32,7 @@ export {
   getWireguardStatus,
   readConf,
   listProfiles,
+  importProfile,
   getWireguardService,
   isWireguardReconnecting,
 } from "./wireguard/manager.js";

@@ -24,6 +24,12 @@ export default function WireGuardCard() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: "", text: "" });
 
+  const [showImport, setShowImport] = useState(false);
+  const [importName, setImportName] = useState("");
+  const [importConf, setImportConf] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState({ type: "", text: "" });
+
   const refresh = useCallback(async () => {
     try {
       const [sRes, pRes] = await Promise.all([
@@ -85,6 +91,37 @@ export default function WireGuardCard() {
     }
   };
 
+  const submitImport = async () => {
+    if (!importName.trim() || !importConf.trim()) {
+      setImportMsg({ type: "error", text: "Name and config body are required." });
+      return;
+    }
+    setImporting(true);
+    setImportMsg({ type: "", text: "" });
+    try {
+      const res = await fetch("/api/tunnel/wireguard-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: importName.trim(), conf: importConf }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      setImportMsg({
+        type: "success",
+        text: `Imported ${data.name} — ${data.endpoint || "no endpoint"}, ${data.peerCount} peer(s).`,
+      });
+      setImportName("");
+      setImportConf("");
+      setShowImport(false);
+      await refresh();
+      setMsg({ type: "success", text: `Profile ${data.name} ready — pick it above and Connect.` });
+    } catch (err) {
+      setImportMsg({ type: "error", text: err.message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const up = status?.up === true;
   const iface = status?.iface;
 
@@ -124,17 +161,65 @@ export default function WireGuardCard() {
               ))}
             </select>
             <p className="text-xs sm:text-sm text-text-muted">
-              Drop <code className="text-text-muted border border-border/50 rounded px-1">wg0.conf</code> into{" "}
-              <code className="text-text-muted border border-border/50 rounded px-1">/etc/wireguard/</code> and pick it here.
+              Drop <code className="text-text-muted border border-border/50 rounded px-1">wg0.conf</code> from your VPN provider
+              into <code className="text-text-muted border border-border/50 rounded px-1">/etc/wireguard/</code>, or import it here.
             </p>
             <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Button onClick={refresh} variant="secondary" disabled={loading} className="w-full sm:w-auto">
                 Refresh
               </Button>
+              <Button onClick={() => setShowImport((v) => !v)} variant="secondary" disabled={loading} className="w-full sm:w-auto">
+                {showImport ? "Hide import" : "Import .conf"}
+              </Button>
               <Button onClick={enable} variant="primary" loading={loading} disabled={!profileName} className="w-full sm:w-auto">
                 Connect
               </Button>
             </div>
+            {showImport && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
+                <input
+                  value={importName}
+                  onChange={(e) => setImportName(e.target.value)}
+                  placeholder="Profile name (e.g. provider-sg)"
+                  disabled={importing}
+                  className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm disabled:opacity-50"
+                />
+                <textarea
+                  value={importConf}
+                  onChange={(e) => setImportConf(e.target.value)}
+                  placeholder="[Interface]&#10;PrivateKey = …&#10;Address = 10.7.0.2/32&#10;&#10;[Peer]&#10;PublicKey = …&#10;Endpoint = vpn.example.com:51820&#10;AllowedIPs = 0.0.0.0/0"
+                  rows={7}
+                  disabled={importing}
+                  className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-mono disabled:opacity-50"
+                />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <Button
+                    onClick={submitImport}
+                    loading={importing}
+                    disabled={!importName.trim() || !importConf.trim()}
+                    className="w-full sm:w-auto"
+                  >
+                    Import
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowImport(false);
+                      setImportMsg({ type: "", text: "" });
+                    }}
+                    variant="secondary"
+                    disabled={importing}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {importMsg.text && (
+                  <p className={`text-xs sm:text-sm ${importMsg.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                    {importMsg.text}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
