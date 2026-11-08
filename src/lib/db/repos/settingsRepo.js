@@ -11,6 +11,9 @@ const DEFAULT_SETTINGS = {
   tunnelProvider: "cloudflare",
   tailscaleEnabled: false,
   tailscaleUrl: "",
+  // Additive prompt-cache boost for Claude-format requests. Default OFF so sold
+  // routers keep byte-identical request bodies until an operator flips it.
+  enablePromptCacheBoost: false,
   stickyRoundRobinLimit: 3,
   providerStrategies: {},
   comboStrategy: "fallback",

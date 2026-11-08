@@ -3,6 +3,7 @@ import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../../config/defaultThinkingS
 import { ROLE, CLAUDE_BLOCK } from "../schema/index.js";
 import { adjustMaxTokens } from "./maxTokens.js";
 import { applyCloaking } from "../../utils/claudeCloaking.js";
+import { applyCacheBoost, isCacheBoostEnabled } from "../../utils/cacheBoost.js";
 import { resolveSessionId } from "../../utils/sessionManager.js";
 import { isValidClaudeSignature } from "../../utils/claudeSignature.js";
 import { PROVIDERS } from "../../providers/index.js";
@@ -13,7 +14,10 @@ import { DEFAULT_MAX_TOKENS } from "../../config/runtimeConfig.js";
 function normalizeMessageContent(msg) {
   const content = msg?.content;
   if (content && typeof content === "object" && !Array.isArray(content)) {
-    delete content.cache_control;
+    // Preserve client cache_control markers: stripping them (as older builds
+    // did) forces providers to re-process the whole prefix every turn and burns
+    // quota 5-10x (see OmniRoute PR #708). capCacheControlBlocks() still caps
+    // the total, so a runaway client marker set cannot overflow the budget.
     msg.content = [content];
   }
   return msg;
@@ -630,6 +634,13 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
   if ((provider === "claude" || provider?.startsWith("anthropic-compatible")) && apiKey) {
     const sid = sessionId || resolveSessionId({ headers: rawHeaders, body, connectionId, scope: "claude" });
     body = applyCloaking(body, apiKey, sid);
+  }
+
+  // Additive cache boost: mark the stable prefix heads so the static system +
+  // tools blocks are cache-read instead of re-processed every turn. Off by
+  // default; never reorders, never overflows the 4-breakpoint budget.
+  if ((provider === "claude" || provider?.startsWith("anthropic-compatible")) && isCacheBoostEnabled()) {
+    body = applyCacheBoost(body);
   }
 
   return body;
