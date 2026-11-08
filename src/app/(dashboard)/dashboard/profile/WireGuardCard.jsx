@@ -30,6 +30,13 @@ export default function WireGuardCard() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState({ type: "", text: "" });
 
+  // Per-pool egress gates (ops/wg-socks-gate.sh) — inventory of local SOCKS5
+  // listeners each egressing through its own tunnel. Collapsed by default.
+  const [gates, setGates] = useState([]);
+  const [gatesInfo, setGatesInfo] = useState(null);
+  const [showGates, setShowGates] = useState(false);
+  const [gatesBusy, setGatesBusy] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
       const [sRes, pRes] = await Promise.all([
@@ -41,10 +48,36 @@ export default function WireGuardCard() {
       setStatus(s);
       setProfiles(p.profiles || []);
       if (s?.settingsEnabled && s.profileName) setProfileName(s.profileName);
+      const gRes = await fetch("/api/tunnel/wireguard-gates");
+      const g = await gRes.json();
+      setGatesInfo({ confExists: g.confExists, scriptExists: g.scriptExists, confPath: g.confPath });
+      setGates(g.gates || []);
     } catch {
       setMsg({ type: "error", text: "Failed to load WireGuard status." });
     }
   }, []);
+
+  const gateAction = async (action) => {
+    setGatesBusy(true);
+    try {
+      const res = await fetch("/api/tunnel/wireguard-gates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gate action failed");
+      setGates(data.gates || []);
+      setMsg({
+        type: "success",
+        text: action === "up" ? "Gates provisioned." : "Gates torn down.",
+      });
+    } catch (err) {
+      setMsg({ type: "error", text: err.message });
+    } finally {
+      setGatesBusy(false);
+    }
+  };
 
   /* eslint-disable react-hooks/set-state-in-effect -- single refresh on mount, controlled by the button elsewhere */
   useEffect(() => {
@@ -253,6 +286,57 @@ export default function WireGuardCard() {
             </div>
           </div>
         )}
+
+        <div className="pt-2 border-t border-border/50 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm sm:text-base">Per-pool egress gates</p>
+              <p className="text-xs sm:text-sm text-text-muted">
+                One tunnel per proxy pool. Point a pool&apos;s proxy URL at a gate&apos;s SOCKS5 address.
+              </p>
+            </div>
+            <Button onClick={() => setShowGates((v) => !v)} variant="secondary" disabled={gatesBusy}>
+              {showGates ? "Hide" : `Gates (${gates.length})`}
+            </Button>
+          </div>
+
+          {showGates && (
+            <div className="flex flex-col gap-2 pt-1">
+              {gatesInfo && gatesInfo.confExists === false && (
+                <p className="text-xs sm:text-sm text-text-muted">
+                  No gates configured. Add <code className="text-text-muted border border-border/50 rounded px-1">name:port:uid</code> rows
+                  to <code className="text-text-muted border border-border/50 rounded px-1">{gatesInfo.confPath}</code> with a matching
+                  profile in <code className="text-text-muted border border-border/50 rounded px-1">/etc/wireguard/</code>, then Provision.
+                </p>
+              )}
+              {gates.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  {gates.map((g) => (
+                    <div key={g.name} className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${g.up ? "bg-green-500" : "bg-red-500"}`} />
+                        <span className="font-medium truncate">{g.name}</span>
+                        <span className="text-text-muted truncate">uid {g.uid}{g.table ? ` → tbl ${g.table}` : ""}</span>
+                      </span>
+                      <code className="text-text-muted border border-border/50 rounded px-1 truncate">{g.socksUrl}</code>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Button onClick={() => gateAction("up")} variant="primary" loading={gatesBusy} className="w-full sm:w-auto">
+                  Provision
+                </Button>
+                <Button onClick={() => gateAction("down")} variant="secondary" disabled={gatesBusy} className="w-full sm:w-auto">
+                  Tear down
+                </Button>
+                <Button onClick={refresh} variant="secondary" disabled={gatesBusy} className="w-full sm:w-auto">
+                  Refresh
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {msg.text && (
           <p

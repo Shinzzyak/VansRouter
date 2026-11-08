@@ -36,6 +36,14 @@ export {
   getWireguardService,
   isWireguardReconnecting,
 } from "./wireguard/manager.js";
+// Per-pool egress gates (ops/wg-socks-gate.sh) — inventory + provision/teardown.
+export {
+  listGates,
+  getGatesStatus,
+  provisionGates,
+  teardownGates,
+  gatesScriptPath,
+} from "./wireguard/gateManager.js";
 export {
   isTailscaleInstalled,
   isTailscaleRunning,
