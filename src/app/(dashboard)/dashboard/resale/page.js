@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Button, Input, Modal, ConfirmModal, Badge, CardSkeleton, KeyQuotaFields } from "@/shared/components";
+import { Card, Button, Input, Modal, ConfirmModal, Badge, CardSkeleton } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { emptyQuota, parseQuota, quotaSummary } from "@/shared/utils/keyQuota";
 
@@ -195,7 +195,7 @@ export default function ResalePage() {
       const { limits, set } = parseQuota(codeForm.quota);
       if (set > 0) body.limits = limits;
       if (body.tokenValue === undefined && body.extendsDays === undefined && set === 0) {
-        throw new Error("Isi kuota token, masa aktif, atau salah satu batas di Kuota lengkap");
+        throw new Error("Isi kuota token, masa aktif, atau salah satu batas (RPM/TPM/request)");
       }
       const data = await api("/api/redeem-codes", {
         method: "POST",
@@ -403,23 +403,37 @@ export default function ResalePage() {
           />
         </div>
 
-        {/* The rest of the quota surface. Collapsed because most batches sell on
-            tokens alone; open it and the code carries every axis you fill in. */}
-        <details className="mt-3 rounded-[10px] border border-border-subtle bg-surface-2 p-3">
-          <summary className="cursor-pointer text-xs font-medium text-text-main">
-            Kuota lengkap (opsional) — request, TPM, barengan, per hari/minggu/bulan
-          </summary>
-          <div className="mt-3">
-            <KeyQuotaFields
-              value={codeForm.quota}
-              onChange={(quota) => setCodeForm({ ...codeForm, quota })}
-              omit={["tokenBalance"]}
-            />
-            <p className="mt-2 text-xs text-text-muted">
-              Kosongkan yang tidak dipakai. Batas ini nempel ke key yang buyer dapat.
-            </p>
-          </div>
-        </details>
+        {/* The buyer-facing panel stops at the request-level axes: rpm (how
+            often), tpm (how much per minute), and a per-request cap. The rest
+            of the matrix (harian/mingguan/bulanan/barengan) is engine-admin
+            territory, not a reseller selling "5 juta token, 30 hari". The
+            keys page still exposes the full surface. */}
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Input
+            label="Request per menit (opsional)"
+            type="number"
+            min="0"
+            value={codeForm.quota.rpm}
+            onChange={(e) => setCodeForm({ ...codeForm, quota: { ...codeForm.quota, rpm: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+          <Input
+            label="Token per menit (opsional)"
+            type="number"
+            min="0"
+            value={codeForm.quota.rateLimitTpm}
+            onChange={(e) => setCodeForm({ ...codeForm, quota: { ...codeForm.quota, rateLimitTpm: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+          <Input
+            label="Token per request (opsional)"
+            type="number"
+            min="0"
+            value={codeForm.quota.maxTokens}
+            onChange={(e) => setCodeForm({ ...codeForm, quota: { ...codeForm.quota, maxTokens: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+        </div>
         <Button className="mt-4 w-full sm:w-auto" onClick={handleMintCodes} disabled={busy} loading={busy}>
           Bikin kode
         </Button>
@@ -614,16 +628,32 @@ export default function ResalePage() {
             placeholder="kosong = tanpa batas"
           />
         </div>
-        <details className="mt-3 rounded-[10px] border border-border-subtle bg-surface-2 p-3">
-          <summary className="cursor-pointer text-xs font-medium text-text-main">Kuota lengkap (opsional)</summary>
-          <div className="mt-3">
-            <KeyQuotaFields
-              value={manual.quota}
-              onChange={(quota) => setManual({ ...manual, quota })}
-              omit={["tokenBalance"]}
-            />
-          </div>
-        </details>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Input
+            label="Request per menit (opsional)"
+            type="number"
+            min="0"
+            value={manual.quota.rpm}
+            onChange={(e) => setManual({ ...manual, quota: { ...manual.quota, rpm: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+          <Input
+            label="Token per menit (opsional)"
+            type="number"
+            min="0"
+            value={manual.quota.rateLimitTpm}
+            onChange={(e) => setManual({ ...manual, quota: { ...manual.quota, rateLimitTpm: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+          <Input
+            label="Token per request (opsional)"
+            type="number"
+            min="0"
+            value={manual.quota.maxTokens}
+            onChange={(e) => setManual({ ...manual, quota: { ...manual.quota, maxTokens: e.target.value } })}
+            placeholder="kosong = tanpa batas"
+          />
+        </div>
         <Button className="mt-3 w-full sm:w-auto" variant="secondary" onClick={handleMintManual} disabled={busy}>
           Bikin key
         </Button>
