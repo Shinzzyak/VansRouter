@@ -667,6 +667,19 @@ jobs:
                 echo "ℹ️ INITIAL_PASSWORD unset in .env — skipping auth probe (DB-backed password out of CI scope)"
               fi
               rm -f "${TARBALL}"
+
+              # WG socks gate provisioner — idempotent; no-ops when no
+              # /etc/wg-socks-gate.conf + /etc/wireguard/*.conf exist on the
+              # host (the product ships with zero gate state). Self-heals the
+              # per-pool dedicated egress listeners after every deploy.
+              # Additive infra only: never touches the router process or engine.
+              if [ -x "${DEPLOY}/ops/wg-socks-gate.sh" ]; then
+                if sudo -n "${DEPLOY}/ops/wg-socks-gate.sh" up; then
+                  echo "✅ WG socks gates provisioned (or none configured)"
+                else
+                  echo "⚠️ WG socks gate provisioner warned — router untouched, check gates manually"
+                fi
+              fi
             else
               echo "❌ Health check failed (HTTP $STATUS)"
               echo "=== Auto-rollback: restoring standalone_old ==="
