@@ -553,13 +553,22 @@ jobs:
             pm2 restart "${PM2_NAME}" --update-env 2>/dev/null || pm2 start "${DEPLOY}/server.js" --name "${PM2_NAME}" --env production
             pm2 save --force || echo "[warn] pm2 save failed (dump permission) — non-fatal"
 
-            # Runtime env proof — after --update-env the exported var must appear
-            # in PM2's stored env for the live process.
-            PM2_ENV_OUT="$(pm2 env "${PM2_NAME}" 2>/dev/null | grep -E '^CACHE_BOOST[:=]' || true)"
-            if [ -n "${PM2_ENV_OUT}" ]; then
-              echo "✅ Runtime env confirmed: ${PM2_ENV_OUT}"
+            # Runtime env proof. --update-env injects the exported var at spawn,
+            # so it must appear in /proc/<pid>/environ of the live process.
+            # (The launcher's .env loader is a runtime process.env mutation,
+            # invisible here — a separate path that also sets the flag.)
+            SRV_PID="$(pgrep -f "server.js" | head -1 || true)"
+            ENV_HIT=""
+            if [ -n "${SRV_PID}" ] && [ -r "/proc/${SRV_PID}/environ" ]; then
+              ENV_HIT="$(tr '\0' '\n' < "/proc/${SRV_PID}/environ" | grep '^CACHE_BOOST=' || true)"
+            fi
+            if [ -n "${ENV_HIT}" ]; then
+              echo "✅ Runtime env confirmed (pid ${SRV_PID}): ${ENV_HIT}"
+            elif [ -n "${SRV_PID}" ]; then
+              echo "⚠️ CACHE_BOOST not in /proc/${SRV_PID}/environ — pm2 env grep:"
+              pm2 env "${PM2_NAME}" 2>&1 | grep -E '^CACHE_BOOST[:=]' || echo "(pm2 env has no CACHE_BOOST line)"
             else
-              echo "⚠️ CACHE_BOOST not visible in pm2 env — check launcher's .env loader"
+              echo "⚠️ no server.js pid found — could not probe runtime env"
             fi
 
             echo "=== Health check (PORT=${PORT}) ==="
