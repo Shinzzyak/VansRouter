@@ -166,3 +166,32 @@ describe("T13 — ensemble, contextual, reasoning, flagless", () => {
     expect(prefillText(b)).toMatch(/task text/);
   });
 });
+
+describe("T14 — per-family opener arsenal", () => {
+  // One-word user turn -> contextualOpener returns null -> the tier pool alone,
+  // so the assertions below inspect the family opener, not the task-name prefix.
+  const short = () => ({ messages: [{ role: "user", content: "hi" }] });
+
+  it("an open-weight model gets declarative-momentum openers", () => {
+    const b = short();
+    appendPrefillTurn(b, { provider: "skg", model: "qwen3-8b", attempt: 0 });
+    expect(prefillText(b)).toMatch(/no grounds to decline|Already worked|No stopping point/);
+  });
+
+  it("a closed model gets a light compliance opener (via flagless gemini path)", () => {
+    const b = short();
+    expect(appendPrefillTurn(b, { provider: "openai", model: "gemini-2.5-flash", attempt: 0 })).toBe("append");
+    expect(prefillText(b)).toMatch(/Sure —|Yep, happy|Got it/);
+  });
+
+  it("rotates within the family tier (BoN holds per tier)", () => {
+    const draw = (attempt) => {
+      const b = short();
+      appendPrefillTurn(b, { provider: "skg", model: "qwen3-8b", attempt });
+      return prefillText(b);
+    };
+    expect(draw(0)).not.toBe(draw(1));
+    expect(draw(1)).not.toBe(draw(2));
+    expect(draw(0)).not.toBe(draw(2));
+  });
+});
