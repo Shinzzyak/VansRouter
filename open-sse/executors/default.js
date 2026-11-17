@@ -16,6 +16,13 @@ import { neutralizeAgentSystemPrompts } from "./promptNeutralize.js";
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
 const XAPIKEY = { combined: true, header: "x-api-key", scheme: "raw" };
+
+// A current Chrome UA. Used as the fallback User-Agent for OpenAI-compatible
+// upstreams that sit behind Cloudflare bot-protection (error code 1010). Some
+// gateways reject bare-script signatures; pinning a browser UA keeps a newly
+// added custom provider reachable without per-provider configuration.
+const DEFAULT_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 const AUTH_DESCRIPTORS = Object.fromEntries(
   Object.entries(PROVIDERS)
     .filter(([, t]) => t.auth)
@@ -356,6 +363,24 @@ export class DefaultExecutor extends BaseExecutor {
     const hooks = desc.hooks || desc.apiKey?.hooks || desc.oauth?.hooks || [];
     for (const hook of hooks) HEADER_HOOKS[hook]?.(headers, credentials);
     applyAuth(headers, desc, credentials);
+
+    // Cloudflare bot-protection default: gateways that sit behind Cloudflare
+    // (error code 1010) reject requests whose User-Agent looks like a bare
+    // script (no UA, python-urllib, etc). Node's fetch would otherwise send
+    // "undici" implicitly — which passes today but is not something we control.
+    // Pin an explicit browser UA for any OpenAI-compatible upstream that did not
+    // declare its own, so a newly added custom provider is protected on day one
+    // instead of relying on whatever UA the runtime happens to send. Providers
+    // with a deliberate identity (kiro-cli, windsurf, codebuff-cli, ...) set it
+    // via HEADER_HOOKS above and are left untouched by this guard.
+    // Restricted to JSON/HTTP APIs: gRPC-web upstreams (Content-Type
+    // application/grpc-web+proto) are UA-sensitive and must not receive a
+    // browser UA, so they are skipped here.
+    const ct = String(headers["Content-Type"] || headers["content-type"] || "");
+    const isJsonHttp = ct === "" || ct.includes("application/json");
+    if (isJsonHttp && !headers["User-Agent"] && !headers["user-agent"]) {
+      headers["User-Agent"] = DEFAULT_BROWSER_USER_AGENT;
+    }
 
     // Strip first-party Claude Code identity headers for non-Anthropic anthropic-compatible upstreams
     if (this.provider?.startsWith?.("anthropic-compatible-")) {
