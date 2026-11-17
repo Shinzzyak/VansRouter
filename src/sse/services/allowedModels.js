@@ -466,7 +466,13 @@ async function fetchCompatibleModelIds(connection) {
     );
     _compatibleModelsCache.set(cacheKey, { ids: result, expiresAt: now + COMPATIBLE_MODELS_CACHE_TTL_MS });
     return result;
-  } catch {
+  } catch (err) {
+    // Graceful degradation: fall back to the last cached model list on any
+    // failure (network, timeout, upstream 403/503, abort). Keep serving the
+    // stale list rather than throwing, but surface the reason — a silent empty
+    // list here used to look like a dead provider when it was only a transient
+    // upstream blip.
+    console.warn(`getCompatibleModels(${cacheKey}) failed, using stale cache: ${err?.message || err}`);
     return _compatibleModelsCache.get(cacheKey)?.ids || [];
   }
 }

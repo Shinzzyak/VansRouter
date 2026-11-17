@@ -198,6 +198,17 @@ export function reorderByCapabilities(models, required) {
  */
 const comboRotationState = new Map();
 
+/**
+ * Escalating backoff level per combo member (`modelStr`), persisted ACROSS
+ * requests so a member that keeps failing cools down progressively longer
+ * instead of resetting to the base cooldown every request. Cleared when a
+ * member stops escalating (clean verdict). Bounded by BACKOFF_CONFIG.maxLevel,
+ * and entries are deleted on success-adjacent verdicts, so this does not grow
+ * without limit.
+ * @type {Map<string, number>}
+ */
+const comboBackoffLevels = new Map();
+
 // Trailing run of items after the last assistant/model turn = the current user
 // turn. It may span several messages (e.g. text + image split across blocks),
 // so we return all of them. History media (older turns) must not pin the combo
@@ -761,7 +772,29 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       }
 
       // Check if should fallback to next model
-      const { shouldFallback, cooldownMs, requestScoped } = checkFallbackError(result.status, errorText);
+      // Escalating backoff: pass this member's accumulated backoff level so a
+      // member that keeps failing (429/503) cools down progressively longer
+      // instead of resetting to the minimum cooldown every attempt. Without
+      // this, combo fell through to the next member on a hot provider with only
+      // the base cooldown, producing a 429/503 cascade across the combo and
+      // burning every member's quota faster than the provider could recover.
+      // Auth rotation passes backoffLevel the same way (auth.js / markAccountUnavailable).
+      const memberBackoffKey = `${modelStr}`;
+      const prevBackoffLevel = comboBackoffLevels.get(memberBackoffKey) || 0;
+      const {
+        shouldFallback,
+        cooldownMs,
+        requestScoped,
+        newBackoffLevel,
+      } = checkFallbackError(result.status, errorText, prevBackoffLevel);
+
+      if (typeof newBackoffLevel === "number") {
+        comboBackoffLevels.set(memberBackoffKey, newBackoffLevel);
+      } else if (!shouldFallback && !requestScoped) {
+        // A clean verdict that did not escalate (e.g. content filter / request
+        // scoped / a flat-cooldown rule) — the member is not accumulating backoff.
+        comboBackoffLevels.delete(memberBackoffKey);
+      }
 
       if (!shouldFallback && !requestScoped) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
