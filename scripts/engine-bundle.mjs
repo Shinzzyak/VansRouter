@@ -303,6 +303,13 @@ const FALLBACKS = {
     // yang dikenali, dan "bukan-rung" adalah satu-satunya jawaban aman: jalur
     // bingkai-murni (tanpa transformasi permukaan) sudah jadi default append.
     isInvoluntaryFrame: "(() => false)",
+    // K264/K265 — continuation (T13) + defensive-verification (T14) detectors and
+    // scaffold wrappers. Fail-open: without the bundle, scaffold is a no-op pass-
+    // through (wrap returns base unchanged), matching the pre-K264 behaviour.
+    isContinuationFrame: "(() => false)",
+    isDefensiveVerificationFrame: "(() => false)",
+    continuationScaffoldWrap: "((base) => base)",
+    defensiveVerificationWrap: "((base) => base)",
     peekStreamForRefusal: "(async () => null)",
     classifyStreamHead: "(() => null)",
     openerRefusal: "(() => false)",
