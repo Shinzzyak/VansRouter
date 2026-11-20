@@ -326,6 +326,19 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display) {
       if (Number.isFinite(budget) && budget > 0) body.thinking_budget = budget;
       break;
     }
+    case "nous": {
+      // Nous inference dialect — nested reasoning:{enabled,effort}. Probed live on
+      // qwen/qwen4-max:free: enable_thinking:false (the qwen family format) and
+      // thinking:{type:"disabled"} are both IGNORED — reasoning still emitted, 16
+      // completion tokens. reasoning:{enabled:false} zeroes it (4 tokens), and
+      // effort:"none" does too. Omit the object entirely to disable, matching the
+      // upstream Go ApplyNousThinking contract.
+      if (none && canDisable) break;
+      // eff is pre-normalized above: a model that cannot disable arrives as minimal.
+      const nousLevel = toLevel(eff);
+      body.reasoning = { enabled: true, effort: nousLevel === "auto" || !nousLevel ? "medium" : nousLevel };
+      break;
+    }
     case "deepseek": {
       if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
       body.thinking = { type: "enabled" };

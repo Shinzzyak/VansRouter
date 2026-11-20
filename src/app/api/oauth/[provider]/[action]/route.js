@@ -356,8 +356,8 @@ export async function POST(request, { params }) {
         // Save to database (legacy kimi-coding OAuth → dual-auth kimi)
         const providerId = provider === "kimi-coding" ? "kimi" : provider;
         const providerSpecificData = proxyPoolId
-          ? { proxyPoolId: String(proxyPoolId).trim() }
-          : undefined;
+          ? { ...(result.tokens.providerSpecificData || {}), proxyPoolId: String(proxyPoolId).trim() }
+          : result.tokens.providerSpecificData;
         const connection = await createProviderConnection({
           provider: providerId,
           authType: "oauth",

@@ -28,6 +28,9 @@ const FORMAT_LEVELS = {
   "gemini-budget": L.base,
   zai: L.onOff,
   qwen: L.base,
+  // Nous accepts none/low/medium/high in reasoning.effort; "none" is honoured by
+  // omitting the reasoning object (see thinkingUnified applyFormat case "nous").
+  nous: L.base,
   kimi: L.levelMax,
   deepseek: L.hiMax,
   commandcode: L.budgetX,

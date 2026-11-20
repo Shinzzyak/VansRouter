@@ -23,6 +23,8 @@ import {
   isAutoclawInsufficientBalance,
   buildAutoclawBalanceExhaustedUpdate,
   isPermanentBalanceExhausted,
+  isPermanentTosViolation,
+  buildTosViolationUpdate,
   detectDailyQuotaExhaustion,
   buildDailyQuotaLockUpdate,
   isProviderInCooldown,
@@ -946,6 +948,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         log.warn("AUTH", `Balance exhausted: deactivated ${credentials.connectionName || credentials.connectionId} (recharge needed, no auto-reset)`);
       } catch (e) {
         log.error("AUTH", `Failed to deactivate account on balance exhausted: ${e.message}`);
+      }
+      // Fall through to fallback behavior — the next account or provider will be tried.
+    } else if (isPermanentTosViolation(result.status, errorText)) {
+      // Permanent TOS ban (ported from 9router-go IsTOSViolation). Upstream skips
+      // backoff and breaker entirely for this case: a ban never expires, so a
+      // timed cooldown just re-selects the connection to fail identically again.
+      // Deactivate and let fallback move to the next account.
+      try {
+        await updateProviderConnection(credentials.connectionId, buildTosViolationUpdate());
+        log.warn("AUTH", `TOS violation: deactivated ${credentials.connectionName || credentials.connectionId} (permanent ban, no auto-reset)`);
+      } catch (e) {
+        log.error("AUTH", `Failed to deactivate account on TOS violation: ${e.message}`);
       }
       // Fall through to fallback behavior — the next account or provider will be tried.
     }

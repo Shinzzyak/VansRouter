@@ -55,6 +55,10 @@ const mocks = vi.hoisted(() => ({
   // pre-change behaviour for these tests: the branch is skipped and the account
   // keeps cycling, which is what the client-abort test asserts.
   isPermanentBalanceExhausted: vi.fn(() => false),
+  // Same reasoning for the 403 TOS branch ported from 9router-go: `false` keeps
+  // these tests on the pre-change path (branch skipped, account keeps cycling).
+  isPermanentTosViolation: vi.fn(() => false),
+  buildTosViolationUpdate: vi.fn(() => ({ isActive: false })),
   getProxyHash: vi.fn(() => "proxy-1"),
   resolveAccountSemaphoreKey: vi.fn(() => null),
   resolveAccountSemaphoreMaxConcurrency: vi.fn(() => null),
@@ -150,6 +154,8 @@ vi.mock("open-sse/services/accountFallback.js", () => ({
   // turns the test into a red that has nothing to do with the behaviour under
   // test. Added with the prepaid-relay balance verdict (2026-09-23).
   isPermanentBalanceExhausted: mocks.isPermanentBalanceExhausted,
+  isPermanentTosViolation: mocks.isPermanentTosViolation,
+  buildTosViolationUpdate: mocks.buildTosViolationUpdate,
 }));
 vi.mock("@/lib/network/connectionProxy", () => ({ getProxyHash: mocks.getProxyHash }));
 vi.mock("../../src/lib/network/connectionProxy.js", () => ({ getProxyHash: mocks.getProxyHash }));

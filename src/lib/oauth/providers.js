@@ -75,6 +75,10 @@ import zed from "./providers/zed.js";
 
 export { extractCodexAccountInfo, fetchKiroProfileArn };
 
+// Nous agent keys are minted for 2h, double the 1h access-token lifetime, so a
+// connection refreshes half as often. Matches 9router-go's min_ttl_seconds.
+const NOUS_AGENT_KEY_MIN_TTL_SECONDS = 7200;
+
 // Inlined from services/xai.js to keep web route bundle free of `open` (CLI-only) package
 let cachedXaiDiscovery = null;
 
@@ -428,6 +432,33 @@ const PROVIDERS = {
   nous: {
     config: NOUS_CONFIG,
     flowType: "device_code",
+    // Trade the 1h access token for a 2h agent key. Ported from 9router-go
+    // internal/proxy/oauth/nous.go RefreshNousAccessToken. The endpoint is real:
+    // probed live, an inference:invoke-only token gets 403 insufficient_scope
+    // naming inference:mint_agent_key, which is why oauth.scope now requests it.
+    // Fail-open — a connection authorized before the scope change keeps working
+    // on its access token instead of losing the login.
+    mintAgentKey: async (accessToken) => {
+      if (!accessToken) return null;
+      try {
+        const res = await fetch(NOUS_CONFIG.agentKeyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ min_ttl_seconds: NOUS_AGENT_KEY_MIN_TTL_SECONDS }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const key = typeof data.api_key === "string" ? data.api_key.trim() : "";
+        return key ? { apiKey: key, keyId: data.key_id || null, expiresAt: data.expires_at || null } : null;
+      } catch {
+        return null;
+      }
+    },
     requestDeviceCode: async (config) => {
       const response = await fetch(config.deviceCodeUrl, {
         method: "POST",
@@ -482,6 +513,9 @@ const PROVIDERS = {
       };
     },
     postExchange: async (tokens) => {
+      // Prefer a long-lived agent key; fall back to the access token when the
+      // grant predates the mint_agent_key scope (403) or the portal is unreachable.
+      const minted = await PROVIDERS.nous.mintAgentKey(tokens.access_token);
       // Best-effort account email from portal API (non-fatal)
       try {
         const res = await fetch("https://portal.nousresearch.com/api/agents", {
@@ -493,19 +527,23 @@ const PROVIDERS = {
         });
         if (res.ok) {
           const j = await res.json();
-          return { user: { email: j?.user?.email || null } };
+          return { user: { email: j?.user?.email || null }, minted };
         }
       } catch {
         /* ignore */
       }
-      return { user: null };
+      return { user: null, minted };
     },
     mapTokens: (tokens, extra) => {
       const expiresAt = tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
         : null;
+      const minted = extra?.minted;
 
       return {
+        // apiKey outranks accessToken in the executor's auth resolver, so the
+        // minted 2h agent key is what actually reaches inference-api.
+        ...(minted?.apiKey ? { apiKey: minted.apiKey } : {}),
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || null,
         expiresIn: tokens.expires_in,
@@ -516,6 +554,8 @@ const PROVIDERS = {
           authMethod: "device_code",
           email: extra?.user?.email || null,
           inferenceBaseUrl: tokens.inference_base_url || null,
+          ...(minted?.keyId ? { nousAgentKeyId: minted.keyId } : {}),
+          ...(minted?.expiresAt ? { nousAgentKeyExpiresAt: minted.expiresAt } : {}),
         },
       };
     },

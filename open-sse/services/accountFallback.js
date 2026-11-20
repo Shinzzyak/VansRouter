@@ -250,6 +250,46 @@ export function isPermanentBalanceExhausted(errorText) {
 }
 
 /**
+ * Detect a permanent terms-of-service rejection.
+ *
+ * Ported from 9router-go internal/connlimit/connlimit.go IsTOSViolation, which
+ * deliberately returns early from RecordFailure: "permanent: #996 handles it,
+ * never charge backoff or breaker". A TOS ban does not expire, so feeding it to
+ * the exponential backoff and circuit breaker only pollutes their state — the
+ * connection is re-selected after every cooldown and fails identically forever.
+ *
+ * Gated on 403 exactly as upstream does: a 429 carrying the same word is a rate
+ * limit, not a ban, and must keep its normal retry path.
+ *
+ * @param {number} status upstream HTTP status
+ * @param {string|object} errorText
+ * @returns {boolean}
+ */
+export function isPermanentTosViolation(status, errorText) {
+  if (status !== 403 || !errorText) return false;
+  const text = typeof errorText === "string"
+    ? errorText
+    : (() => { try { return JSON.stringify(errorText); } catch { return String(errorText); } })();
+  return /tos_violation/i.test(text);
+}
+
+/**
+ * Deactivate a connection banned for a terms-of-service violation.
+ * Distinct from the balance builder so the dashboard reports the real reason
+ * (403/tos_violation) instead of mislabelling a ban as an empty wallet.
+ * @param {Date} [now=new Date()]
+ */
+export function buildTosViolationUpdate(now = new Date()) {
+  return {
+    isActive: false,
+    testStatus: "tos_violation",
+    lastErrorType: "tos_violation",
+    errorCode: 403,
+    tosViolationAt: now.toISOString(),
+  };
+}
+
+/**
  * Detect whether error indicates autoclaw balance exhaustion.
  * @param {string} provider
  * @param {string|object} errorText
