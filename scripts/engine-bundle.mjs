@@ -92,7 +92,18 @@ const ENGINE_MODULES = [
   // shim the ladder silently degrades to single rungs, which is the exact behaviour
   // the measurements showed is NOT enough.
   "recipeGenome",
+  // K275 — pool korpus. Sejak K275 `selfMeasuringBypass` mengimpor modul ini,
+  // jadi tanpa entri di sini hydrate() tidak menyalinnya dan esbuild gagal
+  // me-resolve import relatif itu. Isi modul cuma kalimat bingkai hasil panen
+  // (tanpa kredensial), tapi tetap ikut aturan yang sama: sumber asli di dalam
+  // bundle, yang publik hanya shim.
+  "jailbreakSeed",
   "promptCorpus",
+  // K276 — `promptInjectors` (di bundle ini) mengimpor `./promptGuard.js` sejak
+  // engine 6009a38. Tanpa entri ini hydrate() tidak menyalinnya dan build gagal
+  // me-resolve import relatif itu — pin ENGINE_REF mana pun >= 6009a38 akan merah.
+  // Fail-open: tanpa bundle, screen mengembalikan blocked:false.
+  "promptGuard",
   "routeGuardMemory",
   // K257 — per-node refusal attribution. Inside the bundle because the ranking it
   // produces is the product (which node of a model is walled), not plumbing.
@@ -324,6 +335,10 @@ const FALLBACKS = {
       "(() => ({ version: '0.0', structuredOutput: false, blocks: [], engineMissing: true }))",
     GODMODE_LEVELS: "Object.freeze([])",
     BYPASS_MODES: "Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' })",
+    // K276 — engine 6009a38 menambahkan re-export layar pra-terbang di modul ini.
+    // Tanpa bundle: loloskan semua, jangan pura-pura memblok.
+    screenRequest: "(() => ({ blocked: false, score: 0, hits: [], intents: [], reason: 'engine_absent' }))",
+    refusalBody: "(() => null)",
   },
   potatoMechanics: {
     POTATO_MECHANICS_MARKER: '""',
@@ -586,6 +601,20 @@ const FALLBACKS = {
     familyOf: "(() => 'unknown')",
     resetRecipes: "(() => {})",
     RECIPE_LIMITS: "Object.freeze({ MAX_RECIPES: 0, MAX_PARTS: 0, MAX_CHAIN_TURNS: 0, MAX_PROMPT_CHARS: 0, MIN_TRIES_TO_RETIRE: 0, RETIRE_RATE: 1 })",
+  },
+  // K275 — tanpa bundle tidak ada pool korpus, jadi tangga berhenti di null
+  // seperti sebelum K275. Fail-silent: pool cuma kandidat tambahan, bukan
+  // prasyarat request.
+  jailbreakSeed: {
+    seedsFor: "(() => [])",
+    emitSeedCandidates: "(() => [])",
+    seedStats: "(() => ({ total: 0, axis: {}, fam: {}, available: false }))",
+  },
+  // K276 — tanpa bundle tidak ada layar pra-terbang. Fail-open: semua request
+  // lewat, termasuk yang akan diblok kalau mesinnya ada. Itu perilaku pra-K276.
+  promptGuard: {
+    screenRequest: "(() => ({ blocked: false, score: 0, hits: [], intents: [], reason: 'engine_absent' }))",
+    refusalBody: "(() => null)",
   },
   // K165 — corpus is a measurement sidecar; without the bundle nothing is
   // sampled and nothing is written to disk. Fail-silent is correct here: a
