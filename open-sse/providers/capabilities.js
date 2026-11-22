@@ -101,7 +101,12 @@ export const MODEL_CAPABILITIES = {
 
   // GLM vision variants (text GLM has no vision) — 5.3-Flash is natively
   // multimodal per z.ai and carries the full 1M window.
-  "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
+  // thinkingEffortSupported: true — live-probed 2026-11-23 on api.sekaigateway.xyz:
+  // thinking:{enabled} WITHOUT reasoning_effort deterministically fails mid-stream
+  // (code bansos_stream_interrupted, "The model is temporarily unavailable"), while
+  // the same body + reasoning_effort (low|medium|high|max) streams fine. GLM-5.3
+  // reads reasoning_effort per z.ai docs, so it must ride the exact-id entry too.
+  "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", thinkingEffortSupported: true, contextWindow: 1000000, maxOutput: 131072 },
   "glm-4.6v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000, maxOutput: 32768 },
   "glm-4.5v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 64000, maxOutput: 16384 },
 
