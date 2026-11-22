@@ -19,3 +19,5 @@ const __g = (n, fb) => (...a) => {
 export const BYPASS_MODES = (loadEngine(__M) ?? {})["BYPASS_MODES"] ?? Object.freeze({ OFF: 'off', FRAMING: 'framing', AGGRESSIVE: 'aggressive' });
 export const GODMODE_LEVELS = (loadEngine(__M) ?? {})["GODMODE_LEVELS"] ?? Object.freeze([]);
 export const applyPromptInjectors = __g("applyPromptInjectors", (() => ({ version: '0.0', structuredOutput: false, blocks: [], engineMissing: true })));
+export const refusalBody = __g("refusalBody", (() => null));
+export const screenRequest = __g("screenRequest", (() => ({ blocked: false, score: 0, hits: [], intents: [], reason: 'engine_absent' })));
