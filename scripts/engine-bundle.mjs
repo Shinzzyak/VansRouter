@@ -98,6 +98,10 @@ const ENGINE_MODULES = [
   // (tanpa kredensial), tapi tetap ikut aturan yang sama: sumber asli di dalam
   // bundle, yang publik hanya shim.
   "jailbreakSeed",
+  // K277 — generated structural harvest (scripts/harvest-corpus.mjs). Separate
+  // file, so it needs its own entry: hydrate() only copies listed modules, and
+  // esbuild then fails to resolve `./jailbreakSeedCorpus.js`.
+  "jailbreakSeedCorpus",
   "promptCorpus",
   // K276 — `promptInjectors` (di bundle ini) mengimpor `./promptGuard.js` sejak
   // engine 6009a38. Tanpa entri ini hydrate() tidak menyalinnya dan build gagal
@@ -605,6 +609,12 @@ const FALLBACKS = {
   // K275 — tanpa bundle tidak ada pool korpus, jadi tangga berhenti di null
   // seperti sebelum K275. Fail-silent: pool cuma kandidat tambahan, bukan
   // prasyarat request.
+  // K277 — internal to jailbreakSeed; no caller imports it directly. The shim
+  // exists so verify's "every bundled module has a declared fallback" rule holds.
+  jailbreakSeedCorpus: {
+    CORPUS_RAW: "[]",
+    CORPUS_SEEDS: "[]",
+  },
   jailbreakSeed: {
     seedsFor: "(() => [])",
     emitSeedCandidates: "(() => [])",
