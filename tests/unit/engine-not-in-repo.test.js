@@ -91,6 +91,19 @@ describe("engine is not in the repository", () => {
       // K264/K265 four more: isContinuationFrame, isDefensiveVerificationFrame,
       // continuationScaffoldWrap, defensiveVerificationWrap).
       expect(src.length, `${m}.js should be tiny (a shim, not an implementation)`).toBeLessThan(5000);
+      // Gate: K264/K265 (529e028c) added 4 exports to bypassEngine shim.
+      // Only bypassEngine carries them; a missing export here means regen/regress.
+      if (m === "bypassEngine") {
+        const REQUIRED_BYPASS_EXPORTS = [
+          "continuationScaffoldWrap",
+          "defensiveVerificationWrap",
+          "isContinuationFrame",
+          "isDefensiveVerificationFrame",
+        ];
+        for (const exp of REQUIRED_BYPASS_EXPORTS) {
+          expect(src, `${m}.js must export ${exp}`).toContain(exp);
+        }
+      }
     }
   });
 
