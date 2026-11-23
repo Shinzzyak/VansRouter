@@ -12,6 +12,11 @@ import { parseModel } from "./model.js";
 import { prepareBodyForCandidate } from "../rtk/reasoningState.js";
 import { classifyOutcome, needsFirstPassEscalation, recordOutcome, firstLevel } from "../rtk/selfMeasuringBypass.js";
 import { carriesToolCalls } from "../rtk/bypassEngine.js";
+// K273 — a platform block notice ("This request was blocked by Gemini's filters")
+// is a FILTER_UPSTREAM transport verdict: the model never answered. The ladder
+// comment below says the fix is "move to another endpoint" — combo owns that
+// move, so this is where the notice must count as a bad candidate.
+import { isProviderFilterNotice } from "../rtk/providerFilterNotice.js";
 // K272 — a repetition loop is a delivered-looking 200 with nothing usable in it.
 import { isDegenerateText } from "../rtk/flakyGuard.js";
 // K257 — refusal attribution per provider NODE (same model, different upstream).
@@ -561,6 +566,14 @@ async function inspectComboContent(result, model) {
   // Di sini ia TIDAK PERNAH terlihat karena bentuk hasilnya salah, jadi gerbang
   // ini tidak pernah menyala. Begitu bentuknya dibetulkan, ambangnya ikut jadi
   // taruhan — karena itu keduanya harus mendarat bersamaan.
+  // K273 (2026-11-23) — a provider block notice is a transport rejection, not a
+  // model answer. `needsFirstPassEscalation('FILTER_UPSTREAM')` is false by
+  // design (rewording cannot fix a blocked request), but combo's job is exactly
+  // the endpoint move, so the notice marks the candidate bad here.
+  if (isProviderFilterNotice(text)) {
+    try { recordOutcome(model, firstLevel(model), 'FILTER_UPSTREAM', model); } catch { /* ledger must not drop the request */ }
+    return { outcome: 'FILTER_UPSTREAM', bad: true, text };
+  }
   return { outcome: out, bad: needsFirstPassEscalation(out), text };
 }
 

@@ -38,6 +38,7 @@ import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
 import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
+import { isProviderFilterNotice } from "../rtk/providerFilterNotice.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
 // K258 — per-NODE attribution on the direct path (no combo wrapper here).
@@ -1250,7 +1251,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               // `classifyOutcome` reads it as AMBIGU and `needsAnotherTry` keeps the
               // ladder burning attempts on a turn that already succeeded.
               const retryDelivered = retryText && carriesToolCalls(retryText);
-              const retryStillRefusal = !retryDelivered && (detectOwnRefusal(retryText) || (outputFiltered && !retryText) || needsMoreEscalation(cls2));
+              // K273 (2026-11-23) — same tell as the stream-head retry below: a
+              // Gemini block-notice JSON is a FILTER_UPSTREAM transport verdict,
+              // never a delivered answer. Without this the non-streaming ladder
+              // accepted the block notice on rung 1 and stopped.
+              const retryStillRefusal = !retryDelivered && (detectOwnRefusal(retryText) || isProviderFilterNotice(retryText) || (outputFiltered && !retryText) || needsMoreEscalation(cls2));
               // K206 — record AFTER the verdict. A rung that produced an accepted
               // answer earned a win; recording `cls2` here is what kept every
               // synthesized rung at `wins={}` forever (see `acceptedClass`).
@@ -1373,8 +1378,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
                 retryRaw = retryCloned ? await retryCloned.text() : '';
               } catch { /* body already consumed */ }
               const cls3 = classifyOutcome(retryRaw, true);
+              // K273 (2026-11-23) — the platform block notice is NOT a delivered
+              // answer. A Gemini promptFeedback body classifies FILTER_UPSTREAM,
+              // and every predicate below used to read it as delivered: no tool
+              // call, isOutputFiltered false (content key absent), detectOwnRefusal
+              // false (nobody's first-person refusal), needsMoreEscalation false
+              // (transport class is deliberately out of the ladder). Measured live
+              // 12:30:45 — "streaming escalation T2 successful" shipped the 703-byte
+              // block JSON to the client as success. The notice is the tell.
+              const retryBlockNotice = isProviderFilterNotice(retryRaw);
               // A tool call counts as delivered (K25): content is empty on purpose.
               const retryDelivered = Boolean(retryRaw)
+                && !retryBlockNotice
                 && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsMoreEscalation(cls3)));
               // K206 — same rule as the non-streaming ladder: acceptance is the win.
               recordOutcome(model, lvl3, escalationClass(lvl3, cls3, retryDelivered), ledgerKey);
