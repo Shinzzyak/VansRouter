@@ -72,13 +72,13 @@ describe("antigravity computeRetryDelay hook (D3)", () => {
       "https://daily-cloudcode-pa.googleapis.com",
       "https://cloudcode-pa.googleapis.com",
     ]);
-    expect(antigravity.transport.headers["User-Agent"]).toBe("antigravity/ide/2.1.1 darwin/arm64");
+    expect(antigravity.transport.headers["User-Agent"]).toBe("antigravity/ide/2.8.0 darwin/arm64");
   });
 
   it("buildHeaders matches official IDE stream headers", () => {
     ag._lastSessionId = "sess-123";
     const h = ag.buildHeaders({ accessToken: "tok" }, true);
-    expect(h["User-Agent"]).toBe("antigravity/ide/2.1.1 darwin/arm64");
+    expect(h["User-Agent"]).toBe("antigravity/ide/2.8.0 darwin/arm64");
     expect(h["Content-Type"]).toBe("application/json");
     expect(h["Authorization"]).toBe("Bearer tok");
     expect(h).not.toHaveProperty("X-Machine-Session-Id");
