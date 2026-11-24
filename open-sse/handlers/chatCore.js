@@ -275,7 +275,7 @@ function recordSaverEvent({ tokenSaverEnabled, rtkEnabled, headroomEnabled, rtkS
 // byte the buyer was about to read as an answer is never a refusal again.
 function buildTailRefusalEscalationCallback({ sharedCtx, providerResponse, sourceFormat, targetFormat, providerResponseFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe }) {
   return async function onRefusal(tailText) {
-    const { provider, model, log, translatedBody, credentials, executor, ledgerKey, requestStartTime, apiKeyInfo } = sharedCtx;
+    const { provider, model, log, translatedBody, credentials, executor, ledgerKey, requestStartTime, apiKeyInfo, recordNodeVerdict } = sharedCtx;
     const personaExempt = apiKeyInfo?.personaInject === false;
     log?.warn?.("BYPASS", `${provider}/${model} | streaming TAIL refusal detected (${tailText.length} chars), retrying non-streaming with escalation`);
     recordRefusalMetric("detected", { provider, model, outcome: "NOLAK", path: "stream-tail" });
@@ -1119,7 +1119,7 @@ export async function handleChatCore({body, modelInfo, credentials, log, onCrede
     }
   }
 
-  const sharedCtx = { provider, model, ledgerKey, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary, log, credentials, executor, proxyOptions, upstreamModel };
+  const sharedCtx = { provider, model, ledgerKey, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary, log, credentials, executor, proxyOptions, upstreamModel, recordNodeVerdict };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
@@ -1523,7 +1523,6 @@ export async function handleChatCore({body, modelInfo, credentials, log, onCrede
         const passThroughHeaders = new Headers(providerResponse.headers);
         passThroughHeaders.set(STREAM_VERDICT_HEADER, verdictClass(headVerdict));
         const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: passThroughHeaders });
-        return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
       }
       // Head looks fine — resume piping from the buffered chunk, now guarded by the
       // TAIL gate (K278). The head window cannot see a refusal that arrives after
@@ -1531,9 +1530,10 @@ export async function handleChatCore({body, modelInfo, credentials, log, onCrede
       // of visible text, classifies when upstream closes, and on a refusal runs the
       // SAME non-streaming escalation ladder as the head path, replaying the retry
       // answer as the stream's final frame instead of shipping the refusal bytes.
+      const tailStreamSource = gate?.replayBody ?? reconstructPeekedStream(gate);
       const tailEscalation = buildTailRefusalEscalationCallback({ sharedCtx, providerResponse, sourceFormat, targetFormat, providerResponseFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
-      const tailGated = await createTailRefusalGate(reconstructed.body, { onRefusal: tailEscalation });
-      const tailResponse = new Response(tailGated.stream, { status: reconstructed.status, headers: reconstructed.headers });
+      const tailGated = await createTailRefusalGate(tailStreamSource, { onRefusal: tailEscalation });
+      const tailResponse = new Response(tailGated.stream, { status: providerResponse.status, headers: providerResponse.headers });
       return handleStreamingResponse({ ...sharedCtx, providerResponse: tailResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary, tailEscalation });
       }
     // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
