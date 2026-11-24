@@ -333,6 +333,10 @@ const FALLBACKS = {
     // bundle a stream reads as "no tool call seen", which lands exactly where
     // the pre-bundle router landed: emptiness decided on visible text alone.
     carriesToolCalls: "(() => false)",
+    // K278 — tail gate. Fail-open: without the bundle the tail is not held back
+    // and the stream passes through exactly as the pre-K278 router shipped it.
+    createTailRefusalGate: "(async (body) => ({ stream: body, verdict: 'ok', refusalText: null }))",
+    classifyStreamTail: "(() => 'ok')",
   },
   promptInjectors: {
     applyPromptInjectors:

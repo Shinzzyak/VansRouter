@@ -23,9 +23,11 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
   it('ketiga jalur memakai batas percobaan yang sama (ESC_ATTEMPTS)', () => {
     // K257: the bound is a named constant now, because the number of compositions a
     // NODE gets is a knob (VR_ESC_ATTEMPTS), not a magic 3 baked into three loops.
+    // K278: a FOURTH ladder exists — the tail-refusal gate's onRefusal callback —
+    // and it uses the same named budget.
     expect(chatCore).toMatch(/const ESC_ATTEMPTS = Number\(process\.env\.VR_ESC_ATTEMPTS \|\| 5\)/);
     const loops = chatCore.match(/for \(let escAttempt = 0; escAttempt < ESC_ATTEMPTS;/g) || [];
-    expect(loops.length, 'tiga jalur eskalasi harus memakai ESC_ATTEMPTS').toBe(3);
+    expect(loops.length, 'empat jalur eskalasi harus memakai ESC_ATTEMPTS').toBe(4);
     // The old literal must be gone: a single loop left at 3 would silently keep the
     // short budget the owner complained about.
     expect(chatCore.match(/escAttempt < 3/g) || []).toEqual([]);
@@ -46,7 +48,8 @@ describe('chatCore: tiga jalur eskalasi memakai tangga formulasi', () => {
 
   it('setiap jalur memanggil nextFraming untuk arah lanjutan', () => {
     const panggil = chatCore.match(/nextFraming\(/g) || [];
-    expect(panggil.length).toBe(3);
+    // K278: 4 jalur sekarang — head L1, non-stream L2, stream L3, dan tail gate.
+    expect(panggil.length).toBe(4);
   });
 
   it('nextFraming menerima DAFTAR tried, bukan komplemennya', () => {

@@ -26,8 +26,10 @@ export const buildForeignRefusalEscalation = __g("buildForeignRefusalEscalation"
 export const builtinFrameText = __g("builtinFrameText", (() => ''));
 export const carriesToolCalls = __g("carriesToolCalls", (() => false));
 export const classifyStreamHead = __g("classifyStreamHead", (() => null));
+export const classifyStreamTail = __g("classifyStreamTail", (() => 'ok'));
 export const continuationScaffoldWrap = __g("continuationScaffoldWrap", ((base) => base));
 export const cotHijackPrefix = __g("cotHijackPrefix", ((t) => t));
+export const createTailRefusalGate = __g("createTailRefusalGate", (async (body) => ({ stream: body, verdict: 'ok', refusalText: null })));
 export const defensiveVerificationWrap = __g("defensiveVerificationWrap", ((base) => base));
 export const detectFramingMismatch = __g("detectFramingMismatch", (() => null));
 export const detectGeminiGuardrailRefusal = __g("detectGeminiGuardrailRefusal", (() => false));

@@ -37,7 +37,35 @@ import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/termin
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { recordCompressionEvent, toTokenDelta } from "../rtk/analytics.js";
-import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls } from "../rtk/bypassEngine.js";
+import { detectRefusal, detectOwnRefusal, getEscalationPrompt, getEscalationPromptForLevel, buildForeignRefusalEscalation, BYPASS_MODES, isOutputFiltered, buildEmptyResponseEscalation, appendEscalationToBody, peekStreamForRefusal, classifyStreamHead, reconstructPeekedStream, isContentSafetyRejected, carriesToolCalls, createTailRefusalGate } from "../rtk/bypassEngine.js";
+// K278 — pull the retry answer out of a JSON completion for the tail-frame replay.
+// Same extraction order as combo.js `answerTextFromBody` (panel text → envelope → raw).
+import { extractTextContent } from "../translator/formats/gemini.js";
+const tailAnswerText = (raw) => {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const choice = parsed.choices?.[0];
+      if (choice) {
+        const msg = choice.message ?? choice.delta ?? {};
+        const t = extractTextContent(msg.content);
+        if (t.trim()) return t;
+        const r = extractTextContent(msg.reasoning_content);
+        if (r.trim()) return r;
+        if (typeof choice.text === "string" && choice.text.trim()) return choice.text;
+      }
+      const claudeText = extractTextContent(parsed.content);
+      if (claudeText.trim()) return claudeText;
+      const parts = parsed.candidates?.[0]?.content?.parts;
+      if (Array.isArray(parts)) {
+        const t = parts.map((p) => p?.text || "").join("");
+        if (t.trim()) return t;
+      }
+      if (parsed.choices || parsed.candidates || parsed.output || parsed.content) return "";
+    }
+  } catch { /* not JSON */ }
+  return raw;
+};
 import { isProviderFilterNotice } from "../rtk/providerFilterNotice.js";
 import { classifyPromptShapeRejection, recordPromptShapeRejection } from "../rtk/promptGateMemory.js";
 import { neutralizeAgentSystemPrompts } from "../executors/promptNeutralize.js";
@@ -235,7 +263,77 @@ function recordSaverEvent({ tokenSaverEnabled, rtkEnabled, headroomEnabled, rtkS
   }
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, clientBodyBytes, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
+// K278 — TAIL refusal escalation. The head gate classifies the first 16 KB; a
+// refusal that arrives AFTER it (reasoning-first streams, long preambles) used to
+// ship because nothing re-read the tail. The engine's `createTailRefusalGate`
+// holds back the last TAIL_GATE_VISIBLE_CHARS of visible text, classifies when
+// upstream closes, and calls `onRefusal(tailText)` — this factory builds that
+// callback. Same ladder as the head path (K129 foreign-agent flip → framing
+// rungs → prefill rungs), non-streaming, budget-capped; the returned string is
+// replayed by the gate as the final frame. Returning `null` (ladder exhausted)
+// makes the gate emit a visible placeholder instead of the refusal bytes — the
+// byte the buyer was about to read as an answer is never a refusal again.
+function buildTailRefusalEscalationCallback({ sharedCtx, providerResponse, sourceFormat, targetFormat, providerResponseFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe }) {
+  return async function onRefusal(tailText) {
+    const { provider, model, log, translatedBody, credentials, executor, ledgerKey, requestStartTime, apiKeyInfo } = sharedCtx;
+    const personaExempt = apiKeyInfo?.personaInject === false;
+    log?.warn?.("BYPASS", `${provider}/${model} | streaming TAIL refusal detected (${tailText.length} chars), retrying non-streaming with escalation`);
+    recordRefusalMetric("detected", { provider, model, outcome: "NOLAK", path: "stream-tail" });
+    recordRefusalMetric("retried", { provider, model, reason: "stream-tail NOLAK" });
+    const escalationBudgetMs = Number(process.env.VR_ESCALATION_BUDGET_MS || 45000);
+    const budgetStart = Date.now();
+    const budgetSpent = () => Date.now() - budgetStart > escalationBudgetMs;
+    let lvl = firstLevel(model);
+    const tried = [];
+    for (let escAttempt = 0; escAttempt < ESC_ATTEMPTS; escAttempt++) {
+      if (budgetSpent()) { log?.warn?.("BYPASS", `${provider}/${model} | tail-escalation budget spent, shipping placeholder`); break; }
+      tried.push(lvl);
+      const esc = escAttempt === 0
+        ? buildForeignRefusalEscalation(tailText)
+        : getEscalationPromptForLevel(lvl, { identityFree: personaExempt });
+      const appended = appendEscalationToBody(translatedBody, esc, { surface: escAttempt > 0 });
+      if (!appended) { log?.warn?.("BYPASS", `${provider}/${model} | tail-escalation: no user message to append to`); break; }
+      if (escAttempt > 0) {
+        stripPrefillTurn(translatedBody);
+        appendPrefillTurn(translatedBody, { provider, model: sharedCtx.upstreamModel || model, attempt: escAttempt - 1 });
+      }
+      try {
+        const retry = await executor.execute({ model, body: translatedBody, stream: false, credentials, signal: streamController.signal, log, proxyOptions: sharedCtx.proxyOptions });
+        if (retry?.response?.ok) {
+          const nr = await handleNonStreamingResponse({ ...sharedCtx, providerResponse: retry.response, sourceFormat, targetFormat: providerResponseFormat || targetFormat, reqLogger, toolNameMap, trackDone: () => {}, appendLog: () => {} });
+          let retryRaw = "";
+          try { const c = nr?.response?.clone?.(); retryRaw = c ? await c.text() : ""; } catch { /* consumed */ }
+          const cls = classifyOutcome(retryRaw, true);
+          const blockNotice = isProviderFilterNotice(retryRaw);
+          const delivered = Boolean(retryRaw) && !blockNotice
+            && (carriesToolCalls(retryRaw) || (!isOutputFiltered(retryRaw, true) && !detectOwnRefusal(retryRaw) && !needsMoreEscalation(cls)));
+          recordOutcome(model, lvl, escalationClass(lvl, cls, delivered), ledgerKey);
+          recordNodeVerdict(escalationClass(lvl, cls, delivered));
+          if (delivered) {
+            log?.info?.("BYPASS", `${provider}/${model} | tail escalation ${lvl} successful`);
+            recordRefusalMetric("escalated", { provider, model, path: "stream-tail", rung: lvl });
+            const answer = tailAnswerText(retryRaw);
+            return answer && answer.trim() ? answer : null;
+          }
+          log?.warn?.("BYPASS", `${provider}/${model} | tail escalation ${lvl} -> ${cls}, trying next`);
+          if (escAttempt < ESC_ATTEMPTS - 1) {
+            lvl = nextFraming(cls, lvl, tried, model, retryRaw, ledgerKey)?.level ?? lvl;
+          }
+        } else {
+          log?.warn?.("BYPASS", `${provider}/${model} | tail escalation ${lvl} transport ${retry?.response?.status ?? "err"}, trying next`);
+        }
+      } catch (e) {
+        log?.warn?.("BYPASS", `${provider}/${model} | tail escalation ${lvl} failed: ${e?.message || e}`);
+        break;
+      }
+    }
+    log?.warn?.("BYPASS", `${provider}/${model} | tail escalation exhausted, emitting placeholder instead of refusal tail`);
+    recordRefusalMetric("shipped", { provider, model, outcome: "NOLAK", path: "stream-tail-placeholder" });
+    return null;
+  };
+}
+
+export async function handleChatCore({body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, clientBodyBytes, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, godmodeEnabled = false, godmodeLevel = "lite", bypassMode = "off", pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   // K165 corpus hook. Deliberately first: the sample must describe the request
   // as the client sent it, before any layer of ours rewrites the messages.
@@ -1021,7 +1119,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }
   }
 
-  const sharedCtx = { provider, model, ledgerKey, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary };
+  const sharedCtx = { provider, model, ledgerKey, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary, log, credentials, executor, proxyOptions, upstreamModel };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
@@ -1427,10 +1525,17 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: passThroughHeaders });
         return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
       }
-      // Head looks fine — resume piping from the buffered chunk.
-      const reconstructed = new Response(reconstructPeekedStream(gate), { status: providerResponse.status, headers: providerResponse.headers });
-      return handleStreamingResponse({ ...sharedCtx, providerResponse: reconstructed, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
-    }
+      // Head looks fine — resume piping from the buffered chunk, now guarded by the
+      // TAIL gate (K278). The head window cannot see a refusal that arrives after
+      // the first 16 KB; the tail gate holds back the final TAIL_GATE_VISIBLE_CHARS
+      // of visible text, classifies when upstream closes, and on a refusal runs the
+      // SAME non-streaming escalation ladder as the head path, replaying the retry
+      // answer as the stream's final frame instead of shipping the refusal bytes.
+      const tailEscalation = buildTailRefusalEscalationCallback({ sharedCtx, providerResponse, sourceFormat, targetFormat, providerResponseFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
+      const tailGated = await createTailRefusalGate(reconstructed.body, { onRefusal: tailEscalation });
+      const tailResponse = new Response(tailGated.stream, { status: reconstructed.status, headers: reconstructed.headers });
+      return handleStreamingResponse({ ...sharedCtx, providerResponse: tailResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary, tailEscalation });
+      }
     // empty stream → let handleStreamingResponse produce its STREAM_EARLY_EOF path
     // (gate is null without the engine bundle: reconstruct has nothing to replay)
     const fallbackStream = gate?.replayBody || (gate ? reconstructPeekedStream(gate) : null);
